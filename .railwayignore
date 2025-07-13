@@ -1,10 +1,7 @@
 __MACOSX/
 *.log
 .git/
-node_modules/
 venv/
 __pycache__/
 *.pyc
-.DS_Store
-learningplatform_nowy 2/frontend/
-learningplatform_nowy 2/node_modules/ 
+.DS_Store 
