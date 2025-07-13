@@ -1,0 +1,12 @@
+[build]
+builder = "nixpacks"
+
+[deploy]
+startCommand = "cd learningplatform_nowy\ 2/backend && python manage.py migrate && python manage.py runserver 0.0.0.0:$PORT"
+healthcheckPath = "/"
+healthcheckTimeout = 300
+restartPolicyType = "on_failure"
+
+[[services]]
+name = "django-backend"
+sourceDir = "learningplatform_nowy 2/backend" 

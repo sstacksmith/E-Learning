@@ -1,0 +1,1 @@
+web: cd learningplatform_nowy\ 2/backend && python manage.py migrate && python manage.py runserver 0.0.0.0:$PORT 
