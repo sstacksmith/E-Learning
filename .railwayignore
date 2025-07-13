@@ -1,0 +1,8 @@
+__MACOSX/
+*.log
+.git/
+node_modules/
+venv/
+__pycache__/
+*.pyc
+.DS_Store 
