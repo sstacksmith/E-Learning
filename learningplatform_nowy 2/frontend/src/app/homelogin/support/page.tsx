@@ -113,7 +113,9 @@ export default function FAQPage() {
           {faqs.map((faq, idx) => (
             <div
               key={idx}
-              ref={el => (faqRefs.current[idx] = el)}
+              ref={(el) => {
+                faqRefs.current[idx] = el;
+              }}
               className="border border-gray-200 rounded-lg overflow-hidden bg-gray-50"
             >
               <button

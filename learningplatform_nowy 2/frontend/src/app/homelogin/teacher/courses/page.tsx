@@ -145,9 +145,9 @@ export default function TeacherCourses() {
       setSuccess('Course created successfully!');
       setNewCourse({ title: '', description: '', year_of_study: 1, subject: SUBJECTS[0], links: [''], pdfs: [], pdfUrls: [] });
       fetchCourses();
-    } catch (err) {
+    } catch (err: any) {
       console.error("Course creation error:", err);
-      setError(`Failed to create course: ${err.message}`);
+      setError(`Failed to create course: ${err.message || 'Unknown error'}`);
       setUploading(false);
     }
   };

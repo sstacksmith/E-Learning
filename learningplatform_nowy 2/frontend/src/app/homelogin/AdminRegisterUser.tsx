@@ -7,6 +7,7 @@ function AdminRegisterUserContent() {
   const { user, register } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [displayName, setDisplayName] = useState("");
   const [role, setRole] = useState<"student" | "teacher" | "admin">("student");
   const [message, setMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -19,7 +20,7 @@ function AdminRegisterUserContent() {
     e.preventDefault();
     setMessage("");
     setIsSubmitting(true);
-    const ok = await register(email, password, role);
+    const ok = await register(email, password, displayName, role);
     setMessage(ok ? "Użytkownik zarejestrowany!" : "Błąd rejestracji.");
     setIsSubmitting(false);
   };
@@ -37,6 +38,14 @@ function AdminRegisterUserContent() {
           className="w-full px-4 py-2 border border-gray-300 rounded"
         />
         <input
+          type="text"
+          placeholder="Imię i nazwisko"
+          value={displayName}
+          onChange={e => setDisplayName(e.target.value)}
+          required
+          className="w-full px-4 py-2 border border-gray-300 rounded"
+        />
+        <input
           type="password"
           placeholder="Hasło"
           value={password}
@@ -46,7 +55,7 @@ function AdminRegisterUserContent() {
         />
         <select
           value={role}
-          onChange={e => setRole(e.target.value as any)}
+          onChange={e => setRole(e.target.value as "student" | "teacher" | "admin")}
           className="w-full px-4 py-2 border border-gray-300 rounded"
         >
           <option value="student">Uczeń</option>

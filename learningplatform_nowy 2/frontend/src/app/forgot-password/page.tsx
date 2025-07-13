@@ -1,6 +1,6 @@
 "use client";
 import React, { useState } from "react";
-import { getAuth, sendPasswordResetEmail } from "firebase/auth";
+import { sendPasswordResetEmail } from "firebase/auth";
 import { auth } from "../../config/firebase";
 import { useRouter } from "next/navigation";
 
@@ -19,8 +19,10 @@ export default function ForgotPasswordPage() {
     try {
       await sendPasswordResetEmail(auth, email);
       setMessage("Link do resetowania hasła został wysłany na podany adres e-mail.");
-    } catch (err: any) {
-      setError("Nie udało się wysłać linku. Sprawdź adres e-mail lub spróbuj ponownie później.");
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError("Nie udało się wysłać linku. Sprawdź adres e-mail lub spróbuj ponownie później.");
+      }
     } finally {
       setLoading(false);
     }

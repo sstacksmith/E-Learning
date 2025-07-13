@@ -101,6 +101,8 @@ function TeacherCourseDetailContent() {
   // Dodaj nową deklarację sections
   const [sections, setSections] = useState<any[]>([]);
   const [newSection, setNewSection] = useState<{name: string, type: string}>({name: '', type: 'material'});
+  const [editingSectionId, setEditingSectionId] = useState<number | null>(null);
+  const [editSection, setEditSection] = useState<any>(null);
 
   // Fetch students from Firestore
   useEffect(() => {
@@ -174,7 +176,7 @@ function TeacherCourseDetailContent() {
         const courseDoc = await getDoc(doc(db, "courses", String(courseId)));
         if (courseDoc.exists()) {
           const data = courseDoc.data();
-          setCourse(data);
+          setCourse(data as any);
           setSections(data.sections || []);
           setBannerUrl(data.bannerUrl || "");
         }
@@ -215,7 +217,7 @@ function TeacherCourseDetailContent() {
       const courseDoc = await getDoc(doc(db, "courses", String(courseId)));
       if (courseDoc.exists()) {
         const data = courseDoc.data();
-        setCourse(data);
+        setCourse(data as any);
         setSections(data.sections || []);
         setBannerUrl(data.bannerUrl || "");
       }
@@ -356,7 +358,11 @@ function TeacherCourseDetailContent() {
     if (!window.confirm('Czy na pewno chcesz usunąć tę sekcję?')) return;
     const newSections = sections.filter(s => s.id !== sectionId);
     setSections(newSections);
-    updateFirestoreCourse({ sections: newSections });
+    // On any change to sections or banner, update Firestore
+    if (courseId) {
+      const courseRef = doc(db, "courses", String(courseId));
+      updateDoc(courseRef, { sections: newSections });
+    }
   };
 
   const handleDeleteContent = async (sectionId: number, contentId: number) => {
@@ -367,7 +373,11 @@ function TeacherCourseDetailContent() {
         : s
     );
     setSections(newSections);
-    updateFirestoreCourse({ sections: newSections });
+    // On any change to sections or banner, update Firestore
+    if (courseId) {
+      const courseRef = doc(db, "courses", String(courseId));
+      updateDoc(courseRef, { sections: newSections });
+    }
   };
 
   // Add loading and auth checks at the top
@@ -497,11 +507,4 @@ export default function TeacherCourseDetail() {
       <TeacherCourseDetailContent />
     </Providers>
   );
-}
-
-// On any change to sections or banner, update Firestore
-function updateFirestoreCourse(updates: any) {
-  if (!courseId) return;
-  const courseRef = doc(db, "courses", String(courseId));
-  updateDoc(courseRef, updates);
 } 

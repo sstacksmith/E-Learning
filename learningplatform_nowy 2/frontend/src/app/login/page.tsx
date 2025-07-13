@@ -5,9 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Notification from '@/components/Notification';
 import { useAuth } from '@/context/AuthContext';
-import { signInWithEmailAndPassword } from "firebase/auth";
-import { getDoc, doc } from "firebase/firestore";
-import { auth, db } from "@/config/firebase";
+import { auth } from "@/config/firebase";
 import SocialLoginButtons from '@/components/Auth/SocialLoginButtons';
 import Providers from '@/components/Providers';
 
@@ -25,7 +23,7 @@ function LoginPageContent() {
     message: string;
   } | null>(null);
   const [firebaseError, setFirebaseError] = useState("");
-  const [socialLoginError, setSocialLoginError] = useState<string | null>(null);
+
 
   // Load data from localStorage on first render
   useEffect(() => {
@@ -72,7 +70,7 @@ function LoginPageContent() {
     setIsSubmitting(true);
     
     // Basic client-side validation
-    let tempErrors: {[key: string]: string} = {};
+    const tempErrors: {[key: string]: string} = {};
     if (!email) tempErrors.email = "Username or email is required";
     if (!password) tempErrors.password = "Password is required";
     
@@ -98,14 +96,14 @@ function LoginPageContent() {
     try {
       await loginWithApproval(email, password);
       router.push("/homelogin");
-    } catch (err: any) {
-      setFirebaseError(err.message);
+    } catch (err: unknown) {
+      setFirebaseError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleSocialLoginSuccess = (user: any) => {
+  const handleSocialLoginSuccess = (user: unknown) => {
     console.log('handleSocialLoginSuccess called, user:', user);
     router.push('/homelogin');
   };
@@ -218,7 +216,7 @@ function LoginPageContent() {
           
           <div className="mt-6 sm:mt-8 text-center">
             <p className="text-sm text-gray-600">
-              Don't have an account?{" "}
+              Don&apos;t have an account?{" "}
               <Link href="/register" className="text-[#4067EC] hover:underline font-semibold">
                 Sign up
               </Link>

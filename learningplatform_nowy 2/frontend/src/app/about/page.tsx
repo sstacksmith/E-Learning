@@ -30,7 +30,7 @@ export default function AboutPage() {
           </div>
           
           <nav className="hidden md:flex items-center space-x-6">
-            <a href="/" className="px-2 py-2 text-gray-700 hover:text-[#4067EC]">Home</a>
+            <Link href="/" className="px-2 py-2 text-gray-700 hover:text-[#4067EC]">Home</Link>
             <a href="#" className="px-2 py-2 text-[#4067EC]">About</a>
             <a href="#" className="px-2 py-2 text-gray-700 hover:text-[#4067EC]">Courses</a>
             <a href="#" className="px-2 py-2 text-gray-700 hover:text-[#4067EC]">Teachers</a>
@@ -60,7 +60,7 @@ export default function AboutPage() {
             About Cogito
           </h1>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            We're a dedicated e-learning platform with a mission to provide 
+            We&apos;re a dedicated e-learning platform with a mission to provide 
             high-quality education accessible to everyone, everywhere.
           </p>
         </div>
@@ -124,7 +124,7 @@ export default function AboutPage() {
               </div>
               <h3 className="text-xl font-bold text-gray-800 mb-3">Adaptive Technology</h3>
               <p className="text-gray-600">
-                Our learning system adapts to each student's needs, providing personalized recommendations and customized learning paths.
+                Our learning system adapts to each student&apos;s needs, providing personalized recommendations and customized learning paths.
               </p>
             </div>
             
@@ -205,7 +205,7 @@ export default function AboutPage() {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-3xl font-bold text-white mb-6">Want to Learn More?</h2>
           <p className="text-xl text-blue-100 mb-8">
-            We'd love to hear from you! Reach out to our team with questions, feedback, or partnership opportunities.
+            We&apos;d love to hear from you! Reach out to our team with questions, feedback, or partnership opportunities.
           </p>
           <a 
             href="mailto:contact@cogito.com" 

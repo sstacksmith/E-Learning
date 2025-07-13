@@ -104,12 +104,12 @@ function SuperAdminDashboardContent() {
   const [success, setSuccess] = useState<string | null>(null);
   const [selectedEmail, setSelectedEmail] = useState('');
   const [activeTab, setActiveTab] = useState("users");
-  const [selectedUser, setSelectedUser] = useState(null);
-  const [selectedCourse, setSelectedCourse] = useState(null);
+  const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [selectedCourse, setSelectedCourse] = useState<any>(null);
   const [showResetPasswordModal, setShowResetPasswordModal] = useState(false);
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
-  const [selectedGroup, setSelectedGroup] = useState(null);
+  const [selectedGroup, setSelectedGroup] = useState<any>(null);
   const [newGroupName, setNewGroupName] = useState("");
   const [newGroupDescription, setNewGroupDescription] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -372,11 +372,11 @@ function SuperAdminDashboardContent() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm text-gray-900">
-                            {user.is_superuser ? 'Admin' : user.is_teacher ? 'Teacher' : 'Student'}
+                            {user.role === 'admin' ? 'Admin' : user.role === 'teacher' ? 'Teacher' : 'Student'}
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          {!user.is_teacher && !user.is_superuser && (
+                          {user.role !== 'teacher' && user.role !== 'admin' && (
                           <button 
                               onClick={() => setTeacherRole(user.email || '')}
                               className="text-blue-600 hover:text-blue-900"
@@ -532,8 +532,8 @@ function SuperAdminDashboardContent() {
                       <label className="block text-sm font-medium text-gray-700">Select Student</label>
                       <select className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#4067EC] focus:ring-[#4067EC]">
                         <option>Select a student...</option>
-                        {users.filter(u => u.role === 'student').map(user => (
-                          <option key={user.id} value={user.id}>{user.firstName} {user.lastName}</option>
+                        {users.filter(u => u.role === 'student').map((user: any) => (
+                          <option key={user.id} value={user.id}>{user.firstName || ''} {user.lastName || ''}</option>
                         ))}
                       </select>
                     </div>
@@ -693,7 +693,7 @@ function SuperAdminDashboardContent() {
                     <option value="">Select a user...</option>
                     {users.map(user => (
                       <option key={user.id} value={user.id}>
-                        {user.firstName} {user.lastName} ({user.is_teacher ? 'Teacher' : 'Student'})
+                        {user.firstName} {user.lastName} ({user.role === 'teacher' ? 'Teacher' : 'Student'})
                       </option>
                     ))}
                   </select>
