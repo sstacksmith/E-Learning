@@ -1,22 +1,28 @@
 {
   "name": "e-learning-platform",
   "version": "1.0.0",
-  "description": "E-Learning platform with Django backend",
+  "description": "E-Learning platform with Django backend and Next.js frontend",
   "main": "manage.py",
   "scripts": {
-    "start": "python manage.py migrate && python manage.py runserver 0.0.0.0:$PORT",
-    "build": "python manage.py collectstatic --noinput"
+    "start": "concurrently \"python manage.py migrate && python manage.py runserver 0.0.0.0:$PORT\" \"cd learningplatform_nowy\\ 2/frontend && npm start\"",
+    "build": "python manage.py collectstatic --noinput && cd learningplatform_nowy\\ 2/frontend && npm run build",
+    "dev": "concurrently \"python manage.py runserver\" \"cd learningplatform_nowy\\ 2/frontend && npm run dev\"",
+    "frontend:build": "cd learningplatform_nowy\\ 2/frontend && npm run build",
+    "frontend:start": "cd learningplatform_nowy\\ 2/frontend && npm start",
+    "backend:start": "python manage.py migrate && python manage.py runserver 0.0.0.0:$PORT"
   },
   "engines": {
     "node": "18.x"
   },
-  "dependencies": {},
+  "dependencies": {
+    "concurrently": "^8.2.2"
+  },
   "devDependencies": {},
   "repository": {
     "type": "git",
     "url": "https://github.com/sstacksmith/E-Learning.git"
   },
-  "keywords": ["django", "e-learning", "python"],
+  "keywords": ["django", "nextjs", "e-learning", "python"],
   "author": "Your Name",
   "license": "MIT"
 } 
