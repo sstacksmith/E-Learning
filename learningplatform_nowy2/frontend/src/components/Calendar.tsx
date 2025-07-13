@@ -13,12 +13,16 @@ interface Event {
   id: string;
   title: string;
   description: string;
-  date: string;
-  startTime: string;
-  endTime: string;
+  date?: string;
+  startTime?: string;
+  endTime?: string;
+  deadline?: string; // For assignments/exams
+  type?: 'assignment' | 'exam' | 'event';
   createdBy: string;
-  assignedTo: string[];
+  assignedTo?: string[];
+  students?: string[]; // For new assignment/exam events
   courseId?: string;
+  sectionId?: string;
 }
 
 const Calendar: React.FC = () => {
@@ -34,9 +38,11 @@ const Calendar: React.FC = () => {
 
   useEffect(() => {
     const fetchEvents = async () => {
+      console.log('Fetching events from Firestore...');
       const eventsCollection = collection(db, 'events');
       const eventsSnapshot = await getDocs(eventsCollection);
       const eventsList = eventsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Event));
+      console.log('All events from Firestore:', eventsList);
       setEvents(eventsList);
     };
     fetchEvents();
@@ -57,29 +63,71 @@ const Calendar: React.FC = () => {
 
   // Filtrowanie wydarzeń dla ucznia
   const filteredEvents = React.useMemo(() => {
+    console.log('Filtering events for user:', user);
+    console.log('All events:', events);
+    
     if (!user) return [];
     if (user.role === 'student') {
-      return events.filter(event => event.assignedTo && event.assignedTo.includes(user.uid));
+      const filtered = events.filter(event => {
+        // Sprawdź czy uczeń jest przypisany do eventu (stara struktura)
+        if (event.assignedTo && event.assignedTo.includes(user.uid)) {
+          console.log('Event matched by assignedTo:', event);
+          return true;
+        }
+        // Sprawdź czy uczeń jest w liście students (nowa struktura dla zadań/egzaminów)
+        if (event.students && event.students.includes(user.uid)) {
+          console.log('Event matched by students:', event);
+          return true;
+        }
+        return false;
+      });
+      console.log('Filtered events for student:', filtered);
+      return filtered;
     }
     // nauczyciel/admin widzą wszystko
+    console.log('Teacher/admin - showing all events');
     return events;
   }, [events, user]);
 
-  const calendarEvents = filteredEvents.map(event => ({
-    id: event.id,
-    title: event.title,
-    start: `${event.date}T${event.startTime}`,
-    end: `${event.date}T${event.endTime}`,
-    description: event.description,
-  }));
+  const calendarEvents = filteredEvents.map(event => {
+    // Dla nowych eventów z zadaniami/egzaminami (deadline)
+    if (event.deadline) {
+      return {
+        id: event.id,
+        title: event.title,
+        start: event.deadline, // Użyj deadline jako start
+        end: event.deadline,   // Użyj deadline jako end
+        description: event.description,
+        type: event.type,
+        courseId: event.courseId,
+        sectionId: event.sectionId
+      };
+    }
+    // Dla starych eventów (date + startTime/endTime)
+    return {
+      id: event.id,
+      title: event.title,
+      start: `${event.date}T${event.startTime}`,
+      end: `${event.date}T${event.endTime}`,
+      description: event.description,
+      type: event.type,
+      courseId: event.courseId
+    };
+  });
 
-  // Obsługa kliknięcia w wydarzenie (edycja dla nauczyciela)
+  // Obsługa kliknięcia w wydarzenie (edycja dla nauczyciela, przekierowanie dla ucznia)
   const handleEventClick = (info: any) => {
+    const event = events.find(e => e.id === info.event.id);
+    
     if (user?.role === 'teacher') {
-      const event = events.find(e => e.id === info.event.id);
       if (event) setEditEvent(event);
     } else {
-      alert(`Wydarzenie: ${info.event.title}\nOpis: ${info.event.extendedProps.description}`);
+      // Dla ucznia - przekieruj do kursu jeśli event ma courseId
+      if (event?.courseId) {
+        router.push(`/homelogin/student/courses/${event.courseId}`);
+      } else {
+        alert(`Wydarzenie: ${info.event.title}\nOpis: ${info.event.extendedProps.description}`);
+      }
     }
   };
 
@@ -91,9 +139,10 @@ const Calendar: React.FC = () => {
 
   const handleEditStudentChange = (uid: string) => {
     if (!editEvent) return;
-    const assignedTo = editEvent.assignedTo.includes(uid)
-      ? editEvent.assignedTo.filter(id => id !== uid)
-      : [...editEvent.assignedTo, uid];
+    const currentAssignedTo = editEvent.assignedTo || [];
+    const assignedTo = currentAssignedTo.includes(uid)
+      ? currentAssignedTo.filter(id => id !== uid)
+      : [...currentAssignedTo, uid];
     setEditEvent({ ...editEvent, assignedTo });
   };
 
@@ -151,17 +200,37 @@ const Calendar: React.FC = () => {
     const { event } = eventInfo;
     const start = event.start;
     const godzina = start ? `${start.getHours().toString().padStart(2, '0')}:${start.getMinutes().toString().padStart(2, '0')}` : '';
+    const isAssignment = event.extendedProps.type === 'assignment' || event.extendedProps.type === 'exam';
+    
     return (
-      <div className="flex flex-col items-start text-left w-full">
-        <span className="font-bold text-[#1a237e] leading-tight break-words">{event.title}</span>
+      <div className={`flex flex-col items-start text-left w-full ${isAssignment ? 'cursor-pointer hover:bg-blue-50 p-1 rounded' : ''}`}>
+        <span className={`font-bold leading-tight break-words ${isAssignment ? 'text-red-700' : 'text-[#1a237e]'}`}>
+          {event.title}
+        </span>
         {godzina && <span className="text-xs text-[#4067EC] font-semibold mt-0.5">{godzina}</span>}
         {event.extendedProps.description && <span className="text-xs text-gray-700 mt-0.5 break-words">{event.extendedProps.description}</span>}
+        {isAssignment && user?.role === 'student' && (
+          <span className="text-xs text-blue-600 mt-1">Kliknij, aby przejść do kursu</span>
+        )}
       </div>
     );
   }
 
   // Zbiór dat z eventami (YYYY-MM-DD)
-  const eventDates = React.useMemo(() => new Set(filteredEvents.map(ev => ev.date)), [filteredEvents]);
+  const eventDates = React.useMemo(() => {
+    const dates = new Set<string>();
+    filteredEvents.forEach(ev => {
+      if (ev.date) {
+        dates.add(ev.date);
+      }
+      if (ev.deadline) {
+        // Konwertuj deadline (ISO string) na YYYY-MM-DD
+        const deadlineDate = new Date(ev.deadline).toISOString().slice(0, 10);
+        dates.add(deadlineDate);
+      }
+    });
+    return dates;
+  }, [filteredEvents]);
 
   // Eventy z wybranego dnia
   const eventsForSelectedDate = selectedDate
@@ -190,7 +259,7 @@ const Calendar: React.FC = () => {
   // Przekierowanie do kursu
   function goToCourse(courseId: string | undefined) {
     if (courseId) {
-      router.push(`/courses/${courseId}`);
+      router.push(`/homelogin/student/courses/${courseId}`);
     }
   }
 
@@ -222,13 +291,20 @@ export const ActivityPanel: React.FC<{ selectedDate: string | null, events: Even
   
   // Eventy z wybranego dnia
   const eventsForSelectedDate = selectedDate
-    ? events.filter(ev => ev.date === selectedDate)
+    ? events.filter(ev => {
+        if (ev.date === selectedDate) return true;
+        if (ev.deadline) {
+          const deadlineDate = new Date(ev.deadline).toISOString().slice(0, 10);
+          return deadlineDate === selectedDate;
+        }
+        return false;
+      })
     : [];
 
   // Przekierowanie do kursu
   function goToCourse(courseId: string | undefined) {
     if (courseId) {
-      router.push(`/courses/${courseId}`);
+      router.push(`/homelogin/student/courses/${courseId}`);
     }
   }
 
@@ -238,15 +314,23 @@ export const ActivityPanel: React.FC<{ selectedDate: string | null, events: Even
       {selectedDate && eventsForSelectedDate.length > 0 ? (
         <ul className="space-y-4">
           {eventsForSelectedDate.map(ev => (
-            <li key={ev.id} className="border-b pb-2">
-              <div className="font-bold text-[#1a237e]">{ev.title}</div>
-              <div className="text-xs text-[#4067EC]">{ev.startTime} - {ev.endTime}</div>
+            <li key={ev.id} className={`border-b pb-2 ${ev.deadline ? 'bg-red-50 p-2 rounded' : ''}`}>
+              <div className={`font-bold ${ev.deadline ? 'text-red-700' : 'text-[#1a237e]'}`}>{ev.title}</div>
+              {ev.deadline ? (
+                <div className="text-xs text-[#4067EC]">
+                  Termin: {new Date(ev.deadline).toLocaleString('pl-PL')}
+                </div>
+              ) : (
+                <div className="text-xs text-[#4067EC]">{ev.startTime} - {ev.endTime}</div>
+              )}
               {ev.description && <div className="text-xs text-gray-700 mt-1">{ev.description}</div>}
               {ev.courseId && (
                 <button
                   className="mt-2 bg-[#4067EC] text-white px-4 py-1 rounded-lg text-sm font-semibold transition hover:bg-[#3050b3]"
                   onClick={() => goToCourse(ev.courseId)}
-                >Przejdź do kursu</button>
+                >
+                  {ev.deadline ? 'Przejdź do zadania' : 'Przejdź do kursu'}
+                </button>
               )}
             </li>
           ))}
@@ -262,6 +346,7 @@ export const ActivityPanel: React.FC<{ selectedDate: string | null, events: Even
 export const CalendarWithActivity: React.FC = () => {
   const [events, setEvents] = useState<Event[]>([]);
   const { user } = useAuth();
+  const router = useRouter();
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
   useEffect(() => {
@@ -278,28 +363,59 @@ export const CalendarWithActivity: React.FC = () => {
   const filteredEvents = React.useMemo(() => {
     if (!user) return [];
     if (user.role === 'student') {
-      return events.filter(event => event.assignedTo && event.assignedTo.includes(user.uid));
+      return events.filter(event => {
+        if (event.assignedTo && event.assignedTo.includes(user.uid)) {
+          return true;
+        }
+        if (event.students && event.students.includes(user.uid)) {
+          return true;
+        }
+        return false;
+      });
     }
-    // nauczyciel/admin widzą wszystko
     return events;
   }, [events, user]);
 
-  const calendarEvents = filteredEvents.map(event => ({
-    id: event.id,
-    title: event.title,
-    start: `${event.date}T${event.startTime}`,
-    end: `${event.date}T${event.endTime}`,
-    description: event.description,
-  }));
+  const calendarEvents = filteredEvents.map(event => {
+    // Dla nowych eventów z zadaniami/egzaminami (deadline)
+    if (event.deadline) {
+      return {
+        id: event.id,
+        title: event.title,
+        start: event.deadline, // Użyj deadline jako start
+        end: event.deadline,   // Użyj deadline jako end
+        description: event.description,
+        type: event.type,
+        courseId: event.courseId,
+        sectionId: event.sectionId
+      };
+    }
+    // Dla starych eventów (date + startTime/endTime)
+    return {
+      id: event.id,
+      title: event.title,
+      start: `${event.date}T${event.startTime}`,
+      end: `${event.date}T${event.endTime}`,
+      description: event.description,
+      type: event.type,
+      courseId: event.courseId
+    };
+  });
 
-  // Obsługa kliknięcia w wydarzenie (edycja dla nauczyciela)
+  // Obsługa kliknięcia w wydarzenie (edycja dla nauczyciela, przekierowanie dla ucznia)
   const handleEventClick = (info: any) => {
+    const event = events.find(e => e.id === info.event.id);
+    
     if (user?.role === 'teacher') {
-      const event = events.find(e => e.id === info.event.id);
       // Tutaj można dodać modal do edycji
       alert(`Edycja: ${info.event.title}`);
     } else {
-      alert(`Wydarzenie: ${info.event.title}\nOpis: ${info.event.extendedProps.description}`);
+      // Dla ucznia - przekieruj do kursu jeśli event ma courseId
+      if (event?.courseId) {
+        router.push(`/homelogin/student/courses/${event.courseId}`);
+      } else {
+        alert(`Wydarzenie: ${info.event.title}\nOpis: ${info.event.extendedProps.description}`);
+      }
     }
   };
 
@@ -308,17 +424,37 @@ export const CalendarWithActivity: React.FC = () => {
     const { event } = eventInfo;
     const start = event.start;
     const godzina = start ? `${start.getHours().toString().padStart(2, '0')}:${start.getMinutes().toString().padStart(2, '0')}` : '';
+    const isAssignment = event.extendedProps.type === 'assignment' || event.extendedProps.type === 'exam';
+    
     return (
-      <div className="flex flex-col items-start text-left w-full">
-        <span className="font-bold text-[#1a237e] leading-tight break-words">{event.title}</span>
+      <div className={`flex flex-col items-start text-left w-full ${isAssignment ? 'cursor-pointer hover:bg-blue-50 p-1 rounded' : ''}`}>
+        <span className={`font-bold leading-tight break-words ${isAssignment ? 'text-red-700' : 'text-[#1a237e]'}`}>
+          {event.title}
+        </span>
         {godzina && <span className="text-xs text-[#4067EC] font-semibold mt-0.5">{godzina}</span>}
         {event.extendedProps.description && <span className="text-xs text-gray-700 mt-0.5 break-words">{event.extendedProps.description}</span>}
+        {isAssignment && user?.role === 'student' && (
+          <span className="text-xs text-blue-600 mt-1">Kliknij, aby przejść do kursu</span>
+        )}
       </div>
     );
   }
 
   // Zbiór dat z eventami (YYYY-MM-DD)
-  const eventDates = React.useMemo(() => new Set(filteredEvents.map(ev => ev.date)), [filteredEvents]);
+  const eventDates = React.useMemo(() => {
+    const dates = new Set<string>();
+    filteredEvents.forEach(ev => {
+      if (ev.date) {
+        dates.add(ev.date);
+      }
+      if (ev.deadline) {
+        // Konwertuj deadline (ISO string) na YYYY-MM-DD
+        const deadlineDate = new Date(ev.deadline).toISOString().slice(0, 10);
+        dates.add(deadlineDate);
+      }
+    });
+    return dates;
+  }, [filteredEvents]);
 
   // Podświetlanie dni z eventami
   function dayCellClassNames(arg: any) {

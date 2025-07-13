@@ -2,7 +2,8 @@
 import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import { collection, getDocs, doc, updateDoc, arrayUnion, getDoc, setDoc } from "firebase/firestore";
+import { collection, getDocs, doc, updateDoc, arrayUnion, getDoc, setDoc, addDoc } from "firebase/firestore";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db } from "@/config/firebase";
 import Image from "next/image";
 import Providers from '@/components/Providers';
@@ -96,13 +97,15 @@ function TeacherCourseDetailContent() {
   const [showSection, setShowSection] = useState<{[id:number]: boolean}>({});
   const [addingSection, setAddingSection] = useState(false);
   const [sectionContents, setSectionContents] = useState<{[id:number]: any[]}>({});
-  const [newContent, setNewContent] = useState<{[id:number]: {name: string, file: File | null, link: string}}>({});
+  const [newContent, setNewContent] = useState<{[id:number]: {name: string, file: File | null, link: string, text: string}}>({});
 
   // Dodaj nową deklarację sections
   const [sections, setSections] = useState<any[]>([]);
-  const [newSection, setNewSection] = useState<{name: string, type: string}>({name: '', type: 'material'});
+  const [newSection, setNewSection] = useState<{name: string, type: string, deadline?: string}>({name: '', type: 'material'});
   const [editingSectionId, setEditingSectionId] = useState<number | null>(null);
   const [editSection, setEditSection] = useState<any>(null);
+  const [editingContentId, setEditingContentId] = useState<number | null>(null);
+  const [editContent, setEditContent] = useState<any>(null);
 
   // Fetch students from Firestore
   useEffect(() => {
@@ -179,6 +182,16 @@ function TeacherCourseDetailContent() {
           setCourse(data as any);
           setSections(data.sections || []);
           setBannerUrl(data.bannerUrl || "");
+          
+          // Inicjalizuj sectionContents z danymi z sekcji
+          const sectionsData = data.sections || [];
+          const initialSectionContents: {[id:number]: any[]} = {};
+          sectionsData.forEach((section: any) => {
+            if (section.contents && Array.isArray(section.contents)) {
+              initialSectionContents[section.id] = section.contents;
+            }
+          });
+          setSectionContents(initialSectionContents);
         }
       } catch (err) {
         setError("Failed to load course details from Firestore");
@@ -270,27 +283,107 @@ function TeacherCourseDetailContent() {
     await updateDoc(courseRef, { sections });
   }
 
+  // Helper function to refresh data from Firestore
+  async function refreshCourseData() {
+    if (!courseId) return;
+    const courseDoc = await getDoc(doc(db, "courses", String(courseId)));
+    if (courseDoc.exists()) {
+      const data = courseDoc.data();
+      setSections(data.sections || []);
+      
+      // Aktualizuj sectionContents
+      const sectionsData = data.sections || [];
+      const updatedSectionContents: {[id:number]: any[]} = {};
+      sectionsData.forEach((section: any) => {
+        if (section.contents && Array.isArray(section.contents)) {
+          updatedSectionContents[section.id] = section.contents;
+        }
+      });
+      setSectionContents(updatedSectionContents);
+    }
+  }
+
   // Add new section
-  const handleAddSection = (e: React.FormEvent) => {
+  const handleAddSection = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newSection.name) return;
     const id = Date.now();
-    setSections([...sections, { id, name: newSection.name, type: newSection.type }]);
+    const baseSection = {
+      id,
+      name: newSection.name,
+      type: newSection.type,
+      deadline: newSection.deadline,
+      contents: []
+    };
+    // Dodaj submissions: [] tylko dla zadania
+    const sectionWithSubmissions = newSection.type === 'zadanie'
+      ? { ...baseSection, submissions: [] }
+      : baseSection;
+    const newSections = [...sections, sectionWithSubmissions];
+    setSections(newSections);
     setShowSection(s => ({...s, [id]: true}));
     setNewSection({name: '', type: 'material'});
     setAddingSection(false);
+    
+    // Zapisz do Firestore
+    if (courseId) {
+      await saveSectionsToFirestore(courseId, newSections);
+      await refreshCourseData();
+      
+      // Automatycznie utwórz event w kalendarzu dla zadań i egzaminów
+      if ((newSection.type === 'zadanie' || newSection.type === 'egzamin') && newSection.deadline && user?.uid) {
+        await createCalendarEvent(sectionWithSubmissions, courseId, user.uid);
+      }
+    }
   };
 
   // Add content to section
-  const handleAddContent = (sectionId: number, e: React.FormEvent) => {
+  const handleAddContent = async (sectionId: number, e: React.FormEvent) => {
     e.preventDefault();
     const content = newContent[sectionId];
-    if (!content || (!content.file && !content.link)) return;
-    setSectionContents(sc => ({
-      ...sc,
-      [sectionId]: [...(sc[sectionId] || []), { ...content, id: Date.now() }]
-    }));
-    setNewContent(nc => ({...nc, [sectionId]: {name: '', file: null, link: ''}}));
+    if (!content || (!content.file && !content.link && !content.text)) return;
+    
+    let fileUrl = '';
+    
+    // Upload file to Firebase Storage if file exists
+    if (content.file) {
+      try {
+        const storage = getStorage();
+        const storageRef = ref(storage, `courses/${courseId}/sections/${sectionId}/${Date.now()}_${content.file.name}`);
+        await uploadBytes(storageRef, content.file);
+        fileUrl = await getDownloadURL(storageRef);
+      } catch (error) {
+        console.error('Error uploading file:', error);
+        alert('Błąd podczas uploadu pliku');
+        return;
+      }
+    }
+    
+    const newContentItem = { 
+      ...content, 
+      id: Date.now(),
+      fileUrl: fileUrl, // Save the Firebase Storage URL
+      file: null // Remove the File object as it can't be serialized
+    };
+    
+    const updatedSectionContents = {
+      ...sectionContents,
+      [sectionId]: [...(sectionContents[sectionId] || []), newContentItem]
+    };
+    
+    setSectionContents(updatedSectionContents);
+    setNewContent(nc => ({...nc, [sectionId]: {name: '', file: null, link: '', text: ''}}));
+    
+    // Aktualizuj sekcje w Firestore z nowymi materiałami
+    if (courseId) {
+      const updatedSections = sections.map(section => 
+        section.id === sectionId 
+          ? { ...section, contents: updatedSectionContents[sectionId] }
+          : section
+      );
+      await saveSectionsToFirestore(courseId, updatedSections);
+      await refreshCourseData();
+    }
   };
 
   // Banner upload handler
@@ -350,8 +443,99 @@ function TeacherCourseDetailContent() {
     // Jeśli chcesz obsłużyć usuwanie, dodaj tu logikę i zapis do Firestore
   }
 
+  // Rozpocznij edycję materiału
+  function handleEditContent(content: any) {
+    setEditingContentId(content.id);
+    setEditContent({ ...content });
+  }
+
+  // Zapisz edycję materiału
+  async function handleSaveEditContent(e: any) {
+    e.preventDefault();
+    if (!editingContentId || !editContent) return;
+    
+    // Znajdź sekcję zawierającą edytowany materiał
+    const sectionId = Object.keys(sectionContents).find(key => 
+      sectionContents[parseInt(key)].some((item: any) => item.id === editingContentId)
+    );
+    
+    if (!sectionId) return;
+    
+    const updatedSectionContents = {
+      ...sectionContents,
+      [parseInt(sectionId)]: sectionContents[parseInt(sectionId)].map((item: any) => 
+        item.id === editingContentId ? { ...item, ...editContent } : item
+      )
+    };
+    
+    setSectionContents(updatedSectionContents);
+    setEditingContentId(null);
+    setEditContent(null);
+    
+    // Zapisz do Firestore
+    if (courseId) {
+      const updatedSections = sections.map(section => 
+        section.id === parseInt(sectionId)
+          ? { ...section, contents: updatedSectionContents[parseInt(sectionId)] }
+          : section
+      );
+      await saveSectionsToFirestore(courseId, updatedSections);
+      await refreshCourseData();
+    }
+  }
+
+  // Anuluj edycję materiału
+  function handleCancelEditContent() {
+    setEditingContentId(null);
+    setEditContent(null);
+  }
+
   const [selectedStudentId, setSelectedStudentId] = useState<string>("");
   const [assignMsg, setAssignMsg] = useState<string>("");
+
+  // Function to create calendar event for assignments/exams
+  async function createCalendarEvent(section: any, courseId: string | string[], teacherUid: string) {
+    try {
+      console.log('Creating calendar event for section:', section);
+      console.log('Course ID:', courseId);
+      console.log('Teacher UID:', teacherUid);
+      
+      // Get assigned students for this course
+      const courseDoc = await getDoc(doc(db, "courses", String(courseId)));
+      if (!courseDoc.exists()) {
+        console.log('Course document does not exist');
+        return;
+      }
+      
+      const courseData = courseDoc.data();
+      const assignedUids = Array.isArray(courseData.assignedUsers) ? courseData.assignedUsers : [];
+      
+      console.log('Assigned students:', assignedUids);
+      console.log('Course data:', courseData);
+      
+      // Create event in calendar collection
+      const eventData = {
+        title: section.name,
+        type: section.type === 'zadanie' ? 'assignment' : 'exam',
+        courseId: String(courseId),
+        sectionId: section.id,
+        deadline: section.deadline,
+        createdBy: teacherUid,
+        students: assignedUids, // All students assigned to this course
+        description: `Zadanie z kursu: ${courseData.title || 'Kurs'}`,
+        createdAt: new Date().toISOString()
+      };
+      
+      console.log('Event data to be created:', eventData);
+      
+      const docRef = await addDoc(collection(db, "events"), eventData);
+      
+      console.log('Calendar event created successfully with ID:', docRef.id);
+      console.log('Calendar event created for section:', section.name);
+    } catch (error) {
+      console.error('Error creating calendar event:', error);
+    }
+  }
 
   // Add delete handlers:
   const handleDeleteSection = async (sectionId: number) => {
@@ -362,21 +546,33 @@ function TeacherCourseDetailContent() {
     if (courseId) {
       const courseRef = doc(db, "courses", String(courseId));
       updateDoc(courseRef, { sections: newSections });
+      await refreshCourseData();
     }
   };
 
   const handleDeleteContent = async (sectionId: number, contentId: number) => {
     if (!window.confirm('Czy na pewno chcesz usunąć ten materiał?')) return;
+    
+    // Aktualizuj sectionContents
+    const updatedSectionContents = {
+      ...sectionContents,
+      [sectionId]: (sectionContents[sectionId] || []).filter((item: any) => item.id !== contentId)
+    };
+    setSectionContents(updatedSectionContents);
+    
+    // Aktualizuj sekcje w Firestore
     const newSections = sections.map(s =>
       s.id === sectionId
-        ? { ...s, contents: (s.contents || []).filter((item: any) => item.id !== contentId) }
+        ? { ...s, contents: updatedSectionContents[sectionId] }
         : s
     );
     setSections(newSections);
-    // On any change to sections or banner, update Firestore
+    
+    // Zapisz do Firestore
     if (courseId) {
       const courseRef = doc(db, "courses", String(courseId));
       updateDoc(courseRef, { sections: newSections });
+      await refreshCourseData();
     }
   };
 
@@ -449,15 +645,29 @@ function TeacherCourseDetailContent() {
             <FaPlus /> Dodaj sekcję
           </button>
         ) : (
-          <form onSubmit={handleAddSection} className="flex flex-col sm:flex-row gap-2 items-center bg-white p-4 rounded-lg shadow">
-            <input type="text" placeholder="Nazwa sekcji" className="border rounded px-3 py-2" value={newSection.name} onChange={e => setNewSection(s => ({...s, name: e.target.value}))} required />
-            <select className="border rounded px-3 py-2" value={newSection.type} onChange={e => setNewSection(s => ({...s, type: e.target.value}))}>
-              <option value="material">Materiał</option>
-              <option value="zadanie">Zadanie</option>
-              <option value="aktywnosc">Aktywność</option>
-            </select>
-            <button type="submit" className="bg-[#4067EC] text-white px-4 py-2 rounded font-semibold">Dodaj</button>
-            <button type="button" className="bg-gray-200 px-4 py-2 rounded font-semibold" onClick={() => setAddingSection(false)}>Anuluj</button>
+          <form onSubmit={handleAddSection} className="flex flex-col gap-4 bg-white p-4 rounded-lg shadow">
+            <div className="flex flex-col sm:flex-row gap-2 items-center">
+              <input type="text" placeholder="Nazwa sekcji" className="border rounded px-3 py-2" value={newSection.name} onChange={e => setNewSection(s => ({...s, name: e.target.value}))} required />
+              <select className="border rounded px-3 py-2" value={newSection.type} onChange={e => setNewSection(s => ({...s, type: e.target.value}))}>
+                <option value="material">Materiał</option>
+                <option value="zadanie">Zadanie</option>
+                <option value="aktywnosc">Aktywność</option>
+              </select>
+              <button type="submit" className="bg-[#4067EC] text-white px-4 py-2 rounded font-semibold">Dodaj</button>
+              <button type="button" className="bg-gray-200 px-4 py-2 rounded font-semibold" onClick={() => setAddingSection(false)}>Anuluj</button>
+            </div>
+            {newSection.type === 'zadanie' && (
+              <div className="flex flex-col sm:flex-row gap-2 items-center">
+                <label className="text-sm font-medium text-gray-700">Termin oddania:</label>
+                <input 
+                  type="datetime-local" 
+                  className="border rounded px-3 py-2" 
+                  value={newSection.deadline || ''} 
+                  onChange={e => setNewSection(s => ({...s, deadline: e.target.value}))}
+                  required
+                />
+              </div>
+            )}
           </form>
         )}
       </div>
@@ -468,28 +678,184 @@ function TeacherCourseDetailContent() {
           <div key={section.id} className="bg-white rounded-2xl shadow-lg">
             <div className="w-full flex items-center justify-between px-6 py-4 text-xl font-bold text-[#4067EC] focus:outline-none">
               <button onClick={() => setShowSection(s => ({...s, [section.id]: !s[section.id]}))} className="mr-3 text-[#4067EC] text-2xl focus:outline-none">{showSection[section.id] ? <FaChevronUp /> : <FaChevronDown />}</button>
-              <span className="flex-1">{section.name} <span className="text-base font-normal">({section.type})</span></span>
+              <span className="flex-1">
+                {section.name} <span className="text-base font-normal">({section.type})</span>
+                {section.type === 'zadanie' && section.deadline && (
+                  <span className="text-sm font-normal text-gray-600 ml-2">
+                    Termin: {new Date(section.deadline).toLocaleString('pl-PL')}
+                  </span>
+                )}
+              </span>
+              <button onClick={() => handleEditSection(section)} className="ml-3 text-blue-500 hover:text-blue-700 text-xl focus:outline-none">✏️</button>
               <button onClick={() => handleDeleteSection(section.id)} className="ml-3 text-red-500 hover:text-red-700 text-2xl focus:outline-none">🗑️</button>
             </div>
             {showSection[section.id] && (
               <div className="px-6 pb-6 flex flex-col gap-4">
+                {/* Edit section form */}
+                {editingSectionId === section.id && (
+                  <form onSubmit={handleSaveEditSection} className="bg-blue-50 p-4 rounded-lg border border-blue-200 mb-4">
+                    <h4 className="font-semibold text-blue-800 mb-3">Edytuj sekcję</h4>
+                    <div className="flex flex-col sm:flex-row gap-2 items-center mb-3">
+                      <input 
+                        type="text" 
+                        placeholder="Nazwa sekcji" 
+                        className="border rounded px-3 py-2" 
+                        value={editSection?.name || ''} 
+                        onChange={e => setEditSection({...editSection, name: e.target.value})} 
+                        required 
+                      />
+                      <select 
+                        className="border rounded px-3 py-2" 
+                        value={editSection?.type || ''} 
+                        onChange={e => setEditSection({...editSection, type: e.target.value})}
+                      >
+                        <option value="material">Materiał</option>
+                        <option value="zadanie">Zadanie</option>
+                        <option value="aktywnosc">Aktywność</option>
+                      </select>
+                      <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded font-semibold">Zapisz</button>
+                      <button type="button" onClick={handleCancelEdit} className="bg-gray-200 px-4 py-2 rounded font-semibold">Anuluj</button>
+                    </div>
+                    {editSection?.type === 'zadanie' && (
+                      <div className="flex flex-col sm:flex-row gap-2 items-center">
+                        <label className="text-sm font-medium text-gray-700">Termin oddania:</label>
+                        <input 
+                          type="datetime-local" 
+                          className="border rounded px-3 py-2" 
+                          value={editSection?.deadline || ''} 
+                          onChange={e => setEditSection({...editSection, deadline: e.target.value})}
+                          required
+                        />
+                      </div>
+                    )}
+                  </form>
+                )}
+
                 {/* Dodawanie materiału/zadania/aktywności */}
-                <form onSubmit={e => handleAddContent(section.id, e)} className="flex flex-col sm:flex-row gap-2 items-center mb-4">
-                  <input type="text" placeholder="Nazwa" className="border rounded px-3 py-2" value={newContent[section.id]?.name || ''} onChange={e => setNewContent(nc => ({...nc, [section.id]: {...(nc[section.id]||{}), name: e.target.value}}))} />
-                  <input type="file" className="" onChange={e => setNewContent(nc => ({...nc, [section.id]: {...(nc[section.id]||{}), file: e.target.files ? e.target.files[0] : null}}))} />
-                  <input type="url" placeholder="Link (np. YouTube, Google Docs)" className="border rounded px-3 py-2" value={newContent[section.id]?.link || ''} onChange={e => setNewContent(nc => ({...nc, [section.id]: {...(nc[section.id]||{}), link: e.target.value}}))} />
-                  <button type="submit" className="bg-[#4067EC] text-white px-4 py-2 rounded font-semibold">Dodaj</button>
+                <form onSubmit={e => handleAddContent(section.id, e)} className="flex flex-col gap-4 mb-4">
+                  <div className="flex flex-col sm:flex-row gap-2 items-center">
+                    <input type="text" placeholder="Nazwa (opcjonalna)" className="border rounded px-3 py-2" value={newContent[section.id]?.name || ''} onChange={e => setNewContent(nc => ({...nc, [section.id]: {...(nc[section.id]||{}), name: e.target.value}}))} />
+                    <input type="file" className="" onChange={e => setNewContent(nc => ({...nc, [section.id]: {...(nc[section.id]||{}), file: e.target.files ? e.target.files[0] : null}}))} />
+                    <input type="url" placeholder="Link (np. YouTube, Google Docs)" className="border rounded px-3 py-2" value={newContent[section.id]?.link || ''} onChange={e => setNewContent(nc => ({...nc, [section.id]: {...(nc[section.id]||{}), link: e.target.value}}))} />
+                    <button type="submit" className="bg-[#4067EC] text-white px-4 py-2 rounded font-semibold">Dodaj</button>
+                  </div>
+                  <div className="w-full">
+                    <textarea 
+                      placeholder="Dodaj tekst (instrukcje, opis, notatki...) - możesz dodać sam tekst bez nazwy
+
+Formatowanie:
+**pogrubiony** - *kursywa* - `kod` - nowe linie są automatycznie zachowane" 
+                      className="w-full border rounded px-3 py-2 min-h-[100px] resize-y" 
+                      value={newContent[section.id]?.text || ''} 
+                      onChange={e => setNewContent(nc => ({...nc, [section.id]: {...(nc[section.id]||{}), text: e.target.value}}))} 
+                    />
+                  </div>
                 </form>
                 {/* Lista materiałów/zadań/aktywności */}
                 {(sectionContents[section.id]?.length === 0 || !sectionContents[section.id]) && <div className="text-gray-400 italic">Brak materiałów.</div>}
                 {sectionContents[section.id]?.map((item: any) => (
-                  <div key={item.id} className="flex items-center gap-3 p-4 bg-[#f4f6fb] rounded-lg">
-                    {item.file && <FaFilePdf className="text-2xl text-[#4067EC]" />}
-                    {item.link && <FaLink className="text-2xl text-[#4067EC]" />}
-                    <span className="font-semibold">{item.name || (item.file?.name || item.link)}</span>
-                    {item.file && <a href={URL.createObjectURL(item.file)} target="_blank" rel="noopener" className="ml-auto text-[#4067EC] underline">Pobierz</a>}
-                    {item.link && <a href={item.link} target="_blank" rel="noopener" className="ml-auto text-[#4067EC] underline">Otwórz link</a>}
-                    <button onClick={() => handleDeleteContent(section.id, item.id)} className="ml-2 text-red-500 hover:text-red-700">🗑️</button>
+                  <div key={item.id} className="flex flex-col gap-3 p-4 bg-[#f4f6fb] rounded-lg">
+                    {editingContentId === item.id ? (
+                      // Tryb edycji
+                      <form onSubmit={handleSaveEditContent} className="flex flex-col gap-3">
+                        <div className="flex items-center gap-3">
+                          {(item.fileUrl || item.file) && <FaFilePdf className="text-2xl text-[#4067EC]" />}
+                          {item.link && <FaLink className="text-2xl text-[#4067EC]" />}
+                          {item.text && <span className="text-2xl text-[#4067EC]">📝</span>}
+                          <input 
+                            type="text" 
+                            value={editContent?.name || ''} 
+                            onChange={e => setEditContent({...editContent, name: e.target.value})}
+                            className="font-semibold border rounded px-2 py-1"
+                          />
+                          <button type="submit" className="ml-auto text-green-600 hover:text-green-800">💾</button>
+                          <button type="button" onClick={handleCancelEditContent} className="text-gray-600 hover:text-gray-800">❌</button>
+                        </div>
+                        {item.text && (
+                          <div className="mt-2">
+                            <textarea 
+                              value={editContent?.text || ''} 
+                              onChange={e => setEditContent({...editContent, text: e.target.value})}
+                              className="w-full border rounded px-3 py-2 min-h-[100px] resize-y"
+                              placeholder="Formatowanie: **pogrubiony** - *kursywa* - `kod`"
+                            />
+                          </div>
+                        )}
+                      </form>
+                    ) : (
+                      // Tryb wyświetlania
+                      <>
+                        <div className="flex items-center gap-3">
+                          {(item.fileUrl || item.file) && <FaFilePdf className="text-2xl text-[#4067EC]" />}
+                          {item.link && <FaLink className="text-2xl text-[#4067EC]" />}
+                          {item.text && <span className="text-2xl text-[#4067EC]">📝</span>}
+                          <span className="font-semibold">{item.name || (item.file?.name || item.link || 'Materiał')}</span>
+                          {item.fileUrl && <a href={item.fileUrl} target="_blank" rel="noopener" className="ml-auto text-[#4067EC] underline">Pobierz</a>}
+                          {item.file && !item.fileUrl && <a href={URL.createObjectURL(item.file)} target="_blank" rel="noopener" className="ml-auto text-[#4067EC] underline">Pobierz</a>}
+                          {item.link && <a href={item.link} target="_blank" rel="noopener" className="ml-auto text-[#4067EC] underline">Otwórz link</a>}
+                          {item.text && <button onClick={() => handleEditContent(item)} className="ml-auto text-blue-600 hover:text-blue-800">✏️</button>}
+                          <button onClick={() => handleDeleteContent(section.id, item.id)} className="ml-2 text-red-500 hover:text-red-700">🗑️</button>
+                        </div>
+                        {item.text && (
+                          <div className="mt-2 p-3 bg-white rounded border-l-4 border-[#4067EC]">
+                            <div className="text-sm text-gray-600 mb-1">Treść:</div>
+                            <div 
+                              className="whitespace-pre-wrap text-gray-800 prose prose-sm max-w-none"
+                              dangerouslySetInnerHTML={{ 
+                                __html: item.text
+                                  .replace(/\n/g, '<br>')
+                                  .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                                  .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                                  .replace(/`(.*?)`/g, '<code class="bg-gray-100 px-1 rounded">$1</code>')
+                              }} 
+                            />
+                          </div>
+                        )}
+
+                        {/* Show submissions for zadanie sections */}
+                        {section.type === 'zadanie' && section.submissions && section.submissions.length > 0 && (
+                          <div className="mt-4 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+                            <h5 className="font-semibold text-yellow-800 mb-3">Przesłane zadania ({section.submissions.length})</h5>
+                            <div className="space-y-3">
+                              {section.submissions.map((submission: any, index: number) => (
+                                <div key={index} className="bg-white rounded p-3 border">
+                                  <div className="flex justify-between items-start mb-2">
+                                    <div className="font-medium text-gray-800">
+                                      {submission.userName || submission.userId}
+                                    </div>
+                                    <div className="text-sm text-gray-600">
+                                      {new Date(submission.submittedAt).toLocaleString('pl-PL')}
+                                    </div>
+                                  </div>
+                                  {submission.fileName && (
+                                    <div className="mb-2">
+                                      <span className="text-sm text-gray-600">Plik: </span>
+                                      <a href={submission.fileUrl} target="_blank" rel="noopener" className="text-blue-600 hover:text-blue-800 underline">
+                                        {submission.fileName}
+                                      </a>
+                                    </div>
+                                  )}
+                                  {submission.text && (
+                                    <div className="mb-2">
+                                      <div className="text-sm text-gray-600 mb-1">Odpowiedź:</div>
+                                      <div className="bg-gray-50 p-2 rounded text-sm whitespace-pre-wrap">
+                                        {submission.text}
+                                      </div>
+                                    </div>
+                                  )}
+                                  <div className="text-xs text-gray-500">
+                                    {new Date(submission.submittedAt) <= new Date(section.deadline) 
+                                      ? '✅ Przesłane w terminie' 
+                                      : '⚠️ Przesłane po terminie'
+                                    }
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )}
                   </div>
                 ))}
               </div>
