@@ -1,0 +1,25 @@
+{
+  "name": "E-Learning Platform",
+  "description": "Django-based e-learning platform",
+  "repository": "https://github.com/sstacksmith/E-Learning",
+  "keywords": ["django", "python", "e-learning"],
+  "env": {
+    "DJANGO_SETTINGS_MODULE": {
+      "value": "learning_platform.settings"
+    },
+    "PYTHON_VERSION": {
+      "value": "3.10.11"
+    }
+  },
+  "buildpacks": [
+    {
+      "url": "heroku/python"
+    }
+  ],
+  "formation": {
+    "web": {
+      "quantity": 1,
+      "size": "basic"
+    }
+  }
+} 

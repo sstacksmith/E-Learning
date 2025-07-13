@@ -1,0 +1,22 @@
+{
+  "name": "e-learning-platform",
+  "version": "1.0.0",
+  "description": "E-Learning platform with Django backend",
+  "main": "manage.py",
+  "scripts": {
+    "start": "python manage.py migrate && python manage.py runserver 0.0.0.0:$PORT",
+    "build": "python manage.py collectstatic --noinput"
+  },
+  "engines": {
+    "node": "18.x"
+  },
+  "dependencies": {},
+  "devDependencies": {},
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sstacksmith/E-Learning.git"
+  },
+  "keywords": ["django", "e-learning", "python"],
+  "author": "Your Name",
+  "license": "MIT"
+} 
