@@ -3,7 +3,7 @@ nixPkgs = ["python310", "python310Packages.pip", "python310Packages.setuptools"]
 
 [phases.install]
 cmds = [
-  "pip install -r requirements.txt"
+  "pip install --break-system-packages -r requirements.txt"
 ]
 
 [phases.build]
