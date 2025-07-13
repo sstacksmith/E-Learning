@@ -9,9 +9,7 @@ cmds = [
 ]
 
 [phases.build]
-cmds = [
-  "cd learningplatform_nowy\\ 2/frontend && npm run build"
-]
+cmds = []
 
 [start]
-cmd = "concurrently \"python manage.py migrate --settings=learning_platform.settings && python manage.py runserver 0.0.0.0:8000 --settings=learning_platform.settings\" \"cd learningplatform_nowy\\ 2/frontend && npm start\"" 
+cmd = "cd learningplatform_nowy\\ 2/frontend && npm run build && concurrently \"python manage.py migrate --settings=learning_platform.settings && python manage.py runserver 0.0.0.0:8000 --settings=learning_platform.settings\" \"cd learningplatform_nowy\\ 2/frontend && npm start\"" 
