@@ -3,7 +3,7 @@ builder = "nixpacks"
 
 [deploy]
 startCommand = "python manage.py migrate && python manage.py runserver 0.0.0.0:$PORT"
-healthcheckPath = "/"
+healthcheckPath = "/api/courses/"
 healthcheckTimeout = 300
 restartPolicyType = "on_failure"
 
