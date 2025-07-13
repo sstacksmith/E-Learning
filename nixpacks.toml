@@ -1,19 +1,16 @@
 [phases.setup]
-nixPkgs = ["python310", "python310Packages.pip", "python310Packages.setuptools", "nodejs_18", "npm"]
+nixPkgs = ["python310", "python310Packages.pip", "python310Packages.setuptools"]
 
 [phases.install]
 cmds = [
   "pip install --upgrade pip",
-  "pip install -r requirements.txt",
-  "npm install",
-  "cd learningplatform_nowy\\ 2/frontend && npm install"
+  "pip install -r requirements.txt"
 ]
 
 [phases.build]
 cmds = [
-  "python manage.py collectstatic --noinput",
-  "cd learningplatform_nowy\\ 2/frontend && npm run build"
+  "python manage.py collectstatic --noinput"
 ]
 
 [start]
-cmd = "concurrently \"python manage.py migrate && python manage.py runserver 0.0.0.0:$PORT\" \"cd learningplatform_nowy\\ 2/frontend && npm start\"" 
+cmd = "python manage.py migrate && python manage.py runserver 0.0.0.0:$PORT" 
