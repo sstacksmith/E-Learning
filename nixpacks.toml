@@ -1,5 +1,5 @@
 [phases.setup]
-nixPkgs = ["python310", "python310Packages.pip", "python310Packages.setuptools", "nodejs_18", "npm", "nginx"]
+nixPkgs = ["python310", "python310Packages.pip", "python310Packages.setuptools", "nodejs_18"]
 
 [phases.install]
 cmds = [
@@ -14,4 +14,4 @@ cmds = [
 ]
 
 [start]
-cmd = "concurrently \"python manage.py migrate --settings=learning_platform.settings && python manage.py runserver 0.0.0.0:8000 --settings=learning_platform.settings\" \"cd learningplatform_nowy\\ 2/frontend && npm start\" \"nginx -g 'daemon off;'\"" 
+cmd = "concurrently \"python manage.py migrate --settings=learning_platform.settings && python manage.py runserver 0.0.0.0:8000 --settings=learning_platform.settings\" \"cd learningplatform_nowy\\ 2/frontend && npm start\"" 
