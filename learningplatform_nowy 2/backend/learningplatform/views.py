@@ -16,6 +16,7 @@ from .firebase_config import verify_firebase_token
 from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.decorators import api_view, permission_classes
+from django.utils import timezone
 
 User = get_user_model()
 
@@ -288,3 +289,12 @@ def teacher_course_detail(request, course_id):
         return Response(data)
     except Course.DoesNotExist:
         return Response({'error': 'Course not found'}, status=404) 
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def health_check(request):
+    return Response({
+        "status": "healthy",
+        "message": "E-Learning Platform API is running",
+        "timestamp": timezone.now().isoformat()
+    }) 
