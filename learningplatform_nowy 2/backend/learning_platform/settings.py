@@ -175,3 +175,13 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 # Custom user model
 AUTH_USER_MODEL = 'api.User'
+
+# Railway configuration
+import os
+if os.getenv('RAILWAY_ENVIRONMENT'):
+    ALLOWED_HOSTS = ['*']
+    DEBUG = False
+    CSRF_TRUSTED_ORIGINS = [f"https://{os.getenv('RAILWAY_PUBLIC_DOMAIN', 'localhost')}"]
+else:
+    ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+    DEBUG = True

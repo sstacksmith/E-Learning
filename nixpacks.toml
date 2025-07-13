@@ -8,8 +8,8 @@ cmds = [
 
 [phases.build]
 cmds = [
-  "python manage.py collectstatic --noinput"
+  "python manage.py collectstatic --noinput --settings=learning_platform.settings"
 ]
 
 [start]
-cmd = "python manage.py migrate && python manage.py runserver 0.0.0.0:$PORT" 
+cmd = "python manage.py migrate --settings=learning_platform.settings && python manage.py runserver 0.0.0.0:$PORT --settings=learning_platform.settings" 
