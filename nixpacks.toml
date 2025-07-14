@@ -5,11 +5,11 @@ nixPkgs = ["python310", "python310Packages.pip", "python310Packages.setuptools",
 cmds = [
   "pip install --break-system-packages -r requirements.txt",
   "npm install",
-  "cd learningplatform_nowy2\frontend && npm install"
+  "cd learningplatform_nowy2/frontend && npm install"
 ]
 
 [phases.build]
 cmds = []
 
 [start]
-cmd = "cd learningplatform_nowy\\ 2/frontend && npm run build && concurrently \"python manage.py migrate --settings=learning_platform.settings && python manage.py runserver 0.0.0.0:8000 --settings=learning_platform.settings\" \"cd learningplatform_nowy\\ 2/frontend && npm start\"" 
+cmd = "cd learningplatform_nowy2/frontend && npm run build && concurrently \"python manage.py migrate --settings=learning_platform.settings && python manage.py runserver 0.0.0.0:8000 --settings=learning_platform.settings\" \"cd learningplatform_nowy2/frontend && npm start\""
