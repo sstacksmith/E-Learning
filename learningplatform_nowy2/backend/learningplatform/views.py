@@ -293,8 +293,4 @@ def teacher_course_detail(request, course_id):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def health_check(request):
-    return Response({
-        "status": "healthy",
-        "message": "E-Learning Platform API is running",
-        "timestamp": timezone.now().isoformat()
-    }) 
+    return Response({"status": "ok"}) 
