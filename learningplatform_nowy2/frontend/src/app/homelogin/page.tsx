@@ -190,7 +190,9 @@ function Dashboard() {
     const fetchCourses = async () => {
       setLoadingCourses(true);
       try {
-        const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
+        const token = typeof window !== 'undefined'
+          ? (localStorage.getItem('firebaseToken') || localStorage.getItem('accessToken') || localStorage.getItem('token'))
+          : null;
         const response = await fetch('/api/courses/', {
           headers: {
             'Authorization': token ? `Bearer ${token}` : '',

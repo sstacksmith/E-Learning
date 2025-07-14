@@ -49,7 +49,9 @@ export default function TeacherCourses() {
   const fetchCourses = async () => {
     setLoading(true);
     try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('firebaseToken') : null;
+      const token = typeof window !== 'undefined'
+        ? (localStorage.getItem('firebaseToken') || localStorage.getItem('accessToken') || localStorage.getItem('token'))
+        : null;
       const response = await fetch('/api/courses/', {
         headers: {
           'Authorization': token ? `Bearer ${token}` : '',
@@ -112,7 +114,9 @@ export default function TeacherCourses() {
       }
       
       setUploading(false);
-      const token = typeof window !== 'undefined' ? localStorage.getItem('firebaseToken') : null;
+      const token = typeof window !== 'undefined'
+        ? (localStorage.getItem('firebaseToken') || localStorage.getItem('accessToken') || localStorage.getItem('token'))
+        : null;
       console.log("Firebase token available:", !!token);
       
       const requestData = {

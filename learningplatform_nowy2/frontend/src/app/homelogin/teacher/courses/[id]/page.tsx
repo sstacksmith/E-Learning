@@ -208,7 +208,9 @@ function TeacherCourseDetailContent() {
     setError(null);
     setSuccess(null);
     try {
-      const token = localStorage.getItem("firebaseToken");
+      const token = typeof window !== 'undefined'
+        ? (localStorage.getItem('firebaseToken') || localStorage.getItem('accessToken') || localStorage.getItem('token'))
+        : null;
       const student = students.find(s => s.uid === selectedStudent);
       const res = await fetch("/api/assign-course/", {
         method: "POST",

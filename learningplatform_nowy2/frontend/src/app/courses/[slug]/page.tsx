@@ -59,7 +59,9 @@ function CourseDetail() {
   useEffect(() => {
     const fetchCourseDetail = async () => {
       try {
-        const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+        const token = typeof window !== 'undefined'
+          ? (localStorage.getItem('firebaseToken') || localStorage.getItem('accessToken') || localStorage.getItem('token'))
+          : null;
         console.log('[DEBUG] Slug:', slug);
         console.log('[DEBUG] Token:', token);
         if (!token) {
@@ -69,7 +71,7 @@ function CourseDetail() {
         }
         console.log('[DEBUG] Fetching:', `/api/courses/slug/${slug}/`);
         const response = await fetch(`/api/courses/slug/${slug}/`, {
-          headers: { 'Authorization': `Bearer ${token}` },
+          headers: { 'Authorization': token ? `Bearer ${token}` : '' },
         });
         console.log('[DEBUG] Response status:', response.status);
         if (!response.ok) {

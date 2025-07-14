@@ -41,7 +41,9 @@ function StudentAssignmentsContent() {
   const [assignError, setAssignError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  const token = typeof window !== 'undefined'
+    ? (localStorage.getItem('firebaseToken') || localStorage.getItem('accessToken') || localStorage.getItem('token'))
+    : null;
 
   useEffect(() => {
     const fetchData = async () => {
@@ -49,7 +51,7 @@ function StudentAssignmentsContent() {
         // Fetch courses
         const coursesResponse = await fetch('/api/courses/', {
           headers: {
-            'Authorization': token ? `Token ${token}` : '',
+            'Authorization': token ? `Bearer ${token}` : '',
             'Content-Type': 'application/json',
           },
         });
@@ -60,7 +62,7 @@ function StudentAssignmentsContent() {
         // Fetch students
         const studentsResponse = await fetch('/api/users/', {
           headers: {
-            'Authorization': token ? `Token ${token}` : '',
+            'Authorization': token ? `Bearer ${token}` : '',
             'Content-Type': 'application/json',
           },
         });
@@ -87,6 +89,7 @@ function StudentAssignmentsContent() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          'Authorization': token ? `Bearer ${token}` : '',
         },
         body: JSON.stringify({
           course: selectedCourse,

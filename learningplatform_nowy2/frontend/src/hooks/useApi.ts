@@ -4,7 +4,9 @@ export function useApi() {
   const { getAuthToken } = useAuth();
 
   const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
-    const token = getAuthToken();
+    const token = typeof window !== 'undefined'
+      ? (localStorage.getItem('firebaseToken') || localStorage.getItem('accessToken') || localStorage.getItem('token'))
+      : null;
     
     const headers = {
       'Content-Type': 'application/json',
