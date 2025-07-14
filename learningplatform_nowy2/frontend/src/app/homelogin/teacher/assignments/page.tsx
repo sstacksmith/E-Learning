@@ -47,7 +47,7 @@ function StudentAssignmentsContent() {
     const fetchData = async () => {
       try {
         // Fetch courses
-        const coursesResponse = await fetch('http://localhost:8000/api/courses/', {
+        const coursesResponse = await fetch('/api/courses/', {
           headers: {
             'Authorization': token ? `Token ${token}` : '',
             'Content-Type': 'application/json',
@@ -58,7 +58,7 @@ function StudentAssignmentsContent() {
         setCourses(coursesData);
 
         // Fetch students
-        const studentsResponse = await fetch('http://localhost:8000/api/users/', {
+        const studentsResponse = await fetch('/api/users/', {
           headers: {
             'Authorization': token ? `Token ${token}` : '',
             'Content-Type': 'application/json',
@@ -83,7 +83,7 @@ function StudentAssignmentsContent() {
     setLoading(true);
 
     try {
-      const response = await fetch("http://localhost:8000/api/assignments/", {
+      const response = await fetch("/api/assignments/", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

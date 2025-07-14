@@ -210,7 +210,7 @@ function TeacherCourseDetailContent() {
     try {
       const token = localStorage.getItem("firebaseToken");
       const student = students.find(s => s.uid === selectedStudent);
-      const res = await fetch("http://localhost:8000/api/assign-course/", {
+      const res = await fetch("/api/assign-course/", {
         method: "POST",
         headers: {
           Authorization: token ? `Bearer ${token}` : "",

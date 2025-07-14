@@ -67,8 +67,8 @@ function CourseDetail() {
           setLoading(false);
           return;
         }
-        console.log('[DEBUG] Fetching:', `http://localhost:8000/api/courses/slug/${slug}/`);
-        const response = await fetch(`http://localhost:8000/api/courses/slug/${slug}/`, {
+        console.log('[DEBUG] Fetching:', `/api/courses/slug/${slug}/`);
+        const response = await fetch(`/api/courses/slug/${slug}/`, {
           headers: { 'Authorization': `Bearer ${token}` },
         });
         console.log('[DEBUG] Response status:', response.status);

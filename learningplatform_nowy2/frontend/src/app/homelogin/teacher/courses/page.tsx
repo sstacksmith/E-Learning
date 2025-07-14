@@ -50,7 +50,7 @@ export default function TeacherCourses() {
     setLoading(true);
     try {
       const token = typeof window !== 'undefined' ? localStorage.getItem('firebaseToken') : null;
-      const response = await fetch('http://localhost:8000/api/courses/', {
+      const response = await fetch('/api/courses/', {
         headers: {
           'Authorization': token ? `Bearer ${token}` : '',
           'Content-Type': 'application/json',
@@ -122,7 +122,7 @@ export default function TeacherCourses() {
       };
       console.log("Request data:", requestData);
       
-      const response = await fetch('http://localhost:8000/api/courses/', {
+      const response = await fetch('/api/courses/', {
         method: 'POST',
         headers: {
           'Authorization': token ? `Bearer ${token}` : '',

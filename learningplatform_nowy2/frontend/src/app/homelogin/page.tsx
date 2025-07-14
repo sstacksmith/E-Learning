@@ -191,7 +191,7 @@ function Dashboard() {
       setLoadingCourses(true);
       try {
         const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
-        const response = await fetch('http://localhost:8000/api/courses/', {
+        const response = await fetch('/api/courses/', {
           headers: {
             'Authorization': token ? `Bearer ${token}` : '',
             'Content-Type': 'application/json',

@@ -133,8 +133,9 @@ CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "https://twoj-front.vercel.app",  # <-- Zmień na prawdziwy adres frontendu na Vercel
 ]
-CORS_ALLOW_ALL_ORIGINS = True  # Temporarily allow all origins for debugging
+CORS_ALLOW_ALL_ORIGINS = False  # Wyłącz na produkcji!
 CORS_ALLOW_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
 CORS_ALLOW_HEADERS = [
     'accept',
