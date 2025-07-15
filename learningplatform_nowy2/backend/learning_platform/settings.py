@@ -25,7 +25,7 @@ SECRET_KEY = 'django-insecure-#r%j=p*5tx%*32e&af2vg1&hhb0frc%h=80)1-apfeh-pudvof
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'https://cogito-7zrt.onrender.com']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'cogito-7zrt.onrender.com']
 
 
 # Application definition
