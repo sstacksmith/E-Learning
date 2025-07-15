@@ -186,8 +186,8 @@ if os.getenv('RAILWAY_ENVIRONMENT'):
     # Dodaj domenę Vercel do CSRF_TRUSTED_ORIGINS w produkcji
     CSRF_TRUSTED_ORIGINS = [
         f"https://{os.getenv('RAILWAY_PUBLIC_DOMAIN', 'localhost')}",
-        "https://e-learning-theta-ten.vercel.app/",  # <-- PODMIEN NA SWOJĄ DOMENĘ VERCEL
+        "https://cogito-7zrt.onrender.com",  # <-- PODMIEN NA SWOJĄ DOMENĘ VERCEL
     ]
 else:
-    ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+    ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'cogito-7zrt.onrender.com']
     DEBUG = True
