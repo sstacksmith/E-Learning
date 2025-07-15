@@ -131,10 +131,11 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # CORS settings
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
+    "https://e-learning-theta-ten.vercel.app/",  # <-- PODMIEN NA SWOJĄ DOMENĘ VERCEL
     "http://localhost:3000",
     "http://127.0.0.1:3000",
 ]
-CORS_ALLOW_ALL_ORIGINS = True  # Temporarily allow all origins for debugging
+CORS_ALLOW_ALL_ORIGINS = False  # Wyłączone w produkcji
 CORS_ALLOW_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
 CORS_ALLOW_HEADERS = [
     'accept',
@@ -149,6 +150,7 @@ CORS_ALLOW_HEADERS = [
 ]
 
 CSRF_TRUSTED_ORIGINS = [
+    "https://e-learning-theta-ten.vercel.app/",  # <-- PODMIEN NA SWOJĄ DOMENĘ VERCEL
     'http://localhost:3000',
     'http://127.0.0.1:3000',
 ]
@@ -181,7 +183,11 @@ import os
 if os.getenv('RAILWAY_ENVIRONMENT'):
     ALLOWED_HOSTS = ['*']
     DEBUG = False
-    CSRF_TRUSTED_ORIGINS = [f"https://{os.getenv('RAILWAY_PUBLIC_DOMAIN', 'localhost')}"]
+    # Dodaj domenę Vercel do CSRF_TRUSTED_ORIGINS w produkcji
+    CSRF_TRUSTED_ORIGINS = [
+        f"https://{os.getenv('RAILWAY_PUBLIC_DOMAIN', 'localhost')}",
+        "https://e-learning-theta-ten.vercel.app/",  # <-- PODMIEN NA SWOJĄ DOMENĘ VERCEL
+    ]
 else:
     ALLOWED_HOSTS = ['localhost', '127.0.0.1']
     DEBUG = True

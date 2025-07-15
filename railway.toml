@@ -9,4 +9,4 @@ restartPolicyType = "on_failure"
 
 [[services]]
 name = "django-backend"
-sourceDir = "learningplatform_nowy 2/backend" 
+sourceDir = "learningplatform_nowy2/backend" 
