@@ -74,7 +74,9 @@ class CourseListCreateView(APIView):
             try:
                 db = firestore.client()
                 course_ref = db.collection('courses').document(str(course.id))
-                course_ref.set({
+                
+                # Przygotuj dane do zapisu, filtrując None wartości
+                course_data = {
                     'id': course.id,
                     'title': course.title,
                     'description': course.description,
@@ -84,11 +86,16 @@ class CourseListCreateView(APIView):
                     'created_by': course.created_by.id,
                     'created_at': course.created_at.isoformat(),
                     'updated_at': course.updated_at.isoformat(),
-                    'pdfUrls': course.pdfUrls,
-                    'links': course.links,
-                    'slug': course.slug,
+                    'pdfUrls': course.pdfUrls or [],
+                    'links': course.links or [],
+                    'slug': course.slug or '',
                     'assignedUsers': []
-                })
+                }
+                
+                # Usuń None wartości
+                course_data = {k: v for k, v in course_data.items() if v is not None}
+                
+                course_ref.set(course_data)
                 print(f"Course synchronized with Firestore: {course.id}")
             except Exception as e:
                 print(f"Error synchronizing with Firestore: {e}")
@@ -127,7 +134,9 @@ class CourseDetailView(APIView):
             try:
                 db = firestore.client()
                 course_ref = db.collection('courses').document(str(course.id))
-                course_ref.set({
+                
+                # Przygotuj dane do zapisu, filtrując None wartości
+                course_data = {
                     'id': course.id,
                     'title': course.title,
                     'description': course.description,
@@ -137,11 +146,16 @@ class CourseDetailView(APIView):
                     'created_by': course.created_by.id,
                     'created_at': course.created_at.isoformat(),
                     'updated_at': course.updated_at.isoformat(),
-                    'pdfUrls': course.pdfUrls,
-                    'links': course.links,
-                    'slug': course.slug,
+                    'pdfUrls': course.pdfUrls or [],
+                    'links': course.links or [],
+                    'slug': course.slug or '',
                     'assignedUsers': []
-                }, merge=True)
+                }
+                
+                # Usuń None wartości
+                course_data = {k: v for k, v in course_data.items() if v is not None}
+                
+                course_ref.set(course_data, merge=True)
                 print(f"Course updated in Firestore: {course.id}")
             except Exception as e:
                 print(f"Error updating course in Firestore: {e}")
@@ -163,7 +177,9 @@ class CourseDetailView(APIView):
             try:
                 db = firestore.client()
                 course_ref = db.collection('courses').document(str(course.id))
-                course_ref.set({
+                
+                # Przygotuj dane do zapisu, filtrując None wartości
+                course_data = {
                     'id': course.id,
                     'title': course.title,
                     'description': course.description,
@@ -173,10 +189,15 @@ class CourseDetailView(APIView):
                     'created_by': course.created_by.id,
                     'created_at': course.created_at.isoformat(),
                     'updated_at': course.updated_at.isoformat(),
-                    'pdfUrls': course.pdfUrls,
-                    'links': course.links,
-                    'slug': course.slug,
-                }, merge=True)
+                    'pdfUrls': course.pdfUrls or [],
+                    'links': course.links or [],
+                    'slug': course.slug or '',
+                }
+                
+                # Usuń None wartości
+                course_data = {k: v for k, v in course_data.items() if v is not None}
+                
+                course_ref.set(course_data, merge=True)
                 print(f"Course patched in Firestore: {course.id}")
             except Exception as e:
                 print(f"Error patching course in Firestore: {e}")
@@ -405,7 +426,7 @@ def assign_course(request):
                 print(f"Course assignment synchronized with Firestore: {course_id}")
             else:
                 # Create new document if it doesn't exist
-                course_ref.set({
+                course_data = {
                     'id': course.id,
                     'title': course.title,
                     'description': course.description,
@@ -415,11 +436,16 @@ def assign_course(request):
                     'created_by': course.created_by.id,
                     'created_at': course.created_at.isoformat(),
                     'updated_at': course.updated_at.isoformat(),
-                    'pdfUrls': course.pdfUrls,
-                    'links': course.links,
-                    'slug': course.slug,
+                    'pdfUrls': course.pdfUrls or [],
+                    'links': course.links or [],
+                    'slug': course.slug or '',
                     'assignedUsers': [firebase_uid, email] if firebase_uid else [email]
-                })
+                }
+                
+                # Usuń None wartości
+                course_data = {k: v for k, v in course_data.items() if v is not None}
+                
+                course_ref.set(course_data)
                 print(f"Course created in Firestore with assignment: {course_id}")
         except Exception as e:
             print(f"Error synchronizing course assignment with Firestore: {e}")

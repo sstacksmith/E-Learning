@@ -718,10 +718,14 @@ function SuperAdminDashboardContent() {
   );
 }
 
+import AdminRoute from '@/components/AdminRoute';
+
 export default function SuperAdminDashboard() {
   return (
     <Providers>
-      <SuperAdminDashboardContent />
+      <AdminRoute>
+        <SuperAdminDashboardContent />
+      </AdminRoute>
     </Providers>
   );
 } 

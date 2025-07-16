@@ -292,17 +292,30 @@ function TeacherCourseDetailContent() {
   // Dodaj helper do zapisu sekcji do Firestore
   async function saveSectionsToFirestore(courseId: string | string[], sections: Section[]) {
     if (!courseId) return;
-    console.log('Saving sections to Firestore:', sections);
+    
+    // Filtruj undefined wartości z sekcji
+    const cleanSections = sections.map(section => {
+      const cleanSection: any = {};
+      Object.keys(section).forEach(key => {
+        const value = (section as any)[key];
+        if (value !== undefined) {
+          cleanSection[key] = value;
+        }
+      });
+      return cleanSection;
+    });
+    
+    console.log('Saving sections to Firestore:', cleanSections);
     const courseRef = doc(db, "courses", String(courseId));
     
     // Sprawdź czy dokument istnieje
     const courseDoc = await getDoc(courseRef);
     if (courseDoc.exists()) {
-      await updateDoc(courseRef, { sections });
+      await updateDoc(courseRef, { sections: cleanSections });
       console.log('Sections updated successfully in Firestore');
     } else {
       // Jeśli dokument nie istnieje, utwórz go z sekcjami
-      await setDoc(courseRef, { sections }, { merge: true });
+      await setDoc(courseRef, { sections: cleanSections }, { merge: true });
       console.log('Course document created with sections in Firestore');
     }
   }
@@ -342,7 +355,7 @@ function TeacherCourseDetailContent() {
       id,
       name: newSection.name,
       type: newSection.type,
-      deadline: newSection.deadline,
+      deadline: newSection.deadline || null,
       contents: []
     };
     // Dodaj submissions: [] tylko dla zadania
@@ -392,10 +405,11 @@ function TeacherCourseDetailContent() {
     }
     
     const newContentItem = { 
-      ...content, 
       id: Date.now(),
-      fileUrl: fileUrl, // Save the Firebase Storage URL
-      file: null // Remove the File object as it can't be serialized
+      name: content.name || '',
+      fileUrl: fileUrl || null, // Save the Firebase Storage URL
+      link: content.link || null,
+      text: content.text || null
     };
     
     const updatedSectionContents = {

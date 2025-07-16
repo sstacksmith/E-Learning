@@ -125,6 +125,23 @@ const dodatkoweKursy = [
 const wszystkieKursy = [...podstawoweKursy, ...dodatkoweKursy];
 
 function DashboardPageContent() {
+  const { user, loading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!loading && user) {
+      // Przekieruj na podstawie roli użytkownika
+      if (user.role === 'teacher') {
+        router.replace('/homelogin/teacher');
+      } else if (user.role === 'admin') {
+        router.replace('/homelogin/superadmin');
+      } else {
+        // Student - zostaje na tej stronie
+        console.log('User is student, staying on dashboard');
+      }
+    }
+  }, [user, loading, router]);
+
   return (
     <ProtectedRoute>
       <Dashboard />

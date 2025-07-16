@@ -1,8 +1,10 @@
 import Link from "next/link";
+import StudentRoute from '@/components/StudentRoute';
 
 export default function StudentLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-[#F4F6FB] flex flex-col">
+    <StudentRoute>
+      <div className="min-h-screen bg-[#F4F6FB] flex flex-col">
       {/* Minimalist Topbar */}
       <header className="w-full bg-white shadow-sm border-b flex items-center justify-between px-8 py-1 sticky top-0 z-50 h-14">
         {/* Dashboard/Home link on the left */}
@@ -26,5 +28,6 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
       </header>
       <main className="flex-1 w-full max-w-full mx-auto">{children}</main>
     </div>
+    </StudentRoute>
   );
 } 
