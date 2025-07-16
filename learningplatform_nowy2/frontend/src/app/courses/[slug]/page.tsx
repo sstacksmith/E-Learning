@@ -4,6 +4,8 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import { collection, getDocs, query, where } from 'firebase/firestore';
+import { db } from '@/config/firebase';
 
 // Types
 interface Module {
@@ -59,35 +61,49 @@ function CourseDetail() {
   useEffect(() => {
     const fetchCourseDetail = async () => {
       try {
-        const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
         console.log('[DEBUG] Slug:', slug);
-        console.log('[DEBUG] Token:', token);
-        if (!token) {
-          setError('Brak tokenu JWT. Zaloguj się ponownie.');
+        console.log('[DEBUG] Fetching from Firestore...');
+        
+        // Pobierz kurs z Firestore po slug
+        const coursesCollection = collection(db, "courses");
+        const q = query(coursesCollection, where("slug", "==", slug));
+        const querySnapshot = await getDocs(q);
+        
+        if (querySnapshot.empty) {
+          console.log('[DEBUG] No course found with slug:', slug);
+          setError('Nie znaleziono kursu.');
           setLoading(false);
           return;
         }
-        console.log('[DEBUG] Fetching:', `/api/courses/slug/${slug}/`);
-        const response = await fetch(`/api/courses/slug/${slug}/`, {
-          headers: { 'Authorization': `Bearer ${token}` },
-        });
-        console.log('[DEBUG] Response status:', response.status);
-        if (!response.ok) {
-          let errorBody = '';
-          try { errorBody = await response.text(); } catch {}
-          console.log('[DEBUG] Response body:', errorBody);
-          throw new Error('Failed to fetch course');
-        }
-        const data = await response.json();
-        console.log('[DEBUG] Course data:', data);
-        setCourse(data);
+        
+        const courseDoc = querySnapshot.docs[0];
+        const courseData = courseDoc.data();
+        console.log('[DEBUG] Course data from Firestore:', courseData);
+        
+        // Mapuj dane z Firestore na format oczekiwany przez komponent
+        const mappedCourse: Course = {
+          id: parseInt(courseDoc.id),
+          title: courseData.title || '',
+          slug: courseData.slug || slug,
+          description: courseData.description || '',
+          thumbnail: courseData.thumbnail || '/puzzleicon.png',
+          level: courseData.level || 'Podstawowy',
+          category: courseData.category || 1,
+          category_name: courseData.category_name || 'Ogólny',
+          instructor: courseData.instructor || 1,
+          instructor_name: courseData.instructor_name || 'Instructor',
+          modules: courseData.modules || []
+        };
+        
+        setCourse(mappedCourse);
+        
         // Set the first module as active by default
-        if (data.modules && data.modules.length > 0) {
-          setActiveModule(data.modules[0].id);
+        if (mappedCourse.modules && mappedCourse.modules.length > 0) {
+          setActiveModule(mappedCourse.modules[0].id);
         }
       } catch (err) {
-        console.error('[DEBUG] Error fetching course:', err);
-        setError('Brak kursów – administrator naprawia bazę. Spróbuj ponownie później.');
+        console.error('[DEBUG] Error fetching course from Firestore:', err);
+        setError('Błąd ładowania kursu. Spróbuj ponownie później.');
       } finally {
         setLoading(false);
       }

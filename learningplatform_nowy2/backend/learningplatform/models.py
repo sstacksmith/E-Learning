@@ -39,7 +39,7 @@ class Course(models.Model):
     subject = models.CharField(max_length=100, blank=True)
     pdfUrls = models.JSONField(default=list, blank=True)
     links = models.JSONField(default=list, blank=True)
-    slug = models.SlugField(max_length=255, blank=True)
+    slug = models.SlugField(max_length=255, blank=True, unique=True)
 
     def __str__(self):
         return self.title
