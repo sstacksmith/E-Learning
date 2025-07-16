@@ -184,7 +184,7 @@ import os
 if os.getenv('RAILWAY_ENVIRONMENT'):
     ALLOWED_HOSTS = ['*']
     DEBUG = False
-    CSRF_TRUSTED_ORIGINS = [f"https://{os.getenv('RAILWAY_PUBLIC_DOMAIN', 'localhost')}"]
+    CSRF_TRUSTED_ORIGINS = [f"https://{os.getenv('RAILWAY_PUBLIC_DOMAIN', 'localhost','e-learning-theta-ten.vercel.app')}"]
 else:
     ALLOWED_HOSTS = ['localhost', '127.0.0.1','e-learning-theta-ten.vercel.app']
     DEBUG = True
