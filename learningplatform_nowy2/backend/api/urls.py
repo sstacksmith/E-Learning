@@ -8,7 +8,7 @@ from .views import (
 # Set up DRF router
 router = DefaultRouter()
 router.register(r'categories', CategoryViewSet)
-# router.register(r'courses', CourseViewSet)  # Removed to avoid endpoint conflict
+router.register(r'courses', CourseViewSet)
 router.register(r'modules', ModuleViewSet)
 router.register(r'lessons', LessonViewSet)
 router.register(r'progress', ProgressViewSet, basename='progress')
