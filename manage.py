@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 # Add the backend directory to Python path
-backend_path = Path(__file__).parent / "learningplatform_nowy 2" / "backend"
+backend_path = Path(__file__).parent / "learningplatform_nowy2" / "backend"
 sys.path.insert(0, str(backend_path))
 
 def main():
