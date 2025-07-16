@@ -25,7 +25,7 @@ SECRET_KEY = 'django-insecure-#r%j=p*5tx%*32e&af2vg1&hhb0frc%h=80)1-apfeh-pudvof
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1'.'e-learning-theta-ten.vercel.app']
 
 
 # Application definition
@@ -133,7 +133,7 @@ CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-    "https://twoj-front.vercel.app",  # <-- Zmień na prawdziwy adres frontendu na Vercel
+    "https://e-learning-theta-ten.vercel.app",
 ]
 CORS_ALLOW_ALL_ORIGINS = False  # Wyłącz na produkcji!
 CORS_ALLOW_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
@@ -150,6 +150,7 @@ CORS_ALLOW_HEADERS = [
 ]
 
 CSRF_TRUSTED_ORIGINS = [
+    'https://e-learning-theta-ten.vercel.app',
     'http://localhost:3000',
     'http://127.0.0.1:3000',
 ]
@@ -157,6 +158,7 @@ CSRF_COOKIE_SECURE = False
 CSRF_COOKIE_HTTPONLY = False
 CSRF_USE_SESSIONS = False
 SESSION_COOKIE_SAMESITE = None
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 # REST Framework settings
 REST_FRAMEWORK = {
@@ -184,5 +186,5 @@ if os.getenv('RAILWAY_ENVIRONMENT'):
     DEBUG = False
     CSRF_TRUSTED_ORIGINS = [f"https://{os.getenv('RAILWAY_PUBLIC_DOMAIN', 'localhost')}"]
 else:
-    ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+    ALLOWED_HOSTS = ['localhost', '127.0.0.1','e-learning-theta-ten.vercel.app']
     DEBUG = True
