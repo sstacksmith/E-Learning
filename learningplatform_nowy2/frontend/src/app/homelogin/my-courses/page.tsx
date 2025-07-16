@@ -16,6 +16,7 @@ interface Course {
   subject?: string;
   is_active?: boolean;
   assignedUsers: string[];
+  slug?: string;
 }
 
 function MyCoursesPageContent() {
@@ -62,7 +63,7 @@ function MyCoursesPageContent() {
         ) : (
           <div className="flex flex-col gap-4">
             {courses.map((course) => (
-              <Link key={course.id} href={`/homelogin/student/courses/${course.id}`} className="block">
+              <Link key={course.id} href={`/courses/${course.slug || course.id}`} className="block">
                 <div className="flex flex-col md:flex-row items-center bg-[#F8F9FB] w-full rounded-xl p-3 group cursor-pointer hover:bg-[#e6eaff] transition" style={{ boxShadow: 'none' }}>
                   <Image src="/thumb.png" alt={course.title || 'Course thumbnail'} width={120} height={60} className="rounded-lg object-cover" />
                   <div className="flex-1 md:ml-6 min-w-0 mt-2 md:mt-0">

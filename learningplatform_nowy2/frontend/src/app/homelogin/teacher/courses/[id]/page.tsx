@@ -176,9 +176,11 @@ function TeacherCourseDetailContent() {
     const fetchFirestoreCourse = async () => {
       setLoading(true);
       try {
+        console.log('Fetching course from Firestore for courseId:', courseId);
         const courseDoc = await getDoc(doc(db, "courses", String(courseId)));
         if (courseDoc.exists()) {
           const data = courseDoc.data();
+          console.log('Course data loaded from Firestore:', data);
           setCourse(data as any);
           setSections(data.sections || []);
           setBannerUrl(data.bannerUrl || "");
@@ -189,11 +191,16 @@ function TeacherCourseDetailContent() {
           sectionsData.forEach((section: any) => {
             if (section.contents && Array.isArray(section.contents)) {
               initialSectionContents[section.id] = section.contents;
+              console.log(`Section ${section.id} contents loaded:`, section.contents);
             }
           });
           setSectionContents(initialSectionContents);
+          console.log('Initial sectionContents set:', initialSectionContents);
+        } else {
+          console.log('Course document does not exist in Firestore');
         }
       } catch (err) {
+        console.error('Error fetching course from Firestore:', err);
         setError("Failed to load course details from Firestore");
       } finally {
         setLoading(false);
@@ -276,19 +283,38 @@ function TeacherCourseDetailContent() {
     return () => clearInterval(interval);
   }, []);
 
+  // Debug useEffect
+  useEffect(() => {
+    console.log('Sections state changed:', sections);
+    console.log('SectionContents state changed:', sectionContents);
+  }, [sections, sectionContents]);
+
   // Dodaj helper do zapisu sekcji do Firestore
   async function saveSectionsToFirestore(courseId: string | string[], sections: Section[]) {
     if (!courseId) return;
+    console.log('Saving sections to Firestore:', sections);
     const courseRef = doc(db, "courses", String(courseId));
-    await updateDoc(courseRef, { sections });
+    
+    // Sprawdź czy dokument istnieje
+    const courseDoc = await getDoc(courseRef);
+    if (courseDoc.exists()) {
+      await updateDoc(courseRef, { sections });
+      console.log('Sections updated successfully in Firestore');
+    } else {
+      // Jeśli dokument nie istnieje, utwórz go z sekcjami
+      await setDoc(courseRef, { sections }, { merge: true });
+      console.log('Course document created with sections in Firestore');
+    }
   }
 
   // Helper function to refresh data from Firestore
   async function refreshCourseData() {
     if (!courseId) return;
+    console.log('Refreshing course data for courseId:', courseId);
     const courseDoc = await getDoc(doc(db, "courses", String(courseId)));
     if (courseDoc.exists()) {
       const data = courseDoc.data();
+      console.log('Course data from Firestore:', data);
       setSections(data.sections || []);
       
       // Aktualizuj sectionContents
@@ -297,9 +323,13 @@ function TeacherCourseDetailContent() {
       sectionsData.forEach((section: any) => {
         if (section.contents && Array.isArray(section.contents)) {
           updatedSectionContents[section.id] = section.contents;
+          console.log(`Section ${section.id} contents:`, section.contents);
         }
       });
       setSectionContents(updatedSectionContents);
+      console.log('Updated sectionContents:', updatedSectionContents);
+    } else {
+      console.log('Course document does not exist in Firestore');
     }
   }
 
@@ -327,7 +357,9 @@ function TeacherCourseDetailContent() {
     
     // Zapisz do Firestore
     if (courseId) {
+      console.log('Saving new section to Firestore:', sectionWithSubmissions);
       await saveSectionsToFirestore(courseId, newSections);
+      console.log('New section saved, refreshing data...');
       await refreshCourseData();
       
       // Automatycznie utwórz event w kalendarzu dla zadań i egzaminów
@@ -376,12 +408,19 @@ function TeacherCourseDetailContent() {
     
     // Aktualizuj sekcje w Firestore z nowymi materiałami
     if (courseId) {
+      console.log('Saving content to Firestore for sectionId:', sectionId);
+      console.log('Updated sectionContents:', updatedSectionContents);
+      console.log('Current sections:', sections);
+      
       const updatedSections = sections.map(section => 
         section.id === sectionId 
           ? { ...section, contents: updatedSectionContents[sectionId] }
           : section
       );
+      console.log('Updated sections to save:', updatedSections);
+      
       await saveSectionsToFirestore(courseId, updatedSections);
+      console.log('Sections saved to Firestore, refreshing data...');
       await refreshCourseData();
     }
   };
