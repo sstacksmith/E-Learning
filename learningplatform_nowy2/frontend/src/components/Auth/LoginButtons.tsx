@@ -15,7 +15,7 @@ export default function LoginButtons() {
       setToken(userToken);
       
       // Send token to Django backend
-      const response = await fetch('http://localhost:8000/api/auth/firebase-login/', {
+              const response = await fetch('/api/auth/firebase-login/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -125,7 +125,7 @@ function SuperAdminDashboardContent() {
   const fetchUsers = async () => {
     try {
       const token = localStorage.getItem('firebaseToken');
-      const response = await fetch('http://localhost:8000/api/users/', {
+              const response = await fetch('/api/users/', {
         headers: {
           'Authorization': token ? `Bearer ${token}` : '',
           'Content-Type': 'application/json',
@@ -144,7 +144,7 @@ function SuperAdminDashboardContent() {
   const setTeacherRole = async (email: string) => {
     try {
       const token = localStorage.getItem('firebaseToken');
-      const response = await fetch('http://localhost:8000/api/set-teacher-role-api/', {
+              const response = await fetch('/api/set-teacher-role-api/', {
         method: 'POST',
         headers: {
           'Authorization': token ? `Bearer ${token}` : '',
@@ -168,7 +168,7 @@ function SuperAdminDashboardContent() {
   const handleResetPassword = async (userId: string) => {
     try {
       const token = localStorage.getItem("token");
-      const response = await fetch(`http://localhost:8000/api/users/${userId}/reset_password/`, {
+              const response = await fetch(`/api/users/${userId}/reset_password/`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -197,7 +197,7 @@ function SuperAdminDashboardContent() {
   const handleCreateGroup = async () => {
     try {
       const token = localStorage.getItem("token");
-      const response = await fetch("http://localhost:8000/api/groups/", {
+              const response = await fetch("/api/groups/", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -230,7 +230,7 @@ function SuperAdminDashboardContent() {
   const handleAddMember = async (groupId: string, userId: string) => {
     try {
       const token = localStorage.getItem("token");
-      const response = await fetch(`http://localhost:8000/api/groups/${groupId}/add_member/`, {
+              const response = await fetch(`/api/groups/${groupId}/add_member/`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

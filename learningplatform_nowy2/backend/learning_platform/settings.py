@@ -25,7 +25,15 @@ SECRET_KEY = 'django-insecure-#r%j=p*5tx%*32e&af2vg1&hhb0frc%h=80)1-apfeh-pudvof
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'cogito-7zrt.onrender.com', 'e-learning-theta-ten.vercel.app']
+
+# Security settings for production
+SECURE_SSL_REDIRECT = os.getenv('RAILWAY_ENVIRONMENT') or os.getenv('RENDER')  # Set to True in production
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# Session settings
+SESSION_COOKIE_SECURE = os.getenv('RAILWAY_ENVIRONMENT') or os.getenv('RENDER')
+SESSION_COOKIE_HTTPONLY = True
 
 
 # Application definition
@@ -131,12 +139,14 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # CORS settings
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
-    "https://e-learning-theta-ten.vercel.app/",  # <-- PODMIEN NA SWOJĄ DOMENĘ VERCEL
+    "https://cogito-7zrt.onrender.com",
+    "https://e-learning-theta-ten.vercel.app",
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "https://localhost:3000",
 ]
-CORS_ALLOW_ALL_ORIGINS = False  # Wyłączone w produkcji
-CORS_ALLOW_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+CORS_ALLOW_ALL_ORIGINS = not (os.getenv('RAILWAY_ENVIRONMENT') or os.getenv('RENDER'))  # Wyłączone w produkcji
+CORS_ALLOW_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"]
 CORS_ALLOW_HEADERS = [
     'accept',
     'accept-encoding',
@@ -147,17 +157,20 @@ CORS_ALLOW_HEADERS = [
     'user-agent',
     'x-csrftoken',
     'x-requested-with',
+    'x-forwarded-proto',
+    'x-forwarded-for',
 ]
 
 CSRF_TRUSTED_ORIGINS = [
-    "https://e-learning-theta-ten.vercel.app/",  # <-- PODMIEN NA SWOJĄ DOMENĘ VERCEL
+    "https://e-learning-theta-ten.vercel.app",  # <-- PODMIEN NA SWOJĄ DOMENĘ VERCEL
     'http://localhost:3000',
     'http://127.0.0.1:3000',
 ]
-CSRF_COOKIE_SECURE = False
+CSRF_COOKIE_SECURE = os.getenv('RAILWAY_ENVIRONMENT') or os.getenv('RENDER')
 CSRF_COOKIE_HTTPONLY = False
 CSRF_USE_SESSIONS = False
 SESSION_COOKIE_SAMESITE = None
+CSRF_COOKIE_SAMESITE = None
 
 # REST Framework settings
 REST_FRAMEWORK = {
@@ -169,6 +182,9 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
     ],
+    'DEFAULT_RENDERER_CLASSES': [
+        'rest_framework.renderers.JSONRenderer',
+    ],
 }
 
 # Media files
@@ -178,16 +194,32 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # Custom user model
 AUTH_USER_MODEL = 'api.User'
 
-# Railway configuration
+# Railway/Render configuration
 import os
-if os.getenv('RAILWAY_ENVIRONMENT'):
-    ALLOWED_HOSTS = ['*']
+if os.getenv('RAILWAY_ENVIRONMENT') or os.getenv('RENDER'):
+    ALLOWED_HOSTS = ['*', 'cogito-7zrt.onrender.com', 'e-learning-theta-ten.vercel.app']
     DEBUG = False
     # Dodaj domenę Vercel do CSRF_TRUSTED_ORIGINS w produkcji
     CSRF_TRUSTED_ORIGINS = [
         f"https://{os.getenv('RAILWAY_PUBLIC_DOMAIN', 'localhost')}",
-        "https://e-learning-theta-ten.vercel.app/",  # <-- PODMIEN NA SWOJĄ DOMENĘ VERCEL
+        f"https://{os.getenv('RENDER_EXTERNAL_HOSTNAME', 'localhost')}",
+        "https://cogito-7zrt.onrender.com",
+        "https://e-learning-theta-ten.vercel.app",
+    ]
+    # Dodaj domenę Vercel do CORS w produkcji
+    CORS_ALLOWED_ORIGINS = [
+        f"https://{os.getenv('RENDER_EXTERNAL_HOSTNAME', 'cogito-7zrt.onrender.com')}",
+        "https://cogito-7zrt.onrender.com",
+        "https://e-learning-theta-ten.vercel.app",
     ]
 else:
-    ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+    ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'cogito-7zrt.onrender.com', 'e-learning-theta-ten.vercel.app']
     DEBUG = True
+    # Dodaj domenę Vercel do CORS w development
+    CORS_ALLOWED_ORIGINS = [
+        "https://cogito-7zrt.onrender.com",
+        "https://e-learning-theta-ten.vercel.app",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "https://localhost:3000",
+    ]

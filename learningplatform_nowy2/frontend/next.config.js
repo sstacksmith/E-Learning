@@ -17,6 +17,14 @@ const nextConfig = {
       bodySizeLimit: '30mb',
     },
   },
+  async rewrites() {
+    return [
+      {
+        source: '/api/:path*',
+        destination: '/api/:path*',
+      },
+    ];
+  },
 };
 
 module.exports = nextConfig;
