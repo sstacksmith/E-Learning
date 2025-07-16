@@ -8,22 +8,23 @@ import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 
 // Types
-interface Module {
+interface Section {
   id: number;
-  title: string;
-  description: string;
-  order: number;
-  lessons: Lesson[];
+  name: string;
+  type: string;
+  deadline?: string;
+  contents: Content[];
+  submissions?: any[];
 }
 
-interface Lesson {
+interface Content {
   id: number;
-  title: string;
-  content_type: string;
-  content: string;
-  video_url: string;
-  order: number;
-  duration_minutes: number;
+  name: string;
+  fileUrl?: string;
+  link?: string;
+  text?: string;
+  type?: string;
+  duration_minutes?: number;
 }
 
 interface Course {
@@ -37,7 +38,7 @@ interface Course {
   category_name: string;
   instructor: number;
   instructor_name: string;
-  modules: Module[];
+  sections: Section[];
 }
 
 export default function CourseDetailPage() {
@@ -79,6 +80,9 @@ function CourseDetail() {
         const courseDoc = querySnapshot.docs[0];
         const courseData = courseDoc.data();
         console.log('[DEBUG] Course data from Firestore:', courseData);
+        console.log('[DEBUG] Sections from Firestore:', courseData.sections);
+        console.log('[DEBUG] Sections type:', typeof courseData.sections);
+        console.log('[DEBUG] Sections length:', courseData.sections?.length);
         
         // Mapuj dane z Firestore na format oczekiwany przez komponent
         const mappedCourse: Course = {
@@ -92,14 +96,20 @@ function CourseDetail() {
           category_name: courseData.category_name || 'Ogólny',
           instructor: courseData.instructor || 1,
           instructor_name: courseData.instructor_name || 'Instructor',
-          modules: courseData.modules || []
+          sections: courseData.sections || []
         };
+        
+        console.log('[DEBUG] Mapped course:', mappedCourse);
+        console.log('[DEBUG] Mapped sections:', mappedCourse.sections);
         
         setCourse(mappedCourse);
         
-        // Set the first module as active by default
-        if (mappedCourse.modules && mappedCourse.modules.length > 0) {
-          setActiveModule(mappedCourse.modules[0].id);
+        // Set the first section as active by default
+        if (mappedCourse.sections && mappedCourse.sections.length > 0) {
+          setActiveModule(mappedCourse.sections[0].id);
+          console.log('[DEBUG] Set active section to:', mappedCourse.sections[0].id);
+        } else {
+          console.log('[DEBUG] No sections found, activeModule remains null');
         }
       } catch (err) {
         console.error('[DEBUG] Error fetching course from Firestore:', err);
@@ -241,8 +251,8 @@ function CourseDetail() {
                   {course.category_name}
                 </span>
                 <span className="bg-white/20 text-white px-3 py-1 rounded-full text-sm">
-                  {course.modules?.reduce((total, module) => 
-                    total + module.lessons.length, 0) || 0} lessons
+                  {course.sections?.reduce((total, section) => 
+                    total + section.contents.length, 0) || 0} lessons
                 </span>
               </div>
               
@@ -284,17 +294,17 @@ function CourseDetail() {
             {/* Module Navigation Tabs */}
             <div className="border-b border-gray-200">
               <nav className="flex overflow-x-auto py-2 px-4">
-                {course.modules?.map((module) => (
+                {course.sections?.map((section) => (
                   <button
-                    key={module.id}
+                    key={section.id}
                     className={`whitespace-nowrap px-4 py-2 font-medium text-sm rounded-md mr-2 ${
-                      activeModule === module.id
+                      activeModule === section.id
                         ? 'bg-[#F1F4FE] text-[#4067EC]'
                         : 'text-gray-600 hover:text-gray-900'
                     }`}
-                    onClick={() => setActiveModule(module.id)}
+                    onClick={() => setActiveModule(section.id)}
                   >
-                    {module.title}
+                    {section.name}
                   </button>
                 ))}
               </nav>
@@ -302,60 +312,54 @@ function CourseDetail() {
             
             {/* Module Content */}
             <div className="p-6">
-              {course.modules?.map((module) => (
+              {course.sections?.map((section) => (
                 <div 
-                  key={module.id} 
-                  className={activeModule === module.id ? 'block' : 'hidden'}
+                  key={section.id} 
+                  className={activeModule === section.id ? 'block' : 'hidden'}
                 >
                   <div className="mb-6">
-                    <h2 className="text-2xl font-bold text-gray-900 mb-2">{module.title}</h2>
-                    <p className="text-gray-600">{module.description}</p>
+                    <h2 className="text-2xl font-bold text-gray-900 mb-2">{section.name}</h2>
+                    <p className="text-gray-600">{section.type}</p>
                   </div>
                   
                   {/* Lessons List */}
                   <div className="space-y-4">
-                    {module.lessons.map((lesson) => (
+                    {section.contents.map((content) => (
                       <div 
-                        key={lesson.id}
+                        key={content.id}
                         className="bg-gray-50 border border-gray-200 rounded-lg p-4 hover:border-[#4067EC] transition-colors"
                       >
                         <div className="sm:flex sm:items-center sm:justify-between">
                           <div className="flex items-start">
                             <div className="mr-3 flex-shrink-0">
-                              {lesson.content_type === 'video' && (
+                              {content.fileUrl && (
                                 <svg className="h-6 w-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>
                               )}
-                              {lesson.content_type === 'text' && (
+                              {content.text && (
                                 <svg className="h-6 w-6 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                 </svg>
                               )}
-                              {lesson.content_type === 'quiz' && (
+                              {content.link && (
                                 <svg className="h-6 w-6 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                                </svg>
-                              )}
-                              {lesson.content_type === 'assignment' && (
-                                <svg className="h-6 w-6 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
                                 </svg>
                               )}
                             </div>
                             <div>
-                              <h3 className="text-lg font-medium text-gray-900">{lesson.title}</h3>
+                              <h3 className="text-lg font-medium text-gray-900">{content.name}</h3>
                               <p className="mt-1 text-sm text-gray-500">
-                                {lesson.content_type.charAt(0).toUpperCase() + lesson.content_type.slice(1)} • 
-                                {lesson.duration_minutes} min
+                                {content.fileUrl ? 'File' : content.text ? 'Text' : content.link ? 'Link' : 'Content'}
                               </p>
                             </div>
                           </div>
                           
                           <div className="mt-3 sm:mt-0 sm:ml-4">
                             <button className="inline-flex items-center px-4 py-2 border border-[#4067EC] rounded-md shadow-sm text-sm font-medium text-[#4067EC] bg-white hover:bg-[#F1F4FE] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#4067EC]">
-                              Start Lesson
+                              View Content
                             </button>
                           </div>
                         </div>
@@ -366,7 +370,7 @@ function CourseDetail() {
               ))}
               
               {/* If no modules */}
-              {(!course.modules || course.modules.length === 0) && (
+              {(!course.sections || course.sections.length === 0) && (
                 <div className="text-center py-10">
                   <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
