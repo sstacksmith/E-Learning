@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
+import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -195,7 +196,6 @@ MEDIA_ROOT = BASE_DIR / 'media'
 AUTH_USER_MODEL = 'api.User'
 
 # Railway/Render configuration
-import os
 if os.getenv('RAILWAY_ENVIRONMENT') or os.getenv('RENDER'):
     ALLOWED_HOSTS = ['*', 'cogito-7zrt.onrender.com', 'e-learning-theta-ten.vercel.app']
     DEBUG = False
