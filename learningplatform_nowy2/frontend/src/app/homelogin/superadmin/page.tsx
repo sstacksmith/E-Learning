@@ -24,11 +24,7 @@ const groups = [
   { id: 3, name: "Chemistry Class", description: "Third year chemistry students", member_count: 15 },
 ];
 
-const courses = [
-  { id: 1, title: "Mathematics 101", year: 1, assignedStudents: 25 },
-  { id: 2, title: "Physics 201", year: 2, assignedStudents: 18 },
-  { id: 3, title: "Chemistry 301", year: 3, assignedStudents: 15 },
-];
+// Usuwamy statyczne dane - będziemy pobierać z Firestore
 
 function SuperAdminUserPanel() {
   const [users, setUsers] = useState<FirestoreUser[]>([]);
@@ -99,6 +95,8 @@ function SuperAdminUserPanel() {
 function SuperAdminDashboardContent() {
   const { user } = useAuth();
   const [users, setUsers] = useState<FirestoreUser[]>([]);
+  const [courses, setCourses] = useState<any[]>([]);
+  const [groups, setGroups] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -117,9 +115,13 @@ function SuperAdminDashboardContent() {
   const [resetPasswordSuccess, setResetPasswordSuccess] = useState("");
   const [groupError, setGroupError] = useState("");
   const [groupSuccess, setGroupSuccess] = useState("");
+  const [selectedStudentForAssignment, setSelectedStudentForAssignment] = useState("");
+  const [selectedCourseForAssignment, setSelectedCourseForAssignment] = useState("");
 
   useEffect(() => {
     fetchUsers();
+    fetchCourses();
+    fetchGroups();
   }, []);
 
   const fetchUsers = async () => {
@@ -138,6 +140,34 @@ function SuperAdminDashboardContent() {
       setError('Failed to load users');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchCourses = async () => {
+    try {
+      const coursesCollection = collection(db, 'courses');
+      const coursesSnapshot = await getDocs(coursesCollection);
+      const coursesData = coursesSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setCourses(coursesData);
+    } catch (err) {
+      console.error('Failed to load courses:', err);
+    }
+  };
+
+  const fetchGroups = async () => {
+    try {
+      const groupsCollection = collection(db, 'groups');
+      const groupsSnapshot = await getDocs(groupsCollection);
+      const groupsData = groupsSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setGroups(groupsData);
+    } catch (err) {
+      console.error('Failed to load groups:', err);
     }
   };
 
@@ -276,6 +306,107 @@ function SuperAdminDashboardContent() {
     } catch (err) {
       setGroupError("An error occurred while adding the member");
       setGroupSuccess("");
+    }
+  };
+
+  const deleteCourse = async (courseId: string) => {
+    if (!confirm('Czy na pewno chcesz usunąć ten kurs? Ta operacja jest nieodwracalna.')) {
+      return;
+    }
+    
+    try {
+      const { deleteDoc, doc } = await import('firebase/firestore');
+      await deleteDoc(doc(db, 'courses', courseId));
+      setSuccess('Kurs został pomyślnie usunięty');
+      fetchCourses(); // Refresh the list
+    } catch (error) {
+      console.error('Error deleting course:', error);
+      setError('Błąd podczas usuwania kursu');
+    }
+  };
+
+  const deleteGroup = async (groupId: string) => {
+    if (!confirm('Czy na pewno chcesz usunąć tę grupę? Ta operacja jest nieodwracalna.')) {
+      return;
+    }
+    
+    try {
+      const { deleteDoc, doc } = await import('firebase/firestore');
+      await deleteDoc(doc(db, 'groups', groupId));
+      setGroupSuccess('Grupa została pomyślnie usunięta');
+      fetchGroups(); // Refresh the list
+    } catch (error) {
+      console.error('Error deleting group:', error);
+      setGroupError('Błąd podczas usuwania grupy');
+    }
+  };
+
+  const createGroup = async () => {
+    if (!newGroupName.trim()) {
+      setGroupError('Nazwa grupy jest wymagana');
+      return;
+    }
+    
+    try {
+      const { addDoc, collection } = await import('firebase/firestore');
+      await addDoc(collection(db, 'groups'), {
+        name: newGroupName,
+        description: newGroupDescription,
+        members: [],
+        created_at: new Date().toISOString(),
+        created_by: user?.email || 'admin'
+      });
+      
+      setGroupSuccess('Grupa została pomyślnie utworzona');
+      setNewGroupName('');
+      setNewGroupDescription('');
+      setShowCreateGroupModal(false);
+      fetchGroups(); // Refresh the list
+    } catch (error) {
+      console.error('Error creating group:', error);
+      setGroupError('Błąd podczas tworzenia grupy');
+    }
+  };
+
+  const assignCourseToStudent = async () => {
+    if (!selectedStudentForAssignment || !selectedCourseForAssignment) {
+      setError('Wybierz studenta i kurs');
+      return;
+    }
+    
+    try {
+      const token = localStorage.getItem('firebaseToken');
+      const response = await fetch('/api/assign-course/', {
+        method: 'POST',
+        headers: {
+          'Authorization': token ? `Bearer ${token}` : '',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          course_id: selectedCourseForAssignment,
+          email: selectedStudentForAssignment,
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok && data.success) {
+        setSuccess('Kurs został pomyślnie przypisany do studenta');
+        setSelectedStudentForAssignment('');
+        setSelectedCourseForAssignment('');
+        fetchCourses(); // Refresh courses to update assignment count
+        // Clear success message after 3 seconds
+        setTimeout(() => setSuccess(''), 3000);
+      } else {
+        setError(data.error || 'Błąd podczas przypisywania kursu');
+        // Clear error message after 3 seconds
+        setTimeout(() => setError(''), 3000);
+      }
+    } catch (error) {
+      console.error('Error assigning course:', error);
+      setError('Błąd podczas przypisywania kursu');
+      // Clear error message after 3 seconds
+      setTimeout(() => setError(''), 3000);
     }
   };
 
@@ -486,7 +617,12 @@ function SuperAdminDashboardContent() {
                             Add Member
                           </button>
                           <button className="text-[#4067EC] hover:text-[#3155d4] mr-3">Edit</button>
-                          <button className="text-red-600 hover:text-red-900">Delete</button>
+                          <button 
+                            onClick={() => deleteGroup(group.id)}
+                            className="text-red-600 hover:text-red-900"
+                          >
+                            Delete
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -538,7 +674,12 @@ function SuperAdminDashboardContent() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                           <button className="text-[#4067EC] hover:text-[#3155d4] mr-3">Edit</button>
-                          <button className="text-red-600 hover:text-red-900">Delete</button>
+                          <button 
+                            onClick={() => deleteCourse(course.id)}
+                            className="text-red-600 hover:text-red-900"
+                          >
+                            Delete
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -558,29 +699,50 @@ function SuperAdminDashboardContent() {
                   New Assignment
                 </button>
               </div>
+              {success && (
+                <div className="mb-4 bg-green-50 border border-green-200 text-green-600 px-4 py-3 rounded relative">
+                  {success}
+                </div>
+              )}
+              {error && (
+                <div className="mb-4 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded relative">
+                  {error}
+                </div>
+              )}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="border rounded-lg p-4">
                   <h3 className="text-lg font-medium text-gray-800 mb-4">Assign Course to Student</h3>
                   <div className="space-y-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700">Select Student</label>
-                      <select className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#4067EC] focus:ring-[#4067EC]">
-                        <option>Select a student...</option>
+                      <select 
+                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#4067EC] focus:ring-[#4067EC]"
+                        value={selectedStudentForAssignment}
+                        onChange={(e) => setSelectedStudentForAssignment(e.target.value)}
+                      >
+                        <option value="">Select a student...</option>
                         {users.filter(u => u.role === 'student').map((user: any) => (
-                          <option key={user.id} value={user.id}>{user.firstName || ''} {user.lastName || ''}</option>
+                          <option key={user.id} value={user.email}>{user.firstName || ''} {user.lastName || ''}</option>
                         ))}
                       </select>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700">Select Course</label>
-                      <select className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#4067EC] focus:ring-[#4067EC]">
-                        <option>Select a course...</option>
+                      <select 
+                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#4067EC] focus:ring-[#4067EC]"
+                        value={selectedCourseForAssignment}
+                        onChange={(e) => setSelectedCourseForAssignment(e.target.value)}
+                      >
+                        <option value="">Select a course...</option>
                         {courses.map(course => (
                           <option key={course.id} value={course.id}>{course.title}</option>
                         ))}
                       </select>
                     </div>
-                    <button className="w-full bg-[#4067EC] text-white px-4 py-2 rounded-lg hover:bg-[#3155d4] transition">
+                    <button 
+                      onClick={assignCourseToStudent}
+                      className="w-full bg-[#4067EC] text-white px-4 py-2 rounded-lg hover:bg-[#3155d4] transition"
+                    >
                       Assign Course
                     </button>
                   </div>
@@ -695,7 +857,7 @@ function SuperAdminDashboardContent() {
                     Cancel
                   </button>
                   <button
-                    onClick={handleCreateGroup}
+                    onClick={createGroup}
                     className="px-4 py-2 bg-[#4067EC] text-white rounded-md hover:bg-[#3155d4]"
                   >
                     Create Group
