@@ -76,20 +76,29 @@ class CourseListCreateView(APIView):
 
     def get(self, request):
         print(f"GET request to courses by user: {request.user.email if request.user.is_authenticated else 'Anonymous'}")
+        print(f"User ID: {request.user.id}")
+        print(f"User is_teacher: {request.user.is_teacher}")
+        print(f"User is_superuser: {request.user.is_superuser}")
+        print(f"User is_student: {request.user.is_student}")
         
         # Filtruj kursy na podstawie roli użytkownika
         if request.user.is_teacher:
             # Nauczyciele widzą tylko swoje kursy
             courses = Course.objects.filter(created_by=request.user).order_by('-created_at')
+            print(f"Teacher filtering: found {courses.count()} courses for teacher {request.user.email}")
+            for course in courses:
+                print(f"  - Course: {course.title} (ID: {course.id}) created by: {course.created_by.email}")
         elif request.user.is_superuser:
             # Administratorzy widzą wszystkie kursy
             courses = Course.objects.all().order_by('-created_at')
+            print(f"Superuser: found {courses.count()} total courses")
         else:
             # Studenci widzą tylko kursy do których są przypisani
             from learningplatform.models import CourseAssignment
             assignments = CourseAssignment.objects.filter(student=request.user, is_active=True)
             course_ids = [assignment.course.id for assignment in assignments]
             courses = Course.objects.filter(id__in=course_ids).order_by('-created_at')
+            print(f"Student: found {courses.count()} assigned courses")
         
         # Dodaj paginację dla lepszej wydajności
         page = self.request.query_params.get('page', 1)
@@ -546,6 +555,34 @@ def courses_public(request):
             'results': serializer.data,
             'count': courses.count(),
             'message': 'Public courses endpoint'
+        })
+    except Exception as e:
+        return Response({'error': str(e)}, status=500)
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def courses_debug(request):
+    """Endpoint do debugowania - pokazuje wszystkie kursy"""
+    try:
+        all_courses = Course.objects.all().order_by('-created_at')
+        courses_data = []
+        
+        for course in all_courses:
+            courses_data.append({
+                'id': course.id,
+                'title': course.title,
+                'created_by': course.created_by.email if course.created_by else 'Unknown',
+                'created_by_id': course.created_by.id if course.created_by else None,
+                'created_at': course.created_at.isoformat(),
+                'is_active': course.is_active,
+                'subject': course.subject,
+                'year_of_study': course.year_of_study
+            })
+        
+        return Response({
+            'results': courses_data,
+            'count': len(courses_data),
+            'message': 'Debug endpoint - all courses'
         })
     except Exception as e:
         return Response({'error': str(e)}, status=500) 
