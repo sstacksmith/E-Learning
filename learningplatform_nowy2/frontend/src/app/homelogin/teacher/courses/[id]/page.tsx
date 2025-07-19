@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import { collection, getDocs, doc, updateDoc, arrayUnion, getDoc, setDoc, addDoc } from "firebase/firestore";
+import { collection, getDocs, doc, updateDoc, arrayUnion, getDoc, setDoc, addDoc, query, where } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db } from "@/config/firebase";
 import Image from "next/image";
@@ -140,14 +140,56 @@ function TeacherCourseDetailContent() {
           const assignedUsersFromFirestore = courseData.assignedUsers || [];
           console.log('Raw assignedUsers from Firestore:', assignedUsersFromFirestore);
           
-          // Mapuj przypisanych użytkowników z Firestore na format Student
-          const assignedUsersList = assignedUsersFromFirestore.map((userIdentifier: string) => ({
-            uid: userIdentifier,
-            displayName: userIdentifier.includes('@') ? userIdentifier.split('@')[0] : userIdentifier,
-            email: userIdentifier.includes('@') ? userIdentifier : `${userIdentifier}@example.com`,
-            role: 'student',
-            is_active: true
-          }));
+          // Pobierz pełne dane użytkowników z kolekcji "users"
+          const assignedUsersList = await Promise.all(
+            assignedUsersFromFirestore.map(async (userIdentifier: string) => {
+              try {
+                // Sprawdź czy to email czy UID
+                let userDoc;
+                if (userIdentifier.includes('@')) {
+                  // To email - znajdź użytkownika po email
+                  const usersQuery = query(collection(db, "users"), where("email", "==", userIdentifier));
+                  const userSnapshot = await getDocs(usersQuery);
+                  if (!userSnapshot.empty) {
+                    userDoc = userSnapshot.docs[0];
+                  }
+                } else {
+                  // To UID - pobierz bezpośrednio
+                  userDoc = await getDoc(doc(db, "users", userIdentifier));
+                }
+                
+                if (userDoc && userDoc.exists()) {
+                  const userData = userDoc.data() as any;
+                  return {
+                    uid: userDoc.id,
+                    displayName: `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || userData.email || userIdentifier,
+                    email: userData.email || userIdentifier,
+                    role: 'student',
+                    is_active: true
+                  };
+                } else {
+                  // Fallback jeśli nie znaleziono użytkownika
+                  return {
+                    uid: userIdentifier,
+                    displayName: userIdentifier.includes('@') ? userIdentifier.split('@')[0] : userIdentifier,
+                    email: userIdentifier.includes('@') ? userIdentifier : `${userIdentifier}@example.com`,
+                    role: 'student',
+                    is_active: true
+                  };
+                }
+              } catch (error) {
+                console.error('Error fetching user data for:', userIdentifier, error);
+                // Fallback
+                return {
+                  uid: userIdentifier,
+                  displayName: userIdentifier.includes('@') ? userIdentifier.split('@')[0] : userIdentifier,
+                  email: userIdentifier.includes('@') ? userIdentifier : `${userIdentifier}@example.com`,
+                  role: 'student',
+                  is_active: true
+                };
+              }
+            })
+          );
           
           console.log('Assigned users mapped from Firestore:', assignedUsersList);
           setAssignedUsers(assignedUsersList);
@@ -203,14 +245,56 @@ function TeacherCourseDetailContent() {
           const assignedUsersFromFirestore = courseData.assignedUsers || [];
           console.log('Updated assignedUsers from Firestore:', assignedUsersFromFirestore);
           
-          // Mapuj przypisanych użytkowników z Firestore na format Student
-          const assignedUsersList = assignedUsersFromFirestore.map((userIdentifier: string) => ({
-            uid: userIdentifier,
-            displayName: userIdentifier.includes('@') ? userIdentifier.split('@')[0] : userIdentifier,
-            email: userIdentifier.includes('@') ? userIdentifier : `${userIdentifier}@example.com`,
-            role: 'student',
-            is_active: true
-          }));
+          // Pobierz pełne dane użytkowników z kolekcji "users"
+          const assignedUsersList = await Promise.all(
+            assignedUsersFromFirestore.map(async (userIdentifier: string) => {
+              try {
+                // Sprawdź czy to email czy UID
+                let userDoc;
+                if (userIdentifier.includes('@')) {
+                  // To email - znajdź użytkownika po email
+                  const usersQuery = query(collection(db, "users"), where("email", "==", userIdentifier));
+                  const userSnapshot = await getDocs(usersQuery);
+                  if (!userSnapshot.empty) {
+                    userDoc = userSnapshot.docs[0];
+                  }
+                } else {
+                  // To UID - pobierz bezpośrednio
+                  userDoc = await getDoc(doc(db, "users", userIdentifier));
+                }
+                
+                if (userDoc && userDoc.exists()) {
+                  const userData = userDoc.data() as any;
+                  return {
+                    uid: userDoc.id,
+                    displayName: `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || userData.email || userIdentifier,
+                    email: userData.email || userIdentifier,
+                    role: 'student',
+                    is_active: true
+                  };
+                } else {
+                  // Fallback jeśli nie znaleziono użytkownika
+                  return {
+                    uid: userIdentifier,
+                    displayName: userIdentifier.includes('@') ? userIdentifier.split('@')[0] : userIdentifier,
+                    email: userIdentifier.includes('@') ? userIdentifier : `${userIdentifier}@example.com`,
+                    role: 'student',
+                    is_active: true
+                  };
+                }
+              } catch (error) {
+                console.error('Error fetching user data for:', userIdentifier, error);
+                // Fallback
+                return {
+                  uid: userIdentifier,
+                  displayName: userIdentifier.includes('@') ? userIdentifier.split('@')[0] : userIdentifier,
+                  email: userIdentifier.includes('@') ? userIdentifier : `${userIdentifier}@example.com`,
+                  role: 'student',
+                  is_active: true
+                };
+              }
+            })
+          );
           
           console.log('Updated assigned users list:', assignedUsersList);
           setAssignedUsers(assignedUsersList);
@@ -724,7 +808,7 @@ function TeacherCourseDetailContent() {
       <div className="w-full max-w-5xl mb-6 bg-white rounded-2xl shadow-lg p-6">
         <h3 className="text-lg font-bold mb-2 text-[#4067EC]">Przypisani uczniowie</h3>
         <div className="mb-4">
-          <p className="text-sm text-gray-600 mb-2">Debug: assignedUsers length = {Array.isArray(assignedUsers) ? assignedUsers.length : 'not array'}</p>
+  
           <ul className="list-disc ml-6">
             {Array.isArray(assignedUsers) && assignedUsers.length === 0 ? (
               <li className="text-gray-500">Brak przypisanych uczniów.</li>

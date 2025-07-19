@@ -4,6 +4,7 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db } from '../../../../config/firebase';
 import Link from "next/link";
 import Image from "next/image";
+import { useAuth } from '@/context/AuthContext';
 
 interface Course {
   id: number;
@@ -17,6 +18,7 @@ interface Course {
   pdfUrls: string[];
   links: string[];
   slug: string;
+  created_by?: string;
 }
 
 const SUBJECTS = [
@@ -33,6 +35,8 @@ const SUBJECTS = [
 ];
 
 export default function TeacherCourses() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -53,6 +57,7 @@ export default function TeacherCourses() {
   });
   const [success, setSuccess] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [deletingCourse, setDeletingCourse] = useState<string | null>(null);
 
   useEffect(() => {
     // Natychmiastowe pobranie kursów bez cache'owania przy pierwszym ładowaniu
@@ -218,6 +223,27 @@ export default function TeacherCourses() {
     setNewCourse({ ...newCourse, links });
   };
 
+  const handleDeleteCourse = async (courseId: string) => {
+    if (!confirm('Czy na pewno chcesz usunąć ten kurs? Ta operacja jest nieodwracalna.')) {
+      return;
+    }
+
+    setDeletingCourse(courseId);
+    try {
+      const { deleteDoc, doc } = await import('firebase/firestore');
+      await deleteDoc(doc(db, 'courses', courseId));
+      
+      setSuccess('Kurs został pomyślnie usunięty');
+      clearCache();
+      fetchCourses(pagination.page, false);
+    } catch (error) {
+      console.error('Error deleting course:', error);
+      setError('Błąd podczas usuwania kursu');
+    } finally {
+      setDeletingCourse(null);
+    }
+  };
+
   const handleCreateCourse = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -263,7 +289,8 @@ export default function TeacherCourses() {
         updated_at: new Date().toISOString(),
         is_active: true,
         assignedUsers: [],
-        sections: []
+        sections: [],
+        created_by: user?.email || 'Unknown'
       };
       
       console.log("Saving course to Firestore:", courseData);
@@ -329,8 +356,12 @@ export default function TeacherCourses() {
       <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
         <div className="mb-8 flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-bold text-[#4067EC] mb-2">Moje kursy</h1>
-            <p className="text-gray-600">Zarządzaj swoimi kursami i materiałami dydaktycznymi</p>
+            <h1 className="text-3xl font-bold text-[#4067EC] mb-2">
+              {isAdmin ? 'Wszystkie kursy' : 'Moje kursy'}
+            </h1>
+            <p className="text-gray-600">
+              {isAdmin ? 'Zarządzaj wszystkimi kursami w systemie' : 'Zarządzaj swoimi kursami i materiałami dydaktycznymi'}
+            </p>
           </div>
           <button
             onClick={() => {
@@ -391,6 +422,12 @@ export default function TeacherCourses() {
                       </span>
                     </div>
                     
+                    {isAdmin && course.created_by && (
+                      <div className="text-xs text-gray-500 mb-4">
+                        Nauczyciel: {course.created_by}
+                      </div>
+                    )}
+                    
                     <div className="flex space-x-2">
                       <Link 
                         href={`/homelogin/teacher/courses/${course.id}`}
@@ -404,6 +441,22 @@ export default function TeacherCourses() {
                       >
                         Podgląd
                       </Link>
+                      {isAdmin && (
+                        <button
+                          onClick={() => handleDeleteCourse(course.id.toString())}
+                          disabled={deletingCourse === course.id.toString()}
+                          className="bg-red-500 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          title="Usuń kurs"
+                        >
+                          {deletingCourse === course.id.toString() ? (
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto"></div>
+                          ) : (
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          )}
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
