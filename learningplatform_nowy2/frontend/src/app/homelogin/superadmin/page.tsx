@@ -122,6 +122,11 @@ function SuperAdminDashboardContent() {
   const [newCourseYear, setNewCourseYear] = useState("");
   const [newCourseDescription, setNewCourseDescription] = useState("");
   const [selectedTeacherForCourse, setSelectedTeacherForCourse] = useState("");
+  const [showCreateUserModal, setShowCreateUserModal] = useState(false);
+  const [newUserEmail, setNewUserEmail] = useState("");
+  const [newUserFirstName, setNewUserFirstName] = useState("");
+  const [newUserLastName, setNewUserLastName] = useState("");
+  const [newUserRole, setNewUserRole] = useState("student");
 
   useEffect(() => {
     fetchUsers();
@@ -131,17 +136,17 @@ function SuperAdminDashboardContent() {
 
   const fetchUsers = async () => {
     try {
-      const token = localStorage.getItem('firebaseToken');
-              const response = await fetch('/api/users/', {
-        headers: {
-          'Authorization': token ? `Bearer ${token}` : '',
-          'Content-Type': 'application/json',
-        },
-      });
-      if (!response.ok) throw new Error('Failed to fetch users');
-      const data = await response.json();
-      setUsers(data);
+      const { collection, getDocs } = await import('firebase/firestore');
+      const usersCollection = collection(db, 'users');
+      const usersSnapshot = await getDocs(usersCollection);
+      const usersData = usersSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setUsers(usersData);
+      console.log('Users loaded from Firestore:', usersData.length);
     } catch (err) {
+      console.error('Failed to load users:', err);
       setError('Failed to load users');
     } finally {
       setLoading(false);
@@ -178,49 +183,48 @@ function SuperAdminDashboardContent() {
 
   const setTeacherRole = async (email: string) => {
     try {
-      const token = localStorage.getItem('firebaseToken');
-              const response = await fetch('/api/set-teacher-role-api/', {
-        method: 'POST',
-        headers: {
-          'Authorization': token ? `Bearer ${token}` : '',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email }),
+      // Znajdź użytkownika po email w Firestore
+      const { collection, query, where, getDocs, updateDoc, doc } = await import('firebase/firestore');
+      const usersCollection = collection(db, 'users');
+      const q = query(usersCollection, where('email', '==', email));
+      const querySnapshot = await getDocs(q);
+      
+      if (querySnapshot.empty) {
+        setError('User not found');
+        setTimeout(() => setError(''), 3000);
+        return;
+      }
+      
+      const userDoc = querySnapshot.docs[0];
+      await updateDoc(doc(db, 'users', userDoc.id), {
+        role: 'teacher'
       });
       
-      if (response.ok) {
-        setSuccess(`Successfully set ${email} as teacher`);
-        fetchUsers(); // Refresh the list
-      } else {
-        const data = await response.json();
-        setError(data.detail || 'Failed to set teacher role');
-      }
+      setSuccess(`Successfully set ${email} as teacher`);
+      setTimeout(() => setSuccess(''), 3000);
+      fetchUsers(); // Refresh the list
     } catch (err) {
+      console.error('Error setting teacher role:', err);
       setError('Failed to set teacher role');
+      setTimeout(() => setError(''), 3000);
     }
   };
 
   const setAdminRole = async (uid: string) => {
     try {
-      const token = localStorage.getItem('firebaseToken');
-      const response = await fetch('/api/set-admin-role/', {
-        method: 'POST',
-        headers: {
-          'Authorization': token ? `Bearer ${token}` : '',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ uid }),
+      // Znajdź użytkownika po ID w Firestore
+      const { updateDoc, doc } = await import('firebase/firestore');
+      await updateDoc(doc(db, 'users', uid), {
+        role: 'admin'
       });
       
-      if (response.ok) {
-        setSuccess(`Successfully set user as admin`);
-        fetchUsers(); // Refresh the list
-      } else {
-        const data = await response.json();
-        setError(data.error || 'Failed to set admin role');
-      }
+      setSuccess(`Successfully set user as admin`);
+      setTimeout(() => setSuccess(''), 3000);
+      fetchUsers(); // Refresh the list
     } catch (err) {
+      console.error('Error setting admin role:', err);
       setError('Failed to set admin role');
+      setTimeout(() => setError(''), 3000);
     }
   };
 
@@ -380,33 +384,39 @@ function SuperAdminDashboardContent() {
     }
     
     try {
-      const token = localStorage.getItem('firebaseToken');
-      const response = await fetch('/api/assign-course/', {
-        method: 'POST',
-        headers: {
-          'Authorization': token ? `Bearer ${token}` : '',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          course_id: selectedCourseForAssignment,
-          email: selectedStudentForAssignment,
-        }),
+      const { doc, getDoc, updateDoc } = await import('firebase/firestore');
+      
+      // Pobierz kurs
+      const courseDoc = await getDoc(doc(db, 'courses', selectedCourseForAssignment));
+      if (!courseDoc.exists()) {
+        setError('Kurs nie został znaleziony');
+        return;
+      }
+      
+      const courseData = courseDoc.data();
+      const assignedUsers = courseData.assignedUsers || [];
+      
+      // Sprawdź czy student już jest przypisany
+      if (assignedUsers.includes(selectedStudentForAssignment)) {
+        setError('Student jest już przypisany do tego kursu');
+        return;
+      }
+      
+      // Dodaj studenta do listy przypisanych użytkowników
+      assignedUsers.push(selectedStudentForAssignment);
+      
+      // Zaktualizuj kurs
+      await updateDoc(doc(db, 'courses', selectedCourseForAssignment), {
+        assignedUsers: assignedUsers
       });
       
-      const data = await response.json();
+      setSuccess('Kurs został pomyślnie przypisany do studenta');
+      setSelectedStudentForAssignment('');
+      setSelectedCourseForAssignment('');
+      fetchCourses(); // Refresh courses to update assignment count
       
-      if (response.ok && data.success) {
-        setSuccess('Kurs został pomyślnie przypisany do studenta');
-        setSelectedStudentForAssignment('');
-        setSelectedCourseForAssignment('');
-        fetchCourses(); // Refresh courses to update assignment count
-        // Clear success message after 3 seconds
-        setTimeout(() => setSuccess(''), 3000);
-      } else {
-        setError(data.error || 'Błąd podczas przypisywania kursu');
-        // Clear error message after 3 seconds
-        setTimeout(() => setError(''), 3000);
-      }
+      // Clear success message after 3 seconds
+      setTimeout(() => setSuccess(''), 3000);
     } catch (error) {
       console.error('Error assigning course:', error);
       setError('Błąd podczas przypisywania kursu');
@@ -452,6 +462,45 @@ function SuperAdminDashboardContent() {
     } catch (error) {
       console.error('Error creating course:', error);
       setError('Błąd podczas tworzenia kursu');
+      // Clear error message after 3 seconds
+      setTimeout(() => setError(''), 3000);
+    }
+  };
+
+  const createUser = async () => {
+    if (!newUserEmail.trim() || !newUserFirstName.trim() || !newUserLastName.trim()) {
+      setError('Wypełnij wszystkie wymagane pola');
+      return;
+    }
+    
+    try {
+      const { addDoc, collection } = await import('firebase/firestore');
+      const userData = {
+        email: newUserEmail,
+        firstName: newUserFirstName,
+        lastName: newUserLastName,
+        role: newUserRole,
+        approved: true,
+        banned: false,
+        created_at: new Date().toISOString(),
+        created_by: user?.email || 'admin'
+      };
+      
+      await addDoc(collection(db, 'users'), userData);
+      
+      setSuccess('Użytkownik został pomyślnie utworzony');
+      setNewUserEmail('');
+      setNewUserFirstName('');
+      setNewUserLastName('');
+      setNewUserRole('student');
+      setShowCreateUserModal(false);
+      fetchUsers(); // Refresh the list
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (error) {
+      console.error('Error creating user:', error);
+      setError('Błąd podczas tworzenia użytkownika');
       // Clear error message after 3 seconds
       setTimeout(() => setError(''), 3000);
     }
@@ -534,10 +583,23 @@ function SuperAdminDashboardContent() {
             <div className="p-6">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xl font-semibold text-gray-800">User Management</h2>
-                <button className="bg-[#4067EC] text-white px-4 py-2 rounded-lg hover:bg-[#3155d4] transition">
+                <button 
+                  onClick={() => setShowCreateUserModal(true)}
+                  className="bg-[#4067EC] text-white px-4 py-2 rounded-lg hover:bg-[#3155d4] transition"
+                >
                   Add New User
                 </button>
               </div>
+              {success && (
+                <div className="mb-4 bg-green-50 border border-green-200 text-green-600 px-4 py-3 rounded relative">
+                  {success}
+                </div>
+              )}
+              {error && (
+                <div className="mb-4 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded relative">
+                  {error}
+                </div>
+              )}
               {resetPasswordSuccess && (
                 <div className="mb-4 bg-green-50 border border-green-200 text-green-600 px-4 py-3 rounded relative">
                   {resetPasswordSuccess}
@@ -955,6 +1017,89 @@ function SuperAdminDashboardContent() {
                     className="px-4 py-2 bg-[#4067EC] text-white rounded-md hover:bg-[#3155d4]"
                   >
                     Create Course
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Create User Modal */}
+        {showCreateUserModal && (
+          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full">
+            <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+              <div className="mt-3">
+                <h3 className="text-lg font-medium leading-6 text-gray-900 mb-4">
+                  Create New User
+                </h3>
+                {error && (
+                  <div className="mb-4 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded relative">
+                    {error}
+                  </div>
+                )}
+                <div className="mt-2 px-7 py-3 space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Email *</label>
+                    <input
+                      type="email"
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#4067EC] focus:ring-[#4067EC]"
+                      value={newUserEmail}
+                      onChange={(e) => setNewUserEmail(e.target.value)}
+                      placeholder="user@example.com"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">First Name *</label>
+                    <input
+                      type="text"
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#4067EC] focus:ring-[#4067EC]"
+                      value={newUserFirstName}
+                      onChange={(e) => setNewUserFirstName(e.target.value)}
+                      placeholder="John"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Last Name *</label>
+                    <input
+                      type="text"
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#4067EC] focus:ring-[#4067EC]"
+                      value={newUserLastName}
+                      onChange={(e) => setNewUserLastName(e.target.value)}
+                      placeholder="Doe"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Role *</label>
+                    <select
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#4067EC] focus:ring-[#4067EC]"
+                      value={newUserRole}
+                      onChange={(e) => setNewUserRole(e.target.value)}
+                    >
+                      <option value="student">Student</option>
+                      <option value="teacher">Teacher</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="flex justify-end mt-4 space-x-3">
+                  <button
+                    onClick={() => {
+                      setShowCreateUserModal(false);
+                      setNewUserEmail("");
+                      setNewUserFirstName("");
+                      setNewUserLastName("");
+                      setNewUserRole("student");
+                      setError("");
+                    }}
+                    className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={createUser}
+                    className="px-4 py-2 bg-[#4067EC] text-white rounded-md hover:bg-[#3155d4]"
+                  >
+                    Create User
                   </button>
                 </div>
               </div>
