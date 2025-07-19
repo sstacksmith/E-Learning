@@ -13,6 +13,7 @@ interface Course {
   subject: string;
   is_active: boolean;
   created_at: string;
+  updated_at?: string;
   pdfUrls: string[];
   links: string[];
   slug: string;
@@ -54,7 +55,12 @@ export default function TeacherCourses() {
   const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
-    fetchCourses();
+    // Dodaj debouncing dla lepszej wydajności
+    const timer = setTimeout(() => {
+      fetchCourses();
+    }, 100);
+    
+    return () => clearTimeout(timer);
   }, []);
 
   // Dodaj cache'owanie kursów w localStorage
@@ -81,8 +87,9 @@ export default function TeacherCourses() {
     }));
   };
 
-  const fetchCourses = async (page = 1, useCache = true) => {
+  const fetchCourses = async (page = 1, useCache = true, retryCount = 0) => {
     setLoading(true);
+    setError(null);
     
     // Sprawdź cache dla pierwszej strony
     if (page === 1 && useCache) {
@@ -102,13 +109,33 @@ export default function TeacherCourses() {
     
     try {
       const token = typeof window !== 'undefined' ? localStorage.getItem('firebaseToken') : null;
+      
+      // Dodaj timeout dla requestu
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 sekund timeout
+      
       const response = await fetch(`/api/courses/?page=${page}&page_size=20`, {
         headers: {
           'Authorization': token ? `Bearer ${token}` : '',
           'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache', // Wymuś świeże dane
         },
+        signal: controller.signal,
       });
-      if (!response.ok) throw new Error('Failed to fetch courses');
+      
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        if (response.status === 401) {
+          // Token wygasł - wyczyść cache i spróbuj ponownie
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem(cacheKey);
+          }
+          throw new Error('Authentication required');
+        }
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
       const data = await response.json();
       
       // Obsługuj nową strukturę odpowiedzi z paginacją
@@ -148,9 +175,19 @@ export default function TeacherCourses() {
           });
         }
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error fetching courses:', err);
-      setError('Failed to load courses');
+      
+      // Retry logic dla błędów sieciowych
+      if (retryCount < 2 && (err.name === 'AbortError' || err.message.includes('Failed to fetch'))) {
+        console.log(`Retrying... Attempt ${retryCount + 1}`);
+        setTimeout(() => {
+          fetchCourses(page, useCache, retryCount + 1);
+        }, 1000 * (retryCount + 1)); // Exponential backoff
+        return;
+      }
+      
+      setError(`Failed to load courses: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -294,15 +331,16 @@ export default function TeacherCourses() {
         {loading ? (
           <div className="text-center py-12">
             <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-[#4067EC] border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]" />
-            <p className="mt-4 text-gray-600">Loading courses...</p>
+            <p className="mt-4 text-gray-600">Ładowanie kursów...</p>
+            <p className="text-sm text-gray-500 mt-2">To może potrwać kilka sekund</p>
           </div>
         ) : error ? (
           <div className="bg-red-50 border border-red-200 text-red-800 p-4 rounded-lg mb-6">{error}</div>
         ) : (
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-              {courses.map((course) => (
-                <div key={course.id} className="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-all duration-200 overflow-hidden">
+                          {courses.map((course) => (
+              <div key={`${course.id}-${course.updated_at || course.created_at}`} className="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-all duration-200 overflow-hidden">
                   <div className="p-6">
                     <div className="flex items-center justify-between mb-4">
                       <span className={`px-3 py-1 rounded-full text-xs font-medium ${

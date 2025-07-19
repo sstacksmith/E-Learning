@@ -204,25 +204,22 @@ if os.getenv('RAILWAY_ENVIRONMENT') or os.getenv('RENDER'):
     # Dodaj domenę Vercel do CSRF_TRUSTED_ORIGINS w produkcji
     CSRF_TRUSTED_ORIGINS = [
         f"https://{os.getenv('RAILWAY_PUBLIC_DOMAIN', 'localhost')}",
-<<<<<<< HEAD
         f"https://{os.getenv('RENDER_EXTERNAL_HOSTNAME', 'localhost')}",
         "https://cogito-7zrt.onrender.com",
         "https://e-learning-theta-ten.vercel.app",
+        "https://e-learning-git-main-patryks-projects-e8ee70da.vercel.app",
+        "https://e-learning-r1fw6hxe1-patryks-projects-e8ee70da.vercel.app",
     ]
     # Dodaj domenę Vercel do CORS w produkcji
     CORS_ALLOWED_ORIGINS = [
         f"https://{os.getenv('RENDER_EXTERNAL_HOSTNAME', 'cogito-7zrt.onrender.com')}",
         "https://cogito-7zrt.onrender.com",
         "https://e-learning-theta-ten.vercel.app",
+        "https://e-learning-git-main-patryks-projects-e8ee70da.vercel.app",
+        "https://e-learning-r1fw6hxe1-patryks-projects-e8ee70da.vercel.app",
     ]
 else:
-    ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'cogito-7zrt.onrender.com', 'e-learning-theta-ten.vercel.app']
-=======
-        "https://cogito-7zrt.onrender.com",  # <-- PODMIEN NA SWOJĄ DOMENĘ VERCEL
-    ]
-else:
-    ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'cogito-7zrt.onrender.com', 'https://e-learning-git-main-patryks-projects-e8ee70da.vercel.app/', 'https://e-learning-r1fw6hxe1-patryks-projects-e8ee70da.vercel.app/']
->>>>>>> add1fdc6ca3c4aad48d9a1d455cf0d6283b670f6
+    ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'cogito-7zrt.onrender.com', 'e-learning-theta-ten.vercel.app', 'e-learning-git-main-patryks-projects-e8ee70da.vercel.app', 'e-learning-r1fw6hxe1-patryks-projects-e8ee70da.vercel.app']
     DEBUG = True
     # Dodaj domenę Vercel do CORS w development
     CORS_ALLOWED_ORIGINS = [

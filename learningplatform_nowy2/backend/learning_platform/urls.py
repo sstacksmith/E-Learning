@@ -16,12 +16,13 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
-from learningplatform.views import CourseListCreateView, CourseDetailView, CourseDetailBySlugView, set_teacher_role, check_user_role, FirebaseLoginView, VerifyFirebaseTokenView, SetTeacherRoleView, UserListView, assign_course, my_courses, teacher_course_detail, health_check
+from learningplatform.views import CourseListCreateView, CourseDetailView, CourseDetailBySlugView, set_teacher_role, check_user_role, FirebaseLoginView, VerifyFirebaseTokenView, SetTeacherRoleView, UserListView, assign_course, my_courses, teacher_course_detail, health_check, courses_public
 from rest_framework.authtoken.views import obtain_auth_token
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('health/', health_check, name='health-check'),
+    path('api/courses/public/', courses_public, name='courses-public'),
     path('api/courses/', CourseListCreateView.as_view(), name='course-list-create'),
     path('api/courses/<int:pk>/', CourseDetailView.as_view(), name='course-detail'),
     path('api/courses/slug/<slug:slug>/', CourseDetailBySlugView.as_view(), name='course-detail-by-slug'),

@@ -20,6 +20,7 @@ from django.utils import timezone
 import firebase_admin
 from firebase_admin import firestore
 import logging
+import time
 
 # Konfiguracja logowania
 logger = logging.getLogger(__name__)
@@ -532,4 +533,19 @@ def teacher_course_detail(request, course_id):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def health_check(request):
-    return Response({"status": "ok"}) 
+    return Response({'status': 'ok', 'timestamp': time.time()})
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def courses_public(request):
+    """Publiczny endpoint do testowania kursów bez autoryzacji"""
+    try:
+        courses = Course.objects.filter(is_active=True).order_by('-created_at')[:10]
+        serializer = CourseSerializer(courses, many=True)
+        return Response({
+            'results': serializer.data,
+            'count': courses.count(),
+            'message': 'Public courses endpoint'
+        })
+    except Exception as e:
+        return Response({'error': str(e)}, status=500) 

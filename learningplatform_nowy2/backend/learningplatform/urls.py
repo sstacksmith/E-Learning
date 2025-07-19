@@ -11,4 +11,6 @@ router.register(r'groups', views.UserGroupViewSet)
 urlpatterns = [
     path('', include(router.urls)),
     path('users/me/', views.CurrentUserView.as_view(), name='current-user'),
+    path('health/', views.health_check, name='health-check'),
+    path('courses/public/', views.courses_public, name='courses-public'),
 ]
