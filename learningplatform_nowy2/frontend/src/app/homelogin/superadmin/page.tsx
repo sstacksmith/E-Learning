@@ -121,6 +121,7 @@ function SuperAdminDashboardContent() {
   const [newCourseTitle, setNewCourseTitle] = useState("");
   const [newCourseYear, setNewCourseYear] = useState("");
   const [newCourseDescription, setNewCourseDescription] = useState("");
+  const [newCourseSubject, setNewCourseSubject] = useState("");
   const [selectedTeacherForCourse, setSelectedTeacherForCourse] = useState("");
   const [showCreateUserModal, setShowCreateUserModal] = useState(false);
   const [newUserEmail, setNewUserEmail] = useState("");
@@ -132,6 +133,7 @@ function SuperAdminDashboardContent() {
   const [editCourseTitle, setEditCourseTitle] = useState("");
   const [editCourseYear, setEditCourseYear] = useState("");
   const [editCourseDescription, setEditCourseDescription] = useState("");
+  const [editCourseSubject, setEditCourseSubject] = useState("");
   const [editCourseTeacher, setEditCourseTeacher] = useState("");
   const [editCourseStudents, setEditCourseStudents] = useState<string[]>([]);
 
@@ -451,7 +453,7 @@ function SuperAdminDashboardContent() {
   };
 
   const createCourse = async () => {
-    if (!newCourseTitle.trim() || !newCourseYear.trim() || !selectedTeacherForCourse) {
+    if (!newCourseTitle.trim() || !newCourseYear.trim() || !newCourseSubject.trim() || !selectedTeacherForCourse) {
       setError('Wypełnij wszystkie wymagane pola');
       return;
     }
@@ -475,6 +477,7 @@ function SuperAdminDashboardContent() {
         title: newCourseTitle,
         year: parseInt(newCourseYear),
         description: newCourseDescription,
+        subject: newCourseSubject,
         teacherEmail: selectedTeacherForCourse,
         assignedUsers: [],
         lessons: [],
@@ -492,6 +495,7 @@ function SuperAdminDashboardContent() {
       setNewCourseTitle('');
       setNewCourseYear('');
       setNewCourseDescription('');
+      setNewCourseSubject('');
       setSelectedTeacherForCourse('');
       setShowCreateCourseModal(false);
       fetchCourses(); // Refresh the list
@@ -550,13 +554,14 @@ function SuperAdminDashboardContent() {
     setEditCourseTitle(course.title || '');
     setEditCourseYear(course.year?.toString() || '');
     setEditCourseDescription(course.description || '');
+    setEditCourseSubject(course.subject || '');
     setEditCourseTeacher(course.teacherEmail || '');
     setEditCourseStudents(course.assignedUsers || []);
     setShowEditCourseModal(true);
   };
 
   const updateCourse = async () => {
-    if (!editingCourse || !editCourseTitle.trim() || !editCourseYear.trim()) {
+    if (!editingCourse || !editCourseTitle.trim() || !editCourseYear.trim() || !editCourseSubject.trim()) {
       setError('Wypełnij wszystkie wymagane pola');
       return;
     }
@@ -580,6 +585,7 @@ function SuperAdminDashboardContent() {
         title: editCourseTitle,
         year: parseInt(editCourseYear),
         description: editCourseDescription,
+        subject: editCourseSubject,
         teacherEmail: editCourseTeacher,
         assignedUsers: editCourseStudents,
         slug: slug,
@@ -1162,6 +1168,33 @@ function SuperAdminDashboardContent() {
                     />
                   </div>
                   <div>
+                    <label className="block text-sm font-medium text-gray-700">Subject *</label>
+                    <select
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#4067EC] focus:ring-[#4067EC]"
+                      value={newCourseSubject}
+                      onChange={(e) => setNewCourseSubject(e.target.value)}
+                    >
+                      <option value="">Select a subject...</option>
+                      <option value="Matematyka">Matematyka</option>
+                      <option value="Fizyka">Fizyka</option>
+                      <option value="Chemia">Chemia</option>
+                      <option value="Biologia">Biologia</option>
+                      <option value="Historia">Historia</option>
+                      <option value="Geografia">Geografia</option>
+                      <option value="Język polski">Język polski</option>
+                      <option value="Język angielski">Język angielski</option>
+                      <option value="Język niemiecki">Język niemiecki</option>
+                      <option value="Informatyka">Informatyka</option>
+                      <option value="Wiedza o społeczeństwie">Wiedza o społeczeństwie</option>
+                      <option value="Wychowanie fizyczne">Wychowanie fizyczne</option>
+                      <option value="Plastyka">Plastyka</option>
+                      <option value="Muzyka">Muzyka</option>
+                      <option value="Technika">Technika</option>
+                      <option value="Edukacja dla bezpieczeństwa">Edukacja dla bezpieczeństwa</option>
+                      <option value="Inne">Inne</option>
+                    </select>
+                  </div>
+                  <div>
                     <label className="block text-sm font-medium text-gray-700">Description</label>
                     <textarea
                       className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#4067EC] focus:ring-[#4067EC]"
@@ -1194,6 +1227,7 @@ function SuperAdminDashboardContent() {
                       setNewCourseTitle("");
                       setNewCourseYear("");
                       setNewCourseDescription("");
+                      setNewCourseSubject("");
                       setSelectedTeacherForCourse("");
                       setError("");
                     }}
@@ -1392,6 +1426,33 @@ function SuperAdminDashboardContent() {
                     </div>
                   </div>
                   <div>
+                    <label className="block text-sm font-medium text-gray-700">Subject *</label>
+                    <select
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#4067EC] focus:ring-[#4067EC]"
+                      value={editCourseSubject}
+                      onChange={(e) => setEditCourseSubject(e.target.value)}
+                    >
+                      <option value="">Select a subject...</option>
+                      <option value="Matematyka">Matematyka</option>
+                      <option value="Fizyka">Fizyka</option>
+                      <option value="Chemia">Chemia</option>
+                      <option value="Biologia">Biologia</option>
+                      <option value="Historia">Historia</option>
+                      <option value="Geografia">Geografia</option>
+                      <option value="Język polski">Język polski</option>
+                      <option value="Język angielski">Język angielski</option>
+                      <option value="Język niemiecki">Język niemiecki</option>
+                      <option value="Informatyka">Informatyka</option>
+                      <option value="Wiedza o społeczeństwie">Wiedza o społeczeństwie</option>
+                      <option value="Wychowanie fizyczne">Wychowanie fizyczne</option>
+                      <option value="Plastyka">Plastyka</option>
+                      <option value="Muzyka">Muzyka</option>
+                      <option value="Technika">Technika</option>
+                      <option value="Edukacja dla bezpieczeństwa">Edukacja dla bezpieczeństwa</option>
+                      <option value="Inne">Inne</option>
+                    </select>
+                  </div>
+                  <div>
                     <label className="block text-sm font-medium text-gray-700">Description</label>
                     <textarea
                       className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#4067EC] focus:ring-[#4067EC]"
@@ -1481,6 +1542,7 @@ function SuperAdminDashboardContent() {
                       setEditCourseTitle("");
                       setEditCourseYear("");
                       setEditCourseDescription("");
+                      setEditCourseSubject("");
                       setEditCourseTeacher("");
                       setEditCourseStudents([]);
                       setError("");

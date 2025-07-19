@@ -221,32 +221,7 @@ export default function TeacherCourses() {
 
   return (
     <div className="min-h-screen bg-[#F1F4FE]">
-      {/* Header */}
-      <header className="bg-white shadow-sm p-4">
-        <div className="max-w-7xl mx-auto flex justify-between items-center">
-          <Link href="/homelogin" className="flex items-center space-x-2">
-            <div className="relative overflow-hidden rounded-full h-8 w-8">
-              <Image
-                src="/puzzleicon.png"
-                alt="Cogito Logo"
-                width={32}
-                height={32}
-              />
-            </div>
-            <span className="text-xl font-semibold text-[#4067EC]">Cogito</span>
-          </Link>
-          
-          <nav className="hidden md:flex space-x-8">
-            <Link href="/homelogin" className="text-gray-600 hover:text-[#4067EC]">Dashboard</Link>
-            <Link href="/courses" className="text-gray-600 hover:text-[#4067EC]">Courses</Link>
-            <Link href="/about" className="text-gray-600 hover:text-[#4067EC]">About</Link>
-          </nav>
-          
-          <Link href="/homelogin" className="bg-[#4067EC] text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-[#3155d4]">
-            My Dashboard
-          </Link>
-        </div>
-      </header>
+
 
       <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
         <div className="mb-8 flex justify-between items-center">

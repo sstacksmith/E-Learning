@@ -25,15 +25,7 @@ export default function TeacherDashboard() {
         </div>
         <div className="w-full max-w-5xl mx-auto px-3 sm:px-4 lg:px-6 py-4 sm:py-6 lg:py-8">
           <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg p-4 sm:p-6 lg:p-8">
-            <div className="flex flex-col sm:flex-row justify-between items-center mb-4 sm:mb-6 gap-3 sm:gap-4">
-              <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-800">Panel nauczyciela</h1>
-              <button
-                onClick={() => router.push('/')} 
-                className="bg-red-500 text-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg hover:bg-red-600 text-xs sm:text-sm lg:text-base transition-colors duration-200"
-              >
-                Wyloguj
-              </button>
-            </div>
+
             {/* Tabs */}
             <div className="border-b border-gray-200 mb-4 sm:mb-6">
               <nav className="-mb-px flex space-x-2 sm:space-x-4 lg:space-x-8">
