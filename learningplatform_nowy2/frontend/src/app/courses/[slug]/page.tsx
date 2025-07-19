@@ -80,16 +80,19 @@ function CourseDetail() {
         const courseDoc = querySnapshot.docs[0];
         const courseData = courseDoc.data();
         console.log('[DEBUG] Course data from Firestore:', courseData);
+        console.log('[DEBUG] Course title:', courseData.title);
+        console.log('[DEBUG] Course description:', courseData.description);
         console.log('[DEBUG] Sections from Firestore:', courseData.sections);
         console.log('[DEBUG] Sections type:', typeof courseData.sections);
         console.log('[DEBUG] Sections length:', courseData.sections?.length);
+        console.log('[DEBUG] All Firestore fields:', Object.keys(courseData));
         
         // Mapuj dane z Firestore na format oczekiwany przez komponent
         const mappedCourse: Course = {
           id: parseInt(courseDoc.id),
-          title: courseData.title || '',
+          title: courseData.title || 'Kurs bez tytułu',
           slug: courseData.slug || slug,
-          description: courseData.description || '',
+          description: courseData.description || 'Brak opisu kursu',
           thumbnail: courseData.thumbnail || '/puzzleicon.png',
           level: courseData.level || 'Podstawowy',
           category: courseData.category || 1,
@@ -303,82 +306,92 @@ function CourseDetail() {
         <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
           <div className="bg-white shadow-sm rounded-lg overflow-hidden">
             {/* Module Navigation Tabs */}
-            <div className="border-b border-gray-200">
-              <nav className="flex overflow-x-auto py-2 px-4">
-                {course.sections?.map((section) => (
-                  <button
-                    key={section.id}
-                    className={`whitespace-nowrap px-4 py-2 font-medium text-sm rounded-md mr-2 ${
-                      activeModule === section.id
-                        ? 'bg-[#F1F4FE] text-[#4067EC]'
-                        : 'text-gray-600 hover:text-gray-900'
-                    }`}
-                    onClick={() => setActiveModule(section.id)}
-                  >
-                    {section.name}
-                  </button>
-                ))}
-              </nav>
-            </div>
+            {course.sections && course.sections.length > 0 && (
+              <div className="border-b border-gray-200">
+                <nav className="flex overflow-x-auto py-2 px-4">
+                  {course.sections.map((section) => (
+                    <button
+                      key={section.id}
+                      className={`whitespace-nowrap px-4 py-2 font-medium text-sm rounded-md mr-2 ${
+                        activeModule === section.id
+                          ? 'bg-[#F1F4FE] text-[#4067EC]'
+                          : 'text-gray-600 hover:text-gray-900'
+                      }`}
+                      onClick={() => setActiveModule(section.id)}
+                    >
+                      {section.name || `Sekcja ${section.id}`}
+                    </button>
+                  ))}
+                </nav>
+              </div>
+            )}
             
             {/* Module Content */}
             <div className="p-6">
-              {course.sections?.map((section) => (
-                <div 
-                  key={section.id} 
-                  className={activeModule === section.id ? 'block' : 'hidden'}
-                >
-                  <div className="mb-6">
-                    <h2 className="text-2xl font-bold text-gray-900 mb-2">{section.name}</h2>
-                    <p className="text-gray-600">{section.type}</p>
-                  </div>
-                  
-                  {/* Lessons List */}
-                  <div className="space-y-4">
-                    {section.contents.map((content) => (
-                      <div 
-                        key={content.id}
-                        className="bg-gray-50 border border-gray-200 rounded-lg p-4 hover:border-[#4067EC] transition-colors"
-                      >
-                        <div className="sm:flex sm:items-center sm:justify-between">
-                          <div className="flex items-start">
-                            <div className="mr-3 flex-shrink-0">
-                              {content.fileUrl && (
-                                <svg className="h-6 w-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                              )}
-                              {content.text && (
-                                <svg className="h-6 w-6 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                </svg>
-                              )}
-                              {content.link && (
-                                <svg className="h-6 w-6 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                                </svg>
-                              )}
-                            </div>
-                            <div>
-                              <h3 className="text-lg font-medium text-gray-900">{content.name}</h3>
-                              <p className="mt-1 text-sm text-gray-500">
-                                {content.fileUrl ? 'File' : content.text ? 'Text' : content.link ? 'Link' : 'Content'}
-                              </p>
+              {course.sections && course.sections.length > 0 ? (
+                course.sections.map((section) => (
+                  <div 
+                    key={section.id} 
+                    className={activeModule === section.id ? 'block' : 'hidden'}
+                  >
+                    <div className="mb-6">
+                      <h2 className="text-2xl font-bold text-gray-900 mb-2">{section.name || `Sekcja ${section.id}`}</h2>
+                      <p className="text-gray-600">{section.type || 'Materiał'}</p>
+                    </div>
+                    
+                    {/* Lessons List */}
+                    <div className="space-y-4">
+                      {section.contents && section.contents.length > 0 ? (
+                        section.contents.map((content) => (
+                          <div 
+                            key={content.id}
+                            className="bg-gray-50 border border-gray-200 rounded-lg p-4 hover:border-[#4067EC] transition-colors"
+                          >
+                            <div className="sm:flex sm:items-center sm:justify-between">
+                              <div className="flex items-start">
+                                <div className="mr-3 flex-shrink-0">
+                                  {content.fileUrl && (
+                                    <svg className="h-6 w-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                  )}
+                                  {content.text && (
+                                    <svg className="h-6 w-6 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    </svg>
+                                  )}
+                                  {content.link && (
+                                    <svg className="h-6 w-6 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                                    </svg>
+                                  )}
+                                </div>
+                                <div>
+                                  <h3 className="text-lg font-medium text-gray-900">{content.name || 'Bez nazwy'}</h3>
+                                  <p className="mt-1 text-sm text-gray-500">
+                                    {content.fileUrl ? 'Plik' : content.text ? 'Tekst' : content.link ? 'Link' : 'Zawartość'}
+                                  </p>
+                                </div>
+                              </div>
+                              
+                              <div className="mt-3 sm:mt-0 sm:ml-4">
+                                <button className="inline-flex items-center px-4 py-2 border border-[#4067EC] rounded-md shadow-sm text-sm font-medium text-[#4067EC] bg-white hover:bg-[#F1F4FE] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#4067EC]">
+                                  Zobacz zawartość
+                                </button>
+                              </div>
                             </div>
                           </div>
-                          
-                          <div className="mt-3 sm:mt-0 sm:ml-4">
-                            <button className="inline-flex items-center px-4 py-2 border border-[#4067EC] rounded-md shadow-sm text-sm font-medium text-[#4067EC] bg-white hover:bg-[#F1F4FE] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#4067EC]">
-                              View Content
-                            </button>
-                          </div>
+                        ))
+                      ) : (
+                        <div className="text-center py-6 text-gray-500">
+                          <p>Brak zawartości w tej sekcji</p>
                         </div>
-                      </div>
-                    ))}
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))
+              ) : null}
               
               {/* If no modules */}
               {(!course.sections || course.sections.length === 0) && (
@@ -386,8 +399,14 @@ function CourseDetail() {
                   <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                   </svg>
-                  <h3 className="mt-2 text-lg font-medium text-gray-900">No content available</h3>
-                  <p className="mt-1 text-sm text-gray-500">This course doesn&apos;t have any modules or lessons yet.</p>
+                  <h3 className="mt-2 text-lg font-medium text-gray-900">Brak dostępnych materiałów</h3>
+                  <p className="mt-1 text-sm text-gray-500">Ten kurs nie ma jeszcze żadnych modułów ani lekcji.</p>
+                  <div className="mt-4">
+                    <p className="text-sm text-gray-600">Debug info:</p>
+                    <p className="text-xs text-gray-500">Sections: {course.sections?.length || 0}</p>
+                    <p className="text-xs text-gray-500">Course ID: {course.id}</p>
+                    <p className="text-xs text-gray-500">Slug: {course.slug}</p>
+                  </div>
                 </div>
               )}
             </div>
