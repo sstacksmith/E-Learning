@@ -228,6 +228,24 @@ function SuperAdminDashboardContent() {
     }
   };
 
+  const setStudentRole = async (uid: string) => {
+    try {
+      // Znajdź użytkownika po ID w Firestore
+      const { updateDoc, doc } = await import('firebase/firestore');
+      await updateDoc(doc(db, 'users', uid), {
+        role: 'student'
+      });
+      
+      setSuccess(`Successfully set user as student`);
+      setTimeout(() => setSuccess(''), 3000);
+      fetchUsers(); // Refresh the list
+    } catch (err) {
+      console.error('Error setting student role:', err);
+      setError('Failed to set student role');
+      setTimeout(() => setError(''), 3000);
+    }
+  };
+
   const handleResetPassword = async (userId: string) => {
     try {
       const token = localStorage.getItem("token");
@@ -641,7 +659,7 @@ function SuperAdminDashboardContent() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                           <div className="flex space-x-2">
-                            {user.role !== 'teacher' && user.role !== 'admin' && (
+                            {user.role !== 'teacher' && (
                               <button 
                                 onClick={() => setTeacherRole(user.email || '')}
                                 className="text-blue-600 hover:text-blue-900"
@@ -655,6 +673,22 @@ function SuperAdminDashboardContent() {
                                 className="text-green-600 hover:text-green-900"
                               >
                                 Set as Admin
+                              </button>
+                            )}
+                            {user.role === 'admin' && (
+                              <button 
+                                onClick={() => setTeacherRole(user.email || '')}
+                                className="text-orange-600 hover:text-orange-900"
+                              >
+                                Downgrade to Teacher
+                              </button>
+                            )}
+                            {user.role === 'teacher' && (
+                              <button 
+                                onClick={() => setStudentRole(user.id)}
+                                className="text-gray-600 hover:text-gray-900"
+                              >
+                                Set as Student
                               </button>
                             )}
                           </div>
