@@ -14,4 +14,6 @@ urlpatterns = [
     path('health/', views.health_check, name='health-check'),
     path('courses/public/', views.courses_public, name='courses-public'),
     path('courses/debug/', views.courses_debug, name='courses-debug'),
+    path('assign-course/', views.assign_course, name='assign-course'),
+    path('teacher-course/<int:course_id>/', views.teacher_course_detail, name='teacher-course-detail'),
 ]

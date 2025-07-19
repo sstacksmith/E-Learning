@@ -410,75 +410,56 @@ def assign_course(request):
     firebase_uid = request.data.get('firebase_uid')
     email = request.data.get('email')
     print(f"assign_course: course_id={course_id}, firebase_uid={firebase_uid}, email={email}")
+    
     if not email:
         return Response({'success': False, 'error': 'Brak email ucznia!'}, status=400)
+    
     try:
-        course = Course.objects.get(id=course_id)
-        user, _ = User.objects.get_or_create(
-            email=email,
-            defaults={'username': email.split('@')[0], 'password': '', 'is_student': True}
-        )
-        assignment, created = CourseAssignment.objects.get_or_create(course=course, student=user, defaults={'assigned_by': request.user, 'is_active': True})
-        if not created:
-            assignment.is_active = True
-            assignment.save()
-        course.is_active = True
-        course.save()
+        # Pracuj bezpośrednio z Firestore
+        db = firestore.client()
+        course_ref = db.collection('courses').document(str(course_id))
+        course_doc = course_ref.get()
         
-        # Synchronize with Firestore
-        try:
-            db = firestore.client()
-            course_ref = db.collection('courses').document(str(course_id))
-            course_doc = course_ref.get()
+        if not course_doc.exists:
+            return Response({'success': False, 'error': 'Kurs nie został znaleziony w Firestore!'}, status=404)
+        
+        # Pobierz aktualne dane kursu
+        current_data = course_doc.to_dict()
+        assigned_users = current_data.get('assignedUsers', [])
+        
+        # Dodaj użytkownika jeśli nie istnieje
+        user_identifier = firebase_uid if firebase_uid else email
+        if user_identifier not in assigned_users:
+            assigned_users.append(user_identifier)
             
-            if course_doc.exists:
-                # Update existing document
-                current_data = course_doc.to_dict()
-                assigned_users = current_data.get('assignedUsers', [])
-                
-                # Dodaj użytkownika jeśli nie istnieje
-                user_identifier = firebase_uid if firebase_uid else email
-                if user_identifier not in assigned_users:
-                    assigned_users.append(user_identifier)
-                
-                course_ref.update({
-                    'assignedUsers': assigned_users
-                })
-                print(f"Course assignment synchronized with Firestore: {course_id}")
-                logger.info(f"User {user_identifier} assigned to course {course_id}")
-            else:
-                # Create new document if it doesn't exist
-                course_data = {
-                    'id': course.id,
-                    'title': course.title,
-                    'description': course.description,
-                    'year_of_study': course.year_of_study,
-                    'subject': course.subject or '',
-                    'is_active': course.is_active,
-                    'created_by': course.created_by.id,
-                    'created_at': course.created_at.isoformat(),
-                    'updated_at': course.updated_at.isoformat(),
-                    'pdfUrls': course.pdfUrls or [],
-                    'links': course.links or [],
-                    'slug': course.slug or '',
-                    'assignedUsers': [firebase_uid if firebase_uid else email],
-                    'sections': []
-                }
-                
-                # Usuń None wartości
-                course_data = {k: v for k, v in course_data.items() if v is not None}
-                
-                course_ref.set(course_data)
-                print(f"Course created in Firestore with assignment: {course_id}")
-                logger.info(f"Course {course_id} created in Firestore with user assignment")
-        except Exception as e:
-            print(f"Error synchronizing course assignment with Firestore: {e}")
-            logger.error(f"Error synchronizing course assignment with Firestore: {e}")
-        
-        return Response({'success': True, 'message': 'Course assigned!'})
+            # Zaktualizuj kurs w Firestore
+            course_ref.update({
+                'assignedUsers': assigned_users,
+                'updated_at': timezone.now().isoformat()
+            })
+            
+            print(f"User {user_identifier} assigned to course {course_id} in Firestore")
+            logger.info(f"User {user_identifier} assigned to course {course_id}")
+            
+            return Response({
+                'success': True, 
+                'message': 'Uczeń został przypisany do kursu!',
+                'assigned_users': assigned_users
+            })
+        else:
+            return Response({
+                'success': True, 
+                'message': 'Uczeń jest już przypisany do tego kursu!',
+                'assigned_users': assigned_users
+            })
+            
     except Exception as e:
+        print(f"Error in assign_course: {e}")
         logger.error(f"Error in assign_course: {e}")
-        return Response({'success': False, 'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({
+            'success': False, 
+            'error': f'Błąd przypisywania ucznia: {str(e)}'
+        }, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -491,53 +472,71 @@ def my_courses(request):
 @permission_classes([IsAuthenticated])
 def teacher_course_detail(request, course_id):
     try:
-        course = Course.objects.get(id=course_id)
-        assignments = CourseAssignment.objects.filter(course=course, is_active=True)
+        # Pobierz dane kursu z Firestore
+        db = firestore.client()
+        course_ref = db.collection('courses').document(str(course_id))
+        course_doc = course_ref.get()
         
-        # Pobierz szczegółowe informacje o przypisanych użytkownikach
-        assigned_users = []
-        for assignment in assignments:
-            student = assignment.student
-            assigned_users.append({
-                'id': student.id,
-                'email': student.email,
-                'username': student.username,
-                'first_name': student.first_name or '',
-                'last_name': student.last_name or '',
-                'is_active': assignment.is_active,
-                'assigned_date': assignment.assigned_date.isoformat(),
-                'assigned_by': assignment.assigned_by.email if assignment.assigned_by else ''
+        if not course_doc.exists:
+            return Response({'error': 'Kurs nie został znaleziony w Firestore!'}, status=404)
+        
+        firestore_data = course_doc.to_dict()
+        
+        # Przygotuj dane kursu
+        course_data = {
+            'id': firestore_data.get('id', course_id),
+            'title': firestore_data.get('title', 'Kurs bez tytułu'),
+            'description': firestore_data.get('description', 'Brak opisu'),
+            'year_of_study': firestore_data.get('year_of_study', 1),
+            'subject': firestore_data.get('subject', 'Ogólny'),
+            'is_active': firestore_data.get('is_active', True),
+            'created_at': firestore_data.get('created_at', ''),
+            'updated_at': firestore_data.get('updated_at', ''),
+            'pdfUrls': firestore_data.get('pdfUrls', []),
+            'links': firestore_data.get('links', []),
+            'slug': firestore_data.get('slug', ''),
+            'sections': firestore_data.get('sections', [])
+        }
+        
+        # Pobierz przypisanych użytkowników
+        assigned_users = firestore_data.get('assignedUsers', [])
+        
+        # Przygotuj dane przypisanych użytkowników
+        assigned_users_data = []
+        for user_identifier in assigned_users:
+            assigned_users_data.append({
+                'id': user_identifier,  # Używamy identyfikatora jako ID
+                'email': user_identifier if '@' in str(user_identifier) else f'{user_identifier}@example.com',
+                'username': user_identifier.split('@')[0] if '@' in str(user_identifier) else user_identifier,
+                'first_name': '',
+                'last_name': '',
+                'is_active': True,
+                'assigned_date': firestore_data.get('updated_at', ''),
+                'assigned_by': 'Nauczyciel'
             })
         
-        # Pobierz dane kursu
-        data = CourseSerializer(course).data
-        data['assigned_users'] = assigned_users
-        data['total_students'] = len(assigned_users)
+        # Przygotuj odpowiedź
+        response_data = {
+            **course_data,
+            'assigned_users': assigned_users_data,
+            'total_students': len(assigned_users_data),
+            'firestore_assigned_users': assigned_users,
+            'firestore_sections': firestore_data.get('sections', [])
+        }
         
-        # Dodaj informacje o kursie z Firestore
-        try:
-            db = firestore.client()
-            course_ref = db.collection('courses').document(str(course_id))
-            course_doc = course_ref.get()
-            
-            if course_doc.exists:
-                firestore_data = course_doc.to_dict()
-                data['firestore_assigned_users'] = firestore_data.get('assignedUsers', [])
-                data['firestore_sections'] = firestore_data.get('sections', [])
-            else:
-                data['firestore_assigned_users'] = []
-                data['firestore_sections'] = []
-        except Exception as e:
-            logger.error(f"Error fetching Firestore data for course {course_id}: {e}")
-            data['firestore_assigned_users'] = []
-            data['firestore_sections'] = []
+        print(f"Teacher course detail for course {course_id}:")
+        print(f"  - Assigned users: {assigned_users}")
+        print(f"  - Total students: {len(assigned_users_data)}")
+        print(f"  - Course data: {course_data}")
         
-        return Response(data)
-    except Course.DoesNotExist:
-        return Response({'error': 'Course not found'}, status=404)
+        return Response(response_data)
+        
     except Exception as e:
+        print(f"Error in teacher_course_detail: {e}")
         logger.error(f"Error in teacher_course_detail: {e}")
-        return Response({'error': 'Internal server error'}, status=500) 
+        return Response({
+            'error': f'Błąd pobierania szczegółów kursu: {str(e)}'
+        }, status=500) 
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
