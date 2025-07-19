@@ -196,6 +196,19 @@ function CourseDetail() {
 
   return (
     <div className="min-h-screen bg-[#f4f6fb] flex flex-col items-center py-6 px-2 sm:px-6">
+      {/* Przycisk powrotu do dashboardu */}
+      <div className="w-full max-w-5xl mb-4 flex justify-start">
+        <Link 
+          href="/homelogin" 
+          className="flex items-center gap-2 bg-white text-[#4067EC] px-4 py-2 rounded-lg font-semibold shadow hover:bg-gray-50 transition-colors"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
+          Wróć do dashboardu
+        </Link>
+      </div>
+
       {/* BANNER - taki sam jak w panelu nauczyciela */}
       <div className="w-full max-w-5xl mb-6 relative rounded-2xl overflow-hidden shadow-lg bg-gradient-to-r from-[#4067EC] to-[#7aa2f7] flex items-center justify-between h-48 sm:h-56">
         <div className="p-8">
