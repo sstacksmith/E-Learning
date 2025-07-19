@@ -11,6 +11,12 @@ class UserGroup(models.Model):
     def __str__(self):
         return self.name
 
+    class Meta:
+        indexes = [
+            models.Index(fields=['created_by']),
+            models.Index(fields=['created_at']),
+        ]
+
 class UserProfile(models.Model):
     USER_TYPES = (
         ('admin', 'Super Administrator'),
@@ -28,6 +34,13 @@ class UserProfile(models.Model):
     def __str__(self):
         return f"{self.user.username} - {self.user_type}"
 
+    class Meta:
+        indexes = [
+            models.Index(fields=['user_type']),
+            models.Index(fields=['year_of_study']),
+            models.Index(fields=['created_at']),
+        ]
+
 class Course(models.Model):
     title = models.CharField(max_length=200)
     description = models.TextField()
@@ -44,6 +57,17 @@ class Course(models.Model):
     def __str__(self):
         return self.title
 
+    class Meta:
+        indexes = [
+            models.Index(fields=['created_by']),
+            models.Index(fields=['is_active']),
+            models.Index(fields=['created_at']),
+            models.Index(fields=['subject']),
+            models.Index(fields=['year_of_study']),
+            models.Index(fields=['slug']),
+        ]
+        ordering = ['-created_at']
+
 class CourseAssignment(models.Model):
     course = models.ForeignKey(Course, on_delete=models.CASCADE)
     student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
@@ -53,6 +77,12 @@ class CourseAssignment(models.Model):
 
     class Meta:
         unique_together = ('course', 'student')
+        indexes = [
+            models.Index(fields=['course']),
+            models.Index(fields=['student']),
+            models.Index(fields=['is_active']),
+            models.Index(fields=['assigned_date']),
+        ]
 
     def __str__(self):
         return f"{self.student.username} - {self.course.title}" 

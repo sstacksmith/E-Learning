@@ -68,6 +68,7 @@ function TeacherCourseDetailContent() {
   const [assigning, setAssigning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [assignMsg, setAssignMsg] = useState<string>("");
   const [activeTab, setActiveTab] = useState("Kurs");
   const [assignments, setAssignments] = useState<Assignment[]>([
     {
@@ -120,54 +121,98 @@ function TeacherCourseDetailContent() {
     fetchStudents();
   }, []);
 
-  // Fetch assigned users from Firestore (by courseId)
+  // Fetch assigned users from Django API (by courseId)
   useEffect(() => {
     const fetchAssigned = async () => {
       if (!courseId) return;
-      const courseDoc = await getDoc(doc(db, "courses", String(courseId)));
-      if (courseDoc.exists()) {
-        const data = courseDoc.data();
-        const assignedUids = Array.isArray(data.assignedUsers) ? data.assignedUsers : [];
-        setAssignedUsers(Array.isArray(students)
-          ? students.filter(s => assignedUids.includes(s.uid) || assignedUids.includes(s.email))
-          : []);
+      
+      try {
+        const token = localStorage.getItem('firebaseToken');
+        const response = await fetch(`/api/teacher-course/${courseId}/`, {
+          headers: {
+            'Authorization': token ? `Bearer ${token}` : '',
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log('Course data from Django API:', data);
+          
+          // Mapuj przypisanych użytkowników z Django na format Student
+          const assignedUsersList = data.assigned_users?.map((user: any) => ({
+            uid: user.id.toString(),
+            displayName: `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.username,
+            email: user.email,
+            role: 'student',
+            is_active: user.is_active
+          })) || [];
+          
+          setAssignedUsers(assignedUsersList);
+          console.log('Assigned users mapped:', assignedUsersList);
+        } else {
+          console.error('Failed to fetch course details from Django API');
+        }
+      } catch (error) {
+        console.error('Error fetching assigned users:', error);
       }
     };
     fetchAssigned();
-  }, [courseId, students]);
+  }, [courseId]);
 
-  // Assign student to course in Firestore
+  // Assign student to course using Django API
   async function handleAssignStudent(e: any) {
     e.preventDefault();
-    if (!selectedStudentId || !courseId) return;
-    const courseRef = doc(db, "courses", String(courseId));
-    const courseSnap = await getDoc(courseRef);
-    if (!courseSnap.exists()) {
-      // Create the document if it doesn't exist, copy fields from loaded course
-      await setDoc(courseRef, {
-        assignedUsers: [selectedStudentId],
-        title: course?.title || '',
-        subject: course?.subject || '',
-        description: course?.description || '',
-        year_of_study: course?.year_of_study || '',
-        is_active: course?.is_active ?? true
-      }, { merge: true });
-    } else {
-      // Update the document if it exists
-      await updateDoc(courseRef, {
-        assignedUsers: arrayUnion(selectedStudentId)
+    if (!selectedStudent || !courseId) return;
+    
+    try {
+      const token = localStorage.getItem('firebaseToken');
+      const response = await fetch('/api/assign-course/', {
+        method: 'POST',
+        headers: {
+          'Authorization': token ? `Bearer ${token}` : '',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          course_id: courseId,
+          email: selectedStudent,
+          firebase_uid: students.find(s => s.email === selectedStudent)?.uid || null
+        }),
       });
-    }
-    setAssignMsg("Przypisano ucznia!");
-    setSelectedStudentId("");
-    // Refresh assigned users
-    const courseDoc = await getDoc(courseRef);
-    if (courseDoc.exists()) {
-      const data = courseDoc.data();
-      const assignedUids = Array.isArray(data.assignedUsers) ? data.assignedUsers : [];
-      setAssignedUsers(Array.isArray(students)
-        ? students.filter(s => assignedUids.includes(s.uid) || assignedUids.includes(s.email))
-        : []);
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Student assigned successfully:', data);
+        setSuccess('Uczeń został przypisany do kursu!');
+        setSelectedStudent("");
+        
+        // Refresh assigned users
+        const refreshResponse = await fetch(`/api/teacher-course/${courseId}/`, {
+          headers: {
+            'Authorization': token ? `Bearer ${token}` : '',
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        if (refreshResponse.ok) {
+          const refreshData = await refreshResponse.json();
+          const assignedUsersList = refreshData.assigned_users?.map((user: any) => ({
+            uid: user.id.toString(),
+            displayName: `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.username,
+            email: user.email,
+            role: 'student',
+            is_active: user.is_active
+          })) || [];
+          
+          setAssignedUsers(assignedUsersList);
+        }
+      } else {
+        const errorData = await response.json();
+        setError(`Błąd przypisywania ucznia: ${errorData.error || 'Nieznany błąd'}`);
+      }
+    } catch (error) {
+      console.error('Error assigning student:', error);
+      setError('Błąd podczas przypisywania ucznia do kursu');
     }
   }
 
@@ -543,8 +588,7 @@ function TeacherCourseDetailContent() {
     setEditContent(null);
   }
 
-  const [selectedStudentId, setSelectedStudentId] = useState<string>("");
-  const [assignMsg, setAssignMsg] = useState<string>("");
+
 
   // Function to create calendar event for assignments/exams
   async function createCalendarEvent(section: any, courseId: string | string[], teacherUid: string) {
@@ -676,18 +720,18 @@ function TeacherCourseDetailContent() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Dodaj ucznia</label>
             <select
-              value={selectedStudentId}
-              onChange={e => setSelectedStudentId(e.target.value)}
+              value={selectedStudent}
+              onChange={e => setSelectedStudent(e.target.value)}
               className="border border-gray-300 rounded px-3 py-2"
             >
               <option value="">-- wybierz --</option>
-              {Array.isArray(students) && Array.isArray(assignedUsers) && students.filter(s => !assignedUsers.some(u => u.uid === s.uid)).map(s => (
-                <option key={s.uid} value={s.uid}>{s.displayName || s.email} ({s.email})</option>
+              {Array.isArray(students) && Array.isArray(assignedUsers) && students.filter(s => !assignedUsers.some(u => u.email === s.email)).map(s => (
+                <option key={s.uid} value={s.email}>{s.displayName || s.email} ({s.email})</option>
               ))}
             </select>
           </div>
           <button type="submit" className="bg-[#4067EC] text-white px-4 py-2 rounded font-semibold">Przypisz</button>
-          {assignMsg && <span className="text-xs text-green-600 ml-2">{assignMsg}</span>}
+          {success && <span className="text-xs text-green-600 ml-2">{success}</span>}
         </form>
       </div>
 

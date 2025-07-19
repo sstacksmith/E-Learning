@@ -19,17 +19,106 @@ from rest_framework.decorators import api_view, permission_classes
 from django.utils import timezone
 import firebase_admin
 from firebase_admin import firestore
+import logging
+
+# Konfiguracja logowania
+logger = logging.getLogger(__name__)
 
 User = get_user_model()
+
+def sync_course_to_firestore(course, operation='create'):
+    """
+    Synchronizuje kurs z Firestore
+    """
+    try:
+        db = firestore.client()
+        course_ref = db.collection('courses').document(str(course.id))
+        
+        # Przygotuj dane do zapisu
+        course_data = {
+            'id': course.id,
+            'title': course.title,
+            'description': course.description,
+            'year_of_study': course.year_of_study,
+            'subject': course.subject or '',
+            'is_active': course.is_active,
+            'created_by': course.created_by.id,
+            'created_at': course.created_at.isoformat(),
+            'updated_at': course.updated_at.isoformat(),
+            'pdfUrls': course.pdfUrls or [],
+            'links': course.links or [],
+            'slug': course.slug or '',
+            'assignedUsers': [],
+            'sections': []  # Dodajemy sekcje dla kompatybilności z frontendem
+        }
+        
+        # Usuń None wartości
+        course_data = {k: v for k, v in course_data.items() if v is not None}
+        
+        if operation == 'create':
+            course_ref.set(course_data)
+            logger.info(f"Course created in Firestore: {course.id}")
+        elif operation == 'update':
+            course_ref.set(course_data, merge=True)
+            logger.info(f"Course updated in Firestore: {course.id}")
+        elif operation == 'delete':
+            course_ref.delete()
+            logger.info(f"Course deleted from Firestore: {course.id}")
+            
+        return True
+    except Exception as e:
+        logger.error(f"Error synchronizing course with Firestore: {e}")
+        return False
 
 class CourseListCreateView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
         print(f"GET request to courses by user: {request.user.email if request.user.is_authenticated else 'Anonymous'}")
-        courses = Course.objects.all()
-        serializer = CourseSerializer(courses, many=True)
-        return Response(serializer.data)
+        
+        # Filtruj kursy na podstawie roli użytkownika
+        if request.user.is_teacher:
+            # Nauczyciele widzą tylko swoje kursy
+            courses = Course.objects.filter(created_by=request.user).order_by('-created_at')
+        elif request.user.is_superuser:
+            # Administratorzy widzą wszystkie kursy
+            courses = Course.objects.all().order_by('-created_at')
+        else:
+            # Studenci widzą tylko kursy do których są przypisani
+            from learningplatform.models import CourseAssignment
+            assignments = CourseAssignment.objects.filter(student=request.user, is_active=True)
+            course_ids = [assignment.course.id for assignment in assignments]
+            courses = Course.objects.filter(id__in=course_ids).order_by('-created_at')
+        
+        # Dodaj paginację dla lepszej wydajności
+        page = self.request.query_params.get('page', 1)
+        page_size = self.request.query_params.get('page_size', 20)
+        
+        try:
+            page = int(page)
+            page_size = int(page_size)
+        except ValueError:
+            page = 1
+            page_size = 20
+        
+        # Ogranicz page_size do rozsądnej wartości
+        page_size = min(page_size, 50)
+        
+        start = (page - 1) * page_size
+        end = start + page_size
+        
+        paginated_courses = courses[start:end]
+        serializer = CourseSerializer(paginated_courses, many=True)
+        
+        response_data = {
+            'results': serializer.data,
+            'count': courses.count(),
+            'page': page,
+            'page_size': page_size,
+            'total_pages': (courses.count() + page_size - 1) // page_size
+        }
+        
+        return Response(response_data)
 
     def post(self, request):
         print(f"=== COURSE CREATION ATTEMPT ===")
@@ -71,35 +160,9 @@ class CourseListCreateView(APIView):
             print(f"Course created successfully: {serializer.data}")
             
             # Synchronize with Firestore
-            try:
-                db = firestore.client()
-                course_ref = db.collection('courses').document(str(course.id))
-                
-                # Przygotuj dane do zapisu, filtrując None wartości
-                course_data = {
-                    'id': course.id,
-                    'title': course.title,
-                    'description': course.description,
-                    'year_of_study': course.year_of_study,
-                    'subject': course.subject,
-                    'is_active': course.is_active,
-                    'created_by': course.created_by.id,
-                    'created_at': course.created_at.isoformat(),
-                    'updated_at': course.updated_at.isoformat(),
-                    'pdfUrls': course.pdfUrls or [],
-                    'links': course.links or [],
-                    'slug': course.slug or '',
-                    'assignedUsers': []
-                }
-                
-                # Usuń None wartości
-                course_data = {k: v for k, v in course_data.items() if v is not None}
-                
-                course_ref.set(course_data)
-                print(f"Course synchronized with Firestore: {course.id}")
-            except Exception as e:
-                print(f"Error synchronizing with Firestore: {e}")
-                # Don't fail the request if Firestore sync fails
+            sync_success = sync_course_to_firestore(course, 'create')
+            if not sync_success:
+                print("Warning: Course created in Django but failed to sync with Firestore")
             
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         else:
@@ -131,34 +194,9 @@ class CourseDetailView(APIView):
             course = serializer.save()
             
             # Synchronize with Firestore
-            try:
-                db = firestore.client()
-                course_ref = db.collection('courses').document(str(course.id))
-                
-                # Przygotuj dane do zapisu, filtrując None wartości
-                course_data = {
-                    'id': course.id,
-                    'title': course.title,
-                    'description': course.description,
-                    'year_of_study': course.year_of_study,
-                    'subject': course.subject,
-                    'is_active': course.is_active,
-                    'created_by': course.created_by.id,
-                    'created_at': course.created_at.isoformat(),
-                    'updated_at': course.updated_at.isoformat(),
-                    'pdfUrls': course.pdfUrls or [],
-                    'links': course.links or [],
-                    'slug': course.slug or '',
-                    'assignedUsers': []
-                }
-                
-                # Usuń None wartości
-                course_data = {k: v for k, v in course_data.items() if v is not None}
-                
-                course_ref.set(course_data, merge=True)
-                print(f"Course updated in Firestore: {course.id}")
-            except Exception as e:
-                print(f"Error updating course in Firestore: {e}")
+            sync_success = sync_course_to_firestore(course, 'update')
+            if not sync_success:
+                print("Warning: Course updated in Django but failed to sync with Firestore")
             
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -174,33 +212,9 @@ class CourseDetailView(APIView):
             course = serializer.save()
             
             # Synchronize with Firestore
-            try:
-                db = firestore.client()
-                course_ref = db.collection('courses').document(str(course.id))
-                
-                # Przygotuj dane do zapisu, filtrując None wartości
-                course_data = {
-                    'id': course.id,
-                    'title': course.title,
-                    'description': course.description,
-                    'year_of_study': course.year_of_study,
-                    'subject': course.subject,
-                    'is_active': course.is_active,
-                    'created_by': course.created_by.id,
-                    'created_at': course.created_at.isoformat(),
-                    'updated_at': course.updated_at.isoformat(),
-                    'pdfUrls': course.pdfUrls or [],
-                    'links': course.links or [],
-                    'slug': course.slug or '',
-                }
-                
-                # Usuń None wartości
-                course_data = {k: v for k, v in course_data.items() if v is not None}
-                
-                course_ref.set(course_data, merge=True)
-                print(f"Course patched in Firestore: {course.id}")
-            except Exception as e:
-                print(f"Error patching course in Firestore: {e}")
+            sync_success = sync_course_to_firestore(course, 'update')
+            if not sync_success:
+                print("Warning: Course patched in Django but failed to sync with Firestore")
             
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -212,13 +226,9 @@ class CourseDetailView(APIView):
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         
         # Delete from Firestore first
-        try:
-            db = firestore.client()
-            course_ref = db.collection('courses').document(str(course.id))
-            course_ref.delete()
-            print(f"Course deleted from Firestore: {course.id}")
-        except Exception as e:
-            print(f"Error deleting course from Firestore: {e}")
+        sync_success = sync_course_to_firestore(course, 'delete')
+        if not sync_success:
+            print("Warning: Failed to delete course from Firestore")
         
         # Delete from Django
         course.delete()
@@ -415,15 +425,17 @@ def assign_course(request):
                 # Update existing document
                 current_data = course_doc.to_dict()
                 assigned_users = current_data.get('assignedUsers', [])
-                if firebase_uid and firebase_uid not in assigned_users:
-                    assigned_users.append(firebase_uid)
-                if email and email not in assigned_users:
-                    assigned_users.append(email)
+                
+                # Dodaj użytkownika jeśli nie istnieje
+                user_identifier = firebase_uid if firebase_uid else email
+                if user_identifier not in assigned_users:
+                    assigned_users.append(user_identifier)
                 
                 course_ref.update({
                     'assignedUsers': assigned_users
                 })
                 print(f"Course assignment synchronized with Firestore: {course_id}")
+                logger.info(f"User {user_identifier} assigned to course {course_id}")
             else:
                 # Create new document if it doesn't exist
                 course_data = {
@@ -431,7 +443,7 @@ def assign_course(request):
                     'title': course.title,
                     'description': course.description,
                     'year_of_study': course.year_of_study,
-                    'subject': course.subject,
+                    'subject': course.subject or '',
                     'is_active': course.is_active,
                     'created_by': course.created_by.id,
                     'created_at': course.created_at.isoformat(),
@@ -439,7 +451,8 @@ def assign_course(request):
                     'pdfUrls': course.pdfUrls or [],
                     'links': course.links or [],
                     'slug': course.slug or '',
-                    'assignedUsers': [firebase_uid, email] if firebase_uid else [email]
+                    'assignedUsers': [firebase_uid if firebase_uid else email],
+                    'sections': []
                 }
                 
                 # Usuń None wartości
@@ -447,11 +460,14 @@ def assign_course(request):
                 
                 course_ref.set(course_data)
                 print(f"Course created in Firestore with assignment: {course_id}")
+                logger.info(f"Course {course_id} created in Firestore with user assignment")
         except Exception as e:
             print(f"Error synchronizing course assignment with Firestore: {e}")
+            logger.error(f"Error synchronizing course assignment with Firestore: {e}")
         
         return Response({'success': True, 'message': 'Course assigned!'})
     except Exception as e:
+        logger.error(f"Error in assign_course: {e}")
         return Response({'success': False, 'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(['GET'])
@@ -466,13 +482,52 @@ def my_courses(request):
 def teacher_course_detail(request, course_id):
     try:
         course = Course.objects.get(id=course_id)
-        assignments = CourseAssignment.objects.filter(course=course)
-        assigned_users = [{'id': a.student.id, 'email': a.student.email, 'username': a.student.username, 'is_active': a.is_active} for a in assignments]
+        assignments = CourseAssignment.objects.filter(course=course, is_active=True)
+        
+        # Pobierz szczegółowe informacje o przypisanych użytkownikach
+        assigned_users = []
+        for assignment in assignments:
+            student = assignment.student
+            assigned_users.append({
+                'id': student.id,
+                'email': student.email,
+                'username': student.username,
+                'first_name': student.first_name or '',
+                'last_name': student.last_name or '',
+                'is_active': assignment.is_active,
+                'assigned_date': assignment.assigned_date.isoformat(),
+                'assigned_by': assignment.assigned_by.email if assignment.assigned_by else ''
+            })
+        
+        # Pobierz dane kursu
         data = CourseSerializer(course).data
         data['assigned_users'] = assigned_users
+        data['total_students'] = len(assigned_users)
+        
+        # Dodaj informacje o kursie z Firestore
+        try:
+            db = firestore.client()
+            course_ref = db.collection('courses').document(str(course_id))
+            course_doc = course_ref.get()
+            
+            if course_doc.exists:
+                firestore_data = course_doc.to_dict()
+                data['firestore_assigned_users'] = firestore_data.get('assignedUsers', [])
+                data['firestore_sections'] = firestore_data.get('sections', [])
+            else:
+                data['firestore_assigned_users'] = []
+                data['firestore_sections'] = []
+        except Exception as e:
+            logger.error(f"Error fetching Firestore data for course {course_id}: {e}")
+            data['firestore_assigned_users'] = []
+            data['firestore_sections'] = []
+        
         return Response(data)
     except Course.DoesNotExist:
-        return Response({'error': 'Course not found'}, status=404) 
+        return Response({'error': 'Course not found'}, status=404)
+    except Exception as e:
+        logger.error(f"Error in teacher_course_detail: {e}")
+        return Response({'error': 'Internal server error'}, status=500) 
 
 @api_view(['GET'])
 @permission_classes([AllowAny])

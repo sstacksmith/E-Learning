@@ -1,52 +1,69 @@
 from django.core.management.base import BaseCommand
 from learningplatform.models import Course
-import firebase_admin
-from firebase_admin import firestore
+from learningplatform.views import sync_course_to_firestore
+import logging
+
+logger = logging.getLogger(__name__)
 
 class Command(BaseCommand):
-    help = 'Synchronize all courses from Django to Firestore'
+    help = 'Synchronizuje wszystkie kursy z Django do Firestore'
+
+    def add_arguments(self, parser):
+        parser.add_argument(
+            '--course-id',
+            type=int,
+            help='ID konkretnego kursu do synchronizacji (opcjonalne)',
+        )
 
     def handle(self, *args, **options):
-        # Initialize Firestore if not already initialized
-        if not firebase_admin._apps:
-            firebase_admin.initialize_app()
+        course_id = options.get('course_id')
         
-        db = firestore.client()
-        
-        # Get all courses from Django
-        courses = Course.objects.all()
-        
-        self.stdout.write(f"Found {courses.count()} courses to synchronize...")
-        
-        for course in courses:
+        if course_id:
+            # Synchronizuj konkretny kurs
             try:
-                # Create or update course in Firestore
-                course_ref = db.collection('courses').document(str(course.id))
-                course_ref.set({
-                    'id': course.id,
-                    'title': course.title,
-                    'description': course.description,
-                    'year_of_study': course.year_of_study,
-                    'subject': course.subject,
-                    'is_active': course.is_active,
-                    'created_by': course.created_by.id,
-                    'created_at': course.created_at.isoformat(),
-                    'updated_at': course.updated_at.isoformat(),
-                    'pdfUrls': course.pdfUrls,
-                    'links': course.links,
-                    'slug': course.slug,
-                    'assignedUsers': []
-                }, merge=True)
-                
+                course = Course.objects.get(id=course_id)
+                success = sync_course_to_firestore(course, 'create')
+                if success:
+                    self.stdout.write(
+                        self.style.SUCCESS(f'Kurs {course.title} (ID: {course.id}) został zsynchronizowany z Firestore')
+                    )
+                else:
+                    self.stdout.write(
+                        self.style.ERROR(f'Błąd synchronizacji kursu {course.title} (ID: {course.id})')
+                    )
+            except Course.DoesNotExist:
                 self.stdout.write(
-                    self.style.SUCCESS(f'Successfully synchronized course "{course.title}" (ID: {course.id})')
+                    self.style.ERROR(f'Kurs o ID {course_id} nie istnieje')
                 )
-                
-            except Exception as e:
-                self.stdout.write(
-                    self.style.ERROR(f'Failed to synchronize course "{course.title}" (ID: {course.id}): {e}')
+        else:
+            # Synchronizuj wszystkie kursy
+            courses = Course.objects.all()
+            self.stdout.write(f'Rozpoczynam synchronizację {courses.count()} kursów...')
+            
+            success_count = 0
+            error_count = 0
+            
+            for course in courses:
+                try:
+                    success = sync_course_to_firestore(course, 'create')
+                    if success:
+                        self.stdout.write(
+                            self.style.SUCCESS(f'✓ Kurs {course.title} (ID: {course.id}) zsynchronizowany')
+                        )
+                        success_count += 1
+                    else:
+                        self.stdout.write(
+                            self.style.ERROR(f'✗ Błąd synchronizacji kursu {course.title} (ID: {course.id})')
+                        )
+                        error_count += 1
+                except Exception as e:
+                    self.stdout.write(
+                        self.style.ERROR(f'✗ Wyjątek podczas synchronizacji kursu {course.title} (ID: {course.id}): {e}')
+                    )
+                    error_count += 1
+            
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f'\nSynchronizacja zakończona. Sukces: {success_count}, Błędy: {error_count}'
                 )
-        
-        self.stdout.write(
-            self.style.SUCCESS('Course synchronization completed!')
-        ) 
+            ) 
