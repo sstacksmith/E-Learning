@@ -113,101 +113,76 @@ export default function TeacherCourses() {
     }
     
     try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('firebaseToken') : null;
-      console.log('[DEBUG] Firebase token available:', !!token);
+      console.log('[DEBUG] Fetching courses from Firestore...');
       
-      // Dodaj timeout dla requestu
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => {
-        console.log('[DEBUG] Request timeout - aborting');
-        controller.abort();
-      }, 15000); // 15 sekund timeout
+      // Pobierz kursy bezpośrednio z Firestore
+      const { collection, getDocs, query, where, orderBy, limit, startAfter } = await import('firebase/firestore');
+      const coursesCollection = collection(db, 'courses');
       
-      const url = `/api/courses/?page=${page}&page_size=20`;
-      console.log('[DEBUG] Fetching from URL:', url);
+      // Pobierz wszystkie kursy (możemy dodać filtrowanie później)
+      const coursesSnapshot = await getDocs(coursesCollection);
       
-      const response = await fetch(url, {
-        headers: {
-          'Authorization': token ? `Bearer ${token}` : '',
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0'
-        },
-        signal: controller.signal,
+      const firestoreCourses = coursesSnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: data.id || doc.id,
+          title: data.title || '',
+          description: data.description || '',
+          year_of_study: data.year_of_study || 1,
+          subject: data.subject || '',
+          is_active: data.is_active !== undefined ? data.is_active : true,
+          created_at: data.created_at || new Date().toISOString(),
+          updated_at: data.updated_at || new Date().toISOString(),
+          pdfUrls: data.pdfUrls || [],
+          links: data.links || [],
+          slug: data.slug || '',
+          created_by: data.created_by || null,
+          assignedUsers: data.assignedUsers || [],
+          sections: data.sections || []
+        };
       });
       
-      clearTimeout(timeoutId);
-      console.log('[DEBUG] Response status:', response.status);
+      console.log('[DEBUG] Firestore courses loaded:', firestoreCourses.length);
       
-      if (!response.ok) {
-        if (response.status === 401) {
-          console.log('[DEBUG] 401 Unauthorized - clearing cache');
-          clearCache();
-          throw new Error('Authentication required - please log in again');
-        }
-        if (response.status === 403) {
-          console.log('[DEBUG] 403 Forbidden - clearing cache');
-          clearCache();
-          throw new Error('Access denied - please check your permissions');
-        }
-        if (response.status === 502) {
-          console.log('[DEBUG] 502 Bad Gateway - server error');
-          throw new Error('Server temporarily unavailable - please try again');
-        }
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      // Sortuj po dacie utworzenia (najnowsze pierwsze)
+      const sortedCourses = firestoreCourses.sort((a, b) => 
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+      
+      // Paginacja po stronie klienta
+      const pageSize = 20;
+      const startIndex = (page - 1) * pageSize;
+      const endIndex = startIndex + pageSize;
+      const paginatedCourses = sortedCourses.slice(startIndex, endIndex);
+      
+      const paginationData = {
+        page: page,
+        page_size: pageSize,
+        total_pages: Math.ceil(sortedCourses.length / pageSize),
+        count: sortedCourses.length
+      };
+      
+      console.log('[DEBUG] Pagination data:', paginationData);
+      console.log('[DEBUG] Courses for current page:', paginatedCourses.length);
+      
+      setCourses(paginatedCourses);
+      setPagination(paginationData);
+      
+      // Cache'uj tylko pierwszą stronę
+      if (page === 1) {
+        console.log('[DEBUG] Caching first page data');
+        setCachedCourses({
+          results: paginatedCourses,
+          pagination: paginationData
+        });
       }
       
-      const data = await response.json();
-      console.log('[DEBUG] Response data:', data);
-      
-      // Obsługuj nową strukturę odpowiedzi z paginacją
-      if (data.results) {
-        console.log('[DEBUG] Using paginated response structure');
-        setCourses(data.results);
-        const paginationData = {
-          page: data.page || 1,
-          page_size: data.page_size || 20,
-          total_pages: data.total_pages || 1,
-          count: data.count || 0
-        };
-        setPagination(paginationData);
-        
-        // Cache'uj tylko pierwszą stronę
-        if (page === 1) {
-          console.log('[DEBUG] Caching first page data');
-          setCachedCourses({
-            results: data.results,
-            pagination: paginationData
-          });
-        }
-      } else {
-        console.log('[DEBUG] Using fallback response structure');
-        setCourses(data);
-        const paginationData = {
-          page: 1,
-          page_size: 20,
-          total_pages: 1,
-          count: data.length || 0
-        };
-        setPagination(paginationData);
-        
-        // Cache'uj tylko pierwszą stronę
-        if (page === 1) {
-          console.log('[DEBUG] Caching fallback data');
-          setCachedCourses({
-            results: data,
-            pagination: paginationData
-          });
-        }
-      }
-      
-      console.log('[DEBUG] Courses loaded successfully');
+      console.log('[DEBUG] Courses loaded successfully from Firestore');
     } catch (err: any) {
-      console.error('[DEBUG] Error fetching courses:', err);
+      console.error('[DEBUG] Error fetching courses from Firestore:', err);
       
       // Retry logic dla błędów sieciowych
-      if (retryCount < 2 && (err.name === 'AbortError' || err.message.includes('Failed to fetch'))) {
+      if (retryCount < 2) {
         console.log(`[DEBUG] Retrying... Attempt ${retryCount + 1}`);
         setTimeout(() => {
           fetchCourses(page, useCache, retryCount + 1);
@@ -215,7 +190,7 @@ export default function TeacherCourses() {
         return;
       }
       
-      setError(`Failed to load courses: ${err.message}`);
+      setError(`Failed to load courses from Firestore: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -277,26 +252,32 @@ export default function TeacherCourses() {
       };
       console.log("Request data:", requestData);
       
-      const response = await fetch('/api/courses/', {
-        method: 'POST',
-        headers: {
-          'Authorization': token ? `Bearer ${token}` : '',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestData),
-      });
+      // Zapisz kurs bezpośrednio w Firestore
+      const { addDoc, collection } = await import('firebase/firestore');
+      const coursesCollection = collection(db, 'courses');
       
-      console.log("Response status:", response.status);
-      console.log("Response headers:", Object.fromEntries(response.headers.entries()));
+      // Przygotuj dane kursu
+      const courseData = {
+        ...requestData,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        is_active: true,
+        assignedUsers: [],
+        sections: []
+      };
       
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error("Server error:", errorData);
-        throw new Error(`Server error: ${errorData.detail || 'Unknown error'}`);
-      }
+      console.log("Saving course to Firestore:", courseData);
       
-      const data = await response.json();
-      console.log("Course created successfully:", data);
+      const docRef = await addDoc(coursesCollection, courseData);
+      console.log("Course created in Firestore with ID:", docRef.id);
+      
+      // Pobierz utworzony kurs z ID
+      const createdCourse = {
+        id: docRef.id,
+        ...courseData
+      };
+      
+      console.log("Course created successfully:", createdCourse);
       setSuccess('Course created successfully!');
       setNewCourse({ title: '', description: '', year_of_study: 1, subject: SUBJECTS[0], links: [''], pdfs: [], pdfUrls: [] });
       
