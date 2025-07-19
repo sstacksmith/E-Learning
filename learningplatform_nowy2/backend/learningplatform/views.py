@@ -276,6 +276,17 @@ def set_teacher_role(request):
         set_user_role(uid, 'teacher')
         return JsonResponse({'status': 'teacher role set'})
 
+@staff_member_required
+@csrf_exempt
+def set_admin_role(request):
+    if request.method == 'POST':
+        data = json.loads(request.body)
+        uid = data.get('uid')
+        if not uid:
+            return JsonResponse({'error': 'No UID provided'}, status=400)
+        set_user_role(uid, 'admin')
+        return JsonResponse({'status': 'admin role set'})
+
 @csrf_exempt
 def check_user_role(request):
     if request.method == 'POST':

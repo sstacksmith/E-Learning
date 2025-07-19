@@ -165,6 +165,30 @@ function SuperAdminDashboardContent() {
     }
   };
 
+  const setAdminRole = async (uid: string) => {
+    try {
+      const token = localStorage.getItem('firebaseToken');
+      const response = await fetch('/api/set-admin-role/', {
+        method: 'POST',
+        headers: {
+          'Authorization': token ? `Bearer ${token}` : '',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ uid }),
+      });
+      
+      if (response.ok) {
+        setSuccess(`Successfully set user as admin`);
+        fetchUsers(); // Refresh the list
+      } else {
+        const data = await response.json();
+        setError(data.error || 'Failed to set admin role');
+      }
+    } catch (err) {
+      setError('Failed to set admin role');
+    }
+  };
+
   const handleResetPassword = async (userId: string) => {
     try {
       const token = localStorage.getItem("token");
@@ -376,14 +400,24 @@ function SuperAdminDashboardContent() {
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          {user.role !== 'teacher' && user.role !== 'admin' && (
-                          <button 
-                              onClick={() => setTeacherRole(user.email || '')}
-                              className="text-blue-600 hover:text-blue-900"
-                          >
-                              Set as Teacher
-                          </button>
-                          )}
+                          <div className="flex space-x-2">
+                            {user.role !== 'teacher' && user.role !== 'admin' && (
+                              <button 
+                                onClick={() => setTeacherRole(user.email || '')}
+                                className="text-blue-600 hover:text-blue-900"
+                              >
+                                Set as Teacher
+                              </button>
+                            )}
+                            {user.role !== 'admin' && (
+                              <button 
+                                onClick={() => setAdminRole(user.id)}
+                                className="text-green-600 hover:text-green-900"
+                              >
+                                Set as Admin
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}

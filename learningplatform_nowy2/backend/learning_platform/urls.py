@@ -16,7 +16,7 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
-from learningplatform.views import CourseListCreateView, CourseDetailView, CourseDetailBySlugView, set_teacher_role, check_user_role, FirebaseLoginView, VerifyFirebaseTokenView, SetTeacherRoleView, UserListView, assign_course, my_courses, teacher_course_detail, health_check, courses_public
+from learningplatform.views import CourseListCreateView, CourseDetailView, CourseDetailBySlugView, set_teacher_role, set_admin_role, check_user_role, FirebaseLoginView, VerifyFirebaseTokenView, SetTeacherRoleView, UserListView, assign_course, my_courses, teacher_course_detail, health_check, courses_public
 from rest_framework.authtoken.views import obtain_auth_token
 
 urlpatterns = [
@@ -29,6 +29,7 @@ urlpatterns = [
     path('api/users/', UserListView.as_view(), name='user-list'),
     path('api/token-auth/', obtain_auth_token),
     path('api/set-teacher-role/', set_teacher_role, name='set-teacher-role'),
+    path('api/set-admin-role/', set_admin_role, name='set-admin-role'),
     path('api/set-teacher-role-api/', SetTeacherRoleView.as_view(), name='set-teacher-role-api'),
     path('api/check-user-role/', check_user_role, name='check-user-role'),
     path('api/auth/firebase-login/', FirebaseLoginView.as_view(), name='firebase-login'),

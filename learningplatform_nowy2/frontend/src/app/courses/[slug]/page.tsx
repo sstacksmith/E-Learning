@@ -6,6 +6,7 @@ import { useParams } from 'next/navigation';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '@/config/firebase';
+import { useAuth } from '@/context/AuthContext';
 
 // Types
 interface Section {
@@ -52,11 +53,13 @@ export default function CourseDetailPage() {
 function CourseDetail() {
   const params = useParams();
   const slug = params?.slug as string;
+  const { user } = useAuth();
   
   const [course, setCourse] = useState<Course | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeModule, setActiveModule] = useState<number | null>(null);
+  const [isAssigned, setIsAssigned] = useState(false);
 
   // Fetch course details
   useEffect(() => {
@@ -106,6 +109,14 @@ function CourseDetail() {
         console.log('[DEBUG] Mapped sections:', mappedCourse.sections);
         
         setCourse(mappedCourse);
+        
+        // Sprawdź czy użytkownik jest przypisany do kursu
+        if (user) {
+          const assignedUsers = courseData.assignedUsers || [];
+          const userIsAssigned = assignedUsers.includes(user.uid) || assignedUsers.includes(user.email);
+          setIsAssigned(userIsAssigned);
+          console.log('[DEBUG] User assigned to course:', userIsAssigned);
+        }
         
         // Set the first section as active by default
         if (mappedCourse.sections && mappedCourse.sections.length > 0) {
@@ -328,7 +339,26 @@ function CourseDetail() {
             
             {/* Module Content */}
             <div className="p-6">
-              {course.sections && course.sections.length > 0 ? (
+              {/* Sprawdź czy użytkownik jest przypisany do kursu */}
+              {!isAssigned && user?.role === 'student' ? (
+                <div className="text-center py-10">
+                  <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                  <h3 className="mt-2 text-lg font-medium text-gray-900">Dostęp ograniczony</h3>
+                  <p className="mt-1 text-sm text-gray-500">
+                    Nie jesteś przypisany do tego kursu. Skontaktuj się z nauczycielem, aby uzyskać dostęp.
+                  </p>
+                  <div className="mt-4">
+                    <Link 
+                      href="/homelogin" 
+                      className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-[#4067EC] hover:bg-[#3155d4]"
+                    >
+                      Wróć do dashboard
+                    </Link>
+                  </div>
+                </div>
+              ) : course.sections && course.sections.length > 0 ? (
                 course.sections.map((section) => (
                   <div 
                     key={section.id} 

@@ -25,6 +25,7 @@ interface Course {
   instructor: number;
   instructor_name: string;
   is_featured: boolean;
+  assignedUsers?: string[];
 }
 
 const sidebarLinks = [
@@ -347,11 +348,27 @@ function Dashboard() {
     if (!user) return;
     const fetchAssignedCourses = async () => {
       setLoadingAssigned(true);
-      const assignedQuery = query(collection(db, 'assignedCourses'), where('studentId', '==', user.uid));
-      const assignedSnapshot = await getDocs(assignedQuery);
-      const assigned = assignedSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setAssignedCourses(assigned);
-      setLoadingAssigned(false);
+      try {
+        // Pobierz wszystkie kursy z Firestore
+        const coursesCollection = collection(db, 'courses');
+        const coursesSnapshot = await getDocs(coursesCollection);
+        
+        // Filtruj kursy, do których użytkownik jest przypisany
+        const assigned = coursesSnapshot.docs
+          .map(doc => ({ id: doc.id, ...doc.data() } as any))
+          .filter(course => {
+            const assignedUsers = course.assignedUsers || [];
+            return assignedUsers.includes(user.uid) || assignedUsers.includes(user.email);
+          });
+        
+        console.log('Assigned courses for user:', user.uid, assigned);
+        setAssignedCourses(assigned);
+      } catch (error) {
+        console.error('Error fetching assigned courses:', error);
+        setAssignedCourses([]);
+      } finally {
+        setLoadingAssigned(false);
+      }
     };
     fetchAssignedCourses();
   }, [user]);
