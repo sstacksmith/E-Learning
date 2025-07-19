@@ -55,17 +55,13 @@ export default function TeacherCourses() {
   const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
-    // Dodaj debouncing dla lepszej wydajności
-    const timer = setTimeout(() => {
-      fetchCourses();
-    }, 100);
-    
-    return () => clearTimeout(timer);
+    // Natychmiastowe pobranie kursów bez cache'owania przy pierwszym ładowaniu
+    fetchCourses(1, false);
   }, []);
 
-  // Dodaj cache'owanie kursów w localStorage
+  // Cache'owanie kursów w localStorage - tylko dla kolejnych odświeżeń
   const cacheKey = 'teacher_courses_cache';
-  const cacheExpiry = 5 * 60 * 1000; // 5 minut
+  const cacheExpiry = 2 * 60 * 1000; // 2 minuty (krótszy czas)
 
   const getCachedCourses = () => {
     if (typeof window === 'undefined') return null;
@@ -87,14 +83,23 @@ export default function TeacherCourses() {
     }));
   };
 
+  const clearCache = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(cacheKey);
+    }
+  };
+
   const fetchCourses = async (page = 1, useCache = true, retryCount = 0) => {
+    console.log(`[DEBUG] fetchCourses called - page: ${page}, useCache: ${useCache}, retryCount: ${retryCount}`);
+    
     setLoading(true);
     setError(null);
     
-    // Sprawdź cache dla pierwszej strony
+    // Sprawdź cache tylko dla kolejnych odświeżeń, nie przy pierwszym ładowaniu
     if (page === 1 && useCache) {
       const cached = getCachedCourses();
       if (cached) {
+        console.log('[DEBUG] Using cached courses');
         setCourses(cached.results || cached);
         setPagination(cached.pagination || {
           page: 1,
@@ -109,37 +114,56 @@ export default function TeacherCourses() {
     
     try {
       const token = typeof window !== 'undefined' ? localStorage.getItem('firebaseToken') : null;
+      console.log('[DEBUG] Firebase token available:', !!token);
       
       // Dodaj timeout dla requestu
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 sekund timeout
+      const timeoutId = setTimeout(() => {
+        console.log('[DEBUG] Request timeout - aborting');
+        controller.abort();
+      }, 15000); // 15 sekund timeout
       
-      const response = await fetch(`/api/courses/?page=${page}&page_size=20`, {
+      const url = `/api/courses/?page=${page}&page_size=20`;
+      console.log('[DEBUG] Fetching from URL:', url);
+      
+      const response = await fetch(url, {
         headers: {
           'Authorization': token ? `Bearer ${token}` : '',
           'Content-Type': 'application/json',
-          'Cache-Control': 'no-cache', // Wymuś świeże dane
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
         },
         signal: controller.signal,
       });
       
       clearTimeout(timeoutId);
+      console.log('[DEBUG] Response status:', response.status);
       
       if (!response.ok) {
         if (response.status === 401) {
-          // Token wygasł - wyczyść cache i spróbuj ponownie
-          if (typeof window !== 'undefined') {
-            localStorage.removeItem(cacheKey);
-          }
-          throw new Error('Authentication required');
+          console.log('[DEBUG] 401 Unauthorized - clearing cache');
+          clearCache();
+          throw new Error('Authentication required - please log in again');
+        }
+        if (response.status === 403) {
+          console.log('[DEBUG] 403 Forbidden - clearing cache');
+          clearCache();
+          throw new Error('Access denied - please check your permissions');
+        }
+        if (response.status === 502) {
+          console.log('[DEBUG] 502 Bad Gateway - server error');
+          throw new Error('Server temporarily unavailable - please try again');
         }
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
       
       const data = await response.json();
+      console.log('[DEBUG] Response data:', data);
       
       // Obsługuj nową strukturę odpowiedzi z paginacją
       if (data.results) {
+        console.log('[DEBUG] Using paginated response structure');
         setCourses(data.results);
         const paginationData = {
           page: data.page || 1,
@@ -151,13 +175,14 @@ export default function TeacherCourses() {
         
         // Cache'uj tylko pierwszą stronę
         if (page === 1) {
+          console.log('[DEBUG] Caching first page data');
           setCachedCourses({
             results: data.results,
             pagination: paginationData
           });
         }
       } else {
-        // Fallback dla starej struktury
+        console.log('[DEBUG] Using fallback response structure');
         setCourses(data);
         const paginationData = {
           page: 1,
@@ -169,18 +194,21 @@ export default function TeacherCourses() {
         
         // Cache'uj tylko pierwszą stronę
         if (page === 1) {
+          console.log('[DEBUG] Caching fallback data');
           setCachedCourses({
             results: data,
             pagination: paginationData
           });
         }
       }
+      
+      console.log('[DEBUG] Courses loaded successfully');
     } catch (err: any) {
-      console.error('Error fetching courses:', err);
+      console.error('[DEBUG] Error fetching courses:', err);
       
       // Retry logic dla błędów sieciowych
       if (retryCount < 2 && (err.name === 'AbortError' || err.message.includes('Failed to fetch'))) {
-        console.log(`Retrying... Attempt ${retryCount + 1}`);
+        console.log(`[DEBUG] Retrying... Attempt ${retryCount + 1}`);
         setTimeout(() => {
           fetchCourses(page, useCache, retryCount + 1);
         }, 1000 * (retryCount + 1)); // Exponential backoff
@@ -271,7 +299,16 @@ export default function TeacherCourses() {
       console.log("Course created successfully:", data);
       setSuccess('Course created successfully!');
       setNewCourse({ title: '', description: '', year_of_study: 1, subject: SUBJECTS[0], links: [''], pdfs: [], pdfUrls: [] });
-      fetchCourses();
+      
+      // Natychmiast odśwież listę kursów bez cache'owania
+      console.log('[DEBUG] Refreshing courses after creation');
+      clearCache();
+      fetchCourses(1, false, 0);
+      
+      // Automatycznie ukryj komunikat sukcesu po 5 sekundach
+      setTimeout(() => {
+        setSuccess(null);
+      }, 5000);
     } catch (err: any) {
       console.error("Course creation error:", err);
       setError(`Failed to create course: ${err.message || 'Unknown error'}`);
@@ -316,15 +353,18 @@ export default function TeacherCourses() {
           </div>
           <button
             onClick={() => {
-              // Wyczyść cache i odśwież
-              if (typeof window !== 'undefined') {
-                localStorage.removeItem(cacheKey);
-              }
-              fetchCourses(1, false);
+              // Wyczyść cache i odśwież z wymuszeniem świeżych danych
+              clearCache();
+              setLoading(true);
+              setError(null);
+              fetchCourses(1, false, 0);
             }}
-            className="bg-[#4067EC] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#3155d4] transition-colors"
+            className="bg-[#4067EC] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#3155d4] transition-colors flex items-center space-x-2"
           >
-            Odśwież
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            <span>Odśwież</span>
           </button>
         </div>
 
@@ -420,8 +460,21 @@ export default function TeacherCourses() {
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <h2 className="text-2xl font-bold text-[#4067EC] mb-6">Utwórz nowy kurs</h2>
           {success && (
-            <div className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg mb-6">
-              {success}
+            <div className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg mb-6 flex items-center justify-between">
+              <div className="flex items-center">
+                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                <span>{success}</span>
+              </div>
+              <button
+                onClick={() => setSuccess(null)}
+                className="text-green-600 hover:text-green-800"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
             </div>
           )}
           
