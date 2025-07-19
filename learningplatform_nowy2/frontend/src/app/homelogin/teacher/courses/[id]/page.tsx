@@ -121,49 +121,43 @@ function TeacherCourseDetailContent() {
     fetchStudents();
   }, []);
 
-  // Fetch assigned users from Django API (by courseId)
+  // Fetch assigned users from Firestore (by courseId)
   useEffect(() => {
     const fetchAssigned = async () => {
       if (!courseId) return;
       
-      console.log('Fetching assigned users for courseId:', courseId);
+      console.log('Fetching assigned users from Firestore for courseId:', courseId);
       
       try {
-        const token = localStorage.getItem('firebaseToken');
-        console.log('Token available:', !!token);
+        // Pobierz kurs z Firestore
+        const courseDoc = await getDoc(doc(db, "courses", String(courseId)));
         
-        const response = await fetch(`/api/teacher-course/${courseId}/`, {
-          headers: {
-            'Authorization': token ? `Bearer ${token}` : '',
-            'Content-Type': 'application/json',
-          },
-        });
-        
-        console.log('Response status:', response.status);
-        
-        if (response.ok) {
-          const data = await response.json();
-          console.log('Course data from Django API:', data);
-          console.log('Raw assigned_users:', data.assigned_users);
+        if (courseDoc.exists()) {
+          const courseData = courseDoc.data();
+          console.log('Course data from Firestore:', courseData);
           
-          // Mapuj przypisanych użytkowników z Django na format Student
-          const assignedUsersList = data.assigned_users?.map((user: any) => ({
-            uid: user.id.toString(),
-            displayName: `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.username,
-            email: user.email,
+          // Pobierz przypisanych użytkowników z Firestore
+          const assignedUsersFromFirestore = courseData.assignedUsers || [];
+          console.log('Raw assignedUsers from Firestore:', assignedUsersFromFirestore);
+          
+          // Mapuj przypisanych użytkowników z Firestore na format Student
+          const assignedUsersList = assignedUsersFromFirestore.map((userIdentifier: string) => ({
+            uid: userIdentifier,
+            displayName: userIdentifier.includes('@') ? userIdentifier.split('@')[0] : userIdentifier,
+            email: userIdentifier.includes('@') ? userIdentifier : `${userIdentifier}@example.com`,
             role: 'student',
-            is_active: user.is_active
-          })) || [];
+            is_active: true
+          }));
           
-          console.log('Assigned users mapped:', assignedUsersList);
+          console.log('Assigned users mapped from Firestore:', assignedUsersList);
           setAssignedUsers(assignedUsersList);
         } else {
-          console.error('Failed to fetch course details from Django API:', response.status, response.statusText);
-          const errorText = await response.text();
-          console.error('Error response:', errorText);
+          console.log('Course document does not exist in Firestore');
+          setAssignedUsers([]);
         }
       } catch (error) {
-        console.error('Error fetching assigned users:', error);
+        console.error('Error fetching assigned users from Firestore:', error);
+        setAssignedUsers([]);
       }
     };
     fetchAssigned();
@@ -195,29 +189,30 @@ function TeacherCourseDetailContent() {
         setSuccess('Uczeń został przypisany do kursu!');
         setSelectedStudent("");
         
-        // Refresh assigned users
-        console.log('Refreshing assigned users after assignment...');
-        const refreshResponse = await fetch(`/api/teacher-course/${courseId}/`, {
-          headers: {
-            'Authorization': token ? `Bearer ${token}` : '',
-            'Content-Type': 'application/json',
-          },
-        });
+        // Refresh assigned users from Firestore
+        console.log('Refreshing assigned users from Firestore after assignment...');
         
-        if (refreshResponse.ok) {
-          const refreshData = await refreshResponse.json();
-          console.log('Refresh data received:', refreshData);
-          console.log('Assigned users from refresh:', refreshData.assigned_users);
+        // Pobierz zaktualizowane dane z Firestore
+        const courseDoc = await getDoc(doc(db, "courses", String(courseId)));
+        
+        if (courseDoc.exists()) {
+          const courseData = courseDoc.data();
+          console.log('Updated course data from Firestore:', courseData);
           
-          const assignedUsersList = refreshData.assigned_users?.map((user: any) => ({
-            uid: user.id.toString(),
-            displayName: `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.username,
-            email: user.email,
+          // Pobierz zaktualizowanych przypisanych użytkowników
+          const assignedUsersFromFirestore = courseData.assignedUsers || [];
+          console.log('Updated assignedUsers from Firestore:', assignedUsersFromFirestore);
+          
+          // Mapuj przypisanych użytkowników z Firestore na format Student
+          const assignedUsersList = assignedUsersFromFirestore.map((userIdentifier: string) => ({
+            uid: userIdentifier,
+            displayName: userIdentifier.includes('@') ? userIdentifier.split('@')[0] : userIdentifier,
+            email: userIdentifier.includes('@') ? userIdentifier : `${userIdentifier}@example.com`,
             role: 'student',
-            is_active: user.is_active
-          })) || [];
+            is_active: true
+          }));
           
-          console.log('Mapped assigned users list:', assignedUsersList);
+          console.log('Updated assigned users list:', assignedUsersList);
           setAssignedUsers(assignedUsersList);
           
           // Dodaj timeout aby komunikat sukcesu był widoczny
@@ -225,7 +220,7 @@ function TeacherCourseDetailContent() {
             setSuccess(null);
           }, 3000);
         } else {
-          console.error('Failed to refresh assigned users:', refreshResponse.status, refreshResponse.statusText);
+          console.error('Course document not found in Firestore after assignment');
         }
       } else {
         const errorData = await response.json();
