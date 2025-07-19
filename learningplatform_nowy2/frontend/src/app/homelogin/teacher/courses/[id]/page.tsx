@@ -205,86 +205,86 @@ function TeacherCourseDetailContent() {
     fetchAssigned();
   }, [courseId]);
 
-  // Assign student to course using Django API
+  // Assign student to course using Firestore
   async function handleAssignStudent(e: any) {
     e.preventDefault();
     if (!selectedStudent || !courseId) return;
     
     try {
-      const token = localStorage.getItem('firebaseToken');
-      const response = await fetch('/api/assign-course/', {
-        method: 'POST',
-        headers: {
-          'Authorization': token ? `Bearer ${token}` : '',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          course_id: courseId,
-          email: selectedStudent,
-          firebase_uid: students.find(s => s.email === selectedStudent)?.uid || null
-        }),
+      console.log('Assigning student to course:', selectedStudent, courseId);
+      
+      // Pobierz kurs z Firestore
+      const courseDoc = await getDoc(doc(db, "courses", String(courseId)));
+      
+      if (!courseDoc.exists()) {
+        setError('Kurs nie został znaleziony');
+        return;
+      }
+      
+      const courseData = courseDoc.data();
+      const assignedUsers = courseData.assignedUsers || [];
+      
+      // Sprawdź czy student już jest przypisany
+      if (assignedUsers.includes(selectedStudent)) {
+        setError('Student jest już przypisany do tego kursu');
+        return;
+      }
+      
+      // Dodaj studenta do listy przypisanych użytkowników
+      assignedUsers.push(selectedStudent);
+      
+      // Zaktualizuj kurs w Firestore
+      await updateDoc(doc(db, "courses", String(courseId)), {
+        assignedUsers: assignedUsers
       });
       
-      if (response.ok) {
-        const data = await response.json();
-        console.log('Student assigned successfully:', data);
-        setSuccess('Uczeń został przypisany do kursu!');
-        setSelectedStudent("");
+      console.log('Student assigned successfully to Firestore');
+      setSuccess('Uczeń został przypisany do kursu!');
+      setSelectedStudent("");
+      
+      // Refresh assigned users from Firestore
+      console.log('Refreshing assigned users from Firestore after assignment...');
+      
+      // Pobierz zaktualizowane dane z Firestore
+      const updatedCourseDoc = await getDoc(doc(db, "courses", String(courseId)));
         
-        // Refresh assigned users from Firestore
-        console.log('Refreshing assigned users from Firestore after assignment...');
-        
-        // Pobierz zaktualizowane dane z Firestore
-        const courseDoc = await getDoc(doc(db, "courses", String(courseId)));
-        
-        if (courseDoc.exists()) {
-          const courseData = courseDoc.data();
-          console.log('Updated course data from Firestore:', courseData);
+      if (updatedCourseDoc.exists()) {
+        const updatedCourseData = updatedCourseDoc.data();
+        console.log('Updated course data from Firestore:', updatedCourseData);
           
-          // Pobierz zaktualizowanych przypisanych użytkowników
-          const assignedUsersFromFirestore = courseData.assignedUsers || [];
-          console.log('Updated assignedUsers from Firestore:', assignedUsersFromFirestore);
+        // Pobierz zaktualizowanych przypisanych użytkowników
+        const assignedUsersFromFirestore = updatedCourseData.assignedUsers || [];
+        console.log('Updated assignedUsers from Firestore:', assignedUsersFromFirestore);
           
-          // Pobierz pełne dane użytkowników z kolekcji "users"
-          const assignedUsersList = await Promise.all(
-            assignedUsersFromFirestore.map(async (userIdentifier: string) => {
-              try {
-                // Sprawdź czy to email czy UID
-                let userDoc;
-                if (userIdentifier.includes('@')) {
-                  // To email - znajdź użytkownika po email
-                  const usersQuery = query(collection(db, "users"), where("email", "==", userIdentifier));
-                  const userSnapshot = await getDocs(usersQuery);
-                  if (!userSnapshot.empty) {
-                    userDoc = userSnapshot.docs[0];
-                  }
-                } else {
-                  // To UID - pobierz bezpośrednio
-                  userDoc = await getDoc(doc(db, "users", userIdentifier));
+        // Pobierz pełne dane użytkowników z kolekcji "users"
+        const assignedUsersList = await Promise.all(
+          assignedUsersFromFirestore.map(async (userIdentifier: string) => {
+            try {
+              // Sprawdź czy to email czy UID
+              let userDoc;
+              if (userIdentifier.includes('@')) {
+                // To email - znajdź użytkownika po email
+                const usersQuery = query(collection(db, "users"), where("email", "==", userIdentifier));
+                const userSnapshot = await getDocs(usersQuery);
+                if (!userSnapshot.empty) {
+                  userDoc = userSnapshot.docs[0];
                 }
+              } else {
+                // To UID - pobierz bezpośrednio
+                userDoc = await getDoc(doc(db, "users", userIdentifier));
+              }
                 
-                if (userDoc && userDoc.exists()) {
-                  const userData = userDoc.data() as any;
-                  return {
-                    uid: userDoc.id,
-                    displayName: `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || userData.email || userIdentifier,
-                    email: userData.email || userIdentifier,
-                    role: 'student',
-                    is_active: true
-                  };
-                } else {
-                  // Fallback jeśli nie znaleziono użytkownika
-                  return {
-                    uid: userIdentifier,
-                    displayName: userIdentifier.includes('@') ? userIdentifier.split('@')[0] : userIdentifier,
-                    email: userIdentifier.includes('@') ? userIdentifier : `${userIdentifier}@example.com`,
-                    role: 'student',
-                    is_active: true
-                  };
-                }
-              } catch (error) {
-                console.error('Error fetching user data for:', userIdentifier, error);
-                // Fallback
+              if (userDoc && userDoc.exists()) {
+                const userData = userDoc.data() as any;
+                return {
+                  uid: userDoc.id,
+                  displayName: `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || userData.email || userIdentifier,
+                  email: userData.email || userIdentifier,
+                  role: 'student',
+                  is_active: true
+                };
+              } else {
+                // Fallback jeśli nie znaleziono użytkownika
                 return {
                   uid: userIdentifier,
                   displayName: userIdentifier.includes('@') ? userIdentifier.split('@')[0] : userIdentifier,
@@ -293,26 +293,34 @@ function TeacherCourseDetailContent() {
                   is_active: true
                 };
               }
-            })
-          );
+            } catch (error) {
+              console.error('Error fetching user data for:', userIdentifier, error);
+              // Fallback
+              return {
+                uid: userIdentifier,
+                displayName: userIdentifier.includes('@') ? userIdentifier.split('@')[0] : userIdentifier,
+                email: userIdentifier.includes('@') ? userIdentifier : `${userIdentifier}@example.com`,
+                role: 'student',
+                is_active: true
+              };
+            }
+          })
+        );
           
-          console.log('Updated assigned users list:', assignedUsersList);
-          setAssignedUsers(assignedUsersList);
+        console.log('Updated assigned users list:', assignedUsersList);
+        setAssignedUsers(assignedUsersList);
           
-          // Dodaj timeout aby komunikat sukcesu był widoczny
-          setTimeout(() => {
-            setSuccess(null);
-          }, 3000);
-        } else {
-          console.error('Course document not found in Firestore after assignment');
-        }
+        // Dodaj timeout aby komunikat sukcesu był widoczny
+        setTimeout(() => {
+          setSuccess(null);
+        }, 3000);
       } else {
-        const errorData = await response.json();
-        setError(`Błąd przypisywania ucznia: ${errorData.error || 'Nieznany błąd'}`);
+        console.error('Course document not found in Firestore after assignment');
       }
     } catch (error) {
       console.error('Error assigning student:', error);
       setError('Błąd podczas przypisywania ucznia do kursu');
+      setTimeout(() => setError(null), 3000);
     }
   }
 
@@ -360,34 +368,49 @@ function TeacherCourseDetailContent() {
     setError(null);
     setSuccess(null);
     try {
-      const token = localStorage.getItem("firebaseToken");
       const student = students.find(s => s.uid === selectedStudent);
-              const res = await fetch("/api/assign-course/", {
-        method: "POST",
-        headers: {
-          Authorization: token ? `Bearer ${token}` : "",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          course_id: courseId,
-          firebase_uid: student?.uid,
-          email: student?.email,
-        }),
+      
+      if (!student || !courseId) {
+        throw new Error("Nie wybrano studenta lub kursu");
+      }
+      
+      // Pobierz kurs z Firestore
+      const courseDoc = await getDoc(doc(db, "courses", String(courseId)));
+      
+      if (!courseDoc.exists()) {
+        throw new Error("Kurs nie został znaleziony");
+      }
+      
+      const courseData = courseDoc.data();
+      const assignedUsers = courseData.assignedUsers || [];
+      
+      // Sprawdź czy student już jest przypisany
+      if (assignedUsers.includes(student.email)) {
+        throw new Error("Student jest już przypisany do tego kursu");
+      }
+      
+      // Dodaj studenta do listy przypisanych użytkowników
+      assignedUsers.push(student.email);
+      
+      // Zaktualizuj kurs w Firestore
+      await updateDoc(doc(db, "courses", String(courseId)), {
+        assignedUsers: assignedUsers
       });
-      const data = await res.json();
-      if (!res.ok || !data.success) throw new Error(data.error || "Failed to assign course");
+      
       setSuccess("Kurs przypisany do użytkownika!");
       setSelectedStudent("");
+      
       // Refresh course details
-      const courseDoc = await getDoc(doc(db, "courses", String(courseId)));
-      if (courseDoc.exists()) {
-        const data = courseDoc.data();
+      const updatedCourseDoc = await getDoc(doc(db, "courses", String(courseId)));
+      if (updatedCourseDoc.exists()) {
+        const data = updatedCourseDoc.data();
         setCourse(data as any);
         setSections(data.sections || []);
         setBannerUrl(data.bannerUrl || "");
       }
     } catch (err: any) {
       setError(err.message || "Błąd przypisywania kursu");
+      setTimeout(() => setError(null), 3000);
     } finally {
       setAssigning(false);
     }

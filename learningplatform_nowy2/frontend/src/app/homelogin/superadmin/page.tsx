@@ -127,6 +127,13 @@ function SuperAdminDashboardContent() {
   const [newUserFirstName, setNewUserFirstName] = useState("");
   const [newUserLastName, setNewUserLastName] = useState("");
   const [newUserRole, setNewUserRole] = useState("student");
+  const [showEditCourseModal, setShowEditCourseModal] = useState(false);
+  const [editingCourse, setEditingCourse] = useState<any>(null);
+  const [editCourseTitle, setEditCourseTitle] = useState("");
+  const [editCourseYear, setEditCourseYear] = useState("");
+  const [editCourseDescription, setEditCourseDescription] = useState("");
+  const [editCourseTeacher, setEditCourseTeacher] = useState("");
+  const [editCourseStudents, setEditCourseStudents] = useState<string[]>([]);
 
   useEffect(() => {
     fetchUsers();
@@ -524,6 +531,61 @@ function SuperAdminDashboardContent() {
     }
   };
 
+  const openEditCourseModal = (course: any) => {
+    setEditingCourse(course);
+    setEditCourseTitle(course.title || '');
+    setEditCourseYear(course.year?.toString() || '');
+    setEditCourseDescription(course.description || '');
+    setEditCourseTeacher(course.teacherEmail || '');
+    setEditCourseStudents(course.assignedUsers || []);
+    setShowEditCourseModal(true);
+  };
+
+  const updateCourse = async () => {
+    if (!editingCourse || !editCourseTitle.trim() || !editCourseYear.trim()) {
+      setError('Wypełnij wszystkie wymagane pola');
+      return;
+    }
+    
+    try {
+      const { updateDoc, doc } = await import('firebase/firestore');
+      const courseData = {
+        title: editCourseTitle,
+        year: parseInt(editCourseYear),
+        description: editCourseDescription,
+        teacherEmail: editCourseTeacher,
+        assignedUsers: editCourseStudents,
+        updated_at: new Date().toISOString(),
+        updated_by: user?.email || 'admin'
+      };
+      
+      await updateDoc(doc(db, 'courses', editingCourse.id), courseData);
+      
+      setSuccess('Kurs został pomyślnie zaktualizowany');
+      setShowEditCourseModal(false);
+      setEditingCourse(null);
+      fetchCourses(); // Refresh the list
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (error) {
+      console.error('Error updating course:', error);
+      setError('Błąd podczas aktualizacji kursu');
+      // Clear error message after 3 seconds
+      setTimeout(() => setError(''), 3000);
+    }
+  };
+
+  const removeStudentFromCourse = (studentEmail: string) => {
+    setEditCourseStudents(prev => prev.filter(email => email !== studentEmail));
+  };
+
+  const addStudentToCourse = (studentEmail: string) => {
+    if (!editCourseStudents.includes(studentEmail)) {
+      setEditCourseStudents(prev => [...prev, studentEmail]);
+    }
+  };
+
   if (loading) {
     return <div className="p-8">Loading...</div>;
   }
@@ -832,7 +894,12 @@ function SuperAdminDashboardContent() {
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          <button className="text-[#4067EC] hover:text-[#3155d4] mr-3">Edit</button>
+                          <button 
+                            onClick={() => openEditCourseModal(course)}
+                            className="text-[#4067EC] hover:text-[#3155d4] mr-3"
+                          >
+                            Edit
+                          </button>
                           <button 
                             onClick={() => deleteCourse(course.id)}
                             className="text-red-600 hover:text-red-900"
@@ -1191,6 +1258,154 @@ function SuperAdminDashboardContent() {
                     className="px-4 py-2 bg-[#4067EC] text-white rounded-md hover:bg-[#3155d4]"
                   >
                     Create Group
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Edit Course Modal */}
+        {showEditCourseModal && editingCourse && (
+          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full">
+            <div className="relative top-10 mx-auto p-5 border w-4/5 max-w-4xl shadow-lg rounded-md bg-white">
+              <div className="mt-3">
+                <h3 className="text-lg font-medium leading-6 text-gray-900 mb-4">
+                  Edit Course: {editingCourse.title}
+                </h3>
+                {error && (
+                  <div className="mb-4 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded relative">
+                    {error}
+                  </div>
+                )}
+                <div className="mt-2 px-7 py-3 space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Course Title *</label>
+                      <input
+                        type="text"
+                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#4067EC] focus:ring-[#4067EC]"
+                        value={editCourseTitle}
+                        onChange={(e) => setEditCourseTitle(e.target.value)}
+                        placeholder="e.g., Matematyka 7A"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Year *</label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="12"
+                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#4067EC] focus:ring-[#4067EC]"
+                        value={editCourseYear}
+                        onChange={(e) => setEditCourseYear(e.target.value)}
+                        placeholder="e.g., 7"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Description</label>
+                    <textarea
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#4067EC] focus:ring-[#4067EC]"
+                      rows={3}
+                      value={editCourseDescription}
+                      onChange={(e) => setEditCourseDescription(e.target.value)}
+                      placeholder="Opis kursu..."
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Assign Teacher</label>
+                    <select
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#4067EC] focus:ring-[#4067EC]"
+                      value={editCourseTeacher}
+                      onChange={(e) => setEditCourseTeacher(e.target.value)}
+                    >
+                      <option value="">Select a teacher...</option>
+                      {users.filter(u => u.role === 'teacher').map((user: any) => (
+                        <option key={user.id} value={user.email}>
+                          {user.firstName || ''} {user.lastName || ''} ({user.email})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  {/* Assigned Students Section */}
+                  <div className="border-t pt-4">
+                    <h4 className="text-md font-medium text-gray-800 mb-3">Assigned Students</h4>
+                    
+                    {/* Current Students */}
+                    <div className="mb-4">
+                      <h5 className="text-sm font-medium text-gray-700 mb-2">Currently Assigned:</h5>
+                      <div className="space-y-2">
+                        {editCourseStudents.length > 0 ? (
+                          editCourseStudents.map((studentEmail, index) => {
+                            const student = users.find(u => u.email === studentEmail);
+                            return (
+                              <div key={index} className="flex items-center justify-between bg-gray-50 p-2 rounded">
+                                <span className="text-sm">
+                                  {student ? `${student.firstName || ''} ${student.lastName || ''}` : studentEmail}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => removeStudentFromCourse(studentEmail || '')}
+                                  className="text-red-600 hover:text-red-800 text-sm"
+                                >
+                                  Remove
+                                </button>
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <p className="text-sm text-gray-500">No students assigned</p>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {/* Add New Student */}
+                    <div>
+                      <h5 className="text-sm font-medium text-gray-700 mb-2">Add Student:</h5>
+                      <select
+                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#4067EC] focus:ring-[#4067EC]"
+                        onChange={(e) => {
+                          if (e.target.value) {
+                            addStudentToCourse(e.target.value);
+                            e.target.value = '';
+                          }
+                        }}
+                      >
+                        <option value="">Select a student to add...</option>
+                        {users
+                          .filter(u => u.role === 'student' && u.email && !editCourseStudents.includes(u.email))
+                          .map((user: any) => (
+                            <option key={user.id} value={user.email || ''}>
+                              {user.firstName || ''} {user.lastName || ''} ({user.email})
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex justify-end mt-4 space-x-3">
+                  <button
+                    onClick={() => {
+                      setShowEditCourseModal(false);
+                      setEditingCourse(null);
+                      setEditCourseTitle("");
+                      setEditCourseYear("");
+                      setEditCourseDescription("");
+                      setEditCourseTeacher("");
+                      setEditCourseStudents([]);
+                      setError("");
+                    }}
+                    className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={updateCourse}
+                    className="px-4 py-2 bg-[#4067EC] text-white rounded-md hover:bg-[#3155d4]"
+                  >
+                    Update Course
                   </button>
                 </div>
               </div>

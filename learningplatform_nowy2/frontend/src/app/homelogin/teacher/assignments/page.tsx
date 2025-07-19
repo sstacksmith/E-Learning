@@ -3,16 +3,21 @@ import { useState, useEffect } from 'react';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { useAuth } from '@/context/AuthContext';
 import Providers from '@/components/Providers';
+import { db } from '@/config/firebase';
+import { collection, getDocs, doc, updateDoc, getDoc } from 'firebase/firestore';
 
 interface Course {
-  id: number;
+  id: string;
   title: string;
+  teacherEmail?: string;
 }
 
 interface Student {
-  id: number;
-  username: string;
+  id: string;
+  firstName?: string;
+  lastName?: string;
   email: string;
+  role?: string;
 }
 
 function StudentAssignmentsWrapper() {
@@ -41,32 +46,28 @@ function StudentAssignmentsContent() {
   const [assignError, setAssignError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Fetch courses
-        const coursesResponse = await fetch('/api/courses/', {
-          headers: {
-            'Authorization': token ? `Token ${token}` : '',
-            'Content-Type': 'application/json',
-          },
-        });
-        if (!coursesResponse.ok) throw new Error('Failed to fetch courses');
-        const coursesData = await coursesResponse.json();
+        // Fetch courses from Firestore
+        const coursesCollection = collection(db, 'courses');
+        const coursesSnapshot = await getDocs(coursesCollection);
+        const coursesData = coursesSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        } as Course)).filter((course: Course) => course.teacherEmail === user?.email);
         setCourses(coursesData);
 
-        // Fetch students
-        const studentsResponse = await fetch('/api/users/', {
-          headers: {
-            'Authorization': token ? `Token ${token}` : '',
-            'Content-Type': 'application/json',
-          },
-        });
-        if (!studentsResponse.ok) throw new Error('Failed to fetch students');
-        const studentsData = await studentsResponse.json();
-        setStudents(studentsData.filter((u: any) => u.userprofile?.user_type === "student"));
+        // Fetch students from Firestore
+        const usersCollection = collection(db, 'users');
+        const usersSnapshot = await getDocs(usersCollection);
+        const studentsData = usersSnapshot.docs
+          .map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          } as Student))
+          .filter((u: Student) => u.role === "student");
+        setStudents(studentsData);
       } catch (err) {
         console.error('Error fetching data:', err);
         setAssignError('Failed to load data');
@@ -74,7 +75,7 @@ function StudentAssignmentsContent() {
     };
 
     fetchData();
-  }, [token]);
+  }, [user?.email]);
 
   const handleAssign = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -83,28 +84,44 @@ function StudentAssignmentsContent() {
     setLoading(true);
 
     try {
-              const response = await fetch("/api/assignments/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          course: selectedCourse,
-          student: selectedStudent,
-        }),
-        credentials: 'include',
-      });
-
-      const data = await response.json();
-      if (response.ok) {
-        setAssignSuccess("Student successfully assigned to course!");
-        setSelectedCourse("");
-        setSelectedStudent("");
-      } else {
-        setAssignError(data.error || "Error assigning student to course.");
+      if (!selectedCourse || !selectedStudent) {
+        throw new Error("Nie wybrano kursu lub studenta");
       }
-    } catch (err) {
-      setAssignError("Network or server error.");
+
+      // Pobierz kurs z Firestore
+      const courseDoc = await getDoc(doc(db, "courses", selectedCourse));
+      
+      if (!courseDoc.exists()) {
+        throw new Error("Kurs nie został znaleziony");
+      }
+      
+      const courseData = courseDoc.data();
+      const assignedUsers = courseData.assignedUsers || [];
+      
+      // Znajdź studenta po ID
+      const student = students.find(s => s.id === selectedStudent);
+      if (!student) {
+        throw new Error("Student nie został znaleziony");
+      }
+      
+      // Sprawdź czy student już jest przypisany
+      if (assignedUsers.includes(student.email)) {
+        throw new Error("Student jest już przypisany do tego kursu");
+      }
+      
+      // Dodaj studenta do listy przypisanych użytkowników
+      assignedUsers.push(student.email);
+      
+      // Zaktualizuj kurs w Firestore
+      await updateDoc(doc(db, "courses", selectedCourse), {
+        assignedUsers: assignedUsers
+      });
+      
+      setAssignSuccess("Student successfully assigned to course!");
+      setSelectedCourse("");
+      setSelectedStudent("");
+    } catch (err: any) {
+      setAssignError(err.message || "Network or server error.");
     }
     setLoading(false);
   };
@@ -158,7 +175,7 @@ function StudentAssignmentsContent() {
               <option value="">-- wybierz ucznia --</option>
               {students.map((student) => (
                 <option key={student.id} value={student.id}>
-                  {student.username} ({student.email})
+                  {student.firstName && student.lastName ? `${student.firstName} ${student.lastName}` : student.email} ({student.email})
                 </option>
               ))}
             </select>
