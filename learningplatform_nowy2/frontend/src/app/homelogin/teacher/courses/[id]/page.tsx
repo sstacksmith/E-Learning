@@ -126,8 +126,12 @@ function TeacherCourseDetailContent() {
     const fetchAssigned = async () => {
       if (!courseId) return;
       
+      console.log('Fetching assigned users for courseId:', courseId);
+      
       try {
         const token = localStorage.getItem('firebaseToken');
+        console.log('Token available:', !!token);
+        
         const response = await fetch(`/api/teacher-course/${courseId}/`, {
           headers: {
             'Authorization': token ? `Bearer ${token}` : '',
@@ -135,9 +139,12 @@ function TeacherCourseDetailContent() {
           },
         });
         
+        console.log('Response status:', response.status);
+        
         if (response.ok) {
           const data = await response.json();
           console.log('Course data from Django API:', data);
+          console.log('Raw assigned_users:', data.assigned_users);
           
           // Mapuj przypisanych użytkowników z Django na format Student
           const assignedUsersList = data.assigned_users?.map((user: any) => ({
@@ -148,10 +155,12 @@ function TeacherCourseDetailContent() {
             is_active: user.is_active
           })) || [];
           
-          setAssignedUsers(assignedUsersList);
           console.log('Assigned users mapped:', assignedUsersList);
+          setAssignedUsers(assignedUsersList);
         } else {
-          console.error('Failed to fetch course details from Django API');
+          console.error('Failed to fetch course details from Django API:', response.status, response.statusText);
+          const errorText = await response.text();
+          console.error('Error response:', errorText);
         }
       } catch (error) {
         console.error('Error fetching assigned users:', error);
@@ -187,6 +196,7 @@ function TeacherCourseDetailContent() {
         setSelectedStudent("");
         
         // Refresh assigned users
+        console.log('Refreshing assigned users after assignment...');
         const refreshResponse = await fetch(`/api/teacher-course/${courseId}/`, {
           headers: {
             'Authorization': token ? `Bearer ${token}` : '',
@@ -196,6 +206,9 @@ function TeacherCourseDetailContent() {
         
         if (refreshResponse.ok) {
           const refreshData = await refreshResponse.json();
+          console.log('Refresh data received:', refreshData);
+          console.log('Assigned users from refresh:', refreshData.assigned_users);
+          
           const assignedUsersList = refreshData.assigned_users?.map((user: any) => ({
             uid: user.id.toString(),
             displayName: `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.username,
@@ -204,7 +217,15 @@ function TeacherCourseDetailContent() {
             is_active: user.is_active
           })) || [];
           
+          console.log('Mapped assigned users list:', assignedUsersList);
           setAssignedUsers(assignedUsersList);
+          
+          // Dodaj timeout aby komunikat sukcesu był widoczny
+          setTimeout(() => {
+            setSuccess(null);
+          }, 3000);
+        } else {
+          console.error('Failed to refresh assigned users:', refreshResponse.status, refreshResponse.statusText);
         }
       } else {
         const errorData = await response.json();
@@ -707,15 +728,20 @@ function TeacherCourseDetailContent() {
       {/* Dodaj sekcję przypisywania uczniów pod banerem: */}
       <div className="w-full max-w-5xl mb-6 bg-white rounded-2xl shadow-lg p-6">
         <h3 className="text-lg font-bold mb-2 text-[#4067EC]">Przypisani uczniowie</h3>
-        <ul className="mb-4 list-disc ml-6">
-          {Array.isArray(assignedUsers) && assignedUsers.length === 0 ? (
-            <li className="text-gray-500">Brak przypisanych uczniów.</li>
-          ) : (
-            Array.isArray(assignedUsers) && assignedUsers.map(u => (
-              <li key={u.uid}>{u.displayName || u.email} ({u.email})</li>
-            ))
-          )}
-        </ul>
+        <div className="mb-4">
+          <p className="text-sm text-gray-600 mb-2">Debug: assignedUsers length = {Array.isArray(assignedUsers) ? assignedUsers.length : 'not array'}</p>
+          <ul className="list-disc ml-6">
+            {Array.isArray(assignedUsers) && assignedUsers.length === 0 ? (
+              <li className="text-gray-500">Brak przypisanych uczniów.</li>
+            ) : (
+              Array.isArray(assignedUsers) && assignedUsers.map(u => (
+                <li key={u.uid} className="text-sm">
+                  {u.displayName || u.email} ({u.email}) - ID: {u.uid}
+                </li>
+              ))
+            )}
+          </ul>
+        </div>
         <form className="flex gap-4 items-end" onSubmit={handleAssignStudent}>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Dodaj ucznia</label>
