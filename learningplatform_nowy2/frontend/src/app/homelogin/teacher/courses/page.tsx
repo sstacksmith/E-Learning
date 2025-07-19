@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+// Usunięte nieużywane importy Firebase Storage
 import { db } from '../../../../config/firebase';
 import Link from "next/link";
 import Image from "next/image";
@@ -21,18 +21,7 @@ interface Course {
   created_by?: string;
 }
 
-const SUBJECTS = [
-  'Matematyka',
-  'Język polski',
-  'Język angielski',
-  'Fizyka',
-  'Chemia',
-  'Biologia',
-  'Historia',
-  'Geografia',
-  'Informatyka',
-  'Wychowanie fizyczne',
-];
+// Usunięte SUBJECTS - nieużywane po usunięciu formularza tworzenia kursów
 
 export default function TeacherCourses() {
   const { user } = useAuth();
@@ -46,17 +35,7 @@ export default function TeacherCourses() {
     total_pages: 1,
     count: 0
   });
-  const [newCourse, setNewCourse] = useState({
-    title: '',
-    description: '',
-    year_of_study: 1,
-    subject: SUBJECTS[0],
-    links: [''],
-    pdfs: [] as File[],
-    pdfUrls: [] as string[],
-  });
   const [success, setSuccess] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
   const [deletingCourse, setDeletingCourse] = useState<string | null>(null);
 
   useEffect(() => {
@@ -124,30 +103,44 @@ export default function TeacherCourses() {
       const { collection, getDocs, query, where, orderBy, limit, startAfter } = await import('firebase/firestore');
       const coursesCollection = collection(db, 'courses');
       
-      // Pobierz wszystkie kursy (możemy dodać filtrowanie później)
+      // Pobierz tylko kursy przypisane do zalogowanego nauczyciela
+      const teacherEmail = user?.email;
+      console.log('[DEBUG] Teacher email:', teacherEmail);
+      
+      if (!teacherEmail) {
+        setError('Nie można zidentyfikować nauczyciela');
+        setLoading(false);
+        return;
+      }
+      
+      // Filtruj kursy po teacherEmail
       const coursesSnapshot = await getDocs(coursesCollection);
       
-      const firestoreCourses = coursesSnapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
-          id: data.id || doc.id,
-          title: data.title || '',
-          description: data.description || '',
-          year_of_study: data.year_of_study || 1,
-          subject: data.subject || '',
-          is_active: data.is_active !== undefined ? data.is_active : true,
-          created_at: data.created_at || new Date().toISOString(),
-          updated_at: data.updated_at || new Date().toISOString(),
-          pdfUrls: data.pdfUrls || [],
-          links: data.links || [],
-          slug: data.slug || '',
-          created_by: data.created_by || null,
-          assignedUsers: data.assignedUsers || [],
-          sections: data.sections || []
-        };
-      });
+      const firestoreCourses = coursesSnapshot.docs
+        .map(doc => {
+          const data = doc.data();
+          return {
+            id: data.id || doc.id,
+            title: data.title || '',
+            description: data.description || '',
+            year_of_study: data.year_of_study || data.year || 1,
+            subject: data.subject || '',
+            is_active: data.is_active !== undefined ? data.is_active : true,
+            created_at: data.created_at || new Date().toISOString(),
+            updated_at: data.updated_at || new Date().toISOString(),
+            pdfUrls: data.pdfUrls || [],
+            links: data.links || [],
+            slug: data.slug || '',
+            created_by: data.created_by || null,
+            teacherEmail: data.teacherEmail || '',
+            assignedUsers: data.assignedUsers || [],
+            sections: data.sections || []
+          };
+        })
+        .filter(course => course.teacherEmail === teacherEmail); // Filtruj tylko kursy nauczyciela
       
       console.log('[DEBUG] Firestore courses loaded:', firestoreCourses.length);
+      console.log('[DEBUG] Teacher courses:', firestoreCourses.map(c => ({ title: c.title, teacherEmail: c.teacherEmail })));
       
       // Sortuj po dacie utworzenia (najnowsze pierwsze)
       const sortedCourses = firestoreCourses.sort((a, b) => 
@@ -201,27 +194,7 @@ export default function TeacherCourses() {
     }
   };
 
-  const handlePdfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      setNewCourse({ ...newCourse, pdfs: Array.from(e.target.files) });
-    }
-  };
-
-  const handleLinkChange = (idx: number, value: string) => {
-    const links = [...newCourse.links];
-    links[idx] = value;
-    setNewCourse({ ...newCourse, links });
-  };
-
-  const addLinkField = () => {
-    setNewCourse({ ...newCourse, links: [...newCourse.links, ''] });
-  };
-
-  const removeLinkField = (idx: number) => {
-    const links = [...newCourse.links];
-    links.splice(idx, 1);
-    setNewCourse({ ...newCourse, links });
-  };
+  // Usunięte funkcje związane z tworzeniem kursów - tylko admin może tworzyć kursy
 
   const handleDeleteCourse = async (courseId: string) => {
     if (!confirm('Czy na pewno chcesz usunąć ten kurs? Ta operacja jest nieodwracalna.')) {
@@ -244,85 +217,7 @@ export default function TeacherCourses() {
     }
   };
 
-  const handleCreateCourse = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setSuccess(null);
-    setUploading(true);
-    let pdfUrls: string[] = [];
-    
-    try {
-      console.log("Starting course creation process...");
-      
-      // Upload PDF files to Firebase Storage
-      if (newCourse.pdfs.length > 0) {
-        console.log(`Uploading ${newCourse.pdfs.length} PDF files...`);
-        const storage = getStorage();
-        for (const file of newCourse.pdfs) {
-          const storageRef = ref(storage, `courses/${Date.now()}_${file.name}`);
-          await uploadBytes(storageRef, file);
-          const url = await getDownloadURL(storageRef);
-          pdfUrls.push(url);
-        }
-        console.log("PDF uploads completed");
-      }
-      
-      setUploading(false);
-      const token = typeof window !== 'undefined' ? localStorage.getItem('firebaseToken') : null;
-      console.log("Firebase token available:", !!token);
-      
-      const requestData = {
-        ...newCourse,
-        pdfUrls,
-        links: newCourse.links.filter(l => l.trim() !== ''),
-      };
-      console.log("Request data:", requestData);
-      
-      // Zapisz kurs bezpośrednio w Firestore
-      const { addDoc, collection } = await import('firebase/firestore');
-      const coursesCollection = collection(db, 'courses');
-      
-      // Przygotuj dane kursu
-      const courseData = {
-        ...requestData,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        is_active: true,
-        assignedUsers: [],
-        sections: [],
-        created_by: user?.email || 'Unknown'
-      };
-      
-      console.log("Saving course to Firestore:", courseData);
-      
-      const docRef = await addDoc(coursesCollection, courseData);
-      console.log("Course created in Firestore with ID:", docRef.id);
-      
-      // Pobierz utworzony kurs z ID
-      const createdCourse = {
-        id: docRef.id,
-        ...courseData
-      };
-      
-      console.log("Course created successfully:", createdCourse);
-      setSuccess('Course created successfully!');
-      setNewCourse({ title: '', description: '', year_of_study: 1, subject: SUBJECTS[0], links: [''], pdfs: [], pdfUrls: [] });
-      
-      // Natychmiast odśwież listę kursów bez cache'owania
-      console.log('[DEBUG] Refreshing courses after creation');
-      clearCache();
-      fetchCourses(1, false, 0);
-      
-      // Automatycznie ukryj komunikat sukcesu po 5 sekundach
-      setTimeout(() => {
-        setSuccess(null);
-      }, 5000);
-    } catch (err: any) {
-      console.error("Course creation error:", err);
-      setError(`Failed to create course: ${err.message || 'Unknown error'}`);
-      setUploading(false);
-    }
-  };
+  // Usunięta funkcja handleCreateCourse - tylko admin może tworzyć kursy
 
   return (
     <div className="min-h-screen bg-[#F1F4FE]">
@@ -490,11 +385,25 @@ export default function TeacherCourses() {
           </>
         )}
 
-        {/* Create Course Form */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <h2 className="text-2xl font-bold text-[#4067EC] mb-6">Utwórz nowy kurs</h2>
+        {/* Info about course management */}
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
+          <h2 className="text-xl font-bold text-blue-800 mb-4">Zarządzanie kursami</h2>
+          <p className="text-blue-700 mb-4">
+            Tutaj widzisz kursy, które zostały Ci przypisane przez administratora. Możesz zarządzać zawartością każdego kursu, 
+            dodawać lekcje, materiały i zadania.
+          </p>
+          <div className="bg-blue-100 border border-blue-300 rounded-lg p-4">
+            <h3 className="font-semibold text-blue-800 mb-2">Co możesz robić:</h3>
+            <ul className="text-blue-700 text-sm space-y-1">
+              <li>• Dodawać i edytować lekcje</li>
+              <li>• Uploadować materiały dydaktyczne</li>
+              <li>• Tworzyć zadania i quizy</li>
+              <li>• Przeglądać postępy studentów</li>
+              <li>• Zarządzać ocenami</li>
+            </ul>
+          </div>
           {success && (
-            <div className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg mb-6 flex items-center justify-between">
+            <div className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg mt-4 flex items-center justify-between">
               <div className="flex items-center">
                 <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -511,141 +420,6 @@ export default function TeacherCourses() {
               </button>
             </div>
           )}
-          
-          <form onSubmit={handleCreateCourse} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Tytuł kursu *
-                </label>
-                <input 
-                  type="text" 
-                  value={newCourse.title} 
-                  onChange={e => setNewCourse({ ...newCourse, title: e.target.value })} 
-                  className="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#4067EC] focus:border-[#4067EC] transition-colors" 
-                  placeholder="np. Podstawy matematyki"
-                  required 
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Przedmiot *
-                </label>
-                <select 
-                  value={newCourse.subject} 
-                  onChange={e => setNewCourse({ ...newCourse, subject: e.target.value })} 
-                  className="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#4067EC] focus:border-[#4067EC] transition-colors" 
-                  required
-                >
-                  {SUBJECTS.map(subj => <option key={subj} value={subj}>{subj}</option>)}
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Opis kursu *
-              </label>
-              <textarea 
-                value={newCourse.description} 
-                onChange={e => setNewCourse({ ...newCourse, description: e.target.value })} 
-                className="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#4067EC] focus:border-[#4067EC] transition-colors" 
-                rows={4}
-                placeholder="Opisz czego uczniowie będą się uczyć w tym kursie..."
-                required 
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Rok nauki *
-                </label>
-                <select 
-                  value={newCourse.year_of_study} 
-                  onChange={e => setNewCourse({ ...newCourse, year_of_study: Number(e.target.value) })} 
-                  className="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#4067EC] focus:border-[#4067EC] transition-colors" 
-                  required
-                >
-                  {[1,2,3,4,5].map(year => <option key={year} value={year}>Rok {year}</option>)}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Pliki PDF
-                </label>
-                <input 
-                  type="file" 
-                  accept="application/pdf" 
-                  multiple 
-                  onChange={handlePdfChange} 
-                  className="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#4067EC] focus:border-[#4067EC] transition-colors" 
-                />
-                {newCourse.pdfs.length > 0 && (
-                  <div className="mt-2">
-                    <p className="text-xs text-gray-600 mb-1">Wybrane pliki:</p>
-                    <ul className="text-xs text-gray-600 space-y-1">
-                      {newCourse.pdfs.map((file, idx) => <li key={idx}>• {file.name}</li>)}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Odnośniki (linki)
-              </label>
-              {newCourse.links.map((link, idx) => (
-                <div key={idx} className="flex gap-2 mb-2">
-                  <input 
-                    type="url" 
-                    value={link} 
-                    onChange={e => handleLinkChange(idx, e.target.value)} 
-                    className="flex-1 border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#4067EC] focus:border-[#4067EC] transition-colors" 
-                    placeholder="https://..." 
-                  />
-                  {newCourse.links.length > 1 && (
-                    <button 
-                      type="button" 
-                      onClick={() => removeLinkField(idx)} 
-                      className="text-red-500 hover:text-red-700 px-3 py-3 transition-colors"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  )}
-                </div>
-              ))}
-              <button 
-                type="button" 
-                onClick={addLinkField} 
-                className="text-[#4067EC] hover:text-[#3155d4] text-sm font-medium transition-colors"
-              >
-                + Dodaj kolejny link
-              </button>
-            </div>
-
-            <div className="flex justify-end">
-              <button 
-                type="submit" 
-                className="bg-[#4067EC] text-white py-3 px-8 rounded-lg font-medium hover:bg-[#3155d4] transition-colors disabled:opacity-50 disabled:cursor-not-allowed" 
-                disabled={uploading}
-              >
-                {uploading ? (
-                  <div className="flex items-center">
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                    Przesyłanie...
-                  </div>
-                ) : (
-                  'Utwórz kurs'
-                )}
-              </button>
-            </div>
-          </form>
         </div>
       </div>
     </div>

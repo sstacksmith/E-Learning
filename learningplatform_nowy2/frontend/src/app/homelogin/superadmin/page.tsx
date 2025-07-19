@@ -117,6 +117,11 @@ function SuperAdminDashboardContent() {
   const [groupSuccess, setGroupSuccess] = useState("");
   const [selectedStudentForAssignment, setSelectedStudentForAssignment] = useState("");
   const [selectedCourseForAssignment, setSelectedCourseForAssignment] = useState("");
+  const [showCreateCourseModal, setShowCreateCourseModal] = useState(false);
+  const [newCourseTitle, setNewCourseTitle] = useState("");
+  const [newCourseYear, setNewCourseYear] = useState("");
+  const [newCourseDescription, setNewCourseDescription] = useState("");
+  const [selectedTeacherForCourse, setSelectedTeacherForCourse] = useState("");
 
   useEffect(() => {
     fetchUsers();
@@ -410,6 +415,48 @@ function SuperAdminDashboardContent() {
     }
   };
 
+  const createCourse = async () => {
+    if (!newCourseTitle.trim() || !newCourseYear.trim() || !selectedTeacherForCourse) {
+      setError('Wypełnij wszystkie wymagane pola');
+      return;
+    }
+    
+    try {
+      const { addDoc, collection } = await import('firebase/firestore');
+      const courseData = {
+        title: newCourseTitle,
+        year: parseInt(newCourseYear),
+        description: newCourseDescription,
+        teacherEmail: selectedTeacherForCourse,
+        assignedUsers: [],
+        lessons: [],
+        materials: [],
+        assignments: [],
+        created_at: new Date().toISOString(),
+        created_by: user?.email || 'admin',
+        status: 'active'
+      };
+      
+      await addDoc(collection(db, 'courses'), courseData);
+      
+      setSuccess('Kurs został pomyślnie utworzony');
+      setNewCourseTitle('');
+      setNewCourseYear('');
+      setNewCourseDescription('');
+      setSelectedTeacherForCourse('');
+      setShowCreateCourseModal(false);
+      fetchCourses(); // Refresh the list
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (error) {
+      console.error('Error creating course:', error);
+      setError('Błąd podczas tworzenia kursu');
+      // Clear error message after 3 seconds
+      setTimeout(() => setError(''), 3000);
+    }
+  };
+
   if (loading) {
     return <div className="p-8">Loading...</div>;
   }
@@ -638,7 +685,10 @@ function SuperAdminDashboardContent() {
             <div className="p-6">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xl font-semibold text-gray-800">Course Management</h2>
-                <button className="bg-[#4067EC] text-white px-4 py-2 rounded-lg hover:bg-[#3155d4] transition">
+                <button 
+                  onClick={() => setShowCreateCourseModal(true)}
+                  className="bg-[#4067EC] text-white px-4 py-2 rounded-lg hover:bg-[#3155d4] transition"
+                >
                   Add New Course
                 </button>
               </div>
@@ -651,6 +701,9 @@ function SuperAdminDashboardContent() {
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Year
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Teacher
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Assigned Students
@@ -670,7 +723,17 @@ function SuperAdminDashboardContent() {
                           <div className="text-sm text-gray-500">Year {course.year}</div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-500">{course.assignedStudents} students</div>
+                          <div className="text-sm text-gray-500">
+                            {course.teacherEmail ? (
+                              users.find(u => u.email === course.teacherEmail)?.firstName + ' ' + 
+                              users.find(u => u.email === course.teacherEmail)?.lastName
+                            ) : 'Not assigned'}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-500">
+                            {course.assignedUsers ? course.assignedUsers.length : 0} students
+                          </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                           <button className="text-[#4067EC] hover:text-[#3155d4] mr-3">Edit</button>
@@ -804,6 +867,94 @@ function SuperAdminDashboardContent() {
                     className="px-4 py-2 bg-[#4067EC] text-white rounded-md hover:bg-[#3155d4]"
                   >
                     Reset Password
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Create Course Modal */}
+        {showCreateCourseModal && (
+          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full">
+            <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+              <div className="mt-3">
+                <h3 className="text-lg font-medium leading-6 text-gray-900 mb-4">
+                  Create New Course
+                </h3>
+                {error && (
+                  <div className="mb-4 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded relative">
+                    {error}
+                  </div>
+                )}
+                <div className="mt-2 px-7 py-3 space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Course Title *</label>
+                    <input
+                      type="text"
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#4067EC] focus:ring-[#4067EC]"
+                      value={newCourseTitle}
+                      onChange={(e) => setNewCourseTitle(e.target.value)}
+                      placeholder="e.g., Matematyka 7A"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Year *</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="12"
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#4067EC] focus:ring-[#4067EC]"
+                      value={newCourseYear}
+                      onChange={(e) => setNewCourseYear(e.target.value)}
+                      placeholder="e.g., 7"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Description</label>
+                    <textarea
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#4067EC] focus:ring-[#4067EC]"
+                      rows={3}
+                      value={newCourseDescription}
+                      onChange={(e) => setNewCourseDescription(e.target.value)}
+                      placeholder="Opis kursu..."
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Assign Teacher *</label>
+                    <select
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#4067EC] focus:ring-[#4067EC]"
+                      value={selectedTeacherForCourse}
+                      onChange={(e) => setSelectedTeacherForCourse(e.target.value)}
+                    >
+                      <option value="">Select a teacher...</option>
+                      {users.filter(u => u.role === 'teacher').map((user: any) => (
+                        <option key={user.id} value={user.email}>
+                          {user.firstName || ''} {user.lastName || ''} ({user.email})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="flex justify-end mt-4 space-x-3">
+                  <button
+                    onClick={() => {
+                      setShowCreateCourseModal(false);
+                      setNewCourseTitle("");
+                      setNewCourseYear("");
+                      setNewCourseDescription("");
+                      setSelectedTeacherForCourse("");
+                      setError("");
+                    }}
+                    className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={createCourse}
+                    className="px-4 py-2 bg-[#4067EC] text-white rounded-md hover:bg-[#3155d4]"
+                  >
+                    Create Course
                   </button>
                 </div>
               </div>
