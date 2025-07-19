@@ -458,6 +458,19 @@ function SuperAdminDashboardContent() {
     
     try {
       const { addDoc, collection } = await import('firebase/firestore');
+      
+      // Generuj slug z tytułu kursu
+      const generateSlug = (title: string) => {
+        return title
+          .toLowerCase()
+          .replace(/[^a-z0-9\s-]/g, '') // Usuń znaki specjalne
+          .replace(/\s+/g, '-') // Zamień spacje na myślniki
+          .replace(/-+/g, '-') // Usuń podwójne myślniki
+          .trim();
+      };
+      
+      const slug = generateSlug(newCourseTitle);
+      
       const courseData = {
         title: newCourseTitle,
         year: parseInt(newCourseYear),
@@ -467,6 +480,7 @@ function SuperAdminDashboardContent() {
         lessons: [],
         materials: [],
         assignments: [],
+        slug: slug,
         created_at: new Date().toISOString(),
         created_by: user?.email || 'admin',
         status: 'active'
@@ -549,12 +563,26 @@ function SuperAdminDashboardContent() {
     
     try {
       const { updateDoc, doc } = await import('firebase/firestore');
+      
+      // Generuj slug z tytułu kursu
+      const generateSlug = (title: string) => {
+        return title
+          .toLowerCase()
+          .replace(/[^a-z0-9\s-]/g, '') // Usuń znaki specjalne
+          .replace(/\s+/g, '-') // Zamień spacje na myślniki
+          .replace(/-+/g, '-') // Usuń podwójne myślniki
+          .trim();
+      };
+      
+      const slug = generateSlug(editCourseTitle);
+      
       const courseData = {
         title: editCourseTitle,
         year: parseInt(editCourseYear),
         description: editCourseDescription,
         teacherEmail: editCourseTeacher,
         assignedUsers: editCourseStudents,
+        slug: slug,
         updated_at: new Date().toISOString(),
         updated_by: user?.email || 'admin'
       };
@@ -583,6 +611,47 @@ function SuperAdminDashboardContent() {
   const addStudentToCourse = (studentEmail: string) => {
     if (!editCourseStudents.includes(studentEmail)) {
       setEditCourseStudents(prev => [...prev, studentEmail]);
+    }
+  };
+
+  // Funkcja do aktualizacji istniejących kursów bez slug
+  const updateExistingCoursesWithSlug = async () => {
+    try {
+      const { collection, getDocs, updateDoc, doc } = await import('firebase/firestore');
+      const coursesCollection = collection(db, 'courses');
+      const coursesSnapshot = await getDocs(coursesCollection);
+      
+      const generateSlug = (title: string) => {
+        return title
+          .toLowerCase()
+          .replace(/[^a-z0-9\s-]/g, '')
+          .replace(/\s+/g, '-')
+          .replace(/-+/g, '-')
+          .trim();
+      };
+      
+      let updatedCount = 0;
+      
+      for (const courseDoc of coursesSnapshot.docs) {
+        const courseData = courseDoc.data();
+        if (!courseData.slug && courseData.title) {
+          const slug = generateSlug(courseData.title);
+          await updateDoc(doc(db, 'courses', courseDoc.id), {
+            slug: slug
+          });
+          updatedCount++;
+        }
+      }
+      
+      if (updatedCount > 0) {
+        setSuccess(`Zaktualizowano ${updatedCount} kursów z slug`);
+        fetchCourses(); // Refresh the list
+        setTimeout(() => setSuccess(''), 3000);
+      }
+    } catch (error) {
+      console.error('Error updating courses with slug:', error);
+      setError('Błąd podczas aktualizacji kursów');
+      setTimeout(() => setError(''), 3000);
     }
   };
 
@@ -843,12 +912,20 @@ function SuperAdminDashboardContent() {
             <div className="p-6">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xl font-semibold text-gray-800">Course Management</h2>
-                <button 
-                  onClick={() => setShowCreateCourseModal(true)}
-                  className="bg-[#4067EC] text-white px-4 py-2 rounded-lg hover:bg-[#3155d4] transition"
-                >
-                  Add New Course
-                </button>
+                <div className="flex space-x-2">
+                  <button 
+                    onClick={updateExistingCoursesWithSlug}
+                    className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition"
+                  >
+                    Update Slugs
+                  </button>
+                  <button 
+                    onClick={() => setShowCreateCourseModal(true)}
+                    className="bg-[#4067EC] text-white px-4 py-2 rounded-lg hover:bg-[#3155d4] transition"
+                  >
+                    Add New Course
+                  </button>
+                </div>
               </div>
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
@@ -875,7 +952,18 @@ function SuperAdminDashboardContent() {
                     {courses.map((course) => (
                       <tr key={course.id}>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">{course.title}</div>
+                          <div className="text-sm font-medium text-gray-900">
+                            {course.slug ? (
+                              <Link 
+                                href={`/courses/${course.slug}`}
+                                className="text-[#4067EC] hover:text-[#3155d4] hover:underline"
+                              >
+                                {course.title}
+                              </Link>
+                            ) : (
+                              course.title
+                            )}
+                          </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm text-gray-500">Year {course.year}</div>
