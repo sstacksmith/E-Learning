@@ -21,7 +21,6 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
               {isAdmin ? 'Wszystkie kursy' : 'Moje kursy'}
             </Link>
             <Link href="/homelogin/teacher/grades" className="!text-white">Dziennik ocen</Link>
-            <Link href="/homelogin/teacher/materials" className="!text-white">Materiały</Link>
             <Link href="/homelogin/teacher/students" className="!text-white">Lista uczniów</Link>
             <Link href="/homelogin/teacher/calendar" className="!text-white">Kalendarz</Link>
             <Link href="/homelogin/teacher/profile" className="!text-white">Mój profil</Link>
