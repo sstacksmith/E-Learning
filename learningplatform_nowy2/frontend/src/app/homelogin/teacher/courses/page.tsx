@@ -137,7 +137,7 @@ export default function TeacherCourses() {
             sections: data.sections || []
           };
         })
-        .filter(course => course.teacherEmail === teacherEmail); // Filtruj tylko kursy nauczyciela
+        .filter(course => (course.teacherEmail || '') === (teacherEmail || '')); // Filtruj tylko kursy nauczyciela
       
       console.log('[DEBUG] Firestore courses loaded:', firestoreCourses.length);
       console.log('[DEBUG] Teacher courses:', firestoreCourses.map(c => ({ title: c.title, teacherEmail: c.teacherEmail })));
