@@ -220,181 +220,183 @@ export default function TeacherCourses() {
   // Usunięta funkcja handleCreateCourse - tylko admin może tworzyć kursy
 
   return (
-    <div className="min-h-screen bg-[#F1F4FE]">
-
-
-      <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-        <div className="mb-8 flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold text-[#4067EC] mb-2">
-              {isAdmin ? 'Wszystkie kursy' : 'Moje kursy'}
-            </h1>
-            <p className="text-gray-600">
-              {isAdmin ? 'Zarządzaj wszystkimi kursami w systemie' : 'Zarządzaj swoimi kursami i materiałami dydaktycznymi'}
-            </p>
+    <div className="min-h-screen bg-[#F8F9FB] flex flex-col items-center justify-center p-3 sm:p-4 lg:p-8">
+      <div className="w-full max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 py-4 sm:py-6 lg:py-8">
+        <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg p-4 sm:p-6 lg:p-8">
+          
+          {/* Header */}
+          <div className="mb-8 flex justify-between items-center">
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-bold text-[#4067EC] mb-2">
+                {isAdmin ? 'Wszystkie kursy' : 'Moje kursy'}
+              </h1>
+              <p className="text-gray-600 text-sm sm:text-base">
+                {isAdmin ? 'Zarządzaj wszystkimi kursami w systemie' : 'Zarządzaj swoimi kursami i materiałami dydaktycznymi'}
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                // Wyczyść cache i odśwież z wymuszeniem świeżych danych
+                clearCache();
+                setLoading(true);
+                setError(null);
+                fetchCourses(1, false, 0);
+              }}
+              className="bg-[#4067EC] text-white px-3 sm:px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#3155d4] transition-colors flex items-center space-x-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              <span>Odśwież</span>
+            </button>
           </div>
-          <button
-            onClick={() => {
-              // Wyczyść cache i odśwież z wymuszeniem świeżych danych
-              clearCache();
-              setLoading(true);
-              setError(null);
-              fetchCourses(1, false, 0);
-            }}
-            className="bg-[#4067EC] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#3155d4] transition-colors flex items-center space-x-2"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            <span>Odśwież</span>
-          </button>
-        </div>
 
-        {loading ? (
-          <div className="text-center py-12">
-            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-[#4067EC] border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]" />
-            <p className="mt-4 text-gray-600">Ładowanie kursów...</p>
-            <p className="text-sm text-gray-500 mt-2">To może potrwać kilka sekund</p>
-          </div>
-        ) : error ? (
-          <div className="bg-red-50 border border-red-200 text-red-800 p-4 rounded-lg mb-6">{error}</div>
-        ) : (
-          <>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-                          {courses.map((course) => (
-              <div key={`${course.id}-${course.updated_at || course.created_at}`} className="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-all duration-200 overflow-hidden">
-                  <div className="p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                        course.is_active 
-                          ? 'bg-green-100 text-green-800' 
-                          : 'bg-red-100 text-red-800'
-                      }`}>
-                        {course.is_active ? 'Aktywny' : 'Nieaktywny'}
-                      </span>
-                      <span className="text-xs text-gray-500">Rok {course.year_of_study}</span>
-                    </div>
-                    
-                    <Link href={`/homelogin/teacher/courses/${course.id}`} className="block">
-                      <h3 className="text-xl font-bold text-gray-900 mb-2 hover:text-[#4067EC] transition-colors">
-                        {course.title}
-                      </h3>
-                    </Link>
-                    
-                    <p className="text-gray-600 text-sm mb-4 line-clamp-3">{course.description}</p>
-                    
-                    <div className="flex items-center justify-between text-sm text-gray-500 mb-4">
-                      <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                        {course.subject}
-                      </span>
-                      <span>
-                        {course.pdfUrls?.length || 0} PDF • {course.links?.length || 0} Linków
-                      </span>
-                    </div>
-                    
-                    {isAdmin && course.created_by && (
-                      <div className="text-xs text-gray-500 mb-4">
-                        Nauczyciel: {course.created_by}
+          {loading ? (
+            <div className="text-center py-12">
+              <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-[#4067EC] border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]" />
+              <p className="mt-4 text-gray-600">Ładowanie kursów...</p>
+              <p className="text-sm text-gray-500 mt-2">To może potrwać kilka sekund</p>
+            </div>
+          ) : error ? (
+            <div className="bg-red-50 border border-red-200 text-red-800 p-4 rounded-lg mb-6">{error}</div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-8">
+                {courses.map((course) => (
+                  <div key={`${course.id}-${course.updated_at || course.created_at}`} className="bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden">
+                    <div className="p-4 sm:p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <span className={`px-2 sm:px-3 py-1 rounded-full text-xs font-medium ${
+                          course.is_active 
+                            ? 'bg-green-100 text-green-800' 
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          {course.is_active ? 'Aktywny' : 'Nieaktywny'}
+                        </span>
+                        <span className="text-xs text-gray-500">Rok {course.year_of_study}</span>
                       </div>
-                    )}
-                    
-                    <div className="flex space-x-2">
-                      <Link 
-                        href={`/homelogin/teacher/courses/${course.id}`}
-                        className="flex-1 bg-[#4067EC] text-white text-center py-2 px-4 rounded-lg text-sm font-medium hover:bg-[#3155d4] transition-colors"
-                      >
-                        Zarządzaj
+                      
+                      <Link href={`/homelogin/teacher/courses/${course.id}`} className="block">
+                        <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2 hover:text-[#4067EC] transition-colors">
+                          {course.title}
+                        </h3>
                       </Link>
-                      <Link 
-                        href={`/courses/${course.slug}`}
-                        className="flex-1 border border-[#4067EC] text-[#4067EC] text-center py-2 px-4 rounded-lg text-sm font-medium hover:bg-[#F1F4FE] transition-colors"
-                      >
-                        Podgląd
-                      </Link>
-                      {isAdmin && (
-                        <button
-                          onClick={() => handleDeleteCourse(course.id.toString())}
-                          disabled={deletingCourse === course.id.toString()}
-                          className="bg-red-500 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                          title="Usuń kurs"
-                        >
-                          {deletingCourse === course.id.toString() ? (
-                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto"></div>
-                          ) : (
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          )}
-                        </button>
+                      
+                      <p className="text-gray-600 text-sm mb-4 line-clamp-3">{course.description}</p>
+                      
+                      <div className="flex items-center justify-between text-sm text-gray-500 mb-4">
+                        <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                          {course.subject}
+                        </span>
+                        <span>
+                          {course.pdfUrls?.length || 0} PDF • {course.links?.length || 0} Linków
+                        </span>
+                      </div>
+                      
+                      {isAdmin && course.created_by && (
+                        <div className="text-xs text-gray-500 mb-4">
+                          Nauczyciel: {course.created_by}
+                        </div>
                       )}
+                      
+                      <div className="flex space-x-2">
+                        <Link 
+                          href={`/homelogin/teacher/courses/${course.id}`}
+                          className="flex-1 bg-[#4067EC] text-white text-center py-2 px-4 rounded-lg text-sm font-medium hover:bg-[#3155d4] transition-colors"
+                        >
+                          Zarządzaj
+                        </Link>
+                        <Link 
+                          href={`/courses/${course.slug}`}
+                          className="flex-1 border border-[#4067EC] text-[#4067EC] text-center py-2 px-4 rounded-lg text-sm font-medium hover:bg-[#F1F4FE] transition-colors"
+                        >
+                          Podgląd
+                        </Link>
+                        {isAdmin && (
+                          <button
+                            onClick={() => handleDeleteCourse(course.id.toString())}
+                            disabled={deletingCourse === course.id.toString()}
+                            className="bg-red-500 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            title="Usuń kurs"
+                          >
+                            {deletingCourse === course.id.toString() ? (
+                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto"></div>
+                            ) : (
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            )}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
+                ))}
+              </div>
+              
+              {/* Paginacja */}
+              {pagination.total_pages > 1 && (
+                <div className="flex justify-center items-center space-x-2 mb-8">
+                  <button
+                    onClick={() => fetchCourses(pagination.page - 1)}
+                    disabled={pagination.page <= 1}
+                    className="px-4 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Poprzednia
+                  </button>
+                  
+                  <span className="px-4 py-2 text-sm text-gray-700">
+                    Strona {pagination.page} z {pagination.total_pages} ({pagination.count} kursów)
+                  </span>
+                  
+                  <button
+                    onClick={() => fetchCourses(pagination.page + 1)}
+                    disabled={pagination.page >= pagination.total_pages}
+                    className="px-4 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Następna
+                  </button>
                 </div>
-              ))}
+              )}
+            </>
+          )}
+
+          {/* Info about course management */}
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 sm:p-6">
+            <h2 className="text-lg sm:text-xl font-bold text-blue-800 mb-4">Zarządzanie kursami</h2>
+            <p className="text-blue-700 mb-4 text-sm sm:text-base">
+              Tutaj widzisz kursy, które zostały Ci przypisane przez administratora. Możesz zarządzać zawartością każdego kursu, 
+              dodawać lekcje, materiały i zadania.
+            </p>
+            <div className="bg-blue-100 border border-blue-300 rounded-lg p-4">
+              <h3 className="font-semibold text-blue-800 mb-2">Co możesz robić:</h3>
+              <ul className="text-blue-700 text-sm space-y-1">
+                <li>• Dodawać i edytować lekcje</li>
+                <li>• Uploadować materiały dydaktyczne</li>
+                <li>• Tworzyć zadania i quizy</li>
+                <li>• Przeglądać postępy studentów</li>
+                <li>• Zarządzać ocenami</li>
+              </ul>
             </div>
-            
-            {/* Paginacja */}
-            {pagination.total_pages > 1 && (
-              <div className="flex justify-center items-center space-x-2 mb-8">
+            {success && (
+              <div className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg mt-4 flex items-center justify-between">
+                <div className="flex items-center">
+                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>{success}</span>
+                </div>
                 <button
-                  onClick={() => fetchCourses(pagination.page - 1)}
-                  disabled={pagination.page <= 1}
-                  className="px-4 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={() => setSuccess(null)}
+                  className="text-green-600 hover:text-green-800"
                 >
-                  Poprzednia
-                </button>
-                
-                <span className="px-4 py-2 text-sm text-gray-700">
-                  Strona {pagination.page} z {pagination.total_pages} ({pagination.count} kursów)
-                </span>
-                
-                <button
-                  onClick={() => fetchCourses(pagination.page + 1)}
-                  disabled={pagination.page >= pagination.total_pages}
-                  className="px-4 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Następna
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
                 </button>
               </div>
             )}
-          </>
-        )}
-
-        {/* Info about course management */}
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
-          <h2 className="text-xl font-bold text-blue-800 mb-4">Zarządzanie kursami</h2>
-          <p className="text-blue-700 mb-4">
-            Tutaj widzisz kursy, które zostały Ci przypisane przez administratora. Możesz zarządzać zawartością każdego kursu, 
-            dodawać lekcje, materiały i zadania.
-          </p>
-          <div className="bg-blue-100 border border-blue-300 rounded-lg p-4">
-            <h3 className="font-semibold text-blue-800 mb-2">Co możesz robić:</h3>
-            <ul className="text-blue-700 text-sm space-y-1">
-              <li>• Dodawać i edytować lekcje</li>
-              <li>• Uploadować materiały dydaktyczne</li>
-              <li>• Tworzyć zadania i quizy</li>
-              <li>• Przeglądać postępy studentów</li>
-              <li>• Zarządzać ocenami</li>
-            </ul>
           </div>
-          {success && (
-            <div className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg mt-4 flex items-center justify-between">
-              <div className="flex items-center">
-                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                <span>{success}</span>
-              </div>
-              <button
-                onClick={() => setSuccess(null)}
-                className="text-green-600 hover:text-green-800"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-          )}
         </div>
       </div>
     </div>

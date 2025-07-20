@@ -17,7 +17,7 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
             {isAdmin ? 'Panel administratora' : 'Panel nauczyciela'}
           </h2>
           <nav className="flex flex-col space-y-4">
-            <Link href="/homelogin/teacher" className="!text-white">
+            <Link href="/homelogin/teacher/courses" className="!text-white">
               {isAdmin ? 'Wszystkie kursy' : 'Moje kursy'}
             </Link>
             <Link href="/homelogin/teacher/grades" className="!text-white">Dziennik ocen</Link>
