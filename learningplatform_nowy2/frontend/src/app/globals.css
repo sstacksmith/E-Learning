@@ -39,7 +39,7 @@ input, textarea, select {
   transition: background 0.2s, color 0.2s, border-color 0.2s;
 }
 
-button, .btn, .bg-[#4067EC] {
+.btn {
   background: var(--button-bg) !important;
   color: var(--button-text) !important;
   transition: background 0.2s, color 0.2s;
@@ -173,4 +173,20 @@ a:hover, .link:hover {
   background: #fff !important;
   filter: none !important;
   mix-blend-mode: normal !important;
+}
+
+/* Nadpisanie stylu EasyMDE/React SimpleMDE Editor - usunięcie niebieskiego tła z ikon */
+.editor-toolbar button,
+.editor-toolbar button.active,
+.editor-toolbar button:focus,
+.editor-toolbar button:hover {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+  color: #4067EC !important;
+  outline: none !important;
+}
+
+.editor-toolbar button:hover {
+  background: #f3f4f6 !important;
 }

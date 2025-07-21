@@ -31,9 +31,9 @@ export default function TeacherDashboard() {
                   onClick={() => handleTabClick('courses')}
                   className={`${
                     activeTab === 'courses'
-                      ? 'border-indigo-500 text-indigo-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  } whitespace-nowrap py-2 sm:py-3 lg:py-4 px-1 border-b-2 font-medium text-xs sm:text-sm transition-colors duration-200`}
+                      ? 'border-indigo-500 text-indigo-600 bg-indigo-500 text-white rounded-xl'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 bg-indigo-500 text-white rounded-xl'
+                  } whitespace-nowrap py-2 sm:py-3 lg:py-4 px-4 font-medium text-xs sm:text-sm transition-colors duration-200 min-w-[100px] w-[100px]`}
                 >
                   Kursy
                 </button>
@@ -41,9 +41,9 @@ export default function TeacherDashboard() {
                   onClick={() => handleTabClick('calendar')}
                   className={`${
                     activeTab === 'calendar'
-                      ? 'border-indigo-500 text-indigo-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  } whitespace-nowrap py-2 sm:py-3 lg:py-4 px-1 border-b-2 font-medium text-xs sm:text-sm transition-colors duration-200`}
+                      ? 'border-indigo-500 text-indigo-600 bg-indigo-500 text-white rounded-xl'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 bg-indigo-500 text-white rounded-xl'
+                  } whitespace-nowrap py-2 sm:py-3 lg:py-4 px-4 font-medium text-xs sm:text-sm transition-colors duration-200 min-w-[100px] w-[100px]`}
                 >
                   Kalendarz
                 </button>
@@ -64,7 +64,8 @@ export default function TeacherDashboard() {
                 </p>
                 <Link 
                   href="/homelogin/teacher/courses"
-                  className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 transition-colors duration-200"
+                  className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md !text-white bg-indigo-600 hover:bg-indigo-700 transition-colors duration-200"
+                  style={{ color: '#fff' }}
                 >
                   Przejdź do kursów
                   <svg className="ml-2 -mr-1 w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

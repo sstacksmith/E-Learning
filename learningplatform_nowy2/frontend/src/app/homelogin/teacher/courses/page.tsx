@@ -220,7 +220,7 @@ export default function TeacherCourses() {
   // Usunięta funkcja handleCreateCourse - tylko admin może tworzyć kursy
 
   return (
-    <div className="min-h-screen bg-[#F8F9FB] flex flex-col items-center justify-center p-3 sm:p-4 lg:p-8">
+    <div className="min-h-screen bg-[#F8F9FB] flex flex-col items-center p-3 sm:p-4 lg:p-8">
       <div className="w-full max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 py-4 sm:py-6 lg:py-8">
         <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg p-4 sm:p-6 lg:p-8">
           
@@ -263,8 +263,8 @@ export default function TeacherCourses() {
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-8">
                 {courses.map((course) => (
-                  <div key={`${course.id}-${course.updated_at || course.created_at}`} className="bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden">
-                    <div className="p-4 sm:p-6">
+                  <div key={`${course.id}-${course.updated_at || course.created_at}`} className="bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden flex flex-col min-h-[250px]">
+                    <div className="p-4 sm:p-6 flex flex-col flex-1">
                       <div className="flex items-center justify-between mb-4">
                         <span className={`px-2 sm:px-3 py-1 rounded-full text-xs font-medium ${
                           course.is_active 
@@ -299,10 +299,11 @@ export default function TeacherCourses() {
                         </div>
                       )}
                       
-                      <div className="flex space-x-2">
+                      <div className="flex space-x-2 mt-auto pt-2">
                         <Link 
                           href={`/homelogin/teacher/courses/${course.id}`}
                           className="flex-1 bg-[#4067EC] text-white text-center py-2 px-4 rounded-lg text-sm font-medium hover:bg-[#3155d4] transition-colors"
+                          style={{ color: '#fff' }}
                         >
                           Zarządzaj
                         </Link>

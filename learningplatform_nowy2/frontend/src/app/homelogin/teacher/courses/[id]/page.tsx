@@ -8,6 +8,21 @@ import { db } from "@/config/firebase";
 import Image from "next/image";
 import Providers from '@/components/Providers';
 import { FaFilePdf, FaFileAlt, FaLink, FaChevronDown, FaChevronUp, FaPlus, FaImage } from "react-icons/fa";
+import dynamic from 'next/dynamic';
+// Dynamiczny import MDXEditor
+const MDXEditor = dynamic(() => import('@mdxeditor/editor').then(mod => mod.MDXEditor), { ssr: false });
+import {
+  toolbarPlugin,
+  BoldItalicUnderlineToggles,
+  ListsToggle,
+  linkPlugin,
+  linkDialogPlugin,
+  CreateLink,
+  UndoRedo,
+  CodeToggle,
+  Separator,
+} from "@mdxeditor/editor";
+import '@mdxeditor/editor/style.css';
 
 interface User {
   id: number;
@@ -554,7 +569,8 @@ function TeacherCourseDetailContent() {
   const handleAddContent = async (sectionId: number, e: React.FormEvent) => {
     e.preventDefault();
     const content = newContent[sectionId];
-    if (!content || (!content.file && !content.link && !content.text)) return;
+    const text = content.text || '';
+    if (!content || (!content.file && !content.link && !text)) return;
     
     let fileUrl = '';
     
@@ -577,7 +593,7 @@ function TeacherCourseDetailContent() {
       name: content.name || '',
       fileUrl: fileUrl || null, // Save the Firebase Storage URL
       link: content.link || null,
-      text: content.text || null
+      text: text || null
     };
     
     const updatedSectionContents = {
@@ -873,11 +889,38 @@ function TeacherCourseDetailContent() {
           <form onSubmit={handleAddSection} className="flex flex-col gap-4 bg-white p-4 rounded-lg shadow">
             <div className="flex flex-col sm:flex-row gap-2 items-center">
               <input type="text" placeholder="Nazwa sekcji" className="border rounded px-3 py-2" value={newSection.name} onChange={e => setNewSection(s => ({...s, name: e.target.value}))} required />
-              <select className="border rounded px-3 py-2" value={newSection.type} onChange={e => setNewSection(s => ({...s, type: e.target.value}))}>
-                <option value="material">Materiał</option>
-                <option value="zadanie">Zadanie</option>
-                <option value="aktywnosc">Aktywność</option>
-              </select>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  className={`flex flex-col items-center px-2 py-1 rounded border transition focus:outline-none ${newSection.type === 'material' ? 'text-[#4067EC] border-[#4067EC] font-bold' : 'text-gray-700 border-gray-300'} bg-transparent hover:bg-transparent`}
+                  onClick={() => setNewSection(s => ({...s, type: 'material'}))}
+                  title="Materiał"
+                  style={{minWidth: 48}}
+                >
+                  <FaFileAlt className="text-lg mb-0.5" />
+                  <span className="text-[10px] font-medium leading-tight">Materiał</span>
+                </button>
+                <button
+                  type="button"
+                  className={`flex flex-col items-center px-2 py-1 rounded border transition focus:outline-none ${newSection.type === 'zadanie' ? 'text-[#4067EC] border-[#4067EC] font-bold' : 'text-gray-700 border-gray-300'} bg-transparent hover:bg-transparent`}
+                  onClick={() => setNewSection(s => ({...s, type: 'zadanie'}))}
+                  title="Zadanie"
+                  style={{minWidth: 48}}
+                >
+                  <FaFilePdf className="text-lg mb-0.5" />
+                  <span className="text-[10px] font-medium leading-tight">Zadanie</span>
+                </button>
+                <button
+                  type="button"
+                  className={`flex flex-col items-center px-2 py-1 rounded border transition focus:outline-none ${newSection.type === 'aktywnosc' ? 'text-[#4067EC] border-[#4067EC] font-bold' : 'text-gray-700 border-gray-300'} bg-transparent hover:bg-transparent`}
+                  onClick={() => setNewSection(s => ({...s, type: 'aktywnosc'}))}
+                  title="Aktywność"
+                  style={{minWidth: 48}}
+                >
+                  <FaLink className="text-lg mb-0.5" />
+                  <span className="text-[10px] font-medium leading-tight">Aktywność</span>
+                </button>
+              </div>
               <button type="submit" className="bg-[#4067EC] text-white px-4 py-2 rounded font-semibold">Dodaj</button>
               <button type="button" className="bg-gray-200 px-4 py-2 rounded font-semibold" onClick={() => setAddingSection(false)}>Anuluj</button>
             </div>
@@ -902,7 +945,7 @@ function TeacherCourseDetailContent() {
         {sections.map(section => (
           <div key={section.id} className="bg-white rounded-2xl shadow-lg">
             <div className="w-full flex items-center justify-between px-6 py-4 text-xl font-bold text-[#4067EC] focus:outline-none">
-              <button onClick={() => setShowSection(s => ({...s, [section.id]: !s[section.id]}))} className="mr-3 text-[#4067EC] text-2xl focus:outline-none">{showSection[section.id] ? <FaChevronUp /> : <FaChevronDown />}</button>
+              <button onClick={() => setShowSection(s => ({...s, [section.id]: !s[section.id]}))} className="mr-3 text-[#4067EC] text-2xl" style={{ background: 'transparent', boxShadow: 'none', border: 'none', color: '#4067EC' }}>{showSection[section.id] ? <FaChevronUp /> : <FaChevronDown />}</button>
               <span className="flex-1">
                 {section.name} <span className="text-base font-normal">({section.type})</span>
                 {section.type === 'zadanie' && section.deadline && (
@@ -911,8 +954,8 @@ function TeacherCourseDetailContent() {
                   </span>
                 )}
               </span>
-              <button onClick={() => handleEditSection(section)} className="ml-3 text-blue-500 hover:text-blue-700 text-xl focus:outline-none">✏️</button>
-              <button onClick={() => handleDeleteSection(section.id)} className="ml-3 text-red-500 hover:text-red-700 text-2xl focus:outline-none">🗑️</button>
+              <button onClick={() => handleEditSection(section)} className="ml-3 text-blue-500 hover:text-blue-700 text-xl" style={{ background: 'transparent', boxShadow: 'none', border: 'none' }}>✏️</button>
+              <button onClick={() => handleDeleteSection(section.id)} className="ml-3 text-red-500 hover:text-red-700 text-2xl" style={{ background: 'transparent', boxShadow: 'none', border: 'none' }}>🗑️</button>
             </div>
             {showSection[section.id] && (
               <div className="px-6 pb-6 flex flex-col gap-4">
@@ -965,15 +1008,31 @@ function TeacherCourseDetailContent() {
                     <button type="submit" className="bg-[#4067EC] text-white px-4 py-2 rounded font-semibold">Dodaj</button>
                   </div>
                   <div className="w-full">
-                    <textarea 
-                      placeholder="Dodaj tekst (instrukcje, opis, notatki...) - możesz dodać sam tekst bez nazwy
-
-Formatowanie:
-**pogrubiony** - *kursywa* - `kod` - nowe linie są automatycznie zachowane" 
-                      className="w-full border rounded px-3 py-2 min-h-[100px] resize-y" 
-                      value={newContent[section.id]?.text || ''} 
-                      onChange={e => setNewContent(nc => ({...nc, [section.id]: {...(nc[section.id]||{}), text: e.target.value}}))} 
-                    />
+                    {MDXEditor && (
+                      <MDXEditor
+                        markdown={newContent[section.id]?.text || ''}
+                        onChange={(val: string) => setNewContent(nc => ({ ...nc, [section.id]: { ...(nc[section.id] || {}), text: val } }))}
+                        className="border rounded min-h-[120px]"
+                        plugins={[
+                          toolbarPlugin({
+                            toolbarContents: () => (
+                              <>
+                                <UndoRedo />
+                                <Separator />
+                                <BoldItalicUnderlineToggles />
+                                <CodeToggle />
+                                <Separator />
+                                <ListsToggle />
+                                <Separator />
+                                <CreateLink />
+                              </>
+                            ),
+                          }),
+                          linkPlugin(),
+                          linkDialogPlugin(),
+                        ]}
+                      />
+                    )}
                   </div>
                 </form>
                 {/* Lista materiałów/zadań/aktywności */}
@@ -998,12 +1057,31 @@ Formatowanie:
                         </div>
                         {item.text && (
                           <div className="mt-2">
-                            <textarea 
-                              value={editContent?.text || ''} 
-                              onChange={e => setEditContent({...editContent, text: e.target.value})}
-                              className="w-full border rounded px-3 py-2 min-h-[100px] resize-y"
-                              placeholder="Formatowanie: **pogrubiony** - *kursywa* - `kod`"
-                            />
+                            {MDXEditor && (
+                              <MDXEditor
+                                markdown={editContent?.text || ''}
+                                onChange={(val: string) => setEditContent({...editContent, text: val})}
+                                className="border rounded min-h-[120px]"
+                                plugins={[
+                                  toolbarPlugin({
+                                    toolbarContents: () => (
+                                      <>
+                                        <UndoRedo />
+                                        <Separator />
+                                        <BoldItalicUnderlineToggles />
+                                        <CodeToggle />
+                                        <Separator />
+                                        <ListsToggle />
+                                        <Separator />
+                                        <CreateLink />
+                                      </>
+                                    ),
+                                  }),
+                                  linkPlugin(),
+                                  linkDialogPlugin(),
+                                ]}
+                              />
+                            )}
                           </div>
                         )}
                       </form>

@@ -11,14 +11,21 @@
     "node": "18.x"
   },
   "dependencies": {
-    "concurrently": "^8.2.2"
+    "@mdxeditor/editor": "^3.40.0",
+    "concurrently": "^8.2.2",
+    "easymde": "^2.20.0",
+    "react-simplemde-editor": "^5.2.0"
   },
-  "devDependencies": {},
   "repository": {
     "type": "git",
     "url": "https://github.com/sstacksmith/E-Learning.git"
   },
-  "keywords": ["django", "nextjs", "e-learning", "python"],
+  "keywords": [
+    "django",
+    "nextjs",
+    "e-learning",
+    "python"
+  ],
   "author": "Your Name",
   "license": "MIT"
-} 
+}

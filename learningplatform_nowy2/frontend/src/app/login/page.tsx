@@ -159,7 +159,7 @@ function LoginPageContent() {
               />
               <button
                 type="button"
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors duration-200"
+                className="absolute right-3 top-1/2 -translate-y-1/2 bg-[#4067EC] text-white p-1 rounded shadow hover:bg-[#3155d4] transition-colors duration-200 border border-white"
                 onClick={() => setShowPassword(v => !v)}
               >
                 {showPassword ? (

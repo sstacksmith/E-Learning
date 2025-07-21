@@ -1,4 +1,5 @@
 "use client";
+"use client";
 import { useState } from "react";
 import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { auth, db } from "@/config/firebase";
@@ -147,7 +148,7 @@ function RegisterPageContent() {
                 />
                 <button
                   type="button"
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors duration-200"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 bg-[#4a6cf7] text-white p-1 rounded shadow hover:bg-blue-700 transition-colors duration-200 border border-white"
                   onClick={() => setShowPassword(v => !v)}
                   tabIndex={-1}
                 >
@@ -173,7 +174,7 @@ function RegisterPageContent() {
                 />
                 <button
                   type="button"
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors duration-200"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 bg-[#4a6cf7] text-white p-1 rounded shadow hover:bg-blue-700 transition-colors duration-200 border border-white"
                   onClick={() => setShowConfirm(v => !v)}
                   tabIndex={-1}
                 >
