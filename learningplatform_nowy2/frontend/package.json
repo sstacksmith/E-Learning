@@ -15,6 +15,7 @@
     "@fullcalendar/interaction": "^6.1.17",
     "@fullcalendar/react": "^6.1.17",
     "@fullcalendar/timegrid": "^6.1.17",
+    "@mdxeditor/editor": "^3.40.0",
     "firebase": "^11.9.0",
     "formidable": "^3.5.4",
     "next": "15.3.2",
