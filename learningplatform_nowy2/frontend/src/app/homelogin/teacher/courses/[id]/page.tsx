@@ -21,6 +21,7 @@ import {
   UndoRedo,
   CodeToggle,
   Separator,
+  listsPlugin,
 } from "@mdxeditor/editor";
 import '@mdxeditor/editor/style.css';
 
@@ -1012,8 +1013,9 @@ function TeacherCourseDetailContent() {
                       <MDXEditor
                         markdown={newContent[section.id]?.text || ''}
                         onChange={(val: string) => setNewContent(nc => ({ ...nc, [section.id]: { ...(nc[section.id] || {}), text: val } }))}
-                        className="border rounded min-h-[120px]"
+                        className="border rounded min-h-[120px] prose"
                         plugins={[
+                          listsPlugin(),
                           toolbarPlugin({
                             toolbarContents: () => (
                               <>
@@ -1061,8 +1063,9 @@ function TeacherCourseDetailContent() {
                               <MDXEditor
                                 markdown={editContent?.text || ''}
                                 onChange={(val: string) => setEditContent({...editContent, text: val})}
-                                className="border rounded min-h-[120px]"
+                                className="border rounded min-h-[120px] prose"
                                 plugins={[
+                                  listsPlugin(),
                                   toolbarPlugin({
                                     toolbarContents: () => (
                                       <>

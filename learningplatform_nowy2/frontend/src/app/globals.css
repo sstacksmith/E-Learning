@@ -190,3 +190,17 @@ a:hover, .link:hover {
 .editor-toolbar button:hover {
   background: #f3f4f6 !important;
 }
+
+/* Poprawka stylów dla list markdown w edytorze (prose) */
+.prose ul, .prose ol {
+  margin-left: 1.5em;
+  list-style-position: inside;
+}
+.prose li {
+  margin-bottom: 0.25em;
+}
+.prose input[type='checkbox'] {
+  transform: scale(1.2);
+  margin-right: 0.5em;
+  vertical-align: middle;
+}

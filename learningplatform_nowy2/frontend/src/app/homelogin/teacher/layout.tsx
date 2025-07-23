@@ -3,10 +3,13 @@ import React from "react";
 import Link from "next/link";
 import TeacherRoute from '@/components/TeacherRoute';
 import { useAuth } from '@/context/AuthContext';
+import ChatAssistant from '@/components/ChatAssistant';
+import { useState } from 'react';
 
 export default function TeacherLayout({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
+  const [chatOpen, setChatOpen] = useState(false);
   
   return (
     <TeacherRoute>
@@ -24,10 +27,17 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
             <Link href="/homelogin/teacher/students" className="!text-white">Lista uczniów</Link>
             <Link href="/homelogin/teacher/calendar" className="!text-white">Kalendarz</Link>
             <Link href="/homelogin/teacher/profile" className="!text-white">Mój profil</Link>
+            <button
+              className="mt-8 bg-white text-[#4067EC] font-semibold rounded-xl px-4 py-2 shadow hover:bg-blue-50 transition-colors border border-[#4067EC]"
+              onClick={() => setChatOpen(true)}
+            >
+              Pomocnik Mikołaja
+            </button>
           </nav>
         </aside>
         {/* Main content */}
         <main className="flex-1">{children}</main>
+        <ChatAssistant open={chatOpen} onClose={() => setChatOpen(false)} />
       </div>
     </TeacherRoute>
   );
