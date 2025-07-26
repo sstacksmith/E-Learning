@@ -19,25 +19,26 @@ const faqs = [
     question: "Co zrobić, gdy zapomnę hasła?",
     answer:
       "Kliknij na stronie logowania 'Nie pamiętasz hasła?', podaj swój e-mail i postępuj zgodnie z instrukcjami, które otrzymasz na maila.",
-    lazyLink: "/login/forgot-password",
+    lazyLink: "/forgot-password",
   },
   {
     question: "Czy mogę korzystać z platformy na telefonie?",
     answer:
       "Tak! Nasza platforma działa na smartfonach i tabletach. Wystarczy przeglądarka internetowa.",
-    lazyLink: "https://zpe.gov.pl/", // przykładowo, można zostawić pusty jeśli nie ma konkretnej sekcji
+    // lazyLink usunięty, nie wyświetlamy przycisku
   },
   {
     question: "Jak skontaktować się z nauczycielem?",
     answer:
-      "W panelu bocznym znajdziesz sekcję 'Napisz do nauczyciela'. Możesz tam wysłać wiadomość bezpośrednio do wybranego nauczyciela.",
-    lazyLink: "/homelogin/student/profile",
+      "Aby skontaktować się z nauczycielem, wejdź w zakładkę 'Moje kursy', a następnie kliknij w wybrany kurs. W nagłówku każdego kursu znajdziesz adres e-mail prowadzącego – napisz do niego bezpośrednio, aby uzyskać pomoc lub zadać pytanie.",
+    lazyLink: "/homelogin/my-courses",
   },
   {
     question: "Gdzie znajdę materiały do nauki?",
     answer:
       "Materiały do nauki są dostępne w zakładce 'Biblioteka' oraz w poszczególnych kursach. Możesz je przeglądać online lub pobrać na komputer.",
     lazyLink: "/homelogin/library",
+    extraLink: "/homelogin/my-courses",
   },
   {
     question: "Jak rozwiązywać zadania na platformie?",
@@ -48,32 +49,20 @@ const faqs = [
   {
     question: "Czy mogę pobrać materiały na swój komputer?",
     answer:
-      "Tak, większość materiałów możesz pobrać klikając ikonę pobierania przy danym pliku lub prezentacji.",
-    lazyLink: "/homelogin/library",
-  },
-  {
-    question: "Jak zmienić swoje dane (np. e-mail, hasło)?",
-    answer:
-      "Wejdź w swój profil, kliknij 'Edytuj dane' i wprowadź zmiany. Nie zapomnij zapisać!",
-    lazyLink: "/profile",
+      "Po wejściu w dany kurs w zakładce 'Moje kursy' znajdziesz materiały od prowadzącego. Tam możesz kliknąć ikonę pobrania przy wybranym pliku lub prezentacji, aby pobrać je na swój komputer.",
+    lazyLink: "/homelogin/my-courses",
   },
   {
     question: "Co zrobić, gdy mam problem techniczny?",
     answer:
-      "Jeśli napotkasz problem techniczny, napisz do nas przez zakładkę 'Support & FAQs' lub skontaktuj się z administratorem platformy.",
+      "Jeśli napotkasz problem techniczny, napisz do nas przez zakładkę 'Support & FAQs', skontaktuj się z administratorem platformy lub napisz bezpośrednio na adres e-mail: learningtreatment.admin@gmail.com.",
     lazyLink: "/homelogin/support",
   },
   {
     question: "Jakie przedmioty są dostępne na platformie?",
     answer:
       "Na platformie znajdziesz przedmioty takie jak: matematyka, język polski, angielski, biologia, chemia, fizyka, historia i wiele innych!",
-    lazyLink: "/homelogin/my-courses",
-  },
-  {
-    question: "Czy korzystanie z platformy jest płatne?",
-    answer:
-      "Podstawowe funkcje platformy są darmowe. Niektóre kursy lub materiały mogą wymagać dodatkowej opłaty – szczegóły znajdziesz w opisie kursu.",
-    lazyLink: "/homelogin/my-courses",
+    lazyLink: "/courses",
   },
 ];
 
@@ -83,26 +72,13 @@ export default function FAQPage() {
 
   return (
     <div className="min-h-screen bg-[#F8F9FB] flex flex-col md:flex-row items-start py-6 md:py-10 px-2 md:px-8 gap-4 md:gap-8">
-      {/* Lewy panel z przyciskami Dla leniwych */}
-      <div className="w-full md:w-64 flex-shrink-0 mb-4 md:mb-0">
-        <div className="bg-white rounded-2xl shadow-lg p-4 sticky top-8">
-          <h2 className="text-lg font-bold text-[#4067EC] mb-4 text-center md:text-left">Dla leniwych</h2>
-          <div className="flex flex-wrap md:flex-col gap-2 justify-center md:justify-start">
-            {faqs.map((faq, idx) => (
-              <button
-                key={idx}
-                onClick={() => {
-                  setOpenIndex(idx);
-                  faqRefs.current[idx]?.scrollIntoView({ behavior: "smooth", block: "start" });
-                }}
-                className={`text-xs md:text-sm px-3 py-2 rounded-lg font-semibold transition-colors w-full text-left border border-[#4067EC] hover:bg-[#F1F4FE] focus:outline-none focus:ring-2 focus:ring-[#4067EC] ${openIndex === idx ? "bg-[#F1F4FE] text-[#4067EC]" : "bg-white text-[#4067EC]"}`}
-              >
-                {faq.question}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
+      {/* Przycisk powrotu na górze po lewej */}
+      <Link
+        href="/homelogin"
+        className="mb-4 self-start inline-flex items-center px-4 py-2 bg-black text-white rounded-lg font-bold shadow-lg hover:bg-[#4067EC] hover:text-white transition-colors text-xs md:text-sm border-2 border-black focus:outline-none focus:ring-2 focus:ring-black"
+      >
+        ← Wróć do panelu głównego
+      </Link>
       {/* Główna sekcja FAQ */}
       <div className="w-full max-w-2xl bg-white rounded-2xl shadow-lg p-4 md:p-8 mx-auto">
         <h1 className="text-2xl md:text-3xl font-bold text-[#4067EC] mb-4 md:mb-6 text-center">FAQ – Najczęściej Zadawane Pytania</h1>
@@ -144,9 +120,21 @@ export default function FAQPage() {
                   {faq.lazyLink && (
                     <Link
                       href={faq.lazyLink}
-                      className="self-start mt-2 inline-flex items-center px-4 py-2 bg-[#4067EC] text-white rounded-lg font-semibold shadow hover:bg-[#3050b3] transition-colors text-xs md:text-sm"
+                      className="self-start mt-2 inline-flex items-center px-4 py-2 bg-black text-white rounded-lg font-bold shadow-lg hover:bg-[#4067EC] hover:text-white transition-colors text-xs md:text-sm border-2 border-black focus:outline-none focus:ring-2 focus:ring-black"
                     >
                       Dla leniwych
+                      <svg className="w-4 h-4 ml-2" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                      </svg>
+                    </Link>
+                  )}
+                  {/* Dodaj drugi przycisk tylko dla pytania o materiały do nauki */}
+                  {faq.extraLink && (
+                    <Link
+                      href={faq.extraLink}
+                      className="self-start mt-2 inline-flex items-center px-4 py-2 bg-black text-white rounded-lg font-bold shadow-lg hover:bg-[#4067EC] hover:text-white transition-colors text-xs md:text-sm border-2 border-black focus:outline-none focus:ring-2 focus:ring-black"
+                    >
+                      Materiały w kursach
                       <svg className="w-4 h-4 ml-2" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3" />
                       </svg>

@@ -12,6 +12,7 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
         <nav className="flex-1 flex items-center justify-center gap-8">
           <Link href="#" className="text-sm text-gray-700 hover:text-[#4067EC] font-medium">Moje terminy</Link>
           <Link href="/homelogin/student/courses" className="text-sm text-gray-700 hover:text-[#4067EC] font-medium">Moje kursy</Link>
+          <Link href="/homelogin/group-chats" className="text-sm text-gray-700 hover:text-[#4067EC] font-medium">Czat grupowy</Link>
           <Link href="#" className="text-sm text-gray-700 hover:text-[#4067EC] font-medium">Repozytorium/Manuale</Link>
           <Link href="#" className="text-sm text-gray-700 hover:text-[#4067EC] font-medium">Warunki</Link>
           <Link href="#" className="text-sm text-gray-700 hover:text-[#4067EC] font-medium">Digiteka - Cyfrowe Materiały Dydaktyczne</Link>

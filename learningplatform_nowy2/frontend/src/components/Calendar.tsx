@@ -1,507 +1,230 @@
-'use client';
-import React, { useEffect, useState } from 'react';
-import FullCalendar from '@fullcalendar/react';
-import dayGridPlugin from '@fullcalendar/daygrid/index.js';
-import timeGridPlugin from '@fullcalendar/timegrid/index.js';
-import interactionPlugin from '@fullcalendar/interaction/index.js';
-import { collection, getDocs, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+"use client";
+import React, { useMemo, useState, useEffect } from 'react';
+import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useAuth } from '../context/AuthContext';
-import { useRouter } from 'next/navigation';
 
-interface Event {
+// Typy aktywności
+const ACTIVITY_COLORS: Record<string, string> = {
+  assignment: '#d1f5e0', // pastelowy zielony
+  quiz: '#fff9c4',       // pastelowy żółty
+  exam: '#ffe0b2',       // pastelowy pomarańczowy
+};
+
+interface Activity {
   id: string;
   title: string;
-  description: string;
-  date?: string;
-  startTime?: string;
-  endTime?: string;
-  deadline?: string; // For assignments/exams
-  type?: 'assignment' | 'exam' | 'event';
-  createdBy: string;
-  assignedTo?: string[];
-  students?: string[]; // For new assignment/exam events
-  courseId?: string;
-  sectionId?: string;
+  date: string; // YYYY-MM-DD
+  type: 'assignment' | 'quiz' | 'exam';
+  hour?: string;
+  typeLabel?: string;
+  subject?: string;
+  onClick?: () => void;
+}
+
+const daysShort = ['pon.', 'wt.', 'śr.', 'czw.', 'pt.', 'sob.', 'niedz.'];
+const monthsPl = [
+  'styczeń', 'luty', 'marzec', 'kwiecień', 'maj', 'czerwiec',
+  'lipiec', 'sierpień', 'wrzesień', 'październik', 'listopad', 'grudzień'
+];
+
+function getLocalDateString(date: Date): string {
+  const year = date.getFullYear();
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');
+  const day = date.getDate().toString().padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 const Calendar: React.FC = () => {
-  const [events, setEvents] = useState<Event[]>([]);
   const { user } = useAuth();
-  const [editEvent, setEditEvent] = useState<Event | null>(null);
-  const [students, setStudents] = useState<{uid: string, displayName: string}[]>([]);
-  const [editLoading, setEditLoading] = useState(false);
-  const [editError, setEditError] = useState('');
-  const [editSuccess, setEditSuccess] = useState('');
-  const router = useRouter();
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [events, setEvents] = useState<any[]>([]);
+  const [current, setCurrent] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
+  const [localHighlight, setLocalHighlight] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchEvents = async () => {
-      console.log('Fetching events from Firestore...');
       const eventsCollection = collection(db, 'events');
       const eventsSnapshot = await getDocs(eventsCollection);
-      const eventsList = eventsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Event));
-      console.log('All events from Firestore:', eventsList);
+      const eventsList = eventsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setEvents(eventsList);
     };
     fetchEvents();
   }, []);
 
-  useEffect(() => {
-    // Pobierz uczniów do wyboru w edycji
-    const fetchStudents = async () => {
-      const usersCollection = collection(db, 'users');
-      const usersSnapshot = await getDocs(usersCollection);
-      const studentsList = usersSnapshot.docs
-        .map(doc => ({ uid: doc.id, ...doc.data() } as any))
-        .filter(user => user && user.role === 'student');
-      setStudents(studentsList);
-    };
-    if (user?.role === 'teacher') fetchStudents();
-  }, [user]);
-
   // Filtrowanie wydarzeń dla ucznia
-  const filteredEvents = React.useMemo(() => {
-    console.log('Filtering events for user:', user);
-    console.log('All events:', events);
-    
+  const filteredEvents = useMemo(() => {
     if (!user) return [];
     if (user.role === 'student') {
-      const filtered = events.filter(event => {
-        // Sprawdź czy uczeń jest przypisany do eventu (stara struktura)
+      return events.filter((event: any) => {
         if (event.assignedTo && event.assignedTo.includes(user.uid)) {
-          console.log('Event matched by assignedTo:', event);
           return true;
         }
-        // Sprawdź czy uczeń jest w liście students (nowa struktura dla zadań/egzaminów)
         if (event.students && event.students.includes(user.uid)) {
-          console.log('Event matched by students:', event);
           return true;
         }
         return false;
       });
-      console.log('Filtered events for student:', filtered);
-      return filtered;
     }
-    // nauczyciel/admin widzą wszystko
-    console.log('Teacher/admin - showing all events');
     return events;
   }, [events, user]);
 
-  const calendarEvents = filteredEvents.map(event => {
-    // Dla nowych eventów z zadaniami/egzaminami (deadline)
-    if (event.deadline) {
+  // Mapowanie eventów na aktywności kalendarza
+  const activities: Activity[] = useMemo(() => {
+    return filteredEvents.map((event: any) => {
+      let date = '';
+      let hour = '';
+      if (event.deadline) {
+        date = event.deadline.slice(0, 10);
+        hour = event.deadline.slice(11, 16);
+      } else if (event.date) {
+        date = event.date;
+        hour = event.startTime || '';
+      }
       return {
         id: event.id,
         title: event.title,
-        start: event.deadline, // Użyj deadline jako start
-        end: event.deadline,   // Użyj deadline jako end
-        description: event.description,
-        type: event.type,
-        courseId: event.courseId,
-        sectionId: event.sectionId
+        date,
+        type: event.type || 'assignment',
+        hour,
+        typeLabel: event.type,
+        subject: event.subject,
+        onClick: event.courseId ? () => window.location.href = `/homelogin/student/courses/${event.courseId}` : undefined,
       };
-    }
-    // Dla starych eventów (date + startTime/endTime)
-    return {
-      id: event.id,
-      title: event.title,
-      start: `${event.date}T${event.startTime}`,
-      end: `${event.date}T${event.endTime}`,
-      description: event.description,
-      type: event.type,
-      courseId: event.courseId
-    };
-  });
-
-  // Obsługa kliknięcia w wydarzenie (edycja dla nauczyciela, przekierowanie dla ucznia)
-  const handleEventClick = (info: any) => {
-    const event = events.find(e => e.id === info.event.id);
-    
-    if (user?.role === 'teacher') {
-      if (event) setEditEvent(event);
-    } else {
-      // Dla ucznia - przekieruj do kursu jeśli event ma courseId
-      if (event?.courseId) {
-        router.push(`/homelogin/student/courses/${event.courseId}`);
-      } else {
-        alert(`Wydarzenie: ${info.event.title}\nOpis: ${info.event.extendedProps.description}`);
-      }
-    }
-  };
-
-  // Obsługa edycji wydarzenia
-  const handleEditChange = (field: keyof Event, value: any) => {
-    if (!editEvent) return;
-    setEditEvent({ ...editEvent, [field]: value });
-  };
-
-  const handleEditStudentChange = (uid: string) => {
-    if (!editEvent) return;
-    const currentAssignedTo = editEvent.assignedTo || [];
-    const assignedTo = currentAssignedTo.includes(uid)
-      ? currentAssignedTo.filter(id => id !== uid)
-      : [...currentAssignedTo, uid];
-    setEditEvent({ ...editEvent, assignedTo });
-  };
-
-  const handleEditSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editEvent) return;
-    setEditLoading(true);
-    setEditError('');
-    setEditSuccess('');
-    try {
-      await updateDoc(doc(db, 'events', editEvent.id), {
-        title: editEvent.title,
-        description: editEvent.description,
-        date: editEvent.date,
-        startTime: editEvent.startTime,
-        endTime: editEvent.endTime,
-        assignedTo: editEvent.assignedTo,
-      });
-      setEditSuccess('Wydarzenie zaktualizowane!');
-      // Odśwież listę wydarzeń natychmiast
-      const eventsCollection = collection(db, 'events');
-      const eventsSnapshot = await getDocs(eventsCollection);
-      const eventsList = eventsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Event));
-      setEvents(eventsList);
-      setEditEvent(null);
-    } catch (err) {
-      setEditError('Błąd podczas aktualizacji wydarzenia.');
-    } finally {
-      setEditLoading(false);
-    }
-  };
-
-  // Usuwanie wydarzenia
-  const handleDeleteEvent = async () => {
-    if (!editEvent) return;
-    setEditLoading(true);
-    setEditError('');
-    try {
-      await deleteDoc(doc(db, 'events', editEvent.id));
-      // Odśwież listę wydarzeń natychmiast
-      const eventsCollection = collection(db, 'events');
-      const eventsSnapshot = await getDocs(eventsCollection);
-      const eventsList = eventsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Event));
-      setEvents(eventsList);
-      setEditEvent(null);
-    } catch (err) {
-      setEditError('Błąd podczas usuwania wydarzenia.');
-    } finally {
-      setEditLoading(false);
-    }
-  };
-
-  // Dodaj funkcję renderującą treść eventu
-  function renderEventContent(eventInfo: any) {
-    const { event } = eventInfo;
-    const start = event.start;
-    const godzina = start ? `${start.getHours().toString().padStart(2, '0')}:${start.getMinutes().toString().padStart(2, '0')}` : '';
-    const isAssignment = event.extendedProps.type === 'assignment' || event.extendedProps.type === 'exam';
-    
-    return (
-      <div className={`flex flex-col items-start text-left w-full ${isAssignment ? 'cursor-pointer hover:bg-blue-50 p-1 rounded' : ''}`}>
-        <span className={`font-bold leading-tight break-words ${isAssignment ? 'text-red-700' : 'text-[#1a237e]'}`}>
-          {event.title}
-        </span>
-        {godzina && <span className="text-xs text-[#4067EC] font-semibold mt-0.5">{godzina}</span>}
-        {event.extendedProps.description && <span className="text-xs text-gray-700 mt-0.5 break-words">{event.extendedProps.description}</span>}
-        {isAssignment && user?.role === 'student' && (
-          <span className="text-xs text-blue-600 mt-1">Kliknij, aby przejść do kursu</span>
-        )}
-      </div>
-    );
-  }
-
-  // Zbiór dat z eventami (YYYY-MM-DD)
-  const eventDates = React.useMemo(() => {
-    const dates = new Set<string>();
-    filteredEvents.forEach(ev => {
-      if (ev.date) {
-        dates.add(ev.date);
-      }
-      if (ev.deadline) {
-        // Konwertuj deadline (ISO string) na YYYY-MM-DD
-        const deadlineDate = new Date(ev.deadline).toISOString().slice(0, 10);
-        dates.add(deadlineDate);
-      }
     });
-    return dates;
   }, [filteredEvents]);
 
-  // Eventy z wybranego dnia
-  const eventsForSelectedDate = selectedDate
-    ? filteredEvents.filter(ev => ev.date === selectedDate)
-    : [];
-
-  // Podświetlanie dni z eventami
-  function dayCellClassNames(arg: any) {
-    const dateStr = arg.date.toISOString().slice(0, 10);
-    if (eventDates.has(dateStr)) {
-      return ['!bg-blue-100', '!text-[#4067EC]', 'font-bold', 'cursor-pointer', 'hover:!bg-blue-200'];
+  // Resetuj podświetlenie po kilku sekundach
+  useEffect(() => {
+    if (localHighlight) {
+      const timeout = setTimeout(() => setLocalHighlight(null), 3500);
+      return () => clearTimeout(timeout);
     }
-    return [];
-  }
+  }, [localHighlight]);
 
-  // Obsługa kliknięcia w dzień
-  function handleDateClick(arg: any) {
-    const dateStr = arg.dateStr;
-    if (eventDates.has(dateStr)) {
-      setSelectedDate(dateStr);
-    } else {
-      setSelectedDate(null);
-    }
-  }
+  // Ustal dzisiejszą datę (lokalnie)
+  const today = new Date();
+  const todayY = today.getFullYear();
+  const todayM = today.getMonth();
+  const todayD = today.getDate();
 
-  // Przekierowanie do kursu
-  function goToCourse(courseId: string | undefined) {
-    if (courseId) {
-      router.push(`/homelogin/student/courses/${courseId}`);
+  // Oblicz dni miesiąca
+  const firstDay = new Date(current.getFullYear(), current.getMonth(), 1);
+  const lastDay = new Date(current.getFullYear(), current.getMonth() + 1, 0);
+
+  // Tworzymy siatkę dni (od poniedziałku)
+  const days = useMemo(() => {
+    const result = [];
+    const start = new Date(firstDay);
+    // Ustaw na pierwszy poniedziałek przed lub w pierwszym dniu miesiąca
+    const dayOfWeek = (firstDay.getDay() + 6) % 7; // 0=pon, 6=niedz
+    start.setDate(start.getDate() - dayOfWeek);
+    // Oblicz ostatni dzień miesiąca
+    const end = new Date(lastDay);
+    // Ustaw na ostatnią niedzielę miesiąca
+    const endDayOfWeek = (lastDay.getDay() + 6) % 7;
+    end.setDate(end.getDate() + (6 - endDayOfWeek));
+    // Ile dni do wygenerowania?
+    const totalDays = Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    for (let i = 0; i < totalDays; i++) {
+      const dateStr = getLocalDateString(start);
+      const isCurrentMonth = start.getMonth() === current.getMonth();
+      const isToday = start.getFullYear() === todayY && start.getMonth() === todayM && start.getDate() === todayD;
+      const isWeekend = start.getDay() === 0 || start.getDay() === 6;
+      // Aktywności na ten dzień
+      const dayActivities = activities.filter(a => a.date === dateStr);
+      result.push({
+        date: new Date(start),
+        dateStr,
+        isCurrentMonth,
+        isToday,
+        isWeekend,
+        activities: dayActivities,
+      });
+      start.setDate(start.getDate() + 1);
     }
-  }
+    return result;
+  }, [current, activities, todayY, todayM, todayD, firstDay, lastDay]);
+
+  // Nawigacja
+  const prevMonth = () => setCurrent(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+  const nextMonth = () => setCurrent(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
 
   return (
-    <div className="w-full bg-white rounded-2xl">
-      <FullCalendar
-        plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-        initialView="dayGridMonth"
-        headerToolbar={{
-          left: 'prev,next today',
-          center: 'title',
-          right: 'dayGridMonth,timeGridWeek,timeGridDay'
-        }}
-        events={calendarEvents}
-        eventClick={handleEventClick}
-        dateClick={handleDateClick}
-        dayCellClassNames={dayCellClassNames}
-        height="auto"
-        locale="pl"
-        eventContent={renderEventContent}
-      />
-    </div>
-  );
-};
-
-// Komponent do wyświetlania aktywności
-export const ActivityPanel: React.FC<{ selectedDate: string | null, events: Event[] }> = ({ selectedDate, events }) => {
-  const router = useRouter();
-  
-  // Eventy z wybranego dnia
-  const eventsForSelectedDate = selectedDate
-    ? events.filter(ev => {
-        if (ev.date === selectedDate) return true;
-        if (ev.deadline) {
-          const deadlineDate = new Date(ev.deadline).toISOString().slice(0, 10);
-          return deadlineDate === selectedDate;
-        }
-        return false;
-      })
-    : [];
-
-  // Przekierowanie do kursu
-  function goToCourse(courseId: string | undefined) {
-    if (courseId) {
-      router.push(`/homelogin/student/courses/${courseId}`);
-    }
-  }
-
-  return (
-    <div className="w-full bg-white p-4 rounded-2xl shadow flex flex-col">
-      <h3 className="text-lg font-bold mb-4 text-[#4067EC]">Aktywności</h3>
-      {selectedDate && eventsForSelectedDate.length > 0 ? (
-        <ul className="space-y-4">
-          {eventsForSelectedDate.map(ev => (
-            <li key={ev.id} className={`border-b pb-2 ${ev.deadline ? 'bg-red-50 p-2 rounded' : ''}`}>
-              <div className={`font-bold ${ev.deadline ? 'text-red-700' : 'text-[#1a237e]'}`}>{ev.title}</div>
-              {ev.deadline ? (
-                <div className="text-xs text-[#4067EC]">
-                  Termin: {new Date(ev.deadline).toLocaleString('pl-PL')}
+    <div className="w-full">
+      <div className="flex items-center justify-between mb-2">
+        <button onClick={prevMonth} className="p-1 rounded hover:bg-gray-200 text-[#4067EC] font-bold text-lg">&#8592;</button>
+        <span className="font-semibold text-[#4067EC] text-lg">
+          {monthsPl[current.getMonth()]} {current.getFullYear()}
+        </span>
+        <button onClick={nextMonth} className="p-1 rounded hover:bg-gray-200 text-[#4067EC] font-bold text-lg">&#8594;</button>
+      </div>
+      <div className="grid grid-cols-7 gap-1 mb-2">
+        {daysShort.map(day => (
+          <div key={day} className="text-sm font-semibold text-blue-700 text-center p-2">
+            {day}
+          </div>
+        ))}
+      </div>
+      <div className="grid grid-cols-7 gap-1">
+        {days.map((day, idx) => {
+          // Kolorowanie tła
+          let bg = '';
+          if (day.isToday) bg = 'bg-blue-100';
+          else if (day.isWeekend) bg = 'bg-gray-100';
+          // Aktywność z najwyższym priorytetem (egzamin > quiz > zadanie)
+          let activityBg = '';
+          if (day.activities.length > 0) {
+            const typeOrder = ['exam', 'quiz', 'assignment'];
+            const found = typeOrder.find(type => day.activities.some(a => a.type === type));
+            if (found) activityBg = ACTIVITY_COLORS[found];
+          }
+          // Podświetlenie wybranego dnia
+          const isHighlighted = localHighlight && day.dateStr === localHighlight;
+          return (
+            <div
+              key={idx}
+              className={`aspect-square rounded-lg p-1 text-base font-medium text-center cursor-pointer transition-all border ${day.isCurrentMonth ? 'text-gray-800' : 'text-gray-400'} ${bg} relative group ${isHighlighted ? 'ring-4 ring-[#4067EC] ring-offset-2 animate-pulse' : ''}`}
+              style={{ background: activityBg || undefined, borderColor: day.isToday ? '#4067EC' : 'transparent' }}
+            >
+              <div className="font-bold mb-1 text-lg">{day.date.getDate()}</div>
+              {day.activities.map(act => {
+                // Sprawdź, czy aktywność jest przeterminowana
+                const isOverdue = act.date < getLocalDateString(today);
+                return (
+                  <div
+                    key={act.id}
+                    className="mt-0.5 px-1 py-0.5 rounded text-base font-semibold hover:underline flex flex-col items-center"
+                    style={{ color: '#222', background: ACTIVITY_COLORS[act.type], cursor: act.onClick ? 'pointer' : 'default' }}
+                    onClick={act.onClick}
+                  >
+                    <span>
+                      {act.title}
+                      {isOverdue && (
+                        <span className="ml-1 text-red-600 font-bold text-xs align-middle">Po terminie</span>
+                      )}
+                    </span>
+                  </div>
+                );
+              })}
+              {/* Tooltip na hover na CAŁY DZIEŃ */}
+              {day.activities.length > 0 && (
+                <div className="absolute z-20 left-1/2 -translate-x-1/2 top-full mt-1 w-max min-w-[240px] bg-white border border-gray-300 rounded shadow-lg p-3 text-base text-left opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-200 whitespace-pre-line">
+                  {day.activities.map((act, i) => (
+                    <div key={act.id} className="mb-3 last:mb-0">
+                      <div><b>{act.title}</b></div>
+                      <div><b>Rodzaj:</b> {act.typeLabel || act.type}</div>
+                      <div><b>Godzina:</b> {act.hour ? act.hour : 'brak'}</div>
+                      <div><b>Przedmiot:</b> {act.subject ? act.subject : 'brak'}</div>
+                    </div>
+                  ))}
                 </div>
-              ) : (
-                <div className="text-xs text-[#4067EC]">{ev.startTime} - {ev.endTime}</div>
               )}
-              {ev.description && <div className="text-xs text-gray-700 mt-1">{ev.description}</div>}
-              {ev.courseId && (
-                <button
-                  className="mt-2 bg-[#4067EC] text-white px-4 py-1 rounded-lg text-sm font-semibold transition hover:bg-[#3050b3]"
-                  onClick={() => goToCourse(ev.courseId)}
-                >
-                  {ev.deadline ? 'Przejdź do zadania' : 'Przejdź do kursu'}
-                </button>
-              )}
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <div className="text-gray-400 text-sm">Kliknij w podświetlony dzień, aby zobaczyć aktywności.</div>
-      )}
-    </div>
-  );
-};
-
-// Nowy komponent łączący kalendarz z aktywnościami
-export const CalendarWithActivity: React.FC = () => {
-  const [events, setEvents] = useState<Event[]>([]);
-  const { user } = useAuth();
-  const router = useRouter();
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
-
-  useEffect(() => {
-    const fetchEvents = async () => {
-      const eventsCollection = collection(db, 'events');
-      const eventsSnapshot = await getDocs(eventsCollection);
-      const eventsList = eventsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Event));
-      setEvents(eventsList);
-    };
-    fetchEvents();
-  }, []);
-
-  // Filtrowanie wydarzeń dla ucznia
-  const filteredEvents = React.useMemo(() => {
-    if (!user) return [];
-    if (user.role === 'student') {
-      return events.filter(event => {
-        if (event.assignedTo && event.assignedTo.includes(user.uid)) {
-          return true;
-        }
-        if (event.students && event.students.includes(user.uid)) {
-          return true;
-        }
-        return false;
-      });
-    }
-    return events;
-  }, [events, user]);
-
-  const calendarEvents = filteredEvents.map(event => {
-    // Dla nowych eventów z zadaniami/egzaminami (deadline)
-    if (event.deadline) {
-      return {
-        id: event.id,
-        title: event.title,
-        start: event.deadline, // Użyj deadline jako start
-        end: event.deadline,   // Użyj deadline jako end
-        description: event.description,
-        type: event.type,
-        courseId: event.courseId,
-        sectionId: event.sectionId
-      };
-    }
-    // Dla starych eventów (date + startTime/endTime)
-    return {
-      id: event.id,
-      title: event.title,
-      start: `${event.date}T${event.startTime}`,
-      end: `${event.date}T${event.endTime}`,
-      description: event.description,
-      type: event.type,
-      courseId: event.courseId
-    };
-  });
-
-  // Obsługa kliknięcia w wydarzenie (edycja dla nauczyciela, przekierowanie dla ucznia)
-  const handleEventClick = (info: any) => {
-    const event = events.find(e => e.id === info.event.id);
-    
-    if (user?.role === 'teacher') {
-      // Tutaj można dodać modal do edycji
-      alert(`Edycja: ${info.event.title}`);
-    } else {
-      // Dla ucznia - przekieruj do kursu jeśli event ma courseId
-      if (event?.courseId) {
-        router.push(`/homelogin/student/courses/${event.courseId}`);
-      } else {
-        alert(`Wydarzenie: ${info.event.title}\nOpis: ${info.event.extendedProps.description}`);
-      }
-    }
-  };
-
-  // Dodaj funkcję renderującą treść eventu
-  function renderEventContent(eventInfo: any) {
-    const { event } = eventInfo;
-    const start = event.start;
-    const godzina = start ? `${start.getHours().toString().padStart(2, '0')}:${start.getMinutes().toString().padStart(2, '0')}` : '';
-    const isAssignment = event.extendedProps.type === 'assignment' || event.extendedProps.type === 'exam';
-    
-    return (
-      <div className={`flex flex-col items-start text-left w-full ${isAssignment ? 'cursor-pointer hover:bg-blue-50 p-1 rounded' : ''}`}>
-        <span className={`font-bold leading-tight break-words ${isAssignment ? 'text-red-700' : 'text-[#1a237e]'}`}>
-          {event.title}
-        </span>
-        {godzina && <span className="text-xs text-[#4067EC] font-semibold mt-0.5">{godzina}</span>}
-        {event.extendedProps.description && <span className="text-xs text-gray-700 mt-0.5 break-words">{event.extendedProps.description}</span>}
-        {isAssignment && user?.role === 'student' && (
-          <span className="text-xs text-blue-600 mt-1">Kliknij, aby przejść do kursu</span>
-        )}
-      </div>
-    );
-  }
-
-  // Zbiór dat z eventami (YYYY-MM-DD)
-  const eventDates = React.useMemo(() => {
-    const dates = new Set<string>();
-    filteredEvents.forEach(ev => {
-      if (ev.date) {
-        dates.add(ev.date);
-      }
-      if (ev.deadline) {
-        // Konwertuj deadline (ISO string) na YYYY-MM-DD
-        const deadlineDate = new Date(ev.deadline).toISOString().slice(0, 10);
-        dates.add(deadlineDate);
-      }
-    });
-    return dates;
-  }, [filteredEvents]);
-
-  // Podświetlanie dni z eventami
-  function dayCellClassNames(arg: any) {
-    const dateStr = arg.date.toISOString().slice(0, 10);
-    if (eventDates.has(dateStr)) {
-      return ['!bg-blue-100', '!text-[#4067EC]', 'font-bold', 'cursor-pointer', 'hover:!bg-blue-200'];
-    }
-    return [];
-  }
-
-  // Obsługa kliknięcia w dzień
-  function handleDateClick(arg: any) {
-    const dateStr = arg.dateStr;
-    if (eventDates.has(dateStr)) {
-      setSelectedDate(dateStr);
-    } else {
-      setSelectedDate(null);
-    }
-  }
-
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      {/* Kalendarz - 2/3 szerokości */}
-      <div className="lg:col-span-2">
-        <div className="bg-white p-4 rounded-2xl shadow">
-          <FullCalendar
-            plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-            initialView="dayGridMonth"
-            headerToolbar={{
-              left: 'prev,next today',
-              center: 'title',
-              right: 'dayGridMonth,timeGridWeek'
-            }}
-            events={calendarEvents}
-            eventClick={handleEventClick}
-            dateClick={handleDateClick}
-            dayCellClassNames={dayCellClassNames}
-            height="auto"
-            locale="pl"
-            eventContent={renderEventContent}
-          />
-        </div>
-      </div>
-      
-      {/* Panel aktywności - 1/3 szerokości */}
-      <div className="lg:col-span-1">
-        <ActivityPanel selectedDate={selectedDate} events={filteredEvents} />
+            </div>
+          );
+        })}
       </div>
     </div>
   );
