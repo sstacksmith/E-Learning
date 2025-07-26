@@ -942,25 +942,49 @@ function TeacherCourseDetailContent() {
       </div>
 
       {/* SEKCJE (Accordion) */}
-      <div className="w-full max-w-5xl flex flex-col gap-4">
-        {sections.map(section => (
-          <div key={section.id} className="bg-white rounded-2xl shadow-lg">
-            <div className="w-full flex items-center justify-between px-6 py-4 text-xl font-bold text-[#4067EC] focus:outline-none">
-              <button onClick={() => setShowSection(s => ({...s, [section.id]: !s[section.id]}))} className="mr-3 text-[#4067EC] text-2xl" style={{ background: 'transparent', boxShadow: 'none', border: 'none', color: '#4067EC' }}>{showSection[section.id] ? <FaChevronUp /> : <FaChevronDown />}</button>
-              <span className="flex-1">
-                {section.name} <span className="text-base font-normal">({section.type})</span>
-                {section.type === 'zadanie' && section.deadline && (
-                  <span className="text-sm font-normal text-gray-600 ml-2">
-                    Termin: {new Date(section.deadline).toLocaleString('pl-PL')}
-                  </span>
-                )}
-              </span>
-              <button onClick={() => handleEditSection(section)} className="ml-3 text-blue-500 hover:text-blue-700 text-xl" style={{ background: 'transparent', boxShadow: 'none', border: 'none' }}>✏️</button>
-              <button onClick={() => handleDeleteSection(section.id)} className="ml-3 text-red-500 hover:text-red-700 text-2xl" style={{ background: 'transparent', boxShadow: 'none', border: 'none' }}>🗑️</button>
+      <div className="w-full max-w-5xl space-y-4">
+        {sections.map((section) => (
+          <div key={section.id} className="bg-white rounded-lg border border-gray-200">
+            <div 
+              className="w-full flex items-center justify-between px-6 py-4 text-xl font-bold text-[#4067EC] hover:bg-gray-50 rounded-t-lg cursor-pointer"
+              onClick={() => setShowSection(prev => ({...prev, [section.id]: !prev[section.id]}))}
+            >
+              <div className="flex items-center gap-3">
+                <span>{showSection[section.id] ? <FaChevronUp /> : <FaChevronDown />}</span>
+                <div>
+                  <span>{section.name}</span>
+                  <span className="text-base font-normal ml-2">({section.type})</span>
+                  {section.type === 'zadanie' && section.deadline && (
+                    <span className="block text-sm font-normal text-gray-600">
+                      Termin: {new Date(section.deadline).toLocaleString('pl-PL')}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={(e) => { 
+                    e.stopPropagation();
+                    handleEditSection(section);
+                  }} 
+                  className="text-blue-500 hover:text-blue-700 text-xl bg-transparent border-none"
+                >
+                  ✏️
+                </button>
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteSection(section.id);
+                  }} 
+                  className="text-red-500 hover:text-red-700 text-2xl bg-transparent border-none"
+                >
+                  🗑️
+                </button>
+              </div>
             </div>
+
             {showSection[section.id] && (
-              <div className="px-6 pb-6 flex flex-col gap-4">
-                {/* Edit section form */}
+              <div className="px-6 pb-6 border-t border-gray-200">
                 {editingSectionId === section.id && (
                   <form onSubmit={handleSaveEditSection} className="bg-blue-50 p-4 rounded-lg border border-blue-200 mb-4">
                     <h4 className="font-semibold text-blue-800 mb-3">Edytuj sekcję</h4>
@@ -982,8 +1006,12 @@ function TeacherCourseDetailContent() {
                         <option value="zadanie">Zadanie</option>
                         <option value="aktywnosc">Aktywność</option>
                       </select>
-                      <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded font-semibold">Zapisz</button>
-                      <button type="button" onClick={handleCancelEdit} className="bg-gray-200 px-4 py-2 rounded font-semibold">Anuluj</button>
+                      <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded font-semibold">
+                        Zapisz
+                      </button>
+                      <button type="button" onClick={handleCancelEdit} className="bg-gray-200 px-4 py-2 rounded font-semibold">
+                        Anuluj
+                      </button>
                     </div>
                     {editSection?.type === 'zadanie' && (
                       <div className="flex flex-col sm:flex-row gap-2 items-center">
@@ -1000,170 +1028,149 @@ function TeacherCourseDetailContent() {
                   </form>
                 )}
 
-                {/* Dodawanie materiału/zadania/aktywności */}
                 <form onSubmit={e => handleAddContent(section.id, e)} className="flex flex-col gap-4 mb-4">
                   <div className="flex flex-col sm:flex-row gap-2 items-center">
-                    <input type="text" placeholder="Nazwa (opcjonalna)" className="border rounded px-3 py-2" value={newContent[section.id]?.name || ''} onChange={e => setNewContent(nc => ({...nc, [section.id]: {...(nc[section.id]||{}), name: e.target.value}}))} />
-                    <input type="file" className="" onChange={e => setNewContent(nc => ({...nc, [section.id]: {...(nc[section.id]||{}), file: e.target.files ? e.target.files[0] : null}}))} />
-                    <input type="url" placeholder="Link (np. YouTube, Google Docs)" className="border rounded px-3 py-2" value={newContent[section.id]?.link || ''} onChange={e => setNewContent(nc => ({...nc, [section.id]: {...(nc[section.id]||{}), link: e.target.value}}))} />
-                    <button type="submit" className="bg-[#4067EC] text-white px-4 py-2 rounded font-semibold">Dodaj</button>
+                    <input 
+                      type="text" 
+                      placeholder="Nazwa (opcjonalna)" 
+                      className="border rounded px-3 py-2" 
+                      value={newContent[section.id]?.name || ''} 
+                      onChange={e => setNewContent(nc => ({...nc, [section.id]: {...(nc[section.id]||{}), name: e.target.value}}))} 
+                    />
+                    <input 
+                      type="file" 
+                      onChange={e => setNewContent(nc => ({...nc, [section.id]: {...(nc[section.id]||{}), file: e.target.files ? e.target.files[0] : null}}))} 
+                    />
+                    <input 
+                      type="url" 
+                      placeholder="Link (np. YouTube, Google Docs)" 
+                      className="border rounded px-3 py-2" 
+                      value={newContent[section.id]?.link || ''} 
+                      onChange={e => setNewContent(nc => ({...nc, [section.id]: {...(nc[section.id]||{}), link: e.target.value}}))} 
+                    />
+                    <button type="submit" className="bg-[#4067EC] text-white px-4 py-2 rounded font-semibold">
+                      Dodaj
+                    </button>
                   </div>
-                  <div className="w-full">
-                    {MDXEditor && (
-                      <MDXEditor
-                        markdown={newContent[section.id]?.text || ''}
-                        onChange={(val: string) => setNewContent(nc => ({ ...nc, [section.id]: { ...(nc[section.id] || {}), text: val } }))}
-                        className="border rounded min-h-[120px] prose"
-                        plugins={[
-                          listsPlugin(),
-                          toolbarPlugin({
-                            toolbarContents: () => (
-                              <>
-                                <UndoRedo />
-                                <Separator />
-                                <BoldItalicUnderlineToggles />
-                                <CodeToggle />
-                                <Separator />
-                                <ListsToggle />
-                                <Separator />
-                                <CreateLink />
-                              </>
-                            ),
-                          }),
-                          linkPlugin(),
-                          linkDialogPlugin(),
-                        ]}
-                      />
-                    )}
-                  </div>
+                  {MDXEditor && (
+                    <MDXEditor
+                      markdown={newContent[section.id]?.text || ''}
+                      onChange={(val: string) => setNewContent(nc => ({ ...nc, [section.id]: { ...(nc[section.id] || {}), text: val } }))}
+                      className="border rounded prose mdxeditor"
+                      contentEditableClassName="min-h-[120px]"
+                      plugins={[
+                        listsPlugin(),
+                        toolbarPlugin({
+                          toolbarContents: () => (
+                            <>
+                              <UndoRedo />
+                              <Separator />
+                              <BoldItalicUnderlineToggles />
+                              <CodeToggle />
+                              <Separator />
+                              <ListsToggle />
+                              <Separator />
+                              <CreateLink />
+                            </>
+                          ),
+                        }),
+                        linkPlugin(),
+                        linkDialogPlugin()
+                      ]}
+                    />
+                  )}
                 </form>
-                {/* Lista materiałów/zadań/aktywności */}
-                {(sectionContents[section.id]?.length === 0 || !sectionContents[section.id]) && <div className="text-gray-400 italic">Brak materiałów.</div>}
-                {sectionContents[section.id]?.map((item: any) => (
-                  <div key={item.id} className="flex flex-col gap-3 p-4 bg-[#f4f6fb] rounded-lg">
-                    {editingContentId === item.id ? (
-                      // Tryb edycji
-                      <form onSubmit={handleSaveEditContent} className="flex flex-col gap-3">
-                        <div className="flex items-center gap-3">
-                          {(item.fileUrl || item.file) && <FaFilePdf className="text-2xl text-[#4067EC]" />}
-                          {item.link && <FaLink className="text-2xl text-[#4067EC]" />}
-                          {item.text && <span className="text-2xl text-[#4067EC]">📝</span>}
-                          <input 
-                            type="text" 
-                            value={editContent?.name || ''} 
-                            onChange={e => setEditContent({...editContent, name: e.target.value})}
-                            className="font-semibold border rounded px-2 py-1"
-                          />
-                          <button type="submit" className="ml-auto text-green-600 hover:text-green-800">💾</button>
-                          <button type="button" onClick={handleCancelEditContent} className="text-gray-600 hover:text-gray-800">❌</button>
-                        </div>
-                        {item.text && (
-                          <div className="mt-2">
-                            {MDXEditor && (
-                              <MDXEditor
-                                markdown={editContent?.text || ''}
-                                onChange={(val: string) => setEditContent({...editContent, text: val})}
-                                className="border rounded min-h-[120px] prose"
-                                plugins={[
-                                  listsPlugin(),
-                                  toolbarPlugin({
-                                    toolbarContents: () => (
-                                      <>
-                                        <UndoRedo />
-                                        <Separator />
-                                        <BoldItalicUnderlineToggles />
-                                        <CodeToggle />
-                                        <Separator />
-                                        <ListsToggle />
-                                        <Separator />
-                                        <CreateLink />
-                                      </>
-                                    ),
-                                  }),
-                                  linkPlugin(),
-                                  linkDialogPlugin(),
-                                ]}
-                              />
-                            )}
-                          </div>
-                        )}
-                      </form>
-                    ) : (
-                      // Tryb wyświetlania
-                      <>
-                        <div className="flex items-center gap-3">
-                          {(item.fileUrl || item.file) && <FaFilePdf className="text-2xl text-[#4067EC]" />}
-                          {item.link && <FaLink className="text-2xl text-[#4067EC]" />}
-                          {item.text && <span className="text-2xl text-[#4067EC]">📝</span>}
-                          <span className="font-semibold">{item.name || (item.file?.name || item.link || 'Materiał')}</span>
-                          {item.fileUrl && <a href={item.fileUrl} target="_blank" rel="noopener" className="ml-auto text-[#4067EC] underline">Pobierz</a>}
-                          {item.file && !item.fileUrl && <a href={URL.createObjectURL(item.file)} target="_blank" rel="noopener" className="ml-auto text-[#4067EC] underline">Pobierz</a>}
-                          {item.link && <a href={item.link} target="_blank" rel="noopener" className="ml-auto text-[#4067EC] underline">Otwórz link</a>}
-                          {item.text && <button onClick={() => handleEditContent(item)} className="ml-auto text-blue-600 hover:text-blue-800">✏️</button>}
-                          <button onClick={() => handleDeleteContent(section.id, item.id)} className="ml-2 text-red-500 hover:text-red-700">🗑️</button>
-                        </div>
-                        {item.text && (
-                          <div className="mt-2 p-3 bg-white rounded border-l-4 border-[#4067EC]">
-                            <div className="text-sm text-gray-600 mb-1">Treść:</div>
-                            <div 
-                              className="whitespace-pre-wrap text-gray-800 prose prose-sm max-w-none"
-                              dangerouslySetInnerHTML={{ 
-                                __html: item.text
-                                  .replace(/\n/g, '<br>')
-                                  .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                                  .replace(/\*(.*?)\*/g, '<em>$1</em>')
-                                  .replace(/`(.*?)`/g, '<code class="bg-gray-100 px-1 rounded">$1</code>')
-                              }} 
-                            />
-                          </div>
-                        )}
 
-                        {/* Show submissions for zadanie sections */}
-                        {section.type === 'zadanie' && section.submissions && section.submissions.length > 0 && (
-                          <div className="mt-4 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
-                            <h5 className="font-semibold text-yellow-800 mb-3">Przesłane zadania ({section.submissions.length})</h5>
-                            <div className="space-y-3">
-                              {section.submissions.map((submission: any, index: number) => (
-                                <div key={index} className="bg-white rounded p-3 border">
-                                  <div className="flex justify-between items-start mb-2">
-                                    <div className="font-medium text-gray-800">
-                                      {submission.userName || submission.userId}
-                                    </div>
-                                    <div className="text-sm text-gray-600">
-                                      {new Date(submission.submittedAt).toLocaleString('pl-PL')}
-                                    </div>
-                                  </div>
-                                  {submission.fileName && (
-                                    <div className="mb-2">
-                                      <span className="text-sm text-gray-600">Plik: </span>
-                                      <a href={submission.fileUrl} target="_blank" rel="noopener" className="text-blue-600 hover:text-blue-800 underline">
-                                        {submission.fileName}
-                                      </a>
-                                    </div>
-                                  )}
-                                  {submission.text && (
-                                    <div className="mb-2">
-                                      <div className="text-sm text-gray-600 mb-1">Odpowiedź:</div>
-                                      <div className="bg-gray-50 p-2 rounded text-sm whitespace-pre-wrap">
-                                        {submission.text}
-                                      </div>
-                                    </div>
-                                  )}
-                                  <div className="text-xs text-gray-500">
-                                    {new Date(submission.submittedAt) <= new Date(section.deadline) 
-                                      ? '✅ Przesłane w terminie' 
-                                      : '⚠️ Przesłane po terminie'
-                                    }
-                                  </div>
-                                </div>
-                              ))}
+                <div className="space-y-4">
+                  {(!sectionContents[section.id] || sectionContents[section.id].length === 0) ? (
+                    <div className="text-gray-400 italic">Brak materiałów.</div>
+                  ) : (
+                    sectionContents[section.id].map((item: any) => (
+                      <div key={item.id} className="flex flex-col gap-3 p-4 bg-[#f4f6fb] rounded-lg">
+                        {editingContentId === item.id ? (
+                          <form onSubmit={handleSaveEditContent} className="flex flex-col gap-3">
+                            <div className="flex items-center gap-3">
+                              {(item.fileUrl || item.file) && <FaFilePdf className="text-2xl text-[#4067EC]" />}
+                              {item.link && <FaLink className="text-2xl text-[#4067EC]" />}
+                              {item.text && <span className="text-2xl text-[#4067EC]">📝</span>}
+                              <input 
+                                type="text" 
+                                value={editContent?.name || ''} 
+                                onChange={e => setEditContent({...editContent, name: e.target.value})}
+                                className="font-semibold border rounded px-2 py-1"
+                              />
+                              <div className="ml-auto flex items-center gap-2">
+                                <button type="submit" className="text-green-600 hover:text-green-800">💾</button>
+                                <button type="button" onClick={handleCancelEditContent} className="text-gray-600 hover:text-gray-800">❌</button>
+                              </div>
                             </div>
-                          </div>
+                            {item.text && (
+                              <div className="mt-2">
+                                {MDXEditor && (
+                                  <MDXEditor
+                                    markdown={editContent?.text || ''}
+                                    onChange={(val: string) => setEditContent({...editContent, text: val})}
+                                    className="border rounded min-h-[120px] prose"
+                                    plugins={[
+                                      listsPlugin(),
+                                      toolbarPlugin({
+                                        toolbarContents: () => (
+                                          <>
+                                            <UndoRedo />
+                                            <Separator />
+                                            <BoldItalicUnderlineToggles />
+                                            <CodeToggle />
+                                            <Separator />
+                                            <ListsToggle />
+                                            <Separator />
+                                            <CreateLink />
+                                          </>
+                                        ),
+                                      }),
+                                      linkPlugin(),
+                                      linkDialogPlugin(),
+                                    ]}
+                                  />
+                                )}
+                              </div>
+                            )}
+                          </form>
+                        ) : (
+                          <>
+                            <div className="flex items-center gap-3">
+                              {(item.fileUrl || item.file) && <FaFilePdf className="text-2xl text-[#4067EC]" />}
+                              {item.link && <FaLink className="text-2xl text-[#4067EC]" />}
+                              {item.text && <span className="text-2xl text-[#4067EC]">📝</span>}
+                              <span className="font-semibold">{item.name || (item.file?.name || item.link || 'Materiał')}</span>
+                              <div className="ml-auto flex items-center gap-2">
+                                {item.fileUrl && <a href={item.fileUrl} target="_blank" rel="noopener" className="text-[#4067EC] underline">Pobierz</a>}
+                                {item.file && !item.fileUrl && <a href={URL.createObjectURL(item.file)} target="_blank" rel="noopener" className="text-[#4067EC] underline">Pobierz</a>}
+                                {item.link && <a href={item.link} target="_blank" rel="noopener" className="text-[#4067EC] underline">Otwórz link</a>}
+                                {item.text && <button onClick={() => handleEditContent(item)} className="text-blue-600 hover:text-blue-800">✏️</button>}
+                                <button onClick={() => handleDeleteContent(section.id, item.id)} className="text-red-500 hover:text-red-700">🗑️</button>
+                              </div>
+                            </div>
+                            {item.text && (
+                              <div className="mt-2 p-3 bg-white rounded border-l-4 border-[#4067EC]">
+                                <div className="text-sm text-gray-600 mb-1">Treść:</div>
+                                <div 
+                                  className="whitespace-pre-wrap text-gray-800 prose prose-sm max-w-none"
+                                  dangerouslySetInnerHTML={{ 
+                                    __html: item.text
+                                      .replace(/\n/g, '<br>')
+                                      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                                      .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                                      .replace(/`(.*?)`/g, '<code class="bg-gray-100 px-1 rounded">$1</code>')
+                                  }} 
+                                />
+                              </div>
+                            )}
+                          </>
                         )}
-                      </>
-                    )}
-                  </div>
-                ))}
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
             )}
           </div>
