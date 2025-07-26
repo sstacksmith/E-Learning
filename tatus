@@ -1,0 +1,30 @@
+[1mdiff --git a/learningplatform_nowy2/frontend/src/components/Calendar.tsx b/learningplatform_nowy2/frontend/src/components/Calendar.tsx[m
+[1mindex 0ff331a..7ff6b21 100644[m
+[1m--- a/learningplatform_nowy2/frontend/src/components/Calendar.tsx[m
+[1m+++ b/learningplatform_nowy2/frontend/src/components/Calendar.tsx[m
+[36m@@ -203,11 +203,7 @@[m [mconst Calendar: React.FC = () => {[m
+                     <span>[m
+                       {act.title}[m
+                       {isOverdue && ([m
+[31m-<<<<<<< HEAD[m
+[31m-                        <span className="ml-1 text-red-600 font-bold text-xs align-middle">Po terminie</span>[m
+[31m-=======[m
+                         <span className="ml-1 text-red-600 font-bold text-xs align-middle">⚠️ Po terminie</span>[m
+[31m->>>>>>> c78c990a524da0ea8e1e486de433590987a322d6[m
+                       )}[m
+                     </span>[m
+                   </div>[m
+[36m@@ -218,13 +214,8 @@[m [mconst Calendar: React.FC = () => {[m
+                 <div className="absolute z-20 left-1/2 -translate-x-1/2 top-full mt-1 w-max min-w-[240px] bg-white border border-gray-300 rounded shadow-lg p-3 text-base text-left opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-200 whitespace-pre-line">[m
+                   {day.activities.map((act, i) => ([m
+                     <div key={act.id} className="mb-3 last:mb-0">[m
+[31m-<<<<<<< HEAD[m
+[31m-                      <div><b>{act.title}</b></div>[m
+[31m-                      <div><b>Rodzaj:</b> {act.typeLabel || act.type}</div>[m
+[31m-=======[m
+                       <div><b>{act.title}</b> {act.type === 'exam' && <span className="text-red-600 font-bold">(Egzamin)</span>}</div>[m
+                       <div><b>Rodzaj:</b> {act.type === 'exam' ? 'Egzamin' : act.typeLabel || act.type}</div>[m
+[31m->>>>>>> c78c990a524da0ea8e1e486de433590987a322d6[m
+                       <div><b>Godzina:</b> {act.hour ? act.hour : 'brak'}</div>[m
+                       <div><b>Przedmiot:</b> {act.subject ? act.subject : 'brak'}</div>[m
+                     </div>[m

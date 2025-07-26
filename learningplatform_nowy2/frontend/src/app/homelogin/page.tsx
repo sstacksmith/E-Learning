@@ -880,7 +880,7 @@ function Dashboard() {
                       <h3 className="text-xs sm:text-sm font-bold">Ankiety</h3>
                       <p className="text-xs text-blue-100">Twoja opinia jest dla nas ważna!</p>
                     </div>
-                  </div>
+                  </form>
                   <a 
                     href="/homelogin/ankiety" 
                     className="inline-flex items-center bg-white text-blue-600 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-semibold hover:bg-blue-50 transition duration-200 hover:scale-105 w-full justify-center mt-2"
@@ -897,7 +897,6 @@ function Dashboard() {
                     className="bg-[#4067EC] text-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold cursor-pointer transition duration-200 hover:bg-[#3050b3] hover:scale-105 mt-2 text-xs sm:text-sm"
                     disabled={!!fileError || selectedFiles.length > 3 || sending}
                   >{sending ? 'Wysyłanie...' : 'Wyślij'}</button>
-                </form>
                 </div>
               </div>
             </div>
