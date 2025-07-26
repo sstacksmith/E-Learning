@@ -62,6 +62,12 @@ const sidebarLinks = [
     href: "/homelogin/ankiety"
   },
   {
+    label: "ZPE.gov.pl",
+    icon: <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" /></svg>,
+    href: "https://zpe.gov.pl",
+    external: true
+  },
+  {
     label: "Support & FAQs",
     icon: <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>,
     href: "/homelogin/support"
@@ -84,12 +90,6 @@ const bestSellers = [
   { title: "Top Course - Mathematics", img: "/thumb.png" },
   { title: "Top Course - Physics", img: "/thumb.png" },
   { title: "Top Course - Chemistry", img: "/thumb.png" },
-];
-
-const feedback = [
-  { user: "John Doe", course: "Course - Mathematics", text: "Great course content!", img: "/puzzleicon.png" },
-  { user: "Jane Smith", course: "Course - Physics", text: "Excellent course", img: "/puzzleicon.png" },
-  { user: "Alex Johnson", course: "Course - Chemistry", text: "Very helpful!", img: "/puzzleicon.png" },
 ];
 
 const podstawoweKursy = [
@@ -384,22 +384,29 @@ function Dashboard() {
       const eventsCollection = collection(db, 'events');
       const eventsSnapshot = await getDocs(eventsCollection);
       let eventsList = eventsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      
       // Student widzi tylko swoje eventy
       if (user.role === 'student') {
-        eventsList = eventsList.filter((ev: any) => ev.assignedTo && ev.assignedTo.includes(user.uid));
+        eventsList = eventsList.filter((ev: any) => ev.students && ev.students.includes(user.uid));
       }
-      // Filtrowanie: tylko eventy, które nie są starsze niż 24h od zakończenia
-      const now = new Date();
-      eventsList = eventsList.filter((ev: any) => {
-        // Jeśli nie ma endTime, użyj startTime
-        const end = ev.endTime || ev.startTime;
-        const eventEnd = new Date(ev.date + 'T' + end);
-        return now.getTime() - eventEnd.getTime() < 24 * 60 * 60 * 1000;
-      });
+
       // Sortuj po dacie malejąco
-      eventsList.sort((a: any, b: any) => (b.date + b.startTime).localeCompare(a.date + a.startTime));
+      eventsList.sort((a: any, b: any) => new Date(b.deadline).getTime() - new Date(a.deadline).getTime());
+      
+      // Dodaj informację o przekroczonym terminie
+      const now = new Date();
+      eventsList = eventsList.map((ev: any) => {
+        const deadline = new Date(ev.deadline);
+        const isOverdue = deadline < now;
+        return {
+          ...ev,
+          isOverdue
+        };
+      });
+
       setNotifications(eventsList);
-      // Sprawdź, czy są nieprzeczytane (np. na podstawie localStorage)
+      
+      // Sprawdź, czy są nieprzeczytane
       const lastRead = localStorage.getItem('lastNotifRead');
       if (!lastRead || eventsList.length > 0 && eventsList[0].id !== lastRead) {
         setHasUnread(true);
@@ -590,9 +597,18 @@ function Dashboard() {
           {sidebarLinks.map((item) => (
             <div key={item.label}>
               {item.href ? (
-                <Link href={item.href} className="flex items-center text-gray-700 font-medium py-2 px-2 rounded-lg hover:bg-[#F1F4FE] cursor-pointer transition duration-200 hover:scale-105 text-sm sm:text-base">
+                <Link 
+                  href={item.href} 
+                  className="flex items-center text-gray-700 font-medium py-2 px-2 rounded-lg hover:bg-[#F1F4FE] cursor-pointer transition duration-200 hover:scale-105 text-sm sm:text-base"
+                  {...(item.external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+                >
                   {item.icon}
                   <span className="truncate">{item.label}</span>
+                  {item.external && (
+                    <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                  )}
                 </Link>
               ) : (
                 <div className="flex items-center text-gray-700 font-medium py-2 px-2 rounded-lg hover:bg-[#F1F4FE] cursor-pointer transition duration-200 hover:scale-105 text-sm sm:text-base">
@@ -749,8 +765,21 @@ function Dashboard() {
                         {notifications.map((notif) => (
                           <li key={notif.id} className="p-3 sm:p-4 hover:bg-[#F1F4FE] transition">
                             <div className="font-semibold text-[#1a237e] text-xs sm:text-sm">{notif.title}</div>
-                            <div className="text-xs text-gray-500 mb-1">{notif.date} {notif.startTime}</div>
-                            {notif.description && <div className="text-xs text-gray-700 mt-1">{notif.description}</div>}
+                            <div className="text-xs text-gray-500 mb-1">
+                              Termin: {new Date(notif.deadline).toLocaleString('pl-PL', { 
+                                year: 'numeric',
+                                month: 'long',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                              {notif.isOverdue && (
+                                <span className="ml-2 text-red-600 font-bold">⚠️ Po terminie</span>
+                              )}
+                            </div>
+                            {notif.description && (
+                              <div className="text-xs text-gray-700 mt-1">{notif.description}</div>
+                            )}
                           </li>
                         ))}
                       </ul>
@@ -772,14 +801,14 @@ function Dashboard() {
         </header>
         
         {/* Dashboard grid */}
-        <div className="flex-1 grid grid-cols-1 xl:grid-cols-3 gap-4 sm:gap-6 lg:gap-8 p-3 sm:p-4 lg:p-8 bg-[#F8F9FB]">
-          {/* Main dashboard (2/3) */}
-          <section className="xl:col-span-2 space-y-4 sm:space-y-6 lg:space-y-8">
+        <div className="flex-1 p-3 sm:p-4 lg:p-8 bg-[#F8F9FB]">
+          {/* Main dashboard */}
+          <section className="space-y-4 sm:space-y-6 lg:space-y-8">
             {/* Progress & Chart */}
             <div className="flex flex-col lg:flex-row gap-4 sm:gap-6 lg:gap-8">
               {/* Shortcut/statystyka do statystyk profilu */}
-              <div className="flex-1">
-                <a href="/profile/statistics" className="block bg-white rounded-xl sm:rounded-2xl shadow p-4 sm:p-6 flex flex-col justify-between hover:shadow-lg transition cursor-pointer border-2 border-[#e3eafe] hover:border-[#4067EC]">
+              <div className="w-1/2">
+                <a href="/profile/statistics" className="block bg-white rounded-xl sm:rounded-2xl shadow p-4 sm:p-6 flex flex-col justify-between hover:shadow-lg transition cursor-pointer border-2 border-[#e3eafe] hover:border-[#4067EC] h-full">
                   <div className="flex items-center gap-3 sm:gap-4 mb-3 sm:mb-4">
                     <div className="bg-[#F1F4FE] p-2 sm:p-3 rounded-lg">
                       <svg className="w-6 h-6 sm:w-8 sm:h-8 text-[#4067EC]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2a4 4 0 014-4h4" /></svg>
@@ -800,14 +829,52 @@ function Dashboard() {
                   </div>
                 </a>
               </div>
-              {/* ZPE.gov.pl Link Card przeniesiona z prawego panelu */}
-              <div className="flex-1">
-                <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl sm:rounded-2xl shadow p-3 sm:p-4 text-white h-full flex flex-col justify-between">
-                  <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
-                    <div className="bg-white bg-opacity-20 p-1.5 sm:p-2 rounded-lg">
-                      <svg className="w-4 h-4 sm:w-5 sm:h-5 text-white" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                      </svg>
+
+              {/* Chat with Teacher */}
+              <div className="w-1/2">
+                <div className="bg-white rounded-xl sm:rounded-2xl shadow p-4 sm:p-6 h-full">
+                  <h2 className="text-base sm:text-lg font-bold text-gray-800 mb-3 sm:mb-4">Napisz do nauczyciela</h2>
+                  <form className="flex flex-col gap-3 sm:gap-4" onSubmit={handleSendMessage}>
+                    <label className="text-xs sm:text-sm font-semibold text-gray-700">Wybierz nauczyciela</label>
+                    <select
+                      className="border border-gray-300 rounded px-2 sm:px-3 py-1.5 sm:py-2 focus:ring-2 focus:ring-[#4067EC] bg-white text-[#1a237e] font-semibold text-xs sm:text-sm"
+                      required
+                      value={selectedTeacher}
+                      onChange={e => setSelectedTeacher(e.target.value)}
+                    >
+                      <option value="">-- Wybierz --</option>
+                      {teachers.map(t => (
+                        <option key={t.uid} value={t.uid}>{t.displayName || t.email} | {t.subject || 'przedmiot'} | {t.email}</option>
+                      ))}
+                    </select>
+                    <label className="text-xs sm:text-sm font-semibold text-gray-700">Wiadomość (max 300 słów)</label>
+                    <textarea
+                      className="border border-gray-300 rounded px-2 sm:px-3 py-1.5 sm:py-2 focus:ring-2 focus:ring-[#4067EC] resize-none min-h-[60px] sm:min-h-[80px] max-h-[200px] bg-white text-[#1a237e] font-semibold placeholder-gray-400 text-xs sm:text-sm"
+                      maxLength={2000}
+                      placeholder="Napisz wiadomość..."
+                      required
+                      value={message}
+                      onChange={e => setMessage(e.target.value)}
+                    />
+                    <div className="flex flex-col gap-2">
+                      <label className="text-xs sm:text-sm font-semibold text-gray-700">Załącz pliki (max 3, jpg/png/pdf, max 30MB łącznie)</label>
+                      <input
+                        type="file"
+                        accept=".jpg,.jpeg,.png,.pdf"
+                        className="border border-gray-300 rounded px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm"
+                        multiple
+                        onChange={handleFileChange}
+                        disabled={selectedFiles.length >= 3}
+                      />
+                      {fileError && <div className="text-red-500 text-xs mt-1">{fileError}</div>}
+                      <ul className="mt-1 space-y-1">
+                        {selectedFiles.map((file, idx) => (
+                          <li key={file.name + idx} className="flex items-center gap-2 text-xs text-[#1a237e] font-semibold">
+                            <span>{file.name} ({(file.size/1024/1024).toFixed(2)} MB)</span>
+                            <button type="button" className="text-red-500 hover:underline" onClick={() => handleRemoveFile(idx)}>Usuń</button>
+                          </li>
+                        ))}
+                      </ul>
                     </div>
                     <div>
                       <h3 className="text-xs sm:text-sm font-bold">Ankiety</h3>
@@ -823,10 +890,18 @@ function Dashboard() {
                       <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                     </svg>
                   </a>
+                  {sendSuccess && <div className="text-green-600 text-xs sm:text-sm mt-1">{sendSuccess}</div>}
+                  {sendError && <div className="text-red-600 text-xs sm:text-sm mt-1">{sendError}</div>}
+                  <button
+                    type="submit"
+                    className="bg-[#4067EC] text-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold cursor-pointer transition duration-200 hover:bg-[#3050b3] hover:scale-105 mt-2 text-xs sm:text-sm"
+                    disabled={!!fileError || selectedFiles.length > 3 || sending}
+                  >{sending ? 'Wysyłanie...' : 'Wyślij'}</button>
+                </form>
                 </div>
               </div>
             </div>
-            
+
             {/* Top Courses (przypisane do użytkownika) */}
             <div className="bg-white rounded-xl sm:rounded-2xl shadow p-4 sm:p-6">
               <div className="flex justify-between items-center mb-3 sm:mb-4">
@@ -859,82 +934,6 @@ function Dashboard() {
               <Calendar />
             </div>
           </section>
-          
-          {/* Right panel */}
-          <aside className="space-y-4 sm:space-y-6 lg:space-y-8">
-            {/* Feedback */}
-            <div className="bg-white rounded-xl sm:rounded-2xl shadow p-4 sm:p-6">
-              <h2 className="text-base sm:text-lg font-bold text-gray-800 mb-3 sm:mb-4">Feedback</h2>
-              <div className="space-y-3 sm:space-y-4">
-                {feedback.map((item) => (
-                  <div key={item.user} className="flex items-center gap-2 sm:gap-3">
-                    <Image src={item.img} alt={item.user} width={28} height={28} className="w-7 h-7 sm:w-8 sm:h-8 rounded-full" />
-                    <div>
-                      <span className="font-semibold text-gray-800 text-xs sm:text-sm">{item.user}</span>
-                      <span className="text-xs text-gray-500 ml-1 sm:ml-2">on {item.course}</span>
-                      <div className="text-xs sm:text-sm text-gray-600">{item.text}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <button className="mt-3 sm:mt-4 w-full bg-[#4067EC] text-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold cursor-pointer transition duration-200 hover:bg-[#3050b3] hover:scale-105 text-xs sm:text-sm">Explore all</button>
-            </div>
-            
-            {/* Chat with Teacher */}
-            <div className="bg-white rounded-xl sm:rounded-2xl shadow p-4 sm:p-6">
-              <h2 className="text-base sm:text-lg font-bold text-gray-800 mb-3 sm:mb-4">Napisz do nauczyciela</h2>
-              <form className="flex flex-col gap-3 sm:gap-4" onSubmit={handleSendMessage}>
-                <label className="text-xs sm:text-sm font-semibold text-gray-700">Wybierz nauczyciela</label>
-                <select
-                  className="border border-gray-300 rounded px-2 sm:px-3 py-1.5 sm:py-2 focus:ring-2 focus:ring-[#4067EC] bg-white text-[#1a237e] font-semibold text-xs sm:text-sm"
-                  required
-                  value={selectedTeacher}
-                  onChange={e => setSelectedTeacher(e.target.value)}
-                >
-                  <option value="">-- Wybierz --</option>
-                  {teachers.map(t => (
-                    <option key={t.uid} value={t.uid}>{t.displayName || t.email} | {t.subject || 'przedmiot'} | {t.email}</option>
-                  ))}
-                </select>
-                <label className="text-xs sm:text-sm font-semibold text-gray-700">Wiadomość (max 300 słów)</label>
-                <textarea
-                  className="border border-gray-300 rounded px-2 sm:px-3 py-1.5 sm:py-2 focus:ring-2 focus:ring-[#4067EC] resize-none min-h-[60px] sm:min-h-[80px] max-h-[200px] bg-white text-[#1a237e] font-semibold placeholder-gray-400 text-xs sm:text-sm"
-                  maxLength={2000}
-                  placeholder="Napisz wiadomość..."
-                  required
-                  value={message}
-                  onChange={e => setMessage(e.target.value)}
-                />
-                <div className="flex flex-col gap-2">
-                  <label className="text-xs sm:text-sm font-semibold text-gray-700">Załącz pliki (max 3, jpg/png/pdf, max 30MB łącznie)</label>
-                  <input
-                    type="file"
-                    accept=".jpg,.jpeg,.png,.pdf"
-                    className="border border-gray-300 rounded px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm"
-                    multiple
-                    onChange={handleFileChange}
-                    disabled={selectedFiles.length >= 3}
-                  />
-                  {fileError && <div className="text-red-500 text-xs mt-1">{fileError}</div>}
-                  <ul className="mt-1 space-y-1">
-                    {selectedFiles.map((file, idx) => (
-                      <li key={file.name + idx} className="flex items-center gap-2 text-xs text-[#1a237e] font-semibold">
-                        <span>{file.name} ({(file.size/1024/1024).toFixed(2)} MB)</span>
-                        <button type="button" className="text-red-500 hover:underline" onClick={() => handleRemoveFile(idx)}>Usuń</button>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-                {sendSuccess && <div className="text-green-600 text-xs sm:text-sm mt-1">{sendSuccess}</div>}
-                {sendError && <div className="text-red-600 text-xs sm:text-sm mt-1">{sendError}</div>}
-                <button
-                  type="submit"
-                  className="bg-[#4067EC] text-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold cursor-pointer transition duration-200 hover:bg-[#3050b3] hover:scale-105 mt-2 text-xs sm:text-sm"
-                  disabled={!!fileError || selectedFiles.length > 3 || sending}
-                >{sending ? 'Wysyłanie...' : 'Wyślij'}</button>
-              </form>
-            </div>
-          </aside>
         </div>
       </main>
     </div>

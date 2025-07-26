@@ -8,7 +8,7 @@ import { useAuth } from '../context/AuthContext';
 const ACTIVITY_COLORS: Record<string, string> = {
   assignment: '#d1f5e0', // pastelowy zielony
   quiz: '#fff9c4',       // pastelowy żółty
-  exam: '#ffe0b2',       // pastelowy pomarańczowy
+  exam: '#FFE4E4',       // pastelowy czerwony dla egzaminów
 };
 
 interface Activity {
@@ -203,7 +203,11 @@ const Calendar: React.FC = () => {
                     <span>
                       {act.title}
                       {isOverdue && (
+<<<<<<< HEAD
                         <span className="ml-1 text-red-600 font-bold text-xs align-middle">Po terminie</span>
+=======
+                        <span className="ml-1 text-red-600 font-bold text-xs align-middle">⚠️ Po terminie</span>
+>>>>>>> c78c990a524da0ea8e1e486de433590987a322d6
                       )}
                     </span>
                   </div>
@@ -214,8 +218,13 @@ const Calendar: React.FC = () => {
                 <div className="absolute z-20 left-1/2 -translate-x-1/2 top-full mt-1 w-max min-w-[240px] bg-white border border-gray-300 rounded shadow-lg p-3 text-base text-left opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-200 whitespace-pre-line">
                   {day.activities.map((act, i) => (
                     <div key={act.id} className="mb-3 last:mb-0">
+<<<<<<< HEAD
                       <div><b>{act.title}</b></div>
                       <div><b>Rodzaj:</b> {act.typeLabel || act.type}</div>
+=======
+                      <div><b>{act.title}</b> {act.type === 'exam' && <span className="text-red-600 font-bold">(Egzamin)</span>}</div>
+                      <div><b>Rodzaj:</b> {act.type === 'exam' ? 'Egzamin' : act.typeLabel || act.type}</div>
+>>>>>>> c78c990a524da0ea8e1e486de433590987a322d6
                       <div><b>Godzina:</b> {act.hour ? act.hour : 'brak'}</div>
                       <div><b>Przedmiot:</b> {act.subject ? act.subject : 'brak'}</div>
                     </div>

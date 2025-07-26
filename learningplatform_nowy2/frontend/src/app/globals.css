@@ -204,3 +204,51 @@ a:hover, .link:hover {
   margin-right: 0.5em;
   vertical-align: middle;
 }
+
+/* Dodanie stylów dla list punktowanych i numerowanych */
+.prose ul {
+  list-style-type: disc;
+}
+.prose ol {
+  list-style-type: decimal;
+}
+
+/* Poprawka dla kontenerów popup MDXEditor */
+.mdxeditor-popup-container {
+  display: none !important;
+}
+
+.mdxeditor-popup-container:has(.mdxeditor-popup) {
+  display: block !important;
+  position: absolute !important;
+  z-index: 50 !important;
+}
+
+/* Dodatkowe style dla edytora */
+.mdxeditor {
+  position: relative !important;
+  z-index: 1 !important;
+}
+
+/* Style dla MDXEditor */
+.mdxeditor-root {
+  position: relative !important;
+  z-index: 1 !important;
+}
+
+div[class*='_popupContainer_'] {
+  display: none;
+}
+
+div[class*='_popupContainer_']:has(div[class*='_popup_']) {
+  display: block;
+  position: absolute !important;
+  z-index: 50 !important;
+  top: auto !important;
+  left: auto !important;
+}
+
+.mdxeditor {
+  min-height: 120px;
+  width: 100%;
+}
