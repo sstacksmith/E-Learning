@@ -1,0 +1,4 @@
+warning: in the working copy of 'learningplatform_nowy2/backend/api/models.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'learningplatform_nowy2/backend/learningplatform/views.py', LF will be replaced by CRLF the next time Git touches it
+learningplatform_nowy2/frontend/src/app/homelogin/page.tsx
+learningplatform_nowy2/frontend/src/components/Calendar.tsx

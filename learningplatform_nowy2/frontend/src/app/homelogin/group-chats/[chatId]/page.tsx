@@ -332,6 +332,12 @@ export default function GroupChatView() {
         return;
       }
       
+      // Nie pozwól dodać samego siebie
+      if (userUid === auth.currentUser?.uid) {
+        alert("Nie możesz dodać samego siebie do czatu");
+        return;
+      }
+      
       if (participants.includes(userUid)) {
         alert("Ten użytkownik jest już w czacie");
         return;
@@ -351,6 +357,12 @@ export default function GroupChatView() {
     if (!isTeacher) return;
     
     try {
+      // Nie pozwól usunąć samego siebie
+      if (userUid === auth.currentUser?.uid) {
+        alert("Nie możesz usunąć samego siebie z czatu");
+        return;
+      }
+      
       const newParticipants = participants.filter(p => p !== userUid);
       await updateDoc(doc(db, "groupChats", chatId), {
         participants: newParticipants
@@ -545,7 +557,7 @@ export default function GroupChatView() {
                         : participant.email;
                       
                       return (
-                        <div key={participant.uid} className={`flex items-center justify-between p-2 rounded ${isCurrentUser ? 'bg-[#4067EC] text-white' : 'bg-white'}`}>
+                        <div key={`${participant.uid}-${index}`} className={`flex items-center justify-between p-2 rounded ${isCurrentUser ? 'bg-[#4067EC] text-white' : 'bg-white'}`}>
                           <div className="flex items-center gap-2 flex-1">
                             <div className="w-6 h-6 rounded-full bg-gray-300 flex items-center justify-center text-xs font-bold text-gray-600">
                               {displayName[0]?.toUpperCase() || "?"}
@@ -698,7 +710,8 @@ function AddParticipantModal({
             if (!u.firebase_uid) {
               return false;
             }
-            return !currentParticipants.includes(u.firebase_uid);
+            // Nie pokazuj zalogowanego użytkownika ani już dodanych uczestników
+            return !currentParticipants.includes(u.firebase_uid) && u.firebase_uid !== auth.currentUser?.uid;
           });
           setAllUsers(availableUsers);
         }

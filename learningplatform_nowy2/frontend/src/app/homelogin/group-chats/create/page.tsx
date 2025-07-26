@@ -60,6 +60,11 @@ export default function CreateGroupChatPage() {
   }, []);
 
   const handleToggleUser = (user: UserOption) => {
+    // Nie pozwól dodać samego siebie
+    if (user.firebase_uid === auth.currentUser?.uid) {
+      return;
+    }
+    
     if (selectedUsers.find((u) => u.id === user.id)) {
       setSelectedUsers(selectedUsers.filter((u) => u.id !== user.id));
     } else {
@@ -67,8 +72,8 @@ export default function CreateGroupChatPage() {
     }
   };
 
-  // Filtruj użytkowników na podstawie wyszukiwania
-  const filteredUsers = searchTerm.length >= 3 ? allUsers.filter(user => {
+  // Filtruj użytkowników na podstawie wyszukiwania i wyklucz zalogowanego użytkownika
+  const filteredUsers = (searchTerm.length >= 3 ? allUsers.filter(user => {
     const searchLower = searchTerm.toLowerCase();
     const firstName = user.first_name?.toLowerCase() || '';
     const lastName = user.last_name?.toLowerCase() || '';
@@ -76,7 +81,7 @@ export default function CreateGroupChatPage() {
     return firstName.startsWith(searchLower) ||
            lastName.startsWith(searchLower) ||
            email.startsWith(searchLower);
-  }) : allUsers;
+  }) : allUsers).filter(user => user.firebase_uid !== auth.currentUser?.uid);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();

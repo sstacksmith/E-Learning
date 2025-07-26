@@ -5,6 +5,7 @@ from django.db import models
 
 class User(AbstractUser):
     email = models.EmailField(unique=True)
+    firebase_uid = models.CharField(max_length=128, blank=True, null=True, unique=True)
     is_student = models.BooleanField(default=True)
     is_teacher = models.BooleanField(default=False)
     profile_picture = models.ImageField(upload_to='profile_pictures/', null=True, blank=True)

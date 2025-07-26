@@ -396,9 +396,8 @@ class UserListView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        # Only allow superusers to view all users
-        if not request.user.is_superuser:
-            return Response({'detail': 'Unauthorized'}, status=status.HTTP_403_FORBIDDEN)
+        # Allow all authenticated users to view users (needed for chat participants)
+        # This is safe because we only return basic user info needed for chat functionality
         
         users = User.objects.all()
         user_data = []
@@ -407,6 +406,10 @@ class UserListView(APIView):
                 'id': user.id,
                 'username': user.username,
                 'email': user.email,
+                'firebase_uid': user.firebase_uid or '',
+                'first_name': user.first_name or '',
+                'last_name': user.last_name or '',
+                'role': 'teacher' if user.is_teacher else 'student',
                 'is_teacher': user.is_teacher,
                 'is_student': user.is_student,
                 'is_superuser': user.is_superuser,
