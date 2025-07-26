@@ -7,7 +7,7 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db } from "@/config/firebase";
 import Image from "next/image";
 import Providers from '@/components/Providers';
-import { FaFilePdf, FaFileAlt, FaLink, FaChevronDown, FaChevronUp, FaPlus, FaImage } from "react-icons/fa";
+import { FaFilePdf, FaFileAlt, FaLink, FaChevronDown, FaChevronUp, FaPlus, FaImage, FaClipboardList, FaGraduationCap, FaUsers } from "react-icons/fa";
 import dynamic from 'next/dynamic';
 // Dynamiczny import MDXEditor
 const MDXEditor = dynamic(() => import('@mdxeditor/editor').then(mod => mod.MDXEditor), { ssr: false });
@@ -560,7 +560,7 @@ function TeacherCourseDetailContent() {
       await refreshCourseData();
       
       // Automatycznie utwórz event w kalendarzu dla zadań i egzaminów
-      if ((newSection.type === 'zadanie' || newSection.type === 'egzamin') && newSection.deadline && user?.uid) {
+      if ((newSection.type === 'zadanie' || newSection.type === 'exam') && newSection.deadline && user?.uid) {
         await createCalendarEvent(sectionWithSubmissions, courseId, user.uid);
       }
     }
@@ -753,13 +753,13 @@ function TeacherCourseDetailContent() {
       // Create event in calendar collection
       const eventData = {
         title: section.name,
-        type: section.type === 'zadanie' ? 'assignment' : 'exam',
+        type: section.type === 'zadanie' ? 'assignment' : section.type === 'exam' ? 'exam' : 'activity',
         courseId: String(courseId),
         sectionId: section.id,
         deadline: section.deadline,
         createdBy: teacherUid,
         students: assignedUids, // All students assigned to this course
-        description: `Zadanie z kursu: ${courseData.title || 'Kurs'}`,
+        description: `${section.type === 'exam' ? 'Egzamin' : 'Zadanie'} z kursu: ${courseData.title || 'Kurs'}`,
         createdAt: new Date().toISOString()
       };
       
@@ -908,8 +908,18 @@ function TeacherCourseDetailContent() {
                   title="Zadanie"
                   style={{minWidth: 48}}
                 >
-                  <FaFilePdf className="text-lg mb-0.5" />
+                  <FaClipboardList className="text-lg mb-0.5" />
                   <span className="text-[10px] font-medium leading-tight">Zadanie</span>
+                </button>
+                <button
+                  type="button"
+                  className={`flex flex-col items-center px-2 py-1 rounded border transition focus:outline-none ${newSection.type === 'exam' ? 'text-[#4067EC] border-[#4067EC] font-bold' : 'text-gray-700 border-gray-300'} bg-transparent hover:bg-transparent`}
+                  onClick={() => setNewSection(s => ({...s, type: 'exam'}))}
+                  title="Egzamin"
+                  style={{minWidth: 48}}
+                >
+                  <FaGraduationCap className="text-lg mb-0.5" />
+                  <span className="text-[10px] font-medium leading-tight">Egzamin</span>
                 </button>
                 <button
                   type="button"
@@ -918,16 +928,16 @@ function TeacherCourseDetailContent() {
                   title="Aktywność"
                   style={{minWidth: 48}}
                 >
-                  <FaLink className="text-lg mb-0.5" />
+                  <FaUsers className="text-lg mb-0.5" />
                   <span className="text-[10px] font-medium leading-tight">Aktywność</span>
                 </button>
               </div>
               <button type="submit" className="bg-[#4067EC] text-white px-4 py-2 rounded font-semibold">Dodaj</button>
               <button type="button" className="bg-gray-200 px-4 py-2 rounded font-semibold" onClick={() => setAddingSection(false)}>Anuluj</button>
             </div>
-            {newSection.type === 'zadanie' && (
+            {(newSection.type === 'zadanie' || newSection.type === 'exam') && (
               <div className="flex flex-col sm:flex-row gap-2 items-center">
-                <label className="text-sm font-medium text-gray-700">Termin oddania:</label>
+                <label className="text-sm font-medium text-gray-700">Termin {newSection.type === 'exam' ? 'egzaminu' : 'oddania'}:</label>
                 <input 
                   type="datetime-local" 
                   className="border rounded px-3 py-2" 

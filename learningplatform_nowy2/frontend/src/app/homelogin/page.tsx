@@ -379,22 +379,29 @@ function Dashboard() {
       const eventsCollection = collection(db, 'events');
       const eventsSnapshot = await getDocs(eventsCollection);
       let eventsList = eventsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      
       // Student widzi tylko swoje eventy
       if (user.role === 'student') {
-        eventsList = eventsList.filter((ev: any) => ev.assignedTo && ev.assignedTo.includes(user.uid));
+        eventsList = eventsList.filter((ev: any) => ev.students && ev.students.includes(user.uid));
       }
-      // Filtrowanie: tylko eventy, które nie są starsze niż 24h od zakończenia
-      const now = new Date();
-      eventsList = eventsList.filter((ev: any) => {
-        // Jeśli nie ma endTime, użyj startTime
-        const end = ev.endTime || ev.startTime;
-        const eventEnd = new Date(ev.date + 'T' + end);
-        return now.getTime() - eventEnd.getTime() < 24 * 60 * 60 * 1000;
-      });
+
       // Sortuj po dacie malejąco
-      eventsList.sort((a: any, b: any) => (b.date + b.startTime).localeCompare(a.date + a.startTime));
+      eventsList.sort((a: any, b: any) => new Date(b.deadline).getTime() - new Date(a.deadline).getTime());
+      
+      // Dodaj informację o przekroczonym terminie
+      const now = new Date();
+      eventsList = eventsList.map((ev: any) => {
+        const deadline = new Date(ev.deadline);
+        const isOverdue = deadline < now;
+        return {
+          ...ev,
+          isOverdue
+        };
+      });
+
       setNotifications(eventsList);
-      // Sprawdź, czy są nieprzeczytane (np. na podstawie localStorage)
+      
+      // Sprawdź, czy są nieprzeczytane
       const lastRead = localStorage.getItem('lastNotifRead');
       if (!lastRead || eventsList.length > 0 && eventsList[0].id !== lastRead) {
         setHasUnread(true);
@@ -753,8 +760,21 @@ function Dashboard() {
                         {notifications.map((notif) => (
                           <li key={notif.id} className="p-3 sm:p-4 hover:bg-[#F1F4FE] transition">
                             <div className="font-semibold text-[#1a237e] text-xs sm:text-sm">{notif.title}</div>
-                            <div className="text-xs text-gray-500 mb-1">{notif.date} {notif.startTime}</div>
-                            {notif.description && <div className="text-xs text-gray-700 mt-1">{notif.description}</div>}
+                            <div className="text-xs text-gray-500 mb-1">
+                              Termin: {new Date(notif.deadline).toLocaleString('pl-PL', { 
+                                year: 'numeric',
+                                month: 'long',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                              {notif.isOverdue && (
+                                <span className="ml-2 text-red-600 font-bold">⚠️ Po terminie</span>
+                              )}
+                            </div>
+                            {notif.description && (
+                              <div className="text-xs text-gray-700 mt-1">{notif.description}</div>
+                            )}
                           </li>
                         ))}
                       </ul>
