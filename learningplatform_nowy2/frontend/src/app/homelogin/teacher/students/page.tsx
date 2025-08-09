@@ -35,7 +35,7 @@ export default function TeacherStudents() {
         } as Student & { role?: string }))
         .filter(user => user && user.role === 'student');
       // Default sort: home learners first
-      studentsList.sort((a, b) => (a.Learningmode === 'home' ? -1 : 1));
+      studentsList.sort((a) => (a.Learningmode === 'home' ? -1 : 1));
       setStudents(studentsList);
       setLoading(false);
     };
@@ -49,7 +49,7 @@ export default function TeacherStudents() {
       const studentDocRef = doc(db, 'users', studentId);
       await updateDoc(studentDocRef, { primaryTutorId: currentUser.uid });
       setStudents(prev => prev.map(s => s.uid === studentId ? { ...s, primaryTutorId: currentUser.uid } : s));
-    } catch (err) {
+    } catch {
       alert('Failed to assign tutor.');
     } finally {
       setAssigning(null);

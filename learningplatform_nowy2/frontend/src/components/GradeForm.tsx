@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthContext';
 interface Student {
   uid: string;
   displayName: string;
+  role?: string;
 }
 
 const SUBJECTS = [
@@ -47,8 +48,8 @@ const GradeForm: React.FC<{ onGradeAdded?: () => void }> = ({ onGradeAdded }) =>
       const usersCollection = collection(db, 'users');
       const usersSnapshot = await getDocs(usersCollection);
       const studentsList = usersSnapshot.docs
-        .map(doc => ({ uid: doc.id, ...doc.data() } as Student))
-        .filter(user => user && (user as any).role === 'student');
+        .map(doc => ({ uid: doc.id, ...(doc.data() as Record<string, unknown>) } as Student))
+        .filter(user => user?.role === 'student');
       setStudents(studentsList);
     };
     fetchStudents();
@@ -81,7 +82,7 @@ const GradeForm: React.FC<{ onGradeAdded?: () => void }> = ({ onGradeAdded }) =>
       setDate('');
       setGradeType('');
       if (onGradeAdded) onGradeAdded();
-    } catch (err) {
+    } catch {
       setError('Błąd podczas dodawania oceny.');
     } finally {
       setLoading(false);

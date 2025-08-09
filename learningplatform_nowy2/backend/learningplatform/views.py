@@ -21,6 +21,20 @@ import firebase_admin
 from firebase_admin import firestore
 import logging
 import time
+from rest_framework import viewsets, status
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from .models import Quiz, Question, QuizAttempt
+from .serializers import (
+    QuizSerializer, 
+    QuestionSerializer, 
+    QuizAttemptSerializer,
+    QuestionResponseSerializer
+)
+import sympy
+from sympy.parsing.latex import parse_latex
+from django.db import transaction
 
 # Konfiguracja logowania
 logger = logging.getLogger(__name__)
@@ -599,3 +613,264 @@ def courses_debug(request):
         })
     except Exception as e:
         return Response({'error': str(e)}, status=500) 
+
+class QuizViewSet(viewsets.ModelViewSet):
+    serializer_class = QuizSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        print(f"=== QUIZ QUERYSET ===")
+        print(f"User: {self.request.user.email}")
+        print(f"Is teacher: {self.request.user.is_teacher}")
+        print(f"Is student: {self.request.user.is_student}")
+        
+        queryset = Quiz.objects.all()
+        print(f"Initial queryset count: {queryset.count()}")
+
+        # Sprawdź czy szukamy po firebase_id
+        firebase_id = self.kwargs.get('pk')
+        if firebase_id and not firebase_id.isdigit():
+            print(f"Looking for quiz with firebase_id: {firebase_id}")
+            quiz = queryset.filter(firebase_id=firebase_id).first()
+            if not quiz:
+                # Jeśli nie znaleziono quizu, utwórz go
+                try:
+                    quiz = Quiz.objects.create(
+                        title='www',
+                        subject='Język niemiecki',
+                        created_by=self.request.user,
+                        firebase_id=firebase_id
+                    )
+                    print(f"Created new quiz with firebase_id: {firebase_id}")
+                except Exception as e:
+                    print(f"Error creating quiz: {str(e)}")
+            return Quiz.objects.filter(id=quiz.id if quiz else None)
+
+        # Filtruj po kursie jeśli podano course_id
+        course_id = self.request.query_params.get('course_id', None)
+        if course_id:
+            queryset = queryset.filter(course_id=course_id)
+            print(f"After course_id filter ({course_id}): {queryset.count()}")
+
+        # Dla nauczyciela - pokaż quizy z jego kursów
+        if self.request.user.is_teacher:
+            teacher_courses = Course.objects.filter(created_by=self.request.user)
+            print(f"Teacher courses: {[c.id for c in teacher_courses]}")
+            queryset = queryset.filter(course__in=teacher_courses)
+            print(f"After teacher filter: {queryset.count()}")
+        # Dla studenta - pokaż quizy z zapisanych kursów
+        elif self.request.user.is_student:
+            assignments = CourseAssignment.objects.filter(student=self.request.user, is_active=True)
+            student_courses = [a.course for a in assignments]
+            print(f"Student courses from assignments: {[c.id for c in student_courses]}")
+            queryset = queryset.filter(course__in=student_courses)
+            print(f"After student filter: {queryset.count()}")
+
+        final_queryset = queryset.select_related('course', 'created_by')
+        print(f"Final queryset count: {final_queryset.count()}")
+        return final_queryset
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+
+    @action(detail=True, methods=['post'])
+    def start_attempt(self, request, pk=None):
+        quiz = self.get_object()
+        serializer = QuizAttemptSerializer(data={'quiz': quiz.id, 'user': request.user.id})
+        if serializer.is_valid():
+            attempt = serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'])
+    def submit_answer(self, request, pk=None):
+        quiz = self.get_object()
+        # Sprawdź czy student jest zapisany na kurs przez CourseAssignment
+        if not CourseAssignment.objects.filter(
+            student=request.user,
+            course=quiz.course,
+            is_active=True
+        ).exists():
+            return Response(
+                {'error': 'You are not enrolled in this course'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        attempt = QuizAttempt.objects.filter(
+            quiz=quiz,
+            user=request.user,
+            completed_at__isnull=True
+        ).latest('started_at')
+
+        serializer = QuestionResponseSerializer(data={
+            'attempt': attempt.id,
+            'question': request.data.get('question'),
+            'answer': request.data.get('answer')
+        })
+
+        if serializer.is_valid():
+            response = serializer.save()
+            
+            # Calculate and update score
+            total_questions = quiz.questions.count()
+            correct_answers = attempt.responses.filter(is_correct=True).count()
+            attempt.score = (correct_answers / total_questions) * 100
+            attempt.save()
+
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'])
+    def verify_math_expression(self, request, pk=None):
+        try:
+            # Parse the expressions
+            expr1 = parse_latex(request.data.get('expression1', ''))
+            expr2 = parse_latex(request.data.get('expression2', ''))
+            
+            # Check if expressions are equivalent
+            is_equivalent = sympy.simplify(expr1 - expr2) == 0
+            
+            return Response({
+                'is_equivalent': is_equivalent,
+                'simplified_expr1': str(sympy.simplify(expr1)),
+                'simplified_expr2': str(sympy.simplify(expr2))
+            })
+        except Exception as e:
+            return Response(
+                {'error': f'Error comparing expressions: {str(e)}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+    @action(detail=True, methods=['post'])
+    def update_firebase_id(self, request, pk=None):
+        quiz = self.get_object()
+        firebase_id = request.data.get('firebase_id')
+        
+        if not firebase_id:
+            return Response(
+                {'error': 'firebase_id is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            quiz.firebase_id = firebase_id
+            quiz.save()
+            return Response({'status': 'firebase_id updated'})
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=True, methods=['get'], url_path='results')
+    def get_results(self, request, pk=None):
+        try:
+            # Próbujemy znaleźć quiz po firebase_id
+            if not pk.isdigit():
+                quiz = Quiz.objects.filter(firebase_id=pk).first()
+                if not quiz:
+                    # Jeśli nie znaleziono quizu, utwórz go
+                    try:
+                        quiz = Quiz.objects.create(
+                            title='www',
+                            subject='Język niemiecki',
+                            created_by=request.user,
+                            firebase_id=pk
+                        )
+                        print(f"Created new quiz with firebase_id: {pk}")
+                    except Exception as e:
+                        print(f"Error creating quiz: {str(e)}")
+                        return Response(
+                            {'error': f'Failed to create quiz: {str(e)}'},
+                            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                        )
+            else:
+                quiz = self.get_object()
+
+            # Sprawdź czy użytkownik ma dostęp do tego quizu
+            if not request.user.is_teacher and not request.user.is_superuser:
+                return Response(
+                    {'error': 'Only teachers can view quiz results'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
+            attempts = QuizAttempt.objects.filter(quiz=quiz).select_related('user')
+            print(f"Found {attempts.count()} attempts for quiz {quiz.id}")
+            
+            results = []
+            for attempt in attempts:
+                results.append({
+                    'id': str(attempt.id),
+                    'student_email': attempt.user.email,
+                    'student_name': f"{attempt.user.first_name} {attempt.user.last_name}".strip() or attempt.user.email,
+                    'score': attempt.score,
+                    'started_at': attempt.started_at,
+                    'completed_at': attempt.completed_at,
+                    'is_completed': attempt.completed_at is not None
+                })
+            
+            response_data = {
+                'quiz_id': quiz.id,
+                'firebase_id': quiz.firebase_id,
+                'quiz_title': quiz.title,
+                'results': sorted(results, key=lambda x: x['student_name'])
+            }
+            return Response(response_data)
+            
+        except Exception as e:
+            print(f"Error fetching results: {str(e)}")
+            return Response(
+                {'error': f'Failed to fetch quiz results: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=False, methods=['post'])
+    def create_test_quiz(self, request):
+        try:
+            with transaction.atomic():
+                # Znajdź lub utwórz użytkownika
+                user = User.objects.filter(is_superuser=True).first()
+                if not user:
+                    user = User.objects.create_superuser(
+                        username='admin',
+                        email='admin@example.com',
+                        password='admin123'
+                    )
+                    print(f'Created admin user: {user.email}')
+
+                # Utwórz quiz
+                quiz = Quiz.objects.create(
+                    title='www',
+                    subject='Język niemiecki',
+                    created_by=user,
+                    firebase_id='6npGeBAPPbZRlDPJPACB'
+                )
+                print(f'Created quiz: {quiz.id} with firebase_id: {quiz.firebase_id}')
+                
+                serializer = self.get_serializer(quiz)
+                return Response(serializer.data)
+        except Exception as e:
+            print(f'Error creating quiz: {str(e)}')
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+class QuestionViewSet(viewsets.ModelViewSet):
+    queryset = Question.objects.all()
+    serializer_class = QuestionSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        queryset = Question.objects.all()
+        quiz_id = self.request.query_params.get('quiz', None)
+        if quiz_id:
+            queryset = queryset.filter(quiz_id=quiz_id)
+        return queryset
+
+class QuizAttemptViewSet(viewsets.ModelViewSet):
+    serializer_class = QuizAttemptSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return QuizAttempt.objects.filter(user=self.request.user) 

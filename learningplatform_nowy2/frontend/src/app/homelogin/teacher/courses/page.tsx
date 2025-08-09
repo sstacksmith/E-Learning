@@ -1,13 +1,12 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 // Usunięte nieużywane importy Firebase Storage
 import { db } from '../../../../config/firebase';
 import Link from "next/link";
-import Image from "next/image";
 import { useAuth } from '@/context/AuthContext';
 
 interface Course {
-  id: number;
+  id: string;
   title: string;
   description: string;
   year_of_study: number;
@@ -19,6 +18,9 @@ interface Course {
   links: string[];
   slug: string;
   created_by?: string;
+  teacherEmail?: string;
+  assignedUsers?: string[];
+  sections?: unknown[];
 }
 
 // Usunięte SUBJECTS - nieużywane po usunięciu formularza tworzenia kursów
@@ -38,16 +40,13 @@ export default function TeacherCourses() {
   const [success, setSuccess] = useState<string | null>(null);
   const [deletingCourse, setDeletingCourse] = useState<string | null>(null);
 
-  useEffect(() => {
-    // Natychmiastowe pobranie kursów bez cache'owania przy pierwszym ładowaniu
-    fetchCourses(1, false);
-  }, []);
+  
 
   // Cache'owanie kursów w localStorage - tylko dla kolejnych odświeżeń
   const cacheKey = 'teacher_courses_cache';
   const cacheExpiry = 2 * 60 * 1000; // 2 minuty (krótszy czas)
 
-  const getCachedCourses = () => {
+  const getCachedCourses = useCallback(() => {
     if (typeof window === 'undefined') return null;
     const cached = localStorage.getItem(cacheKey);
     if (cached) {
@@ -57,9 +56,9 @@ export default function TeacherCourses() {
       }
     }
     return null;
-  };
+  }, [cacheKey, cacheExpiry]);
 
-  const setCachedCourses = (data: any) => {
+  const setCachedCourses = (data: { results: Course[]; pagination: { page: number; page_size: number; total_pages: number; count: number; }; }) => {
     if (typeof window === 'undefined') return;
     localStorage.setItem(cacheKey, JSON.stringify({
       data,
@@ -67,13 +66,13 @@ export default function TeacherCourses() {
     }));
   };
 
-  const clearCache = () => {
+  const clearCache = useCallback(() => {
     if (typeof window !== 'undefined') {
       localStorage.removeItem(cacheKey);
     }
-  };
+  }, [cacheKey]);
 
-  const fetchCourses = async (page = 1, useCache = true, retryCount = 0) => {
+  const fetchCourses = useCallback(async (page = 1, useCache = true, retryCount = 0) => {
     console.log(`[DEBUG] fetchCourses called - page: ${page}, useCache: ${useCache}, retryCount: ${retryCount}`);
     
     setLoading(true);
@@ -100,7 +99,7 @@ export default function TeacherCourses() {
       console.log('[DEBUG] Fetching courses from Firestore...');
       
       // Pobierz kursy bezpośrednio z Firestore
-      const { collection, getDocs, query, where, orderBy, limit, startAfter } = await import('firebase/firestore');
+      const { collection, getDocs } = await import('firebase/firestore');
       const coursesCollection = collection(db, 'courses');
       
       // Pobierz tylko kursy przypisane do zalogowanego nauczyciela
@@ -176,7 +175,7 @@ export default function TeacherCourses() {
       }
       
       console.log('[DEBUG] Courses loaded successfully from Firestore');
-    } catch (err: any) {
+    } catch (err) {
       console.error('[DEBUG] Error fetching courses from Firestore:', err);
       
       // Retry logic dla błędów sieciowych
@@ -188,15 +187,24 @@ export default function TeacherCourses() {
         return;
       }
       
-      setError(`Failed to load courses from Firestore: ${err.message}`);
+      if (err instanceof Error) {
+        setError(`Failed to load courses from Firestore: ${err.message}`);
+      } else {
+        setError('Failed to load courses from Firestore');
+      }
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.email, setLoading, setError, setCourses, setPagination, getCachedCourses]);
+
+  useEffect(() => {
+    // Natychmiastowe pobranie kursów bez cache'owania przy pierwszym ładowaniu
+    fetchCourses(1, false);
+  }, [fetchCourses]);
 
   // Usunięte funkcje związane z tworzeniem kursów - tylko admin może tworzyć kursy
 
-  const handleDeleteCourse = async (courseId: string) => {
+  const handleDeleteCourse = useCallback(async (courseId: string) => {
     if (!confirm('Czy na pewno chcesz usunąć ten kurs? Ta operacja jest nieodwracalna.')) {
       return;
     }
@@ -215,7 +223,7 @@ export default function TeacherCourses() {
     } finally {
       setDeletingCourse(null);
     }
-  };
+  }, [setDeletingCourse, setSuccess, clearCache, fetchCourses, pagination.page, setError]);
 
   // Usunięta funkcja handleCreateCourse - tylko admin może tworzyć kursy
 

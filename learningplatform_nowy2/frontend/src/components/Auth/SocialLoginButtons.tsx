@@ -1,16 +1,23 @@
-import { signInWithPopup } from 'firebase/auth';
+import { signInWithPopup, AuthProvider } from 'firebase/auth';
 import { auth, googleProvider, microsoftProvider } from '@/config/firebase';
 import { useAuth } from '@/context/AuthContext';
+import Image from 'next/image';
+
+interface User {
+  uid: string;
+  email: string;
+  displayName: string;
+}
 
 interface SocialLoginButtonsProps {
-  onSuccess?: (user: any) => void;
+  onSuccess?: (user: User) => void;
   onError?: (error: string) => void;
 }
 
 export default function SocialLoginButtons({ onSuccess, onError }: SocialLoginButtonsProps) {
   const { setUser } = useAuth();
 
-  const handleLogin = async (provider: any) => {
+  const handleLogin = async (provider: AuthProvider) => {
     try {
       console.log('Starting social login with provider:', provider.providerId);
       const result = await signInWithPopup(auth, provider);
@@ -53,10 +60,10 @@ export default function SocialLoginButtons({ onSuccess, onError }: SocialLoginBu
         onSuccess(data.user);
       }
       
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Social login error:', err);
       if (onError) {
-        onError(err.message || 'An error occurred during social login');
+        onError(err instanceof Error ? err.message : 'An error occurred during social login');
       }
     }
   };
@@ -77,7 +84,7 @@ export default function SocialLoginButtons({ onSuccess, onError }: SocialLoginBu
           onClick={() => handleLogin(googleProvider)}
           className="flex items-center justify-center gap-2 bg-white text-gray-800 px-4 py-2 rounded-md border border-gray-300 hover:bg-gray-50 transition-colors"
         >
-          <img src="/google-icon.svg" alt="Google" className="w-5 h-5" />
+          <Image src="/google-icon.svg" alt="Google" width={20} height={20} className="w-5 h-5" />
           <span>Google</span>
         </button>
 
@@ -85,7 +92,7 @@ export default function SocialLoginButtons({ onSuccess, onError }: SocialLoginBu
           onClick={() => handleLogin(microsoftProvider)}
           className="flex items-center justify-center gap-2 bg-white text-gray-800 px-4 py-2 rounded-md border border-gray-300 hover:bg-gray-50 transition-colors"
         >
-          <img src="/microsoft-icon.svg" alt="Microsoft" className="w-5 h-5" />
+          <Image src="/microsoft-icon.svg" alt="Microsoft" width={20} height={20} className="w-5 h-5" />
           <span>Microsoft</span>
         </button>
       </div>

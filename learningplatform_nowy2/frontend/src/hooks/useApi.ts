@@ -1,34 +1,171 @@
 import { useAuth } from './useAuth';
+import { useCallback } from 'react';
+import { UseApiMethods } from '@/types/hooks';
 
-export function useApi() {
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+// Konfiguracja ponownych prób
+const RETRY_COUNT = 3;
+const RETRY_DELAY = 1000; // 1 sekunda
+const NETWORK_TIMEOUT = 10000; // 10 sekund
+
+// Funkcja pomocnicza do opóźnienia
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+// Funkcja pomocnicza do sprawdzania czy błąd jest związany z siecią
+const isNetworkError = (error: unknown): boolean => {
+  return (
+    error instanceof TypeError && (
+      error.message === 'Failed to fetch' ||
+      error.message === 'Network request failed' ||
+      error.message.includes('network') ||
+      !navigator.onLine
+    )
+  );
+};
+
+const useApi = (): UseApiMethods => {
   const { getAuthToken } = useAuth();
 
-  const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
-    const token = typeof window !== 'undefined'
-      ? (localStorage.getItem('firebaseToken') || localStorage.getItem('accessToken') || localStorage.getItem('token'))
-      : null;
-    
-    const headers = {
-      'Content-Type': 'application/json',
-      ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-      ...options.headers,
-    };
+  const fetchWithRetry = useCallback(async (
+    url: string,
+    options: RequestInit,
+    retryCount: number = RETRY_COUNT
+  ): Promise<Response> => {
+    try {
+      // Dodaj timeout do fetch
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), NETWORK_TIMEOUT);
 
-    const response = await fetch(url, {
-      ...options,
-      headers,
-    });
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal
+      });
 
-    if (response.status === 401) {
-      // Token wygasł lub jest nieprawidłowy
-      window.location.href = '/login';
-      return;
+      clearTimeout(timeoutId);
+      return response;
+    } catch (error) {
+      if (retryCount === 0 || !isNetworkError(error)) {
+        throw error;
+      }
+
+      // Czekaj przed kolejną próbą
+      await delay(RETRY_DELAY);
+
+      // Spróbuj ponownie
+      return fetchWithRetry(url, options, retryCount - 1);
     }
+  }, []);
 
-    return response;
-  };
+  const fetchWithAuth = useCallback(async (url: string, options: RequestInit = {}) => {
+    try {
+      const token = await getAuthToken();
+      
+      if (!token) {
+        throw new Error('Brak tokenu autoryzacji. Zaloguj się ponownie.');
+      }
+      
+      const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+        ...options.headers,
+      };
+
+      const fullUrl = url.startsWith('http') ? url : `${API_BASE_URL}${url}`;
+
+      console.log(`Making API request to: ${fullUrl}`);
+      console.log(`Request method: ${options.method || 'GET'}`);
+      console.log(`Request headers:`, headers);
+
+      // Sprawdź połączenie z internetem
+      if (!navigator.onLine) {
+        throw new Error('Brak połączenia z internetem. Sprawdź swoje połączenie i spróbuj ponownie.');
+      }
+
+      const response = await fetchWithRetry(fullUrl, {
+        ...options,
+        headers,
+      });
+
+      console.log(`API response status: ${response.status}`);
+      console.log(`API response URL: ${response.url}`);
+
+      if (response.status === 401) {
+        // Wyloguj użytkownika tylko jeśli token jest nieprawidłowy
+        localStorage.removeItem('firebaseToken');
+        localStorage.removeItem('firebaseTokenExpiry');
+        window.location.href = '/login';
+        throw new Error('Sesja wygasła. Zaloguj się ponownie.');
+      }
+
+      if (response.status === 403) {
+        throw new Error('Brak uprawnień do wykonania tej operacji.');
+      }
+
+      if (response.status === 404) {
+        throw new Error('Nie znaleziono zasobu.');
+      }
+
+      if (!response.ok) {
+        // Próba pobrania szczegółów błędu z odpowiedzi
+        let errorMessage = `Błąd serwera (${response.status})`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorData.message || errorMessage;
+        } catch {
+          // Jeśli nie można sparsować JSON, użyj domyślnej wiadomości
+        }
+        throw new Error(errorMessage);
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      // Konwertuj błędy AbortController na bardziej przyjazne
+      if ((error as Error).name === 'AbortError') {
+        throw new Error('Przekroczono czas oczekiwania na odpowiedź serwera.');
+      }
+
+      // Jeśli to błąd sieciowy, dodaj bardziej przyjazny komunikat
+      if (isNetworkError(error)) {
+        throw new Error('Problem z połączeniem sieciowym. Sprawdź swoje połączenie internetowe i spróbuj ponownie.');
+      }
+
+      // Przekaż dalej błąd z oryginalną wiadomością
+      throw error;
+    }
+  }, [getAuthToken, fetchWithRetry]);
+
+  const get = useCallback(<T>(url: string): Promise<T> => (
+    fetchWithAuth(url) as Promise<T>
+  ), [fetchWithAuth]);
+
+  const post = useCallback(<T>(url: string, data?: unknown): Promise<T> => (
+    fetchWithAuth(url, {
+      method: 'POST',
+      body: data !== undefined ? JSON.stringify(data) : undefined,
+    }) as Promise<T>
+  ), [fetchWithAuth]);
+
+  const put = useCallback(<T>(url: string, data?: unknown): Promise<T> => (
+    fetchWithAuth(url, {
+      method: 'PUT',
+      body: data !== undefined ? JSON.stringify(data) : undefined,
+    }) as Promise<T>
+  ), [fetchWithAuth]);
+
+  const del = useCallback(<T>(url: string): Promise<T> => (
+    fetchWithAuth(url, {
+      method: 'DELETE',
+    }) as Promise<T>
+  ), [fetchWithAuth]);
 
   return {
-    fetchWithAuth,
+    get,
+    post,
+    put,
+    delete: del,
   };
-} 
+};
+
+export default useApi; 

@@ -1,47 +1,14 @@
 "use client";
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import { collection, getDocs, query, where, doc, getDoc } from 'firebase/firestore';
+import { collection, getDocs, query, where, DocumentData, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { useAuth } from '@/context/AuthContext';
-import { FaFilePdf, FaLink, FaChevronDown, FaChevronUp } from "react-icons/fa";
-
-// Types
-interface Section {
-  id: number;
-  name: string;
-  type: string;
-  deadline?: string;
-  contents: Content[];
-  submissions?: any[];
-}
-
-interface Content {
-  id: number;
-  name: string;
-  fileUrl?: string;
-  link?: string;
-  text?: string;
-  type?: string;
-  duration_minutes?: number;
-}
-
-interface Course {
-  id: number;
-  title: string;
-  slug: string;
-  description: string;
-  thumbnail: string;
-  level: string;
-  category: number;
-  category_name: string;
-  instructor: number;
-  instructor_name: string;
-  sections: Section[];
-}
+import { FaFilePdf, FaLink, FaChevronDown, FaChevronUp, FaQuestionCircle } from "react-icons/fa";
+import { Course, Section, Content, Quiz } from '@/types';
 
 export default function CourseDetailPage() {
   return (
@@ -54,86 +21,199 @@ export default function CourseDetailPage() {
 function CourseDetail() {
   const params = useParams();
   const slug = params?.slug as string;
+  const router = useRouter();
   const { user } = useAuth();
   
   const [course, setCourse] = useState<Course | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isAssigned, setIsAssigned] = useState(false);
-  const [showSection, setShowSection] = useState<{[id:number]: boolean}>({});
-  const [sections, setSections] = useState<any[]>([]);
-  const [sectionContents, setSectionContents] = useState<{[id:number]: any[]}>({});
+  const [showSection, setShowSection] = useState<Record<string, boolean>>({});
+  const [sections, setSections] = useState<Section[]>([]);
+  const [sectionContents] = useState<Record<string, Content[]>>({});
+  const [quizzes, setQuizzes] = useState<Quiz[]>([]);
+  const [loadingQuizzes, setLoadingQuizzes] = useState(true);
+  const [quizError, setQuizError] = useState<string | null>(null);
+  const [quizAttempts, setQuizAttempts] = useState<Record<string, number>>({});
+  const [quizResults, setQuizResults] = useState<Record<string, number>>({});
+  const [completedQuizzes, setCompletedQuizzes] = useState<string[]>([]);;
+
+  // Fetch quiz results
+  const fetchQuizResults = useCallback(async (quizIds: string[]) => {
+    if (!user) return;
+    
+    try {
+      const resultsCollection = collection(db, 'quiz_results');
+      const resultsQuery = query(
+        resultsCollection,
+        where('user_id', '==', user.uid),
+        where('quiz_id', 'in', quizIds)
+      );
+      
+      const resultsSnapshot = await getDocs(resultsQuery);
+      const results: {[key: string]: number} = {};
+      const completed: string[] = [];
+      
+      resultsSnapshot.docs.forEach(doc => {
+        const data = doc.data();
+        results[data.quiz_id] = data.score;
+        completed.push(data.quiz_id);
+      });
+      
+      setQuizResults(results);
+      setCompletedQuizzes(completed);
+    } catch (error) {
+      console.error('Error fetching quiz results:', error);
+    }
+  }, [user, setQuizResults, setCompletedQuizzes]);
+
+  // Fetch quiz attempts
+  const fetchQuizAttempts = useCallback(async (quizIds: string[]) => {
+    if (!user) return;
+    
+    try {
+      const attemptsCollection = collection(db, 'quiz_attempts');
+      const attemptsQuery = query(
+        attemptsCollection,
+        where('user_id', '==', user.uid),
+        where('quiz_id', 'in', quizIds)
+      );
+      
+      const attemptsSnapshot = await getDocs(attemptsQuery);
+      const attempts: {[key: string]: number} = {};
+      
+      attemptsSnapshot.docs.forEach(doc => {
+        const data = doc.data();
+        attempts[data.quiz_id] = (attempts[data.quiz_id] || 0) + 1;
+      });
+      
+      setQuizAttempts(attempts);
+    } catch (error) {
+      console.error('Error fetching quiz attempts:', error);
+    }
+  }, [user, setQuizAttempts]);
 
   // Fetch course details
-  useEffect(() => {
-    const fetchCourseDetail = async () => {
-      try {
-        console.log('[DEBUG] Slug:', slug);
-        console.log('[DEBUG] Fetching from Firestore...');
-        
-        // Pobierz kurs z Firestore po slug
-        const coursesCollection = collection(db, "courses");
-        const q = query(coursesCollection, where("slug", "==", slug));
-        const querySnapshot = await getDocs(q);
-        
-        if (querySnapshot.empty) {
-          console.log('[DEBUG] No course found with slug:', slug);
-          setError('Nie znaleziono kursu.');
-          setLoading(false);
-          return;
-        }
-        
-        const courseDoc = querySnapshot.docs[0];
-        const courseData = courseDoc.data();
-        console.log('[DEBUG] Course data from Firestore:', courseData);
-        
-        // Mapuj dane z Firestore na format oczekiwany przez komponent
-        const mappedCourse: Course = {
-          id: parseInt(courseDoc.id),
-          title: courseData.title || 'Kurs bez tytułu',
-          slug: courseData.slug || slug,
-          description: courseData.description || 'Brak opisu kursu',
-          thumbnail: courseData.thumbnail || '/puzzleicon.png',
-          level: courseData.level || 'Podstawowy',
-          category: courseData.category || 1,
-          category_name: courseData.category_name || 'Ogólny',
-          instructor: courseData.instructor || 1,
-          instructor_name: courseData.instructor_name || 'Instructor',
-          sections: courseData.sections || []
-        };
-        
-        setCourse(mappedCourse);
-        setSections(courseData.sections || []);
-        
-        // Sprawdź czy użytkownik jest przypisany do kursu
-        if (user) {
-          const assignedUsers = courseData.assignedUsers || [];
-          const userIsAssigned = assignedUsers.includes(user.uid) || assignedUsers.includes(user.email);
-          setIsAssigned(userIsAssigned);
-          console.log('[DEBUG] User assigned to course:', userIsAssigned);
-        }
-        
-        // Pobierz zawartość sekcji
-        if (courseData.sections && courseData.sections.length > 0) {
-          const contentsMap: {[id:number]: any[]} = {};
-          for (const section of courseData.sections) {
-            contentsMap[section.id] = section.contents || [];
-          }
-          setSectionContents(contentsMap);
-        }
-        
-      } catch (err) {
-        console.error('[DEBUG] Error fetching course from Firestore:', err);
-        setError('Błąd ładowania kursu. Spróbuj ponownie później.');
-      } finally {
+  const fetchCourseDetail = useCallback(async () => {
+    if (!slug) return;
+
+    try {
+      console.log('[DEBUG] Fetching course details for slug:', slug);
+      
+      const coursesCollection = collection(db, "courses");
+      const q = query(coursesCollection, where("slug", "==", slug));
+      const querySnapshot = await getDocs(q);
+      
+      if (querySnapshot.empty) {
+        console.log('[DEBUG] No course found with slug:', slug);
+        setError('Nie znaleziono kursu.');
         setLoading(false);
+        return;
+      }
+      
+      const courseDoc = querySnapshot.docs[0];
+      const courseData = courseDoc.data() as DocumentData;
+      console.log('[DEBUG] Course data from Firestore:', courseData);
+      
+      const mappedCourse: Course = {
+        id: courseDoc.id,
+        title: courseData.title || 'Kurs bez tytułu',
+        slug: courseData.slug || slug,
+        description: courseData.description || 'Brak opisu kursu',
+        thumbnail: courseData.thumbnail || '/puzzleicon.png',
+        level: courseData.level || 'Podstawowy',
+        subject: courseData.subject || '',
+        year_of_study: courseData.year_of_study || 1,
+        category: courseData.category,
+        category_name: courseData.category_name,
+        is_active: courseData.is_active ?? true,
+        teacherEmail: courseData.teacherEmail || '',
+        instructor_name: courseData.instructor_name,
+        assignedUsers: courseData.assignedUsers || [],
+        sections: courseData.sections || [],
+        pdfUrls: courseData.pdfUrls || [],
+        links: courseData.links || [],
+        created_at: courseData.created_at || new Date().toISOString(),
+        updated_at: courseData.updated_at || new Date().toISOString(),
+        created_by: courseData.created_by || null
+      };
+      
+      console.log('[DEBUG] Mapped course:', mappedCourse);
+      setCourse(mappedCourse);
+      setSections(courseData.sections || []);
+      
+      if (user) {
+        const assignedUsers = courseData.assignedUsers || [];
+        const userIsAssigned = assignedUsers.includes(user.uid) || assignedUsers.includes(user.email);
+        setIsAssigned(userIsAssigned);
+        console.log('[DEBUG] User assigned to course:', userIsAssigned);
+      }
+      
+    } catch (err) {
+      console.error('[DEBUG] Error fetching course from Firestore:', err);
+      setError('Błąd ładowania kursu. Spróbuj ponownie później.');
+    } finally {
+      setLoading(false);
+    }
+  }, [slug, user, setError, setLoading, setCourse, setSections, setIsAssigned]);
+
+  const fetchQuizzes = useCallback(async (courseId: string) => {
+    try {
+      setLoadingQuizzes(true);
+      setQuizError(null);
+      
+      console.log('[DEBUG] Fetching quizzes for course ID:', courseId);
+      const quizzesCollection = collection(db, 'quizzes');
+      const quizzesQuery = query(quizzesCollection, where('course_id', '==', courseId));
+      const quizzesSnapshot = await getDocs(quizzesQuery);
+      
+      const quizzesList = quizzesSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Quiz[];
+      
+      console.log('[DEBUG] Found quizzes:', quizzesList);
+      setQuizzes(quizzesList);
+      
+      await Promise.all([
+        fetchQuizAttempts(quizzesList.map(q => q.id)),
+        fetchQuizResults(quizzesList.map(q => q.id))
+      ]);
+    } catch (quizError) {
+      console.error('[DEBUG] Error fetching quizzes:', quizError);
+      setQuizError('Nie udało się załadować quizów');
+    } finally {
+      setLoadingQuizzes(false);
+    }
+  }, [fetchQuizAttempts, fetchQuizResults, setLoadingQuizzes, setQuizError, setQuizzes]);
+
+  useEffect(() => {
+    fetchCourseDetail();
+  }, [fetchCourseDetail]);
+
+  useEffect(() => {
+    if (course) {
+      fetchQuizzes(course.id.toString());
+    }
+  }, [course, fetchQuizzes]);
+
+  // Zapisz aktywność użytkownika w tym kursie, aby sekcja „Ostatnio aktywne kursy” mogła ją odczytać
+  useEffect(() => {
+    const saveActivity = async () => {
+      try {
+        if (!user || !course) return;
+        const activityRef = doc(collection(db, 'courseActivity'), `${user.uid}_${course.id}`);
+        await setDoc(activityRef, {
+          userId: user.uid,
+          courseId: course.id,
+          lastAccessed: serverTimestamp(),
+        }, { merge: true });
+      } catch (e) {
+        console.error('Nie udało się zapisać aktywności kursu', e);
       }
     };
-
-    if (slug) {
-      fetchCourseDetail();
-    }
-  }, [slug, user]);
+    saveActivity();
+  }, [user, course]);
 
   // Render loading state
   if (loading) {
@@ -222,6 +302,133 @@ function CourseDetail() {
 
       {/* SEKCJE (Accordion) - taki sam jak w panelu nauczyciela */}
       <div className="w-full max-w-5xl flex flex-col gap-4">
+        {/* Sekcja quizów */}
+        <div className="bg-white rounded-2xl shadow-lg">
+          <div className="px-6 py-4">
+            <h2 className="text-xl font-bold text-[#4067EC] flex items-center gap-2">
+              <FaQuestionCircle />
+              Quizy
+            </h2>
+          </div>
+          <div className="px-6 pb-6">
+            {loadingQuizzes ? (
+              <div className="flex justify-center items-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-4 border-[#4067EC] border-r-transparent"></div>
+                <span className="ml-3 text-gray-600">Ładowanie quizów...</span>
+              </div>
+            ) : quizError ? (
+              <div className="bg-red-50 text-red-800 p-4 rounded-lg">
+                {quizError}
+              </div>
+            ) : quizzes.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                Brak dostępnych quizów dla tego kursu.
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {/* Sekcja nierozwiązanych quizów */}
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-800 mb-4">Quizy do rozwiązania</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {quizzes
+                      .filter(quiz => !completedQuizzes.includes(quiz.id))
+                      .map(quiz => (
+                        <div key={quiz.id} className="bg-white border rounded-xl p-5 hover:shadow-lg transition-shadow">
+                          <div className="flex items-start justify-between mb-3">
+                            <h3 className="font-semibold text-lg text-gray-900">{quiz.title}</h3>
+                            <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                              {quiz.subject}
+                            </span>
+                          </div>
+                          <p className="text-gray-600 text-sm mb-4">{quiz.description}</p>
+                          <div className="space-y-2 mb-4">
+                            <div className="flex items-center text-sm text-gray-600">
+                              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                              </svg>
+                              <span>{quiz.questions?.length || 0} pytań</span>
+                            </div>
+                            <div className="flex items-center text-sm text-gray-600">
+                              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                              </svg>
+                              <span>Pozostało prób: {Math.max(0, (quiz.max_attempts || 1) - (quizAttempts[quiz.id] || 0))}</span>
+                            </div>
+                          </div>
+                          <button 
+                            onClick={() => router.push(`/courses/${slug}/quiz/${quiz.id}`)}
+                            className={`w-full py-3 px-4 rounded-lg transition-colors flex items-center justify-center ${
+                              (quizAttempts[quiz.id] || 0) >= (quiz.max_attempts || 1)
+                                ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
+                                : 'bg-[#4067EC] text-white hover:bg-[#3155d4]'
+                            }`}
+                            disabled={(quizAttempts[quiz.id] || 0) >= (quiz.max_attempts || 1)}
+                          >
+                            {(quizAttempts[quiz.id] || 0) >= (quiz.max_attempts || 1) ? (
+                              <>
+                                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                </svg>
+                                Wykorzystano wszystkie próby
+                              </>
+                            ) : (
+                              <>
+                                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                Rozpocznij quiz
+                              </>
+                            )}
+                          </button>
+                        </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Sekcja rozwiązanych quizów */}
+                {completedQuizzes.length > 0 && (
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-800 mb-4">Rozwiązane quizy</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {quizzes
+                        .filter(quiz => completedQuizzes.includes(quiz.id))
+                        .map(quiz => (
+                          <div key={quiz.id} className="bg-gray-50 border rounded-xl p-5">
+                            <div className="flex items-start justify-between mb-3">
+                              <h3 className="font-semibold text-lg text-gray-900">{quiz.title}</h3>
+                              <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
+                                Ukończony
+                              </span>
+                            </div>
+                            <div className="space-y-3">
+                              <div className="flex items-center justify-between text-sm text-gray-600">
+                                <span>Wynik:</span>
+                                <span className="font-semibold text-green-600">{quizResults[quiz.id]?.toFixed(1)}%</span>
+                              </div>
+                              <div className="w-full bg-gray-200 rounded-full h-2">
+                                <div 
+                                  className="bg-green-500 h-2 rounded-full" 
+                                  style={{ width: `${quizResults[quiz.id]}%` }}
+                                />
+                              </div>
+                              <div className="flex items-center text-sm text-gray-600">
+                                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <span>Wykorzystane próby: {quizAttempts[quiz.id] || 0} z {quiz.max_attempts || 1}</span>
+                              </div>
+                            </div>
+                          </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
         {sections.length > 0 ? (
           sections.map(section => (
             <div key={section.id} className="bg-white rounded-2xl shadow-lg">
@@ -247,23 +454,19 @@ function CourseDetail() {
                   {(sectionContents[section.id]?.length === 0 || !sectionContents[section.id]) && (
                     <div className="text-gray-400 italic">Brak materiałów.</div>
                   )}
-                  {sectionContents[section.id]?.map((item: any) => (
+                  {sectionContents[section.id]?.map((item: Content) => (
                     <div key={item.id} className="flex flex-col gap-3 p-4 bg-[#f4f6fb] rounded-lg">
                       <div className="flex items-center gap-3">
-                        {(item.fileUrl || item.file) && <FaFilePdf className="text-2xl text-[#4067EC]" />}
+                        {item.fileUrl && <FaFilePdf className="text-2xl text-[#4067EC]" />}
                         {item.link && <FaLink className="text-2xl text-[#4067EC]" />}
                         {item.text && <span className="text-2xl text-[#4067EC]">📝</span>}
-                        <span className="font-semibold">{item.name || (item.file?.name || item.link || 'Materiał')}</span>
+                        <span className="font-semibold">{item.name || item.link || 'Materiał'}</span>
                         {item.fileUrl && (
                           <a href={item.fileUrl} target="_blank" rel="noopener" className="ml-auto text-[#4067EC] underline">
                             Pobierz
                           </a>
                         )}
-                        {item.file && !item.fileUrl && (
-                          <a href={URL.createObjectURL(item.file)} target="_blank" rel="noopener" className="ml-auto text-[#4067EC] underline">
-                            Pobierz
-                          </a>
-                        )}
+
                         {item.link && (
                           <a href={item.link} target="_blank" rel="noopener" className="ml-auto text-[#4067EC] underline">
                             Otwórz link

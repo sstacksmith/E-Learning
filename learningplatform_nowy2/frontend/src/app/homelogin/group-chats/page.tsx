@@ -11,7 +11,7 @@ interface GroupChat {
   name: string;
   participants: string[];
   createdBy: string;
-  createdAt: any;
+  createdAt: { seconds: number; };
 }
 
 function UnreadCount({ chatId, userUid }: { chatId: string, userUid: string }) {
@@ -83,11 +83,11 @@ export default function GroupChatsPage() {
                 setChats(chatList);
                 setLoading(false);
                 setError("");
-              }, (error) => {
+              }, () => {
                 setError("Błąd podczas ładowania czatów");
                 setLoading(false);
               });
-            } catch (error) {
+            } catch {
               setError("Błąd autoryzacji");
               setLoading(false);
             }
@@ -96,7 +96,7 @@ export default function GroupChatsPage() {
             setError("Brak zalogowanego użytkownika");
           }
         });
-      } catch (error) {
+      } catch {
         setError("Błąd inicjalizacji aplikacji");
         setLoading(false);
       }
@@ -108,7 +108,7 @@ export default function GroupChatsPage() {
       if (unsubscribeAuth) unsubscribeAuth();
       if (unsubscribeChats) unsubscribeChats();
     };
-  }, []);
+  }, [auth, db]);
 
   return (
     <PageTransition>

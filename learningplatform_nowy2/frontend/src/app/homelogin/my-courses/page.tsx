@@ -30,9 +30,9 @@ function MyCoursesPageContent() {
     const fetchCourses = async () => {
       const coursesCollection = collection(db, "courses");
       const snapshot = await getDocs(coursesCollection);
-      const allCourses = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const allCourses = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as unknown as Course));
       // Filtruj kursy, gdzie assignedUsers istnieje i zawiera user.uid lub user.email
-      const filtered = allCourses.filter((c: any) => Array.isArray(c.assignedUsers) && (c.assignedUsers.includes(user.uid) || c.assignedUsers.includes(user.email))) as unknown as Course[];
+      const filtered = allCourses.filter(c => Array.isArray(c.assignedUsers) && (c.assignedUsers.includes(user.uid) || c.assignedUsers.includes(user.email)));
       setCourses(filtered);
       setLoading(false);
     };

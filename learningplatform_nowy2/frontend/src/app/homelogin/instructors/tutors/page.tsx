@@ -2,8 +2,9 @@
 
 import React, { useEffect, useState } from 'react';
 import { getAuth } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, DocumentData } from 'firebase/firestore';
 import { db } from '@/config/firebase';
+import Image from 'next/image';
 
 interface Tutor {
   id: string;
@@ -37,7 +38,7 @@ const TutorViewPage: React.FC = () => {
           setLoading(false);
           return;
         }
-        const studentData = studentSnap.data();
+        const studentData = studentSnap.data() as DocumentData;
         const primaryTutorId = studentData.primaryTutorId;
         if (!primaryTutorId) {
           setTutor(null);
@@ -52,16 +53,20 @@ const TutorViewPage: React.FC = () => {
           setLoading(false);
           return;
         }
-        const tutorData = tutorSnap.data();
+        const tutorData = tutorSnap.data() as DocumentData;
         setTutor({
           id: primaryTutorId,
-          fullName: tutorData.fullName,
-          email: tutorData.email,
+          fullName: tutorData.fullName || 'No name',
+          email: tutorData.email || '',
           avatarUrl: tutorData.avatarUrl || '',
         });
         setLoading(false);
-      } catch (err: any) {
-        setError('Failed to fetch tutor information.');
+      } catch (err) {
+        if (err instanceof Error) {
+          setError(err.message);
+        } else {
+          setError('Failed to fetch tutor information.');
+        }
         setLoading(false);
       }
     };
@@ -77,7 +82,13 @@ const TutorViewPage: React.FC = () => {
       {tutor ? (
         <div className="flex items-center gap-4 mb-4">
           {tutor.avatarUrl ? (
-            <img src={tutor.avatarUrl} alt={tutor.fullName || 'Avatar'} className="w-16 h-16 rounded-full object-cover border" />
+            <Image 
+              src={tutor.avatarUrl} 
+              alt={tutor.fullName || 'Avatar'} 
+              width={64} 
+              height={64} 
+              className="rounded-full object-cover border" 
+            />
           ) : (
             <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center text-2xl font-bold">
               {tutor.fullName && tutor.fullName.length > 0 ? tutor.fullName[0] : '?'}

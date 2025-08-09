@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { useAuth } from '@/context/AuthContext';
 import Providers from '@/components/Providers';
@@ -75,9 +75,9 @@ function StudentAssignmentsContent() {
     };
 
     fetchData();
-  }, [user?.email]);
+  }, [user?.email, setCourses, setStudents, setAssignError]);
 
-  const handleAssign = async (e: React.FormEvent) => {
+  const handleAssign = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     setAssignSuccess("");
     setAssignError("");
@@ -120,11 +120,15 @@ function StudentAssignmentsContent() {
       setAssignSuccess("Student successfully assigned to course!");
       setSelectedCourse("");
       setSelectedStudent("");
-    } catch (err: any) {
-      setAssignError(err.message || "Network or server error.");
+    } catch (err) {
+      if (err instanceof Error) {
+        setAssignError(err.message);
+      } else {
+        setAssignError("Network or server error.");
+      }
     }
     setLoading(false);
-  };
+  }, [selectedCourse, selectedStudent, students, setAssignSuccess, setAssignError, setLoading, setSelectedCourse, setSelectedStudent]);
 
   return (
     <div className="min-h-screen bg-[#F8F9FB]">

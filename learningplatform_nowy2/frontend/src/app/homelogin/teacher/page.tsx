@@ -1,6 +1,6 @@
 "use client";
 import TeacherRoute from '@/components/TeacherRoute';
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Calendar from '../../../components/Calendar';
 import CreateEvent from '../../../components/CreateEvent';

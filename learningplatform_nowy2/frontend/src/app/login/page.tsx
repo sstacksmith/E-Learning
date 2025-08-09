@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Notification from '@/components/Notification';
 import { useAuth } from '@/context/AuthContext';
-import { auth } from "@/config/firebase";
+
 import SocialLoginButtons from '@/components/Auth/SocialLoginButtons';
 import Providers from '@/components/Providers';
 

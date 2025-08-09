@@ -1,8 +1,8 @@
 "use client";
-import { useEffect, useState } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useEffect, useState, useCallback } from "react";
+import { useParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import { collection, getDocs, doc, updateDoc, arrayUnion, getDoc, setDoc, addDoc, query, where } from "firebase/firestore";
+import { collection, getDocs, doc, updateDoc, getDoc, setDoc, addDoc, query, where } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db } from "@/config/firebase";
 import Image from "next/image";
@@ -42,6 +42,36 @@ interface Course {
   assigned_users: User[];
 }
 
+interface SectionContent {
+  id: string | number;
+  type: string;
+  content?: string;
+  title?: string;
+  name?: string;
+  fileUrl?: string | null;
+  fileName?: string;
+  url?: string;
+  link?: string | null;
+  text?: string | null;
+  file?: string;
+  description?: string;
+}
+
+interface Section {
+  [key: string]: unknown;
+  id: string | number;
+  title: string;
+  name?: string;
+  type?: "material" | "assignment" | "form";
+  description?: string;
+  order?: number;
+  deadline?: string;
+  contents?: SectionContent[];
+  fileUrl?: string;
+  formUrl?: string;
+  submissions?: { userId: string; fileUrl?: string; submittedAt?: string }[];
+}
+
 interface Student {
   uid: string;
   displayName: string;
@@ -49,30 +79,11 @@ interface Student {
   role?: string;
 }
 
-interface Assignment {
-  id: number;
-  title: string;
-  description: string;
-  deadline: string; // ISO string
-  submissions: { userId: string; fileUrl?: string; submittedAt?: string }[];
-}
 
-interface Section {
-  id: number;
-  type: 'material' | 'assignment' | 'form';
-  title: string;
-  description?: string;
-  fileUrl?: string;
-  deadline?: string;
-  formUrl?: string;
-  submissions?: { userId: string; fileUrl?: string; submittedAt?: string }[];
-}
 
-const TABS = ["Kurs", "Uczestnicy", "Oceny", "Zadania"];
 
 function TeacherCourseDetailContent() {
   const { user, loading: authLoading } = useAuth();
-  const router = useRouter();
   const params = useParams();
   const courseId = params?.id;
 
@@ -81,48 +92,25 @@ function TeacherCourseDetailContent() {
   const [assignedUsers, setAssignedUsers] = useState<Student[]>([]);
   const [selectedStudent, setSelectedStudent] = useState<string>("");
   const [loading, setLoading] = useState(true);
-  const [assigning, setAssigning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [assignMsg, setAssignMsg] = useState<string>("");
-  const [activeTab, setActiveTab] = useState("Kurs");
-  const [assignments, setAssignments] = useState<Assignment[]>([
-    {
-      id: 1,
-      title: "Zadanie 1",
-      description: "Prześlij projekt aplikacji.",
-      deadline: new Date(Date.now() + 1000 * 60 * 60 * 24).toISOString(), // 24h from now
-      submissions: [],
-    },
-  ]);
-  const [adding, setAdding] = useState(false);
 
-  // Nowe stany do accordionów i uploadu
-  const [showMaterials, setShowMaterials] = useState(true);
-  const [showAssignments, setShowAssignments] = useState(true);
-  const [activityFile, setActivityFile] = useState<File | null>(null);
-  const [activityFileUrl, setActivityFileUrl] = useState<string>("");
-  const [materials, setMaterials] = useState<any[]>([]);
-  const [assignmentsList, setAssignmentsList] = useState<any[]>([]);
-  const [newMaterial, setNewMaterial] = useState<{name: string, file: File | null, link: string}>({name: '', file: null, link: ''});
-  const [newAssignment, setNewAssignment] = useState<{name: string, file: File | null, link: string}>({name: '', file: null, link: ''});
 
   // Banner state
-  const [bannerFile, setBannerFile] = useState<File | null>(null);
   const [bannerUrl, setBannerUrl] = useState<string>("");
   // Section state
   const [showSection, setShowSection] = useState<{[id:number]: boolean}>({});
   const [addingSection, setAddingSection] = useState(false);
-  const [sectionContents, setSectionContents] = useState<{[id:number]: any[]}>({});
+  const [sectionContents, setSectionContents] = useState<{[id:number]: SectionContent[]}>({});
   const [newContent, setNewContent] = useState<{[id:number]: {name: string, file: File | null, link: string, text: string}}>({});
 
   // Dodaj nową deklarację sections
-  const [sections, setSections] = useState<any[]>([]);
+  const [sections, setSections] = useState<Section[]>([]);
   const [newSection, setNewSection] = useState<{name: string, type: string, deadline?: string}>({name: '', type: 'material'});
   const [editingSectionId, setEditingSectionId] = useState<number | null>(null);
-  const [editSection, setEditSection] = useState<any>(null);
+  const [editSection, setEditSection] = useState<Section | null>(null);
   const [editingContentId, setEditingContentId] = useState<number | null>(null);
-  const [editContent, setEditContent] = useState<any>(null);
+  const [editContent, setEditContent] = useState<SectionContent | null>(null);
 
   // Fetch students from Firestore
   useEffect(() => {
@@ -135,7 +123,7 @@ function TeacherCourseDetailContent() {
       setStudents(studentsList);
     };
     fetchStudents();
-  }, []);
+  }, [setStudents]);
 
   // Fetch assigned users from Firestore (by courseId)
   useEffect(() => {
@@ -175,7 +163,7 @@ function TeacherCourseDetailContent() {
                 }
                 
                 if (userDoc && userDoc.exists()) {
-                  const userData = userDoc.data() as any;
+                  const userData = userDoc.data() as { firstName?: string; lastName?: string; email?: string; };
                   return {
                     uid: userDoc.id,
                     displayName: `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || userData.email || userIdentifier,
@@ -219,10 +207,10 @@ function TeacherCourseDetailContent() {
       }
     };
     fetchAssigned();
-  }, [courseId]);
+  }, [courseId, setAssignedUsers]);
 
   // Assign student to course using Firestore
-  async function handleAssignStudent(e: any) {
+  const handleAssignStudent = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedStudent || !courseId) return;
     
@@ -290,9 +278,9 @@ function TeacherCourseDetailContent() {
                 userDoc = await getDoc(doc(db, "users", userIdentifier));
               }
                 
-              if (userDoc && userDoc.exists()) {
-                const userData = userDoc.data() as any;
-                return {
+                              if (userDoc && userDoc.exists()) {
+                  const userData = userDoc.data() as { firstName?: string; lastName?: string; email?: string; };
+                  return {
                   uid: userDoc.id,
                   displayName: `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || userData.email || userIdentifier,
                   email: userData.email || userIdentifier,
@@ -338,7 +326,7 @@ function TeacherCourseDetailContent() {
       setError('Błąd podczas przypisywania ucznia do kursu');
       setTimeout(() => setError(null), 3000);
     }
-  }
+  }, [selectedStudent, courseId, setError, setSuccess, setAssignedUsers]);
 
   useEffect(() => {
     if (!courseId) return;
@@ -350,16 +338,16 @@ function TeacherCourseDetailContent() {
         if (courseDoc.exists()) {
           const data = courseDoc.data();
           console.log('Course data loaded from Firestore:', data);
-          setCourse(data as any);
+          setCourse(data as Course);
           setSections(data.sections || []);
           setBannerUrl(data.bannerUrl || "");
           
           // Inicjalizuj sectionContents z danymi z sekcji
           const sectionsData = data.sections || [];
-          const initialSectionContents: {[id:number]: any[]} = {};
-          sectionsData.forEach((section: any) => {
+          const initialSectionContents: {[id:number]: SectionContent[]} = {};
+          sectionsData.forEach((section: Section) => {
             if (section.contents && Array.isArray(section.contents)) {
-              initialSectionContents[section.id] = section.contents;
+              initialSectionContents[Number(section.id)] = section.contents;
               console.log(`Section ${section.id} contents loaded:`, section.contents);
             }
           });
@@ -376,89 +364,9 @@ function TeacherCourseDetailContent() {
       }
     };
     fetchFirestoreCourse();
-  }, [courseId]);
+  }, [courseId, setLoading, setError, setCourse, setSections, setBannerUrl, setSectionContents]);
 
-  const handleAssign = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setAssigning(true);
-    setError(null);
-    setSuccess(null);
-    try {
-      const student = students.find(s => s.uid === selectedStudent);
-      
-      if (!student || !courseId) {
-        throw new Error("Nie wybrano studenta lub kursu");
-      }
-      
-      // Pobierz kurs z Firestore
-      const courseDoc = await getDoc(doc(db, "courses", String(courseId)));
-      
-      if (!courseDoc.exists()) {
-        throw new Error("Kurs nie został znaleziony");
-      }
-      
-      const courseData = courseDoc.data();
-      const assignedUsers = courseData.assignedUsers || [];
-      
-      // Sprawdź czy student już jest przypisany
-      if (assignedUsers.includes(student.email)) {
-        throw new Error("Student jest już przypisany do tego kursu");
-      }
-      
-      // Dodaj studenta do listy przypisanych użytkowników
-      assignedUsers.push(student.email);
-      
-      // Zaktualizuj kurs w Firestore
-      await updateDoc(doc(db, "courses", String(courseId)), {
-        assignedUsers: assignedUsers
-      });
-      
-      setSuccess("Kurs przypisany do użytkownika!");
-      setSelectedStudent("");
-      
-      // Refresh course details
-      const updatedCourseDoc = await getDoc(doc(db, "courses", String(courseId)));
-      if (updatedCourseDoc.exists()) {
-        const data = updatedCourseDoc.data();
-        setCourse(data as any);
-        setSections(data.sections || []);
-        setBannerUrl(data.bannerUrl || "");
-      }
-    } catch (err: any) {
-      setError(err.message || "Błąd przypisywania kursu");
-      setTimeout(() => setError(null), 3000);
-    } finally {
-      setAssigning(false);
-    }
-  };
 
-  // Live countdown helper
-  function getCountdown(deadline: string) {
-    const now = new Date();
-    const end = new Date(deadline);
-    const diff = end.getTime() - now.getTime();
-    if (diff > 0) {
-      const d = Math.floor(diff / (1000 * 60 * 60 * 24));
-      const h = Math.floor((diff / (1000 * 60 * 60)) % 24);
-      const m = Math.floor((diff / (1000 * 60)) % 60);
-      return `Pozostało: ${d}d ${h}h ${m}m`;
-    } else {
-      const late = -diff;
-      const d = Math.floor(late / (1000 * 60 * 60 * 24));
-      const h = Math.floor((late / (1000 * 60 * 60)) % 24);
-      const m = Math.floor((late / (1000 * 60)) % 60);
-      return `Opóźnienie: ${d}d ${h}h ${m}m`;
-    }
-  }
-
-  // Mock student submission
-  function handleStudentSubmit(assignmentId: number) {
-    setAssignments(assignments.map(a =>
-      a.id === assignmentId
-        ? { ...a, submissions: [...a.submissions, { userId: user?.uid || "student-mock", fileUrl: "https://praca.pdf", submittedAt: new Date().toISOString() }] }
-        : a
-    ));
-  }
 
   // Live update for countdowns
   const [, forceUpdate] = useState(0);
@@ -474,14 +382,14 @@ function TeacherCourseDetailContent() {
   }, [sections, sectionContents]);
 
   // Dodaj helper do zapisu sekcji do Firestore
-  async function saveSectionsToFirestore(courseId: string | string[], sections: Section[]) {
+  const saveSectionsToFirestore = useCallback(async (courseId: string | string[], sections: Section[]) => {
     if (!courseId) return;
     
     // Filtruj undefined wartości z sekcji
     const cleanSections = sections.map(section => {
-      const cleanSection: any = {};
+      const cleanSection: Partial<Section> = {};
       Object.keys(section).forEach(key => {
-        const value = (section as any)[key];
+        const value = (section as Record<string, unknown>)[key];
         if (value !== undefined) {
           cleanSection[key] = value;
         }
@@ -502,10 +410,10 @@ function TeacherCourseDetailContent() {
       await setDoc(courseRef, { sections: cleanSections }, { merge: true });
       console.log('Course document created with sections in Firestore');
     }
-  }
+  }, []);
 
   // Helper function to refresh data from Firestore
-  async function refreshCourseData() {
+  const refreshCourseData = useCallback(async () => {
     if (!courseId) return;
     console.log('Refreshing course data for courseId:', courseId);
     const courseDoc = await getDoc(doc(db, "courses", String(courseId)));
@@ -516,10 +424,10 @@ function TeacherCourseDetailContent() {
       
       // Aktualizuj sectionContents
       const sectionsData = data.sections || [];
-      const updatedSectionContents: {[id:number]: any[]} = {};
-      sectionsData.forEach((section: any) => {
+      const updatedSectionContents: {[id:number]: SectionContent[]} = {};
+      sectionsData.forEach((section: Section) => {
         if (section.contents && Array.isArray(section.contents)) {
-          updatedSectionContents[section.id] = section.contents;
+          updatedSectionContents[Number(section.id)] = section.contents;
           console.log(`Section ${section.id} contents:`, section.contents);
         }
       });
@@ -528,22 +436,23 @@ function TeacherCourseDetailContent() {
     } else {
       console.log('Course document does not exist in Firestore');
     }
-  }
+  }, [courseId]);
 
   // Add new section
-  const handleAddSection = async (e: React.FormEvent) => {
+  const handleAddSection = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newSection.name) return;
     const id = Date.now();
     const baseSection = {
       id,
       name: newSection.name,
-      type: newSection.type,
-      deadline: newSection.deadline || null,
+      title: newSection.name, // Dodajemy title jako kopię name
+      type: newSection.type as "material" | "assignment" | "form",
+      deadline: newSection.deadline || undefined,
       contents: []
     };
     // Dodaj submissions: [] tylko dla zadania
-    const sectionWithSubmissions = newSection.type === 'zadanie'
+    const sectionWithSubmissions = newSection.type === 'assignment'
       ? { ...baseSection, submissions: [] }
       : baseSection;
     const newSections = [...sections, sectionWithSubmissions];
@@ -560,16 +469,17 @@ function TeacherCourseDetailContent() {
       await refreshCourseData();
       
       // Automatycznie utwórz event w kalendarzu dla zadań i egzaminów
-      if ((newSection.type === 'zadanie' || newSection.type === 'exam') && newSection.deadline && user?.uid) {
+      if ((newSection.type === 'assignment' || newSection.type === 'form') && newSection.deadline && user?.uid) {
         await createCalendarEvent(sectionWithSubmissions, courseId, user.uid);
       }
     }
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sections, courseId, newSection, user, saveSectionsToFirestore, refreshCourseData]);
 
   // Add content to section
-  const handleAddContent = async (sectionId: number, e: React.FormEvent) => {
+  const handleAddContent = useCallback(async (sectionId: number, e: React.FormEvent) => {
     e.preventDefault();
-    const content = newContent[sectionId];
+    const content = newContent[Number(sectionId)];
     const text = content.text || '';
     if (!content || (!content.file && !content.link && !text)) return;
     
@@ -591,6 +501,7 @@ function TeacherCourseDetailContent() {
     
     const newContentItem = { 
       id: Date.now(),
+      type: 'material', // Dodaj wymagane type
       name: content.name || '',
       fileUrl: fileUrl || null, // Save the Firebase Storage URL
       link: content.link || null,
@@ -599,11 +510,11 @@ function TeacherCourseDetailContent() {
     
     const updatedSectionContents = {
       ...sectionContents,
-      [sectionId]: [...(sectionContents[sectionId] || []), newContentItem]
+      [Number(sectionId)]: [...(sectionContents[Number(sectionId)] || []), newContentItem]
     };
     
     setSectionContents(updatedSectionContents);
-    setNewContent(nc => ({...nc, [sectionId]: {name: '', file: null, link: '', text: ''}}));
+    setNewContent(nc => ({...nc, [Number(sectionId)]: {name: '', file: null, link: '', text: ''}}));
     
     // Aktualizuj sekcje w Firestore z nowymi materiałami
     if (courseId) {
@@ -622,87 +533,63 @@ function TeacherCourseDetailContent() {
       console.log('Sections saved to Firestore, refreshing data...');
       await refreshCourseData();
     }
-  };
+  }, [sectionContents, newContent, courseId, sections, saveSectionsToFirestore, refreshCourseData]);
 
   // Banner upload handler
-  const handleBannerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleBannerChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      setBannerFile(e.target.files[0]);
+      // setBannerFile(e.target.files[0]); // Unused - handled via URL
       setBannerUrl(URL.createObjectURL(e.target.files[0]));
     }
-  };
+  }, []);
 
-  // Obsługa uploadu pliku do Aktywności
-  const handleActivityFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setActivityFile(e.target.files[0]);
-      setActivityFileUrl(URL.createObjectURL(e.target.files[0]));
-    }
-  };
 
-  // Dodawanie materiału
-  const handleAddMaterial = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (newMaterial.file || newMaterial.link) {
-      setMaterials([...materials, { ...newMaterial, id: Date.now() }]);
-      setNewMaterial({ name: '', file: null, link: '' });
-    }
-  };
-
-  // Dodawanie zadania
-  const handleAddAssignment = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (newAssignment.file || newAssignment.link) {
-      setAssignmentsList([...assignmentsList, { ...newAssignment, id: Date.now() }]);
-      setNewAssignment({ name: '', file: null, link: '' });
-    }
-  };
 
   // Rozpocznij edycję sekcji
-  function handleEditSection(section: Section) {
-    setEditingSectionId(section.id);
+  const handleEditSection = useCallback((section: Section) => {
+          setEditingSectionId(Number(section.id));
     setEditSection({ ...section });
-  }
+  }, []);
 
   // Zapisz edycję sekcji
-  function handleSaveEditSection(e: any) {
+  const handleSaveEditSection = useCallback((e: React.FormEvent) => {
     e.preventDefault();
     const updatedSections = sections.map(s => s.id === editingSectionId ? { ...s, ...editSection } : s);
-    setSections(updatedSections);
+          setSections(updatedSections as Section[]);
     setEditingSectionId(null);
     setEditSection(null);
     if (courseId) saveSectionsToFirestore(courseId, updatedSections);
-  }
+  }, [sections, editingSectionId, editSection, courseId, saveSectionsToFirestore]);
 
   // Anuluj edycję
-  function handleCancelEdit() {
+  const handleCancelEdit = useCallback(() => {
     setEditingSectionId(null);
     setEditSection(null);
     // Jeśli chcesz obsłużyć usuwanie, dodaj tu logikę i zapis do Firestore
-  }
+  }, []);
 
   // Rozpocznij edycję materiału
-  function handleEditContent(content: any) {
-    setEditingContentId(content.id);
+  const handleEditContent = useCallback((content: SectionContent) => {
+    setEditingContentId(Number(content.id));
     setEditContent({ ...content });
-  }
+  }, []);
 
   // Zapisz edycję materiału
-  async function handleSaveEditContent(e: any) {
+  const handleSaveEditContent = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingContentId || !editContent) return;
     
     // Znajdź sekcję zawierającą edytowany materiał
     const sectionId = Object.keys(sectionContents).find(key => 
-      sectionContents[parseInt(key)].some((item: any) => item.id === editingContentId)
+      sectionContents[parseInt(key)].some((item: SectionContent) => String(item.id) === String(editingContentId))
     );
     
     if (!sectionId) return;
     
     const updatedSectionContents = {
       ...sectionContents,
-      [parseInt(sectionId)]: sectionContents[parseInt(sectionId)].map((item: any) => 
-        item.id === editingContentId ? { ...item, ...editContent } : item
+      [parseInt(sectionId)]: sectionContents[parseInt(sectionId)].map((item: SectionContent) => 
+        String(item.id) === String(editingContentId) ? { ...item, ...editContent } : item
       )
     };
     
@@ -720,18 +607,18 @@ function TeacherCourseDetailContent() {
       await saveSectionsToFirestore(courseId, updatedSections);
       await refreshCourseData();
     }
-  }
+  }, [editingContentId, editContent, sectionContents, courseId, sections, saveSectionsToFirestore, refreshCourseData]);
 
   // Anuluj edycję materiału
-  function handleCancelEditContent() {
+  const handleCancelEditContent = useCallback(() => {
     setEditingContentId(null);
     setEditContent(null);
-  }
+  }, []);
 
 
 
   // Function to create calendar event for assignments/exams
-  async function createCalendarEvent(section: any, courseId: string | string[], teacherUid: string) {
+  const createCalendarEvent = useCallback(async (section: { name: string; type: string; id: number; deadline?: string; }, courseId: string | string[], teacherUid: string) => {
     try {
       console.log('Creating calendar event for section:', section);
       console.log('Course ID:', courseId);
@@ -753,7 +640,7 @@ function TeacherCourseDetailContent() {
       // Create event in calendar collection
       const eventData = {
         title: section.name,
-        type: section.type === 'zadanie' ? 'assignment' : section.type === 'exam' ? 'exam' : 'activity',
+        type: section.type === 'assignment' ? 'assignment' : section.type === 'exam' ? 'exam' : 'activity',
         courseId: String(courseId),
         sectionId: section.id,
         deadline: section.deadline,
@@ -772,7 +659,7 @@ function TeacherCourseDetailContent() {
     } catch (error) {
       console.error('Error creating calendar event:', error);
     }
-  }
+  }, []);
 
   // Add delete handlers:
   const handleDeleteSection = async (sectionId: number) => {
@@ -793,7 +680,7 @@ function TeacherCourseDetailContent() {
     // Aktualizuj sectionContents
     const updatedSectionContents = {
       ...sectionContents,
-      [sectionId]: (sectionContents[sectionId] || []).filter((item: any) => item.id !== contentId)
+      [sectionId]: (sectionContents[sectionId] || []).filter((item: SectionContent) => item.id !== contentId)
     };
     setSectionContents(updatedSectionContents);
     
@@ -837,7 +724,7 @@ function TeacherCourseDetailContent() {
         </div>
         <div className="hidden sm:block h-full">
           {bannerUrl ? (
-            <img src={bannerUrl} alt="Baner kursu" className="object-contain h-full w-auto opacity-80" />
+                    <Image src={bannerUrl} alt="Baner kursu" width={500} height={300} className="object-contain h-full w-auto opacity-80" />
           ) : (
             <Image src="/puzzleicon.png" alt="Baner kursu" width={180} height={180} className="object-contain h-full w-auto opacity-60" />
           )}
@@ -903,8 +790,8 @@ function TeacherCourseDetailContent() {
                 </button>
                 <button
                   type="button"
-                  className={`flex flex-col items-center px-2 py-1 rounded border transition focus:outline-none ${newSection.type === 'zadanie' ? 'text-[#4067EC] border-[#4067EC] font-bold' : 'text-gray-700 border-gray-300'} bg-transparent hover:bg-transparent`}
-                  onClick={() => setNewSection(s => ({...s, type: 'zadanie'}))}
+                  className={`flex flex-col items-center px-2 py-1 rounded border transition focus:outline-none ${newSection.type === 'assignment' ? 'text-[#4067EC] border-[#4067EC] font-bold' : 'text-gray-700 border-gray-300'} bg-transparent hover:bg-transparent`}
+                  onClick={() => setNewSection(s => ({...s, type: 'assignment'}))}
                   title="Zadanie"
                   style={{minWidth: 48}}
                 >
@@ -935,7 +822,7 @@ function TeacherCourseDetailContent() {
               <button type="submit" className="bg-[#4067EC] text-white px-4 py-2 rounded font-semibold">Dodaj</button>
               <button type="button" className="bg-gray-200 px-4 py-2 rounded font-semibold" onClick={() => setAddingSection(false)}>Anuluj</button>
             </div>
-            {(newSection.type === 'zadanie' || newSection.type === 'exam') && (
+            {(newSection.type === 'assignment' || newSection.type === 'exam') && (
               <div className="flex flex-col sm:flex-row gap-2 items-center">
                 <label className="text-sm font-medium text-gray-700">Termin {newSection.type === 'exam' ? 'egzaminu' : 'oddania'}:</label>
                 <input 
@@ -957,14 +844,14 @@ function TeacherCourseDetailContent() {
           <div key={section.id} className="bg-white rounded-lg border border-gray-200">
             <div 
               className="w-full flex items-center justify-between px-6 py-4 text-xl font-bold text-[#4067EC] hover:bg-gray-50 rounded-t-lg cursor-pointer"
-              onClick={() => setShowSection(prev => ({...prev, [section.id]: !prev[section.id]}))}
+              onClick={() => setShowSection(prev => ({...prev, [Number(section.id)]: !prev[Number(section.id)]}))}
             >
               <div className="flex items-center gap-3">
-                <span>{showSection[section.id] ? <FaChevronUp /> : <FaChevronDown />}</span>
+                <span>{showSection[Number(section.id)] ? <FaChevronUp /> : <FaChevronDown />}</span>
                 <div>
                   <span>{section.name}</span>
                   <span className="text-base font-normal ml-2">({section.type})</span>
-                  {section.type === 'zadanie' && section.deadline && (
+                  {section.type === 'assignment' && section.deadline && (
                     <span className="block text-sm font-normal text-gray-600">
                       Termin: {new Date(section.deadline).toLocaleString('pl-PL')}
                     </span>
@@ -984,7 +871,7 @@ function TeacherCourseDetailContent() {
                 <button 
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleDeleteSection(section.id);
+                    handleDeleteSection(Number(section.id));
                   }} 
                   className="text-red-500 hover:text-red-700 text-2xl bg-transparent border-none"
                 >
@@ -993,7 +880,7 @@ function TeacherCourseDetailContent() {
               </div>
             </div>
 
-            {showSection[section.id] && (
+            {showSection[Number(section.id)] && (
               <div className="px-6 pb-6 border-t border-gray-200">
                 {editingSectionId === section.id && (
                   <form onSubmit={handleSaveEditSection} className="bg-blue-50 p-4 rounded-lg border border-blue-200 mb-4">
@@ -1004,16 +891,16 @@ function TeacherCourseDetailContent() {
                         placeholder="Nazwa sekcji" 
                         className="border rounded px-3 py-2" 
                         value={editSection?.name || ''} 
-                        onChange={e => setEditSection({...editSection, name: e.target.value})} 
+                        onChange={e => setEditSection(prev => prev ? {...prev, name: e.target.value} : null)} 
                         required 
                       />
                       <select 
                         className="border rounded px-3 py-2" 
                         value={editSection?.type || ''} 
-                        onChange={e => setEditSection({...editSection, type: e.target.value})}
+                        onChange={e => setEditSection(prev => prev ? {...prev, type: e.target.value as "material" | "assignment" | "form"} : null)}
                       >
                         <option value="material">Materiał</option>
-                        <option value="zadanie">Zadanie</option>
+                        <option value="assignment">Zadanie</option>
                         <option value="aktywnosc">Aktywność</option>
                       </select>
                       <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded font-semibold">
@@ -1023,7 +910,7 @@ function TeacherCourseDetailContent() {
                         Anuluj
                       </button>
                     </div>
-                    {editSection?.type === 'zadanie' && (
+                    {editSection?.type === 'assignment' && (
                       <div className="flex flex-col sm:flex-row gap-2 items-center">
                         <label className="text-sm font-medium text-gray-700">Termin oddania:</label>
                         <input 
@@ -1038,25 +925,25 @@ function TeacherCourseDetailContent() {
                   </form>
                 )}
 
-                <form onSubmit={e => handleAddContent(section.id, e)} className="flex flex-col gap-4 mb-4">
+                <form onSubmit={e => handleAddContent(Number(section.id), e)} className="flex flex-col gap-4 mb-4">
                   <div className="flex flex-col sm:flex-row gap-2 items-center">
                     <input 
                       type="text" 
                       placeholder="Nazwa (opcjonalna)" 
                       className="border rounded px-3 py-2" 
-                      value={newContent[section.id]?.name || ''} 
-                      onChange={e => setNewContent(nc => ({...nc, [section.id]: {...(nc[section.id]||{}), name: e.target.value}}))} 
+                      value={newContent[Number(section.id)]?.name || ''} 
+                      onChange={e => setNewContent(nc => ({...nc, [Number(section.id)]: {...(nc[Number(section.id)]||{}), name: e.target.value}}))} 
                     />
                     <input 
                       type="file" 
-                      onChange={e => setNewContent(nc => ({...nc, [section.id]: {...(nc[section.id]||{}), file: e.target.files ? e.target.files[0] : null}}))} 
+                      onChange={e => setNewContent(nc => ({...nc, [Number(section.id)]: {...(nc[Number(section.id)]||{}), file: e.target.files ? e.target.files[0] : null}}))} 
                     />
                     <input 
                       type="url" 
                       placeholder="Link (np. YouTube, Google Docs)" 
                       className="border rounded px-3 py-2" 
-                      value={newContent[section.id]?.link || ''} 
-                      onChange={e => setNewContent(nc => ({...nc, [section.id]: {...(nc[section.id]||{}), link: e.target.value}}))} 
+                      value={newContent[Number(section.id)]?.link || ''} 
+                      onChange={e => setNewContent(nc => ({...nc, [Number(section.id)]: {...(nc[Number(section.id)]||{}), link: e.target.value}}))} 
                     />
                     <button type="submit" className="bg-[#4067EC] text-white px-4 py-2 rounded font-semibold">
                       Dodaj
@@ -1064,8 +951,8 @@ function TeacherCourseDetailContent() {
                   </div>
                   {MDXEditor && (
                     <MDXEditor
-                      markdown={newContent[section.id]?.text || ''}
-                      onChange={(val: string) => setNewContent(nc => ({ ...nc, [section.id]: { ...(nc[section.id] || {}), text: val } }))}
+                      markdown={newContent[Number(section.id)]?.text || ''}
+                      onChange={(val: string) => setNewContent(nc => ({ ...nc, [Number(section.id)]: { ...(nc[Number(section.id)] || {}), text: val } }))}
                       className="border rounded prose mdxeditor"
                       contentEditableClassName="min-h-[120px]"
                       plugins={[
@@ -1092,12 +979,12 @@ function TeacherCourseDetailContent() {
                 </form>
 
                 <div className="space-y-4">
-                  {(!sectionContents[section.id] || sectionContents[section.id].length === 0) ? (
+                  {(!sectionContents[Number(section.id)] || sectionContents[Number(section.id)].length === 0) ? (
                     <div className="text-gray-400 italic">Brak materiałów.</div>
                   ) : (
-                    sectionContents[section.id].map((item: any) => (
+                    sectionContents[Number(section.id)].map((item: SectionContent) => (
                       <div key={item.id} className="flex flex-col gap-3 p-4 bg-[#f4f6fb] rounded-lg">
-                        {editingContentId === item.id ? (
+                        {String(editingContentId) === String(item.id) ? (
                           <form onSubmit={handleSaveEditContent} className="flex flex-col gap-3">
                             <div className="flex items-center gap-3">
                               {(item.fileUrl || item.file) && <FaFilePdf className="text-2xl text-[#4067EC]" />}
@@ -1106,7 +993,7 @@ function TeacherCourseDetailContent() {
                               <input 
                                 type="text" 
                                 value={editContent?.name || ''} 
-                                onChange={e => setEditContent({...editContent, name: e.target.value})}
+                                onChange={e => setEditContent(prev => prev ? {...prev, name: e.target.value} : null)}
                                 className="font-semibold border rounded px-2 py-1"
                               />
                               <div className="ml-auto flex items-center gap-2">
@@ -1119,7 +1006,7 @@ function TeacherCourseDetailContent() {
                                 {MDXEditor && (
                                   <MDXEditor
                                     markdown={editContent?.text || ''}
-                                    onChange={(val: string) => setEditContent({...editContent, text: val})}
+                                    onChange={(val: string) => setEditContent(prev => prev ? {...prev, text: val} : null)}
                                     className="border rounded min-h-[120px] prose"
                                     plugins={[
                                       listsPlugin(),
@@ -1151,13 +1038,13 @@ function TeacherCourseDetailContent() {
                               {(item.fileUrl || item.file) && <FaFilePdf className="text-2xl text-[#4067EC]" />}
                               {item.link && <FaLink className="text-2xl text-[#4067EC]" />}
                               {item.text && <span className="text-2xl text-[#4067EC]">📝</span>}
-                              <span className="font-semibold">{item.name || (item.file?.name || item.link || 'Materiał')}</span>
+                              <span className="font-semibold">{item.name || item.link || 'Materiał'}</span>
                               <div className="ml-auto flex items-center gap-2">
                                 {item.fileUrl && <a href={item.fileUrl} target="_blank" rel="noopener" className="text-[#4067EC] underline">Pobierz</a>}
-                                {item.file && !item.fileUrl && <a href={URL.createObjectURL(item.file)} target="_blank" rel="noopener" className="text-[#4067EC] underline">Pobierz</a>}
+                                {item.file && !item.fileUrl && typeof item.file === 'object' && <a href={URL.createObjectURL(item.file)} target="_blank" rel="noopener" className="text-[#4067EC] underline">Pobierz</a>}
                                 {item.link && <a href={item.link} target="_blank" rel="noopener" className="text-[#4067EC] underline">Otwórz link</a>}
                                 {item.text && <button onClick={() => handleEditContent(item)} className="text-blue-600 hover:text-blue-800">✏️</button>}
-                                <button onClick={() => handleDeleteContent(section.id, item.id)} className="text-red-500 hover:text-red-700">🗑️</button>
+                                <button onClick={() => handleDeleteContent(Number(section.id), Number(item.id))} className="text-red-500 hover:text-red-700">🗑️</button>
                               </div>
                             </div>
                             {item.text && (

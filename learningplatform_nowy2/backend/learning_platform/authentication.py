@@ -15,14 +15,18 @@ class FirebaseAuthentication(BaseAuthentication):
         auth_header = request.headers.get('Authorization')
         print(f"Authorization header: {auth_header}")
         
-        if not auth_header or not auth_header.startswith('Bearer '):
-            print("No Bearer token found")
-            return None
+        if not auth_header:
+            print("No Authorization header")
+            raise AuthenticationFailed('No authorization header')
+            
+        if not auth_header.startswith('Bearer '):
+            print("Invalid Authorization format")
+            raise AuthenticationFailed('Invalid authorization header format')
         
         token = auth_header.split('Bearer ')[1]
         if not token:
             print("Empty token")
-            return None
+            raise AuthenticationFailed('Empty token')
         
         try:
             print("Verifying Firebase token...")
@@ -43,7 +47,12 @@ class FirebaseAuthentication(BaseAuthentication):
             try:
                 user = User.objects.get(email=email)
                 print(f"Found existing user: {user.email}, is_teacher: {user.is_teacher}")
-                print(f"SKIPPING Firebase role sync for existing user - preserving Django role")
+                
+                # Update user's Firebase UID if not set
+                if not user.firebase_uid and decoded_token.get('uid'):
+                    user.firebase_uid = decoded_token['uid']
+                    user.save()
+                    print(f"Updated Firebase UID for user: {user.email}")
                 
             except User.DoesNotExist:
                 print(f"Creating new user for email: {email}")
@@ -52,15 +61,16 @@ class FirebaseAuthentication(BaseAuthentication):
                 user = User.objects.create_user(
                     username=username,
                     email=email,
-                    password=None
+                    password=None,
+                    firebase_uid=decoded_token.get('uid')
                 )
                 print(f"Created new user: {user.email}")
                 
-                # Only set role from Firebase for new users
+                # Set role from Firebase for new users
                 try:
                     firebase_user = auth.get_user(decoded_token['uid'])
                     custom_claims = firebase_user.custom_claims or {}
-                    role = custom_claims.get('role', 'student')
+                    role = custom_claims.get('role', decoded_token.get('role', 'student'))
                     print(f"Firebase role for new user: {role}")
                     
                     # Update Django user role based on Firebase claims

@@ -1,18 +1,23 @@
 import { useState } from 'react';
-import { signInWithPopup } from 'firebase/auth';
+import { signInWithPopup, AuthProvider } from 'firebase/auth';
 import { auth, googleProvider, microsoftProvider } from '@/lib/firebase-config';
+import Image from 'next/image';
+
+interface AuthUser {
+  name: string;
+  email: string;
+  uid: string;
+}
 
 export default function LoginButtons() {
-  const [token, setToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
 
-  const handleLogin = async (provider: any) => {
+  const handleLogin = async (provider: AuthProvider) => {
     try {
       setError(null);
       const result = await signInWithPopup(auth, provider);
       const userToken = await result.user.getIdToken();
-      setToken(userToken);
       
       // Send token to Django backend
               const response = await fetch('/api/auth/firebase-login/', {
@@ -34,8 +39,12 @@ export default function LoginButtons() {
       localStorage.setItem('accessToken', data.access);
       localStorage.setItem('refreshToken', data.refresh);
       
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('An unknown error occurred');
+      }
     }
   };
 
@@ -45,7 +54,13 @@ export default function LoginButtons() {
         onClick={() => handleLogin(googleProvider)}
         className="flex items-center justify-center gap-2 bg-white text-gray-800 px-4 py-2 rounded-md border border-gray-300 hover:bg-gray-50"
       >
-        <img src="/google-icon.svg" alt="Google" className="w-5 h-5" />
+        <Image 
+          src="/google-icon.svg" 
+          alt="Google" 
+          width={20} 
+          height={20} 
+          className="w-5 h-5" 
+        />
         Sign in with Google
       </button>
 
@@ -53,7 +68,13 @@ export default function LoginButtons() {
         onClick={() => handleLogin(microsoftProvider)}
         className="flex items-center justify-center gap-2 bg-white text-gray-800 px-4 py-2 rounded-md border border-gray-300 hover:bg-gray-50"
       >
-        <img src="/microsoft-icon.svg" alt="Microsoft" className="w-5 h-5" />
+        <Image 
+          src="/microsoft-icon.svg" 
+          alt="Microsoft" 
+          width={20} 
+          height={20} 
+          className="w-5 h-5" 
+        />
         Sign in with Microsoft
       </button>
 

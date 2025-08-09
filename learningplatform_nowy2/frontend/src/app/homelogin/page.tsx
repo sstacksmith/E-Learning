@@ -1,14 +1,14 @@
 "use client";
-import { useState, useEffect, useRef, useContext } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { useAuth } from '@/context/AuthContext';
 import Calendar from '../../components/Calendar';
-import { collection, getDocs, query, where } from 'firebase/firestore';
+import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../../config/firebase';
-import { addDoc } from 'firebase/firestore';
+
 
 import Providers from '@/components/Providers';
 
@@ -33,6 +33,11 @@ const sidebarLinks = [
     label: "Moje kursy",
     icon: <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V7M16 3v4M8 3v4M4 7h16" /></svg>,
     href: "/homelogin/my-courses"
+  },
+  {
+    label: "Plan lekcji",
+    icon: <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>,
+    href: "/homelogin/schedule"
   },
   {
     label: "Czat grupowy",
@@ -79,18 +84,7 @@ const sidebarLinks = [
   },
 ];
 
-const topCourses = [
-  { title: "Advanced Mathematics", price: "19,99zł", img: "/thumb.png" },
-  { title: "Physics Fundamentals", price: "29,99zł", img: "/thumb.png" },
-  { title: "Chemistry Basics", price: "14,99zł", img: "/thumb.png" },
-  { title: "Biology Essentials", price: "24,99zł", img: "/thumb.png" },
-];
 
-const bestSellers = [
-  { title: "Top Course - Mathematics", img: "/thumb.png" },
-  { title: "Top Course - Physics", img: "/thumb.png" },
-  { title: "Top Course - Chemistry", img: "/thumb.png" },
-];
 
 const podstawoweKursy = [
   'Język polski',
@@ -166,27 +160,35 @@ function Dashboard() {
   const router = useRouter();
   const { user, logout } = useAuth();
   console.log('user in Dashboard:', user);
-  const [activeMenu, setActiveMenu] = useState('dashboard');
-  const [userData, setUserData] = useState({
-    username: 'Student',
-    role: 'Student',
-    profileImage: '/puzzleicon.png'
-  });
-  // Add state for courses
-  const [recommendedCourses, setRecommendedCourses] = useState<Course[]>([]);
-  const [loadingCourses, setLoadingCourses] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false); // Changed to false for mobile
   const [search, setSearch] = useState('');
   const [suggestions, setSuggestions] = useState<string[]>([]);
-  const [assignedCourses, setAssignedCourses] = useState<any[]>([]);
+  const [assignedCourses, setAssignedCourses] = useState<Course[]>([]);
   const [loadingAssigned, setLoadingAssigned] = useState(true);
-  const [notifications, setNotifications] = useState<any[]>([]);
+  interface Notification {
+    id: string;
+    title: string;
+    description?: string;
+    deadline: string;
+    isOverdue?: boolean;
+    students?: string[];
+  }
+
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [hasUnread, setHasUnread] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [fileError, setFileError] = useState<string | null>(null);
-  const [teachers, setTeachers] = useState<any[]>([]);
+  interface Teacher {
+    uid: string;
+    displayName: string;
+    email: string;
+    subject: string;
+    role: string;
+  }
+
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [selectedTeacher, setSelectedTeacher] = useState<string>('');
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
@@ -195,158 +197,9 @@ function Dashboard() {
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Update user data when auth context changes
-  useEffect(() => {
-    if (user) {
-      setUserData({
-        username: user.email,
-        role: user.role === 'teacher' ? 'Teacher' : user.role === 'admin' ? 'Admin' : 'Student',
-        profileImage: '/puzzleicon.png'
-      });
-    }
-  }, [user]);
 
-  // Add useEffect to fetch courses
-  useEffect(() => {
-    console.log('Dashboard useEffect, user:', user);
-    const fetchCourses = async () => {
-      setLoadingCourses(true);
-      try {
-        const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
-        const response = await fetch('/api/courses/', {
-          headers: {
-            'Authorization': token ? `Bearer ${token}` : '',
-            'Content-Type': 'application/json',
-          },
-        });
-        if (!response.ok) {
-          console.warn('Backend API not available or token invalid. Using mock data.');
-          // Użyj danych zastępczych jeśli backend nie działa
-          const mockCourses: Course[] = [
-            { 
-              id: 1, 
-              title: 'Matematyka Rozszerzona', 
-              slug: 'matematyka-rozszerzona',
-              description: 'Kurs matematyki na poziomie rozszerzonym',
-              thumbnail: '/puzzleicon.png',
-              level: 'Rozszerzony',
-              category: 1,
-              category_name: 'Matematyka',
-              instructor: 1,
-              instructor_name: 'Dr Jan Kowalski',
-              is_featured: true
-            },
-            { 
-              id: 2, 
-              title: 'Fizyka Podstawowa', 
-              slug: 'fizyka-podstawowa',
-              description: 'Podstawy fizyki dla licealistów',
-              thumbnail: '/puzzleicon.png',
-              level: 'Podstawowy',
-              category: 2,
-              category_name: 'Fizyka',
-              instructor: 2,
-              instructor_name: 'Prof. Anna Nowak',
-              is_featured: true
-            },
-            { 
-              id: 3, 
-              title: 'Chemia Organiczna', 
-              slug: 'chemia-organiczna',
-              description: 'Wprowadzenie do chemii organicznej',
-              thumbnail: '/puzzleicon.png',
-              level: 'Rozszerzony',
-              category: 3,
-              category_name: 'Chemia',
-              instructor: 3,
-              instructor_name: 'Dr Piotr Wiśniewski',
-              is_featured: false
-            },
-            { 
-              id: 4, 
-              title: 'Biologia Molekularna', 
-              slug: 'biologia-molekularna',
-              description: 'Podstawy biologii molekularnej',
-              thumbnail: '/puzzleicon.png',
-              level: 'Rozszerzony',
-              category: 4,
-              category_name: 'Biologia',
-              instructor: 4,
-              instructor_name: 'Dr Maria Krawczyk',
-              is_featured: true
-            }
-          ];
-          setRecommendedCourses(mockCourses.slice(0, 3));
-          return;
-        }
-        const data = await response.json();
-        // Set recommended courses (can be filtered for featured or random selection)
-        setRecommendedCourses(data.slice(0, 3)); // Take first 3 courses as recommended
-      } catch (err) {
-        console.warn('Error fetching courses, using mock data:', err);
-        // Użyj danych zastępczych w przypadku błędu
-        const mockCourses: Course[] = [
-          { 
-            id: 1, 
-            title: 'Matematyka Rozszerzona', 
-            slug: 'matematyka-rozszerzona',
-            description: 'Kurs matematyki na poziomie rozszerzonym',
-            thumbnail: '/puzzleicon.png',
-            level: 'Rozszerzony',
-            category: 1,
-            category_name: 'Matematyka',
-            instructor: 1,
-            instructor_name: 'Dr Jan Kowalski',
-            is_featured: true
-          },
-          { 
-            id: 2, 
-            title: 'Fizyka Podstawowa', 
-            slug: 'fizyka-podstawowa',
-            description: 'Podstawy fizyki dla licealistów',
-            thumbnail: '/puzzleicon.png',
-            level: 'Podstawowy',
-            category: 2,
-            category_name: 'Fizyka',
-            instructor: 2,
-            instructor_name: 'Prof. Anna Nowak',
-            is_featured: true
-          },
-          { 
-            id: 3, 
-            title: 'Chemia Organiczna', 
-            slug: 'chemia-organiczna',
-            description: 'Wprowadzenie do chemii organicznej',
-            thumbnail: '/puzzleicon.png',
-            level: 'Rozszerzony',
-            category: 3,
-            category_name: 'Chemia',
-            instructor: 3,
-            instructor_name: 'Dr Piotr Wiśniewski',
-            is_featured: false
-          },
-          { 
-            id: 4, 
-            title: 'Biologia Molekularna', 
-            slug: 'biologia-molekularna',
-            description: 'Podstawy biologii molekularnej',
-            thumbnail: '/puzzleicon.png',
-            level: 'Rozszerzony',
-            category: 4,
-            category_name: 'Biologia',
-            instructor: 4,
-            instructor_name: 'Dr Maria Krawczyk',
-            is_featured: true
-          }
-        ];
-        setRecommendedCourses(mockCourses.slice(0, 3));
-      } finally {
-        setLoadingCourses(false);
-      }
-    };
 
-    fetchCourses();
-  }, [user]);
+
 
   useEffect(() => {
     if (!user) return;
@@ -359,7 +212,7 @@ function Dashboard() {
         
         // Filtruj kursy, do których użytkownik jest przypisany
         const assigned = coursesSnapshot.docs
-          .map(doc => ({ id: doc.id, ...doc.data() } as any))
+          .map(doc => ({ id: doc.id, ...doc.data() } as unknown as Course))
           .filter(course => {
             const assignedUsers = course.assignedUsers || [];
             return assignedUsers.includes(user.uid) || assignedUsers.includes(user.email);
@@ -387,16 +240,16 @@ function Dashboard() {
       
       // Student widzi tylko swoje eventy
       if (user.role === 'student') {
-        eventsList = eventsList.filter((ev: any) => ev.students && ev.students.includes(user.uid));
+        eventsList = eventsList.filter((ev) => (ev as Notification).students && (ev as Notification).students?.includes(user.uid));
       }
 
       // Sortuj po dacie malejąco
-      eventsList.sort((a: any, b: any) => new Date(b.deadline).getTime() - new Date(a.deadline).getTime());
+      eventsList.sort((a, b) => new Date((b as Notification).deadline).getTime() - new Date((a as Notification).deadline).getTime());
       
       // Dodaj informację o przekroczonym terminie
       const now = new Date();
-      eventsList = eventsList.map((ev: any) => {
-        const deadline = new Date(ev.deadline);
+      eventsList = eventsList.map((ev) => {
+        const deadline = new Date((ev as Notification).deadline);
         const isOverdue = deadline < now;
         return {
           ...ev,
@@ -404,7 +257,7 @@ function Dashboard() {
         };
       });
 
-      setNotifications(eventsList);
+      setNotifications(eventsList as Notification[]);
       
       // Sprawdź, czy są nieprzeczytane
       const lastRead = localStorage.getItem('lastNotifRead');
@@ -450,10 +303,7 @@ function Dashboard() {
     }
   };
 
-  // Function to handle logout
-  const handleLogout = () => {
-    logout();
-  };
+
 
   // Function to handle menu click for course viewing
   const handleViewCourses = () => {
@@ -552,7 +402,7 @@ function Dashboard() {
       formData.append('subject', `Wiadomość od ucznia przez platformę`);
       formData.append('body', message);
       if (selectedFiles.length > 0) {
-        selectedFiles.forEach((file, idx) => {
+        selectedFiles.forEach((file) => {
           formData.append('attachments', file, file.name);
         });
       }
@@ -566,8 +416,8 @@ function Dashboard() {
       setMessage('');
       setSelectedFiles([]);
       setSelectedTeacher('');
-    } catch (err: any) {
-      setSendError(err.message || 'Błąd wysyłki.');
+    } catch (err) {
+      setSendError((err as Error).message || 'Błąd wysyłki.');
     } finally {
       setSending(false);
     }
@@ -868,10 +718,10 @@ function Dashboard() {
                       />
                       {fileError && <div className="text-red-500 text-xs mt-1">{fileError}</div>}
                       <ul className="mt-1 space-y-1">
-                        {selectedFiles.map((file, idx) => (
-                          <li key={file.name + idx} className="flex items-center gap-2 text-xs text-[#1a237e] font-semibold">
+                        {selectedFiles.map((file) => (
+                          <li key={file.name} className="flex items-center gap-2 text-xs text-[#1a237e] font-semibold">
                             <span>{file.name} ({(file.size/1024/1024).toFixed(2)} MB)</span>
-                            <button type="button" className="text-red-500 hover:underline" onClick={() => handleRemoveFile(idx)}>Usuń</button>
+                            <button type="button" className="text-red-500 hover:underline" onClick={() => handleRemoveFile(selectedFiles.indexOf(file))}>Usuń</button>
                           </li>
                         ))}
                       </ul>
@@ -919,7 +769,9 @@ function Dashboard() {
                         <span className="font-medium text-gray-800 text-sm sm:text-base">{course.title}</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <button className="bg-[#4067EC] text-white px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm font-semibold cursor-pointer transition duration-200 hover:bg-[#3050b3] hover:scale-105">Otwórz</button>
+                        <Link href={`/courses/${course.slug || course.id}`}>
+                          <button className="bg-[#4067EC] text-white px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm font-semibold cursor-pointer transition duration-200 hover:bg-[#3050b3] hover:scale-105">Otwórz</button>
+                        </Link>
                       </div>
                     </div>
                   ))}

@@ -1,11 +1,8 @@
 "use client";
-"use client";
 import { useState } from "react";
-import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
+import { createUserWithEmailAndPassword } from "firebase/auth";
 import { auth, db } from "@/config/firebase";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
-import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import SocialLoginButtons from '@/components/Auth/SocialLoginButtons';
 import Providers from '@/components/Providers';
@@ -24,7 +21,7 @@ function RegisterPageContent() {
   const [success, setSuccess] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
-  const { register } = useAuth();
+  const { } = useAuth();
 
   const validate = () => {
     if (!firstName.trim()) {
@@ -61,7 +58,8 @@ function RegisterPageContent() {
     if (!validate()) return;
     setIsSubmitting(true);
     try {
-      const displayName = `${firstName} ${lastName}`.trim();
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const _ = `${firstName} ${lastName}`.trim();
       // Tworzymy użytkownika w Auth
       const userCred = await createUserWithEmailAndPassword(auth, email, password);
       // Zapisujemy dane w Firestore
@@ -75,14 +73,15 @@ function RegisterPageContent() {
       });
       setSuccess("Rejestracja przebiegła pomyślnie. Poczekaj na zatwierdzenie przez administratora.");
       await auth.signOut(); // NIE loguj automatycznie!
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Wystąpił błąd podczas rejestracji');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleSocialLoginSuccess = (user: any) => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const handleSocialLoginSuccess = (_: unknown) => {
     router.push('/dashboard');
   };
 

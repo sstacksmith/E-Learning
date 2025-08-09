@@ -22,6 +22,19 @@ interface Activity {
   onClick?: () => void;
 }
 
+interface FirestoreEvent {
+  id: string;
+  title?: string;
+  date?: string; // YYYY-MM-DD
+  type?: 'assignment' | 'quiz' | 'exam';
+  deadline?: string;
+  startTime?: string;
+  subject?: string;
+  courseId?: string;
+  assignedTo?: string[];
+  students?: string[];
+}
+
 const daysShort = ['pon.', 'wt.', 'śr.', 'czw.', 'pt.', 'sob.', 'niedz.'];
 const monthsPl = [
   'styczeń', 'luty', 'marzec', 'kwiecień', 'maj', 'czerwiec',
@@ -37,7 +50,7 @@ function getLocalDateString(date: Date): string {
 
 const Calendar: React.FC = () => {
   const { user } = useAuth();
-  const [events, setEvents] = useState<any[]>([]);
+  const [events, setEvents] = useState<FirestoreEvent[]>([]);
   const [current, setCurrent] = useState(() => {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), 1);
@@ -48,7 +61,7 @@ const Calendar: React.FC = () => {
     const fetchEvents = async () => {
       const eventsCollection = collection(db, 'events');
       const eventsSnapshot = await getDocs(eventsCollection);
-      const eventsList = eventsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const eventsList: FirestoreEvent[] = eventsSnapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as Record<string, unknown>) }));
       setEvents(eventsList);
     };
     fetchEvents();
@@ -58,7 +71,7 @@ const Calendar: React.FC = () => {
   const filteredEvents = useMemo(() => {
     if (!user) return [];
     if (user.role === 'student') {
-      return events.filter((event: any) => {
+      return events.filter((event: FirestoreEvent) => {
         if (event.assignedTo && event.assignedTo.includes(user.uid)) {
           return true;
         }
@@ -73,7 +86,7 @@ const Calendar: React.FC = () => {
 
   // Mapowanie eventów na aktywności kalendarza
   const activities: Activity[] = useMemo(() => {
-    return filteredEvents.map((event: any) => {
+    return filteredEvents.map((event: FirestoreEvent) => {
       let date = '';
       let hour = '';
       if (event.deadline) {
@@ -85,9 +98,9 @@ const Calendar: React.FC = () => {
       }
       return {
         id: event.id,
-        title: event.title,
+        title: event.title || 'Wydarzenie',
         date,
-        type: event.type || 'assignment',
+        type: (event.type as Activity['type']) || 'assignment',
         hour,
         typeLabel: event.type,
         subject: event.subject,
@@ -110,12 +123,12 @@ const Calendar: React.FC = () => {
   const todayM = today.getMonth();
   const todayD = today.getDate();
 
-  // Oblicz dni miesiąca
-  const firstDay = new Date(current.getFullYear(), current.getMonth(), 1);
-  const lastDay = new Date(current.getFullYear(), current.getMonth() + 1, 0);
-
   // Tworzymy siatkę dni (od poniedziałku)
   const days = useMemo(() => {
+    // Oblicz dni miesiąca
+    const firstDay = new Date(current.getFullYear(), current.getMonth(), 1);
+    const lastDay = new Date(current.getFullYear(), current.getMonth() + 1, 0);
+    
     const result = [];
     const start = new Date(firstDay);
     // Ustaw na pierwszy poniedziałek przed lub w pierwszym dniu miesiąca
@@ -146,7 +159,7 @@ const Calendar: React.FC = () => {
       start.setDate(start.getDate() + 1);
     }
     return result;
-  }, [current, activities, todayY, todayM, todayD, firstDay, lastDay]);
+  }, [current, activities, todayY, todayM, todayD]);
 
   // Nawigacja
   const prevMonth = () => setCurrent(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
@@ -170,19 +183,19 @@ const Calendar: React.FC = () => {
       </div>
       <div className="grid grid-cols-7 gap-1">
         {days.map((day, idx) => {
-          // Kolorowanie tła
           let bg = '';
           if (day.isToday) bg = 'bg-blue-100';
           else if (day.isWeekend) bg = 'bg-gray-100';
-          // Aktywność z najwyższym priorytetem (egzamin > quiz > zadanie)
+          
           let activityBg = '';
           if (day.activities.length > 0) {
             const typeOrder = ['exam', 'quiz', 'assignment'];
             const found = typeOrder.find(type => day.activities.some(a => a.type === type));
             if (found) activityBg = ACTIVITY_COLORS[found];
           }
-          // Podświetlenie wybranego dnia
+          
           const isHighlighted = localHighlight && day.dateStr === localHighlight;
+          
           return (
             <div
               key={idx}
@@ -191,7 +204,6 @@ const Calendar: React.FC = () => {
             >
               <div className="font-bold mb-1 text-lg">{day.date.getDate()}</div>
               {day.activities.map(act => {
-                // Sprawdź, czy aktywność jest przeterminowana
                 const isOverdue = act.date < getLocalDateString(today);
                 return (
                   <div
@@ -209,10 +221,11 @@ const Calendar: React.FC = () => {
                   </div>
                 );
               })}
-              {/* Tooltip na hover na CAŁY DZIEŃ */}
+              
+              {/* Tooltip */}
               {day.activities.length > 0 && (
                 <div className="absolute z-20 left-1/2 -translate-x-1/2 top-full mt-1 w-max min-w-[240px] bg-white border border-gray-300 rounded shadow-lg p-3 text-base text-left opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-200 whitespace-pre-line">
-                  {day.activities.map((act, i) => (
+                  {day.activities.map((act) => (
                     <div key={act.id} className="mb-3 last:mb-0">
                       <div><b>{act.title}</b> {act.type === 'exam' && <span className="text-red-600 font-bold">(Egzamin)</span>}</div>
                       <div><b>Rodzaj:</b> {act.type === 'exam' ? 'Egzamin' : act.typeLabel || act.type}</div>

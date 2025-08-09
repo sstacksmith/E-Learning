@@ -1,5 +1,6 @@
 from django.db import models
 from django.conf import settings
+from api.models import User
 
 class UserGroup(models.Model):
     name = models.CharField(max_length=100)
@@ -86,3 +87,74 @@ class CourseAssignment(models.Model):
 
     def __str__(self):
         return f"{self.student.username} - {self.course.title}" 
+
+class Quiz(models.Model):
+    title = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    subject = models.CharField(max_length=100)
+    course = models.ForeignKey('Course', related_name='quizzes', on_delete=models.CASCADE, null=True, blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    firebase_id = models.CharField(max_length=100, unique=True, null=True, blank=True)
+    max_attempts = models.PositiveIntegerField(default=1, help_text='Maximum number of attempts allowed for this quiz')
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['firebase_id']),
+        ]
+
+    def __str__(self):
+        return f"{self.title} - {self.course.title if self.course else 'No Course'}"
+
+class Question(models.Model):
+    QUESTION_TYPES = (
+        ('text', 'Text'),
+        ('math', 'Mathematical'),
+    )
+
+    quiz = models.ForeignKey(Quiz, related_name='questions', on_delete=models.CASCADE)
+    content = models.TextField()
+    type = models.CharField(max_length=10, choices=QUESTION_TYPES, default='text')
+    explanation = models.TextField(blank=True)
+    order = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['order']
+
+    def __str__(self):
+        return f"Question {self.order} of {self.quiz.title}"
+
+class Answer(models.Model):
+    question = models.ForeignKey(Question, related_name='answers', on_delete=models.CASCADE)
+    content = models.TextField()
+    is_correct = models.BooleanField(default=False)
+    type = models.CharField(max_length=10, choices=Question.QUESTION_TYPES, default='text')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Answer to {self.question}"
+
+class QuizAttempt(models.Model):
+    quiz = models.ForeignKey(Quiz, related_name='attempts', on_delete=models.CASCADE)
+    user = models.ForeignKey(User, related_name='quiz_attempts', on_delete=models.CASCADE)
+    score = models.FloatField(default=0)
+    started_at = models.DateTimeField(auto_now_add=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.user}'s attempt at {self.quiz}"
+
+class QuestionResponse(models.Model):
+    attempt = models.ForeignKey(QuizAttempt, related_name='responses', on_delete=models.CASCADE)
+    question = models.ForeignKey(Question, on_delete=models.CASCADE)
+    answer = models.ForeignKey(Answer, null=True, on_delete=models.SET_NULL)
+    is_correct = models.BooleanField(default=False)
+    response_time = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Response to {self.question} in {self.attempt}" 

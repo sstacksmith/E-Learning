@@ -25,9 +25,9 @@ export default function ChatAssistant({ open, onClose }: ChatAssistantProps) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   async function getRecaptchaToken() {
-    // @ts-ignore
+    // @ts-expect-error grecaptcha is loaded dynamically
     if (window.grecaptcha) {
-      // @ts-ignore
+      // @ts-expect-error grecaptcha API types are not available
       return await window.grecaptcha.execute('khbjasd76892kbasbd89621-21', { action: 'chat' });
     }
     return '';
@@ -42,6 +42,7 @@ export default function ChatAssistant({ open, onClose }: ChatAssistantProps) {
     setMessages(msgs => [...msgs, userMsg]);
     setInput('');
     try {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const recaptchaToken = await getRecaptchaToken();
       // Jeśli Twój backend wymaga tokena, możesz go przekazać w prompt lub w metadanych
       // Przykład: const prompt = `${input}\n[recaptcha:${recaptchaToken}]`;
@@ -49,9 +50,13 @@ export default function ChatAssistant({ open, onClose }: ChatAssistantProps) {
       const response = result.response;
       const text = response.text();
       setMessages(msgs => [...msgs, { role: 'ai', content: text || 'Brak odpowiedzi AI.' }]);
-    } catch (err: any) {
+    } catch (err) {
       setMessages(msgs => [...msgs, { role: 'ai', content: 'Wystąpił błąd AI.' }]);
-      setError(err.message);
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('Wystąpił nieznany błąd.');
+      }
     } finally {
       setLoading(false);
       inputRef.current?.focus();

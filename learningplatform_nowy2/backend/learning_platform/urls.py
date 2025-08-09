@@ -15,9 +15,21 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import path
-from learningplatform.views import CourseListCreateView, CourseDetailView, CourseDetailBySlugView, set_teacher_role, set_admin_role, check_user_role, FirebaseLoginView, VerifyFirebaseTokenView, SetTeacherRoleView, UserListView, assign_course, my_courses, teacher_course_detail, health_check, courses_public
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+from learningplatform.views import (
+    CourseListCreateView, CourseDetailView, CourseDetailBySlugView,
+    set_teacher_role, set_admin_role, check_user_role, FirebaseLoginView,
+    VerifyFirebaseTokenView, SetTeacherRoleView, UserListView,
+    assign_course, my_courses, teacher_course_detail, health_check,
+    courses_public, QuizViewSet, QuestionViewSet, QuizAttemptViewSet
+)
 from rest_framework.authtoken.views import obtain_auth_token
+
+router = DefaultRouter()
+router.register(r'quizzes', QuizViewSet, basename='quiz')
+router.register(r'questions', QuestionViewSet, basename='question')
+router.register(r'quiz-attempts', QuizAttemptViewSet, basename='quiz-attempts')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -36,4 +48,9 @@ urlpatterns = [
     path('api/assign-course/', assign_course, name='assign-course'),
     path('api/my-courses/', my_courses, name='my-courses'),
     path('api/teacher-course/<int:course_id>/', teacher_course_detail, name='teacher-course-detail'),
+    
+    # Dodajemy include dla całego modułu API (zawiera get_user_stats, update_learning_time, etc.)
+    path('api/', include('api.urls')),
+    
+    path('api/', include(router.urls)),
 ]

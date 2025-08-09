@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState, useCallback } from "react";
-import { useRouter, useParams } from "next/navigation";
-import { getAuth, User as FirebaseUser } from "firebase/auth";
+import { useParams } from "next/navigation";
+import { getAuth } from "firebase/auth";
 import { getFirestore, doc, collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, limit, startAfter, updateDoc, setDoc, where, getDocs } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { storage } from "@/lib/firebase-config";
@@ -16,7 +16,7 @@ interface Message {
   fileUrl?: string;
   fileType?: string;
   fileName?: string;
-  createdAt: any;
+  createdAt: { seconds: number; };
 }
 
 interface UserInfo {
@@ -36,10 +36,18 @@ interface ParticipantInfo {
   role: string;
 }
 
+interface User {
+  firebase_uid: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: string;
+}
+
 const MESSAGES_PER_PAGE = 50;
 
 export default function GroupChatView() {
-  const router = useRouter();
+
   const params = useParams();
   const chatId = params?.chatId as string;
   const [messages, setMessages] = useState<Message[]>([]);
@@ -54,13 +62,13 @@ export default function GroupChatView() {
   const db = getFirestore(firebaseApp);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [hasMoreMessages, setHasMoreMessages] = useState(true);
-  const lastMessageRef = useRef<any>(null);
+  const lastMessageRef = useRef<import('firebase/firestore').QueryDocumentSnapshot | null>(null);
   const [participants, setParticipants] = useState<string[]>([]);
   const [participantsLoading, setParticipantsLoading] = useState(true);
   const [participantsData, setParticipantsData] = useState<ParticipantInfo[]>([]);
   const [isTeacher, setIsTeacher] = useState(false);
   const [showManageParticipants, setShowManageParticipants] = useState(false);
-  const [files, setFiles] = useState<any[]>([]);
+  const [files, setFiles] = useState<Message[]>([]);
   const [filesLoading, setFilesLoading] = useState(true);
 
   const loadMoreMessages = useCallback(async () => {
@@ -147,7 +155,8 @@ export default function GroupChatView() {
       unsubChat();
       unsubMessages();
     };
-  }, [chatId, db]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatId, db, auth.currentUser]);
 
   useEffect(() => {
     if (auth.currentUser && chatId) {
@@ -159,7 +168,7 @@ export default function GroupChatView() {
     }
   }, [chatId, auth.currentUser]);
 
-  const fetchParticipantsData = async (participantIds: string[]) => {
+  const fetchParticipantsData = useCallback(async (participantIds: string[]) => {
     try {
       const user = auth.currentUser;
       if (!user) return;
@@ -175,9 +184,9 @@ export default function GroupChatView() {
         const participantsInfo: ParticipantInfo[] = [];
         
         participantIds.forEach(participantId => {
-          let userData = allUsers.find((u: any) => u.firebase_uid === participantId);
+          let userData = allUsers.find((u: User) => u.firebase_uid === participantId);
           if (!userData && participantId.includes('@')) {
-            userData = allUsers.find((u: any) => u.email === participantId);
+            userData = allUsers.find((u: User) => u.email === participantId);
           }
           if (userData) {
             participantsInfo.push({
@@ -203,7 +212,7 @@ export default function GroupChatView() {
     } catch (error) {
       console.error("Błąd podczas pobierania danych uczestników:", error);
     }
-  };
+  }, [auth.currentUser]);
 
   useEffect(() => {
     if (!chatId || messages.length === 0) return;
@@ -249,7 +258,7 @@ export default function GroupChatView() {
     };
     
     fetchUsers();
-  }, [messages, chatId, auth.currentUser, participantsData]);
+  }, [messages, chatId, auth.currentUser, participantsData, userMap]);
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -283,8 +292,9 @@ export default function GroupChatView() {
       }
     }
     
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const messageData: any = {
-      senderId: user.uid || user.email,
+      senderId: user.uid || user.email || 'unknown',
       createdAt: serverTimestamp(),
     };
     
@@ -323,7 +333,7 @@ export default function GroupChatView() {
     }
   }, [messages]);
 
-  const addParticipant = async (userUid: string, userEmail?: string) => {
+  const addParticipant = async (userUid: string) => {
     if (!isTeacher) return;
     
     try {
@@ -373,7 +383,7 @@ export default function GroupChatView() {
     }
   };
 
-  const fetchFiles = async () => {
+  const fetchFiles = useCallback(async () => {
     if (!chatId) return;
     
     try {
@@ -389,19 +399,19 @@ export default function GroupChatView() {
       const filesList = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
-      })).filter((msg: any) => msg.fileUrl);
+      })).filter((msg) => (msg as Message).fileUrl);
       
-      setFiles(filesList);
+      setFiles(filesList as Message[]);
     } catch (error) {
       console.error("Błąd podczas pobierania plików:", error);
     } finally {
       setFilesLoading(false);
     }
-  };
+  }, [chatId, db]);
 
   useEffect(() => {
     fetchFiles();
-  }, [chatId]);
+  }, [chatId, fetchFiles]);
 
   useEffect(() => {
     if (messages.length > 0) {
@@ -450,7 +460,7 @@ export default function GroupChatView() {
                       )}
                       
                       <ul className="space-y-6 messages-container overflow-y-auto flex-1 px-4 text-lg">
-                        {messages.map((msg, idx) => {
+                        {messages.map((msg) => {
                           const isCurrentUser = auth.currentUser && msg.senderId === auth.currentUser.uid;
                           const sender = participantMap[msg.senderId] || {};
                           const displayName = isCurrentUser
@@ -595,7 +605,7 @@ export default function GroupChatView() {
                     <AddParticipantModal 
                       onAdd={addParticipant}
                       currentParticipants={participants}
-                      onClose={() => setShowManageParticipants(false)}
+
                     />
                   </div>
                 )}
@@ -637,13 +647,13 @@ export default function GroupChatView() {
                       return (
                         <div key={file.id} className="bg-white rounded p-2 hover:bg-gray-100 transition-colors">
                           <div className="flex items-center gap-2">
-                            <span className="text-lg">{getFileIcon(file.fileType)}</span>
+                            <span className="text-lg">{getFileIcon(file.fileType || '')}</span>
                             <div className="flex-1 min-w-0">
                               <div className="text-sm font-medium truncate" title={file.fileName}>
                                 {file.fileName}
                               </div>
                               <div className="text-xs text-gray-500">
-                                {getFileType(file.fileType)}
+                                {getFileType(file.fileType || '')}
                               </div>
                             </div>
                           </div>
@@ -681,13 +691,22 @@ export default function GroupChatView() {
 function AddParticipantModal({ 
   onAdd, 
   currentParticipants, 
-  onClose 
+
 }: { 
-  onAdd: (uid: string, email?: string) => void; 
+  onAdd: (uid: string) => void; 
   currentParticipants: string[]; 
-  onClose: () => void; 
+
 }) {
-  const [allUsers, setAllUsers] = useState<any[]>([]);
+  interface User {
+    id: string;
+    firebase_uid: string;
+    email: string;
+    first_name?: string;
+    last_name?: string;
+    role?: string;
+  }
+
+  const [allUsers, setAllUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const auth = getAuth(firebaseApp);
@@ -706,7 +725,7 @@ function AddParticipantModal({
         
         if (res.ok) {
           const users = await res.json();
-          const availableUsers = users.filter((u: any) => {
+          const availableUsers = users.filter((u: User) => {
             if (!u.firebase_uid) {
               return false;
             }
@@ -723,7 +742,7 @@ function AddParticipantModal({
     };
     
     fetchUsers();
-  }, [currentParticipants]);
+  }, [currentParticipants, auth.currentUser]);
 
   const filteredUsers = searchTerm.length >= 3 ? allUsers.filter(user => {
     const searchLower = searchTerm.toLowerCase();

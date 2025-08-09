@@ -1,11 +1,11 @@
 "use client";
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../../context/AuthContext';
 import Image from "next/image";
 import Link from "next/link";
 import Providers from '@/components/Providers';
 import { db } from "@/config/firebase";
-import { collection, query, where, getDocs, updateDoc, doc } from "firebase/firestore";
+import { collection, getDocs } from "firebase/firestore";
 
 // Typ użytkownika Firestore
 interface FirestoreUser {
@@ -18,96 +18,43 @@ interface FirestoreUser {
   role?: string;
 }
 
-const groups = [
-  { id: 1, name: "Mathematics Class", description: "First year mathematics students", member_count: 25 },
-  { id: 2, name: "Physics Class", description: "Second year physics students", member_count: 18 },
-  { id: 3, name: "Chemistry Class", description: "Third year chemistry students", member_count: 15 },
-];
+interface Course {
+  id: string;
+  title: string;
+  description?: string;
+  subject?: string;
+  year?: number;
+  teacherEmail?: string;
+  assignedUsers?: string[];
+  slug?: string;
+}
+
+interface Group {
+  id: string;
+  name?: string;
+  description?: string;
+  members?: string[];
+  member_count?: number;
+}
 
 // Usuwamy statyczne dane - będziemy pobierać z Firestore
 
-function SuperAdminUserPanel() {
-  const [users, setUsers] = useState<FirestoreUser[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
 
-  const fetchUsers = async () => {
-    setLoading(true);
-    try {
-      const snap = await getDocs(collection(db, "users"));
-      const fetchedUsers = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setUsers(fetchedUsers);
-      console.log("Pobrani użytkownicy:", fetchedUsers);
-    } catch (e) {
-      setError("Błąd pobierania użytkowników");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchUsers();
-  }, []);
-
-  const ban = async (id: string) => {
-    try {
-      await updateDoc(doc(db, "users", id), { banned: true });
-      setSuccess("Użytkownik zbanowany!");
-      fetchUsers();
-    } catch (e) {
-      setError("Błąd banowania użytkownika");
-    }
-  };
-
-  // Na czas testu wyświetl wszystkich pobranych użytkowników bez filtrów
-  return (
-    <div className="overflow-x-auto">
-      <table className="min-w-full divide-y divide-gray-200">
-        <thead className="bg-gray-50">
-          <tr>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-          </tr>
-        </thead>
-        <tbody className="bg-white divide-y divide-gray-200">
-          {users.map((u: FirestoreUser) => (
-            <tr key={u.id}>
-              <td className="px-6 py-4 whitespace-nowrap">{(u.firstName || u.lastName) ? `${u.firstName || ''} ${u.lastName || ''}`.trim() : u.email}</td>
-              <td className="px-6 py-4 whitespace-nowrap">{u.email}</td>
-              <td className="px-6 py-4 whitespace-nowrap">{u.role || '-'}</td>
-              <td className="px-6 py-4 whitespace-nowrap">
-                <button className="bg-red-500 text-white px-3 py-1 rounded" onClick={() => ban(u.id)}>Zbanuj</button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {users.length === 0 && !loading && <div className="mt-4">Brak użytkowników.</div>}
-      {error && <div className="text-red-500 mt-2">{error}</div>}
-      {success && <div className="text-green-600 mt-2">{success}</div>}
-    </div>
-  );
-}
 
 function SuperAdminDashboardContent() {
   const { user } = useAuth();
   const [users, setUsers] = useState<FirestoreUser[]>([]);
-  const [courses, setCourses] = useState<any[]>([]);
-  const [groups, setGroups] = useState<any[]>([]);
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [selectedEmail, setSelectedEmail] = useState('');
   const [activeTab, setActiveTab] = useState("users");
-  const [selectedUser, setSelectedUser] = useState<any>(null);
-  const [selectedCourse, setSelectedCourse] = useState<any>(null);
   const [showResetPasswordModal, setShowResetPasswordModal] = useState(false);
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
-  const [selectedGroup, setSelectedGroup] = useState<any>(null);
+  const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
+  const [selectedUser] = useState<FirestoreUser | null>(null);
   const [newGroupName, setNewGroupName] = useState("");
   const [newGroupDescription, setNewGroupDescription] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -129,7 +76,7 @@ function SuperAdminDashboardContent() {
   const [newUserLastName, setNewUserLastName] = useState("");
   const [newUserRole, setNewUserRole] = useState("student");
   const [showEditCourseModal, setShowEditCourseModal] = useState(false);
-  const [editingCourse, setEditingCourse] = useState<any>(null);
+  const [editingCourse, setEditingCourse] = useState<Course | null>(null);
   const [editCourseTitle, setEditCourseTitle] = useState("");
   const [editCourseYear, setEditCourseYear] = useState("");
   const [editCourseDescription, setEditCourseDescription] = useState("");
@@ -137,13 +84,7 @@ function SuperAdminDashboardContent() {
   const [editCourseTeacher, setEditCourseTeacher] = useState("");
   const [editCourseStudents, setEditCourseStudents] = useState<string[]>([]);
 
-  useEffect(() => {
-    fetchUsers();
-    fetchCourses();
-    fetchGroups();
-  }, []);
-
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     try {
       const { collection, getDocs } = await import('firebase/firestore');
       const usersCollection = collection(db, 'users');
@@ -160,9 +101,9 @@ function SuperAdminDashboardContent() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [setUsers, setLoading, setError]);
 
-  const fetchCourses = async () => {
+  const fetchCourses = useCallback(async () => {
     try {
       const coursesCollection = collection(db, 'courses');
       const coursesSnapshot = await getDocs(coursesCollection);
@@ -170,13 +111,13 @@ function SuperAdminDashboardContent() {
         id: doc.id,
         ...doc.data()
       }));
-      setCourses(coursesData);
+      setCourses(coursesData as Course[]);
     } catch (err) {
       console.error('Failed to load courses:', err);
     }
-  };
+  }, [setCourses]);
 
-  const fetchGroups = async () => {
+  const fetchGroups = useCallback(async () => {
     try {
       const groupsCollection = collection(db, 'groups');
       const groupsSnapshot = await getDocs(groupsCollection);
@@ -188,7 +129,13 @@ function SuperAdminDashboardContent() {
     } catch (err) {
       console.error('Failed to load groups:', err);
     }
-  };
+  }, [setGroups]);
+
+  useEffect(() => {
+    fetchUsers();
+    fetchCourses();
+    fetchGroups();
+  }, [fetchUsers, fetchCourses, fetchGroups]);
 
   const setTeacherRole = async (email: string) => {
     try {
@@ -278,12 +225,13 @@ function SuperAdminDashboardContent() {
         setResetPasswordError(data.error || "Failed to reset password");
         setResetPasswordSuccess("");
       }
-    } catch (err) {
+    } catch {
       setResetPasswordError("An error occurred while resetting the password");
       setResetPasswordSuccess("");
     }
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleCreateGroup = async () => {
     try {
       const token = localStorage.getItem("token");
@@ -311,7 +259,7 @@ function SuperAdminDashboardContent() {
         setGroupError(data.error || "Failed to create group");
         setGroupSuccess("");
       }
-    } catch (err) {
+    } catch {
       setGroupError("An error occurred while creating the group");
       setGroupSuccess("");
     }
@@ -339,7 +287,7 @@ function SuperAdminDashboardContent() {
         setGroupError(data.error || "Failed to add member");
         setGroupSuccess("");
       }
-    } catch (err) {
+    } catch {
       setGroupError("An error occurred while adding the member");
       setGroupSuccess("");
     }
@@ -549,7 +497,7 @@ function SuperAdminDashboardContent() {
     }
   };
 
-  const openEditCourseModal = (course: any) => {
+  const openEditCourseModal = (course: Course) => {
     setEditingCourse(course);
     setEditCourseTitle(course.title || '');
     setEditCourseYear(course.year?.toString() || '');
@@ -1041,7 +989,7 @@ function SuperAdminDashboardContent() {
                         onChange={(e) => setSelectedStudentForAssignment(e.target.value)}
                       >
                         <option value="">Select a student...</option>
-                        {users.filter(u => u.role === 'student').map((user: any) => (
+                        {users.filter(u => u.role === 'student').map((user: FirestoreUser) => (
                           <option key={user.id} value={user.email}>{user.firstName || ''} {user.lastName || ''}</option>
                         ))}
                       </select>
@@ -1073,7 +1021,7 @@ function SuperAdminDashboardContent() {
                     {courses.map(course => (
                       <div key={course.id} className="border-b pb-4">
                         <h4 className="font-medium text-gray-800">{course.title}</h4>
-                        <p className="text-sm text-gray-500">{course.assignedStudents} students assigned</p>
+                        <p className="text-sm text-gray-500">{course.assignedUsers ? course.assignedUsers.length : 0} students assigned</p>
                         <button className="text-[#4067EC] hover:text-[#3155d4] text-sm mt-2">
                           View Details
                         </button>
@@ -1212,7 +1160,7 @@ function SuperAdminDashboardContent() {
                       onChange={(e) => setSelectedTeacherForCourse(e.target.value)}
                     >
                       <option value="">Select a teacher...</option>
-                      {users.filter(u => u.role === 'teacher').map((user: any) => (
+                      {users.filter(u => u.role === 'teacher').map((user: FirestoreUser) => (
                         <option key={user.id} value={user.email}>
                           {user.firstName || ''} {user.lastName || ''} ({user.email})
                         </option>
@@ -1470,7 +1418,7 @@ function SuperAdminDashboardContent() {
                       onChange={(e) => setEditCourseTeacher(e.target.value)}
                     >
                       <option value="">Select a teacher...</option>
-                      {users.filter(u => u.role === 'teacher').map((user: any) => (
+                      {users.filter(u => u.role === 'teacher').map((user: FirestoreUser) => (
                         <option key={user.id} value={user.email}>
                           {user.firstName || ''} {user.lastName || ''} ({user.email})
                         </option>
@@ -1525,7 +1473,7 @@ function SuperAdminDashboardContent() {
                         <option value="">Select a student to add...</option>
                         {users
                           .filter(u => u.role === 'student' && u.email && !editCourseStudents.includes(u.email))
-                          .map((user: any) => (
+                          .map((user: FirestoreUser) => (
                             <option key={user.id} value={user.email || ''}>
                               {user.firstName || ''} {user.lastName || ''} ({user.email})
                             </option>

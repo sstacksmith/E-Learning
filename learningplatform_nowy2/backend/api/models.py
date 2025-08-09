@@ -13,6 +13,15 @@ class User(AbstractUser):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    @property
+    def role(self):
+        if self.is_superuser:
+            return 'admin'
+        elif self.is_teacher:
+            return 'teacher'
+        else:
+            return 'student'
+
     def __str__(self):
         return self.username
 
@@ -38,6 +47,7 @@ class Course(models.Model):
     
     title = models.CharField(max_length=200)
     slug = models.SlugField(unique=True)
+    firebase_id = models.CharField(max_length=128, blank=True, null=True, unique=True)  # ID z Firebase
     category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name='courses')
     description = models.TextField()
     thumbnail = models.CharField(max_length=255, blank=True)  # URL to thumbnail image
@@ -88,11 +98,26 @@ class Lesson(models.Model):
     class Meta:
         ordering = ['order']
 
+class UserLearningTime(models.Model):
+    """Model do śledzenia ogólnego czasu nauki użytkownika"""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='learning_time')
+    date = models.DateField(auto_now_add=True)
+    time_spent_minutes = models.IntegerField(default=0)
+    last_updated = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        unique_together = ['user', 'date']
+        verbose_name_plural = "User Learning Time"
+    
+    def __str__(self):
+        return f"{self.user.username} - {self.date}: {self.time_spent_minutes} minutes"
+
 class Progress(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='progress')
     lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE)
     completed = models.BooleanField(default=False)
     last_viewed = models.DateTimeField(auto_now=True)
+    time_spent_minutes = models.IntegerField(default=0)  # Rzeczywisty czas spędzony na nauce
     score = models.FloatField(null=True, blank=True)  # For quizzes and assignments
     
     class Meta:

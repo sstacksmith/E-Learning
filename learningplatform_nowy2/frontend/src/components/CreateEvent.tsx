@@ -6,6 +6,7 @@ import { db } from '../config/firebase';
 interface Student {
   uid: string;
   displayName: string;
+  role?: string;
 }
 
 function to24HourFormat(value: string): string {
@@ -14,12 +15,13 @@ function to24HourFormat(value: string): string {
   // Spróbuj sparsować format 12-godzinny
   const match = value.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
   if (!match) return '';
-  let [_, h, m, ap] = match;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [_, h, m, ap] = match;
   let hour = parseInt(h, 10);
   if (ap) {
-    ap = ap.toUpperCase();
-    if (ap === 'PM' && hour < 12) hour += 12;
-    if (ap === 'AM' && hour === 12) hour = 0;
+    const apUpper = ap.toUpperCase();
+    if (apUpper === 'PM' && hour < 12) hour += 12;
+    if (apUpper === 'AM' && hour === 12) hour = 0;
   }
   return `${hour.toString().padStart(2, '0')}:${m}`;
 }
@@ -42,8 +44,8 @@ const CreateEvent: React.FC = () => {
       const usersCollection = collection(db, 'users');
       const usersSnapshot = await getDocs(usersCollection);
       const studentsList = usersSnapshot.docs
-        .map(doc => ({ uid: doc.id, ...doc.data() } as Student))
-        .filter(user => user && (user as any).role === 'student');
+        .map(doc => ({ uid: doc.id, ...(doc.data() as Record<string, unknown>) } as Student))
+        .filter(user => user?.role === 'student');
       setStudents(studentsList);
     };
     fetchStudents();
@@ -89,7 +91,7 @@ const CreateEvent: React.FC = () => {
       setStartTime('');
       setEndTime('');
       setSelectedStudents([]);
-    } catch (err) {
+    } catch {
       setError('Błąd podczas tworzenia wydarzenia.');
     } finally {
       setLoading(false);

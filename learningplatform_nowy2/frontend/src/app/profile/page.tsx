@@ -7,6 +7,7 @@ import { db, storage } from '../../config/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import Providers from '@/components/Providers';
+import Link from 'next/link';
 
 function ProfilePageContent() {
   const router = useRouter();
@@ -15,7 +16,7 @@ function ProfilePageContent() {
   const [email, setEmail] = useState('');
   const [userClass, setUserClass] = useState('');
   const [photoURL, setPhotoURL] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
   const [hovered, setHovered] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(false);
@@ -94,11 +95,14 @@ function ProfilePageContent() {
       setTimeout(() => {
         window.location.reload();
       }, 2000);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error uploading photo:', error);
-      if (error.message.includes('timeout')) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorCode = error && typeof error === 'object' && 'code' in error ? (error as { code: string }).code : '';
+      
+      if (errorMessage.includes('timeout')) {
         setUploadError('Upload się zatrzymał. Sprawdź reguły Firebase Storage.');
-      } else if (error.code === 'storage/unauthorized') {
+      } else if (errorCode === 'storage/unauthorized') {
         setUploadError('Brak uprawnień do uploadu. Sprawdź reguły Firebase Storage.');
       } else {
         setUploadError('Błąd podczas przesyłania zdjęcia. Spróbuj ponownie.');
@@ -126,85 +130,106 @@ function ProfilePageContent() {
   };
 
   return (
-    <div className="min-h-screen w-full bg-gradient-to-br from-[#e3eafe] to-[#f5f7ff] flex flex-col">
-      {/* Navigation Bar */}
-      <nav className="w-full bg-[#4067EC] py-4 px-4 md:px-8 flex flex-col md:flex-row items-center justify-between gap-4 shadow-md">
-        <div className="flex items-center gap-3">
-          <Image src="/puzzleicon.png" alt="Logo" width={32} height={32} />
-          <span className="text-white text-xl font-bold tracking-wide">COGITO</span>
-        </div>
-        <div className="flex flex-col md:flex-row items-center gap-2 md:gap-6 w-full md:w-auto">
-          <button onClick={() => router.push('/homelogin')} className="text-white font-medium hover:underline">Home</button>
-          <button onClick={() => router.push('/courses')} className="text-white font-medium hover:underline">Courses</button>
-          <button onClick={() => router.push('/profile/statistics')} className="text-white font-medium hover:underline">Statystyki</button>
-          <button onClick={handleLogout} className="bg-white text-[#4067EC] font-semibold px-4 py-2 rounded shadow hover:bg-blue-100 transition">Wyloguj się</button>
-        </div>
-      </nav>
-      {/* Profile Content */}
-      <div className="flex-1 w-full flex flex-col items-center justify-center px-2 md:px-0">
-        <div className="w-full max-w-5xl bg-white rounded-2xl shadow-xl p-4 md:p-12 my-6 md:my-12 border border-[#e3eafe]">
-          <div className="flex flex-col items-center mb-8">
-            <div className="relative group" onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
-              <Image
-                src={photoURL || "/puzzleicon.png"}
-                alt="Profile picture"
-                width={110}
-                height={110}
-                className="rounded-full border-4 border-[#4067EC] shadow-lg object-cover bg-gray-200"
-              />
-              <input
-                type="file"
-                accept="image/jpeg,image/png"
-                ref={fileInputRef}
-                style={{ display: 'none' }}
-                onChange={handlePhotoChange}
-              />
-              {hovered && (
-                <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center rounded-full cursor-pointer" onClick={handlePhotoClick}>
-                  <span className="text-white font-semibold">Zmień zdjęcie</span>
-                </div>
-              )}
-            </div>
-            <h2 className="mt-4 text-2xl md:text-3xl font-bold text-[#4067EC] text-center">{displayName || 'Brak imienia i nazwiska'}</h2>
-            <p className="text-gray-500 text-center">{email || 'Brak adresu email'}</p>
-            {uploading && (
-              <div className="mt-2 text-[#4067EC] font-semibold">Przesyłanie zdjęcia...</div>
-            )}
-            {uploadSuccess && (
-              <div className="mt-2 text-green-600 font-semibold">Zdjęcie zostało zaktualizowane! Odświeżanie strony...</div>
-            )}
-            {uploadError && (
-              <div className="mt-2 text-red-600 font-semibold">{uploadError}</div>
-            )}
-          </div>
-          <div className="mb-8">
-            <h3 className="font-bold mb-2 text-[#4067EC]">Account Settings</h3>
-            <button className="w-full bg-[#e3eafe] py-3 rounded shadow text-[#4067EC] font-semibold hover:bg-[#d0dbfa] transition" onClick={handleChangePassword}>
-              Change Password
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-4xl mx-auto px-4 py-8">
+        <div className="bg-white rounded-xl shadow-md p-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-8">Profil użytkownika</h1>
+          
+          {/* Quick Actions */}
+          <div className="mb-8 flex flex-wrap gap-4">
+            <Link 
+              href="/profile/statistics" 
+              className="px-4 py-2 bg-[#4067EC] text-white rounded-lg hover:bg-[#5577FF] transition-colors"
+            >
+              Statystyki nauki
+            </Link>
+            <Link 
+              href="/profile/courses" 
+              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+            >
+              Moje kursy
+            </Link>
+            <button 
+              onClick={handleChangePassword}
+              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+            >
+              Zmień hasło
+            </button>
+            <button 
+              onClick={handleLogout}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+            >
+              Wyloguj się
             </button>
           </div>
-          <div>
-            <h3 className="font-bold mb-2 text-[#4067EC]">Informacje osobiste</h3>
-            <div className="space-y-4 w-full max-w-lg mx-auto">
-              <div className="flex flex-col md:flex-row border-b border-[#e3eafe] py-2">
-                <div className="w-full md:w-1/3 font-semibold text-[#4067EC]">Imię i nazwisko</div>
-                <div className="w-full md:w-2/3 text-[#222]">{displayName || 'Brak imienia i nazwiska'}</div>
+
+          {/* Profile Content */}
+          <div className="flex-1 w-full flex flex-col items-center justify-center px-2 md:px-0">
+            <div className="w-full max-w-5xl bg-white rounded-2xl shadow-xl p-4 md:p-12 my-6 md:my-12 border border-[#e3eafe]">
+              <div className="flex flex-col items-center mb-8">
+                <div className="relative group" onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
+                  <Image
+                    src={photoURL || "/puzzleicon.png"}
+                    alt="Profile picture"
+                    width={110}
+                    height={110}
+                    className="rounded-full border-4 border-[#4067EC] shadow-lg object-cover bg-gray-200"
+                  />
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png"
+                    ref={fileInputRef}
+                    style={{ display: 'none' }}
+                    onChange={handlePhotoChange}
+                  />
+                  {hovered && (
+                    <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center rounded-full cursor-pointer" onClick={handlePhotoClick}>
+                      <span className="text-white font-semibold">Zmień zdjęcie</span>
+                    </div>
+                  )}
+                </div>
+                <h2 className="mt-4 text-2xl md:text-3xl font-bold text-[#4067EC] text-center">{displayName || 'Brak imienia i nazwiska'}</h2>
+                <p className="text-gray-500 text-center">{email || 'Brak adresu email'}</p>
+                {uploading && (
+                  <div className="mt-2 text-[#4067EC] font-semibold">Przesyłanie zdjęcia...</div>
+                )}
+                {uploadSuccess && (
+                  <div className="mt-2 text-green-600 font-semibold">Zdjęcie zostało zaktualizowane! Odświeżanie strony...</div>
+                )}
+                {uploadError && (
+                  <div className="mt-2 text-red-600 font-semibold">{uploadError}</div>
+                )}
               </div>
-              <div className="flex flex-col md:flex-row border-b border-[#e3eafe] py-2">
-                <div className="w-full md:w-1/3 font-semibold text-[#4067EC]">Email</div>
-                <div className="w-full md:w-2/3 text-[#222]">{email || 'Brak adresu email'}</div>
+              <div className="mb-8">
+                <h3 className="font-bold mb-2 text-[#4067EC]">Account Settings</h3>
+                <button className="w-full bg-[#e3eafe] py-3 rounded shadow text-[#4067EC] font-semibold hover:bg-[#d0dbfa] transition" onClick={handleChangePassword}>
+                  Change Password
+                </button>
               </div>
-              <div className="flex flex-col md:flex-row border-b border-[#e3eafe] py-2">
-                <div className="w-full md:w-1/3 font-semibold text-[#4067EC]">Klasa/Grupa</div>
-                <div className="w-full md:w-2/3 text-[#222]">{userClass || '-'}</div>
+              <div>
+                <h3 className="font-bold mb-2 text-[#4067EC]">Informacje osobiste</h3>
+                <div className="space-y-4 w-full max-w-lg mx-auto">
+                  <div className="flex flex-col md:flex-row border-b border-[#e3eafe] py-2">
+                    <div className="w-full md:w-1/3 font-semibold text-[#4067EC]">Imię i nazwisko</div>
+                    <div className="w-full md:w-2/3 text-[#222]">{displayName || 'Brak imienia i nazwiska'}</div>
+                  </div>
+                  <div className="flex flex-col md:flex-row border-b border-[#e3eafe] py-2">
+                    <div className="w-full md:w-1/3 font-semibold text-[#4067EC]">Email</div>
+                    <div className="w-full md:w-2/3 text-[#222]">{email || 'Brak adresu email'}</div>
+                  </div>
+                  <div className="flex flex-col md:flex-row border-b border-[#e3eafe] py-2">
+                    <div className="w-full md:w-1/3 font-semibold text-[#4067EC]">Klasa/Grupa</div>
+                    <div className="w-full md:w-2/3 text-[#222]">{userClass || '-'}</div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
-                  </div>
         </div>
       </div>
-    );
-  }
+    </div>
+  );
+}
 
 export default function ProfilePage() {
   return (
