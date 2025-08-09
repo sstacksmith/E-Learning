@@ -107,6 +107,10 @@ class FirebaseAuthenticationMiddleware:
             response["Access-Control-Allow-Credentials"] = "true"
             return response
 
+        # Pomiń uwierzytelnianie dla health check endpointu
+        if request.path == '/health/':
+            return self.get_response(request)
+
         # Sprawdź czy request jest do endpointu API
         if not request.path.startswith('/api/'):
             return self.get_response(request)
