@@ -202,6 +202,22 @@ function SuperAdminDashboardContent() {
     }
   };
 
+  const setParentRole = async (uid: string) => {
+    try {
+      await updateDoc(doc(db, 'users', uid), {
+        role: 'parent'
+      });
+      
+      setSuccess(`Pomyślnie ustawiono użytkownika jako Rodzic`);
+      setTimeout(() => setSuccess(''), 3000);
+      fetchUsers(); // Refresh the list
+    } catch (err) {
+      console.error('Error setting parent role:', err);
+      setError('Nie udało się ustawić roli Rodzic');
+      setTimeout(() => setError(''), 3000);
+    }
+  };
+
   const handleResetPassword = async (userId: string) => {
     try {
       const token = localStorage.getItem("token");
@@ -676,6 +692,12 @@ function SuperAdminDashboardContent() {
               >
                 Course Assignments
               </button>
+              <Link
+                href="/homelogin/superadmin/parent-student"
+                className={`border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+              >
+                Rodzic-Uczeń
+              </Link>
             </nav>
           </div>
         </div>
@@ -739,7 +761,9 @@ function SuperAdminDashboardContent() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm text-gray-900">
-                            {user.role === 'admin' ? 'Admin' : user.role === 'teacher' ? 'Teacher' : 'Student'}
+                            {user.role === 'admin' ? 'Admin' : 
+                             user.role === 'teacher' ? 'Teacher' : 
+                             user.role === 'parent' ? 'Rodzic' : 'Student'}
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -758,6 +782,14 @@ function SuperAdminDashboardContent() {
                                 className="text-green-600 hover:text-green-900"
                               >
                                 Set as Admin
+                              </button>
+                            )}
+                            {user.role !== 'parent' && (
+                              <button 
+                                onClick={() => setParentRole(user.id)}
+                                className="text-purple-600 hover:text-purple-900"
+                              >
+                                Ustaw jako Rodzic
                               </button>
                             )}
                             {user.role === 'admin' && (
@@ -1249,6 +1281,7 @@ function SuperAdminDashboardContent() {
                       <option value="student">Student</option>
                       <option value="teacher">Teacher</option>
                       <option value="admin">Admin</option>
+                      <option value="parent">Parent</option>
                     </select>
                   </div>
                 </div>

@@ -7,7 +7,7 @@ import {
   signInWithEmailAndPassword,
   signOut,
   onAuthStateChanged,
-  // User as FirebaseUser,
+  User as FirebaseUser,
 } from 'firebase/auth';
 import {
   doc,
@@ -15,10 +15,12 @@ import {
   getDoc,
 } from 'firebase/firestore';
 
+export type UserRole = 'student' | 'teacher' | 'admin' | 'parent';
+
 export type User = {
   uid: string;
   email: string;
-  role: 'student' | 'teacher' | 'admin';
+  role: UserRole;
 };
 
 type AuthContextType = {
@@ -29,22 +31,18 @@ type AuthContextType = {
   login: (email: string, password: string) => Promise<void>;
   loginWithApproval: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
-  getCurrentUserRole: () => Promise<'student' | 'teacher' | 'admin' | null>;
+  getCurrentUserRole: () => Promise<UserRole | null>;
   isAuthenticated: boolean;
   setUser: React.Dispatch<React.SetStateAction<User | null>>;
 };
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-const TOKEN_KEY = 'firebaseToken';
-
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [error, setError] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const router = useRouter();
 
   // Listen for auth state changes
@@ -55,7 +53,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           // Get additional user data from Firestore
           const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
           const userData = userDoc.exists() ? userDoc.data() : {};
-          const role = userData.role as 'student' | 'teacher' | 'admin' || 'student';
+          const role = userData.role as UserRole || 'student';
 
           setUser({
             uid: firebaseUser.uid,
@@ -65,26 +63,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setIsAuthenticated(true);
 
           // Store the token
-          const token = await firebaseUser.getIdToken(true);
-          console.log('Storing fresh token in AuthContext');
-          localStorage.setItem(TOKEN_KEY, token);
+          const token = await firebaseUser.getIdToken();
+          localStorage.setItem('firebaseToken', token);
+
+          // Nie przekierowujemy rodzica nigdzie - ma widzieć normalną stronę homelogin
         } else {
           setUser(null);
           setIsAuthenticated(false);
-          localStorage.removeItem(TOKEN_KEY);
+          localStorage.removeItem('firebaseToken');
         }
       } catch (err) {
         console.error('AuthContext error:', err);
         setUser(null);
         setIsAuthenticated(false);
-        localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem('firebaseToken');
       } finally {
         setLoading(false);
       }
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [router]);
 
   // Register user with email, password, and role
   const register = async (email: string, password: string, displayName: string, role: string) => {
@@ -117,29 +116,36 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   // Login user with approval check
   const loginWithApproval = async (email: string, password: string) => {
-    console.log('loginWithApproval called', email);
+    console.log('loginWithApproval wywołane', email);
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
     const userDoc = await getDoc(doc(db, 'users', user.uid));
     
-    if (!userDoc.exists() || !userDoc.data().approved) {
+    if (!userDoc.exists()) {
+      await signOut(auth);
+      throw new Error('Użytkownik nie istnieje.');
+    }
+
+    const userData = userDoc.data();
+    if (!userData.approved && userData.role !== 'parent') {
       await signOut(auth);
       throw new Error('Twoje konto oczekuje na zatwierdzenie przez administratora.');
     }
-    
-    // Get and store fresh token
-    const token = await user.getIdToken(true);
-    console.log('Got fresh token after login');
-    localStorage.setItem(TOKEN_KEY, token);
-    console.log('Token stored in localStorage');
+
+    // Zapisz token JWT do localStorage pod kluczem 'token'
+    const token = await user.getIdToken();
+    console.log('Pobrany token:', token);
+    localStorage.setItem('token', token);
+    console.log('Token zapisany do localStorage');
+
+    // Nie przekierowujemy rodzica nigdzie - ma widzieć normalną stronę homelogin
   };
 
   // Logout user
   const logout = async () => {
     try {
       await signOut(auth);
-      localStorage.removeItem(TOKEN_KEY);
-      console.log('Logged out and removed token');
+      router.push('/login');
     } catch (error) {
       console.error('Logout error:', error);
       throw error;
@@ -147,10 +153,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   // Get current user role
-  const getCurrentUserRole = async (): Promise<'student' | 'teacher' | 'admin' | null> => {
+  const getCurrentUserRole = async (): Promise<UserRole | null> => {
     if (!auth.currentUser) return null;
-    const idTokenResult = await auth.currentUser.getIdTokenResult();
-    return idTokenResult.claims.role as 'student' | 'teacher' | 'admin' || null;
+    const userDoc = await getDoc(doc(db, 'users', auth.currentUser.uid));
+    if (!userDoc.exists()) return null;
+    return userDoc.data().role as UserRole || null;
   };
 
   return (

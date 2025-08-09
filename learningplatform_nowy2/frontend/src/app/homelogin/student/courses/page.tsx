@@ -1,190 +1,187 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { db } from '@/config/firebase';
-import Link from 'next/link';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { db } from '@/config/firebase';
+import { collection, getDocs, query, where } from 'firebase/firestore';
 
 interface Course {
-  id: number;
+  id: string;
   title: string;
   description: string;
-  year_of_study: number;
-  subject: string;
-  is_active: boolean;
-  created_at: string;
-  updated_at?: string;
-  pdfUrls: string[];
-  links: string[];
-  slug: string;
-  assignedUsers: string[];
-  sections: {
-    id: string;
-    title: string;
-    description?: string;
-    contents: {
-      id: string;
-      title: string;
-      type: string;
-      url?: string;
-      content?: string;
-    }[];
-  }[];
+  teacher: {
+    name: string;
+    email: string;
+  };
+  progress: {
+    completed: number;
+    total: number;
+    percentage: number;
+  };
 }
 
 export default function StudentCourses() {
   const { user } = useAuth();
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState('');
+  const [studentInfo, setStudentInfo] = useState<{ name: string; email: string } | null>(null);
 
-  const fetchCourses = useCallback(async () => {
-    console.log('[DEBUG] Fetching student courses...');
-    console.log('[DEBUG] Student email:', user?.email);
+  useEffect(() => {
+    fetchCourses();
+  }, [user]);
 
-    setLoading(true);
-    setError(null);
+  const fetchCourses = async () => {
+    if (!user) return;
 
     try {
-      const { collection, getDocs } = await import('firebase/firestore');
-      const coursesCollection = collection(db, 'courses');
-      const coursesSnapshot = await getDocs(coursesCollection);
+      let studentId = user.uid;
+      let studentData = null;
 
-      const studentEmail = user?.email;
-      if (!studentEmail) {
-        throw new Error('Nie można zidentyfikować studenta');
+      // Jeśli użytkownik jest rodzicem, znajdź przypisanego ucznia
+      if (user.role === 'parent') {
+        const parentStudentsRef = collection(db, 'parent_students');
+        const parentStudentsQuery = query(parentStudentsRef, where('parent', '==', user.uid));
+        const parentStudentsSnapshot = await getDocs(parentStudentsQuery);
+
+        if (parentStudentsSnapshot.empty) {
+          setError('Nie masz przypisanego żadnego ucznia.');
+          setLoading(false);
+          return;
+        }
+
+        studentId = parentStudentsSnapshot.docs[0].data().student;
+
+        // Pobierz dane ucznia
+        const studentDoc = await getDocs(query(collection(db, 'users'), where('uid', '==', studentId)));
+        if (!studentDoc.empty) {
+          const data = studentDoc.docs[0].data();
+          studentData = {
+            name: data.displayName || data.email,
+            email: data.email
+          };
+          setStudentInfo(studentData);
+        }
       }
 
-      const studentCourses = coursesSnapshot.docs
-        .map(doc => {
-          const data = doc.data();
-          return {
-            id: data.id || doc.id,
-            title: data.title || '',
-            description: data.description || '',
-            year_of_study: data.year_of_study || 1,
-            subject: data.subject || '',
-            is_active: data.is_active !== undefined ? data.is_active : true,
-            created_at: data.created_at || new Date().toISOString(),
-            updated_at: data.updated_at || new Date().toISOString(),
-            pdfUrls: data.pdfUrls || [],
-            links: data.links || [],
-            slug: data.slug || '',
-            assignedUsers: data.assignedUsers || [],
-            sections: data.sections || []
-          };
-        })
-        .filter(course => 
-          course.is_active && 
-          course.assignedUsers.includes(studentEmail)
-        );
+      // Pobierz kursy ucznia
+      const coursesRef = collection(db, 'courses');
+      const coursesSnapshot = await getDocs(coursesRef);
+      const studentCourses = await Promise.all(
+        coursesSnapshot.docs
+          .filter(doc => doc.data().students?.includes(studentId))
+          .map(async (doc) => {
+            const courseData = doc.data();
+            
+            // Pobierz dane nauczyciela
+            const teacherDoc = await getDocs(query(collection(db, 'users'), where('uid', '==', courseData.teacher)));
+            const teacherData = teacherDoc.docs[0]?.data() || {};
 
-      console.log('[DEBUG] Found courses:', studentCourses.length);
-      
-      // Sortuj po dacie utworzenia (najnowsze pierwsze)
-      const sortedCourses = studentCourses.sort((a, b) => 
-        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+            // Oblicz postęp
+            const lessonsRef = collection(db, 'lessons');
+            const lessonsQuery = query(lessonsRef, where('courseId', '==', doc.id));
+            const lessonsSnapshot = await getDocs(lessonsQuery);
+            const totalLessons = lessonsSnapshot.docs.length;
+
+            const progressRef = collection(db, 'progress');
+            const progressQuery = query(progressRef, 
+              where('studentId', '==', studentId),
+              where('courseId', '==', doc.id),
+              where('completed', '==', true)
+            );
+            const progressSnapshot = await getDocs(progressQuery);
+            const completedLessons = progressSnapshot.docs.length;
+
+            return {
+              id: doc.id,
+              title: courseData.title,
+              description: courseData.description,
+              teacher: {
+                name: teacherData.displayName || teacherData.email,
+                email: teacherData.email
+              },
+              progress: {
+                completed: completedLessons,
+                total: totalLessons,
+                percentage: totalLessons > 0 ? (completedLessons / totalLessons) * 100 : 0
+              }
+            };
+          })
       );
 
-      setCourses(sortedCourses);
+      setCourses(studentCourses);
     } catch (err) {
-      if (err instanceof Error) {
-        console.error('[DEBUG] Error fetching courses:', err);
-        setError(`Błąd podczas ładowania kursów: ${err.message}`);
-      } else {
-        console.error('[DEBUG] Error fetching courses:', err);
-        setError('Nieznany błąd podczas ładowania kursów');
-      }
+      console.error('Error fetching courses:', err);
+      setError('Wystąpił błąd podczas pobierania kursów.');
     } finally {
       setLoading(false);
     }
-  }, [user, setLoading, setError, setCourses]);
-
-  useEffect(() => {
-    if (user) {
-      fetchCourses();
-    }
-  }, [user, fetchCourses]);
+  };
 
   if (loading) {
     return (
-      <div className="min-h-screen w-full flex flex-col items-center justify-center bg-[#F8F9FB] p-4">
-        <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-[#4067EC] border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]" />
-        <p className="mt-4 text-gray-600">Ładowanie kursów...</p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen w-full flex flex-col items-center justify-center bg-[#F8F9FB] p-4">
-        <div className="w-full max-w-2xl bg-red-50 border border-red-200 rounded-xl p-4">
-          <p className="text-red-800">{error}</p>
-          <button
-            onClick={fetchCourses}
-            className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-          >
-            Spróbuj ponownie
-          </button>
-        </div>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#4067EC]"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen w-full flex flex-col items-center bg-[#F8F9FB] p-4 md:p-8">
-      <div className="w-full max-w-7xl">
-        {/* Header */}
-        <div className="bg-white rounded-xl shadow-sm p-6 mb-8">
-          <h1 className="text-2xl font-bold text-[#4067EC] mb-2">Moje kursy</h1>
-          <p className="text-gray-600">Lista kursów, do których masz dostęp.</p>
-        </div>
+    <div className="min-h-screen w-full flex flex-col bg-[#F8F9FB] p-4 md:p-8">
+      <div className="w-full max-w-7xl mx-auto">
+        <div className="bg-white rounded-2xl shadow p-4 md:p-8 mb-8">
+          <h1 className="text-xl md:text-2xl font-bold mb-4">
+            {user?.role === 'parent' && studentInfo 
+              ? `Kursy ucznia: ${studentInfo.name} (${studentInfo.email})`
+              : 'Moje kursy'
+            }
+          </h1>
 
-        {/* Courses grid */}
-        {courses.length === 0 ? (
-          <div className="bg-white rounded-xl shadow-sm p-6 text-center">
-            <p className="text-gray-600">Nie masz jeszcze przypisanych żadnych kursów.</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {courses.map((course) => (
-              <div key={course.id} className="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow overflow-hidden">
-                <div className="p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <span className="px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                      {course.subject}
-                    </span>
-                    <span className="text-xs text-gray-500">Rok {course.year_of_study}</span>
-                  </div>
+          {error ? (
+            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+              {error}
+            </div>
+          ) : courses.length === 0 ? (
+            <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded">
+              {user?.role === 'parent' 
+                ? 'Uczeń nie jest zapisany na żadne kursy.'
+                : 'Nie jesteś zapisany na żadne kursy.'
+              }
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {courses.map((course) => (
+                <div key={course.id} className="bg-white rounded-lg shadow-md overflow-hidden border">
+                  <div className="p-6">
+                    <h2 className="text-xl font-semibold mb-2">{course.title}</h2>
+                    <p className="text-gray-600 mb-4">{course.description}</p>
+                    
+                    <div className="mb-4">
+                      <p className="text-sm text-gray-500">Nauczyciel:</p>
+                      <p className="font-medium">{course.teacher.name}</p>
+                    </div>
 
-                  <Link href={`/courses/${course.slug}`}>
-                    <h3 className="text-xl font-bold text-gray-900 mb-2 hover:text-[#4067EC] transition-colors">
-                      {course.title}
-                    </h3>
-                  </Link>
-
-                  <p className="text-gray-600 text-sm mb-4 line-clamp-2">
-                    {course.description}
-                  </p>
-
-                  <div className="flex items-center text-sm text-gray-500 mb-4">
-                    <span className="mr-4">{course.pdfUrls.length} materiałów</span>
-                    <span>{course.sections.length} sekcji</span>
-                  </div>
-
-                  <div className="flex space-x-2">
-                    <Link 
-                      href={`/courses/${course.slug}`}
-                      className="flex-1 bg-[#4067EC] text-white text-center py-2 px-4 rounded-lg text-sm font-medium hover:bg-[#3155d4] transition-colors"
-                    >
-                      Przejdź do kursu
-                    </Link>
+                    <div className="mt-4">
+                      <div className="flex justify-between text-sm mb-1">
+                        <span>Postęp</span>
+                        <span>{Math.round(course.progress.percentage)}%</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div
+                          className="bg-[#4067EC] h-2 rounded-full"
+                          style={{ width: `${course.progress.percentage}%` }}
+                        />
+                      </div>
+                      <p className="text-sm text-gray-500 mt-1">
+                        {course.progress.completed} z {course.progress.total} lekcji ukończonych
+                      </p>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

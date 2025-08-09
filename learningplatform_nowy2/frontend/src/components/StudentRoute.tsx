@@ -8,7 +8,7 @@ export default function StudentRoute({ children }: { children: React.ReactNode }
   const router = useRouter();
 
   useEffect(() => {
-    if (!loading && (!user || user.role !== 'student')) {
+    if (!loading && (!user || (user.role !== 'student' && user.role !== 'parent'))) {
       router.push('/login');
     }
   }, [user, loading, router]);
@@ -24,5 +24,5 @@ export default function StudentRoute({ children }: { children: React.ReactNode }
     );
   }
 
-  return user?.role === 'student' ? <>{children}</> : null;
+  return (user?.role === 'student' || user?.role === 'parent') ? <>{children}</> : null;
 } 

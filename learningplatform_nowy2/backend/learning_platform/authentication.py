@@ -86,6 +86,10 @@ class FirebaseAuthentication(BaseAuthentication):
                         user.is_superuser = True
                         user.is_teacher = True
                         user.is_student = False
+                    elif role == 'parent':
+                        user.is_parent = True
+                        user.is_teacher = False
+                        user.is_student = False
                     else:  # student
                         user.is_teacher = False
                         user.is_student = True

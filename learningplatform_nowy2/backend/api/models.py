@@ -8,6 +8,7 @@ class User(AbstractUser):
     firebase_uid = models.CharField(max_length=128, blank=True, null=True, unique=True)
     is_student = models.BooleanField(default=True)
     is_teacher = models.BooleanField(default=False)
+    is_parent = models.BooleanField(default=False)
     profile_picture = models.ImageField(upload_to='profile_pictures/', null=True, blank=True)
     bio = models.TextField(max_length=500, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -123,3 +124,29 @@ class Progress(models.Model):
     class Meta:
         unique_together = ['user', 'lesson']
         verbose_name_plural = "Progress"
+
+class ParentStudent(models.Model):
+    parent = models.ForeignKey(User, on_delete=models.CASCADE, related_name='students_supervised')
+    student = models.ForeignKey(User, on_delete=models.CASCADE, related_name='parent_supervisors')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ['parent', 'student']
+        verbose_name_plural = "Parent-Student Relationships"
+
+    def __str__(self):
+        return f"{self.parent.username} -> {self.student.username}"
+
+
+class Grade(models.Model):
+    student = models.ForeignKey(User, on_delete=models.CASCADE, related_name='grades')
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='grades')
+    value = models.DecimalField(max_digits=3, decimal_places=1)
+    date = models.DateTimeField(auto_now_add=True)
+    description = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['-date']
+
+    def __str__(self):
+        return f"{self.student.username} - {self.course.title}: {self.value}"

@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
-from .models import Category, Course, Module, Lesson, Progress
+from .models import Category, Course, Module, Lesson, Progress, ParentStudent, User
 
 User = get_user_model()
 
@@ -75,4 +75,13 @@ class CourseDetailSerializer(serializers.ModelSerializer):
 class ProgressSerializer(serializers.ModelSerializer):
     class Meta:
         model = Progress
-        fields = '__all__' 
+        fields = '__all__'
+
+class ParentStudentSerializer(serializers.ModelSerializer):
+    student_name = serializers.CharField(source='student.username', read_only=True)
+    student_email = serializers.CharField(source='student.email', read_only=True)
+    
+    class Meta:
+        model = ParentStudent
+        fields = ['id', 'parent', 'student', 'student_name', 'student_email', 'created_at']
+        read_only_fields = ['created_at'] 
