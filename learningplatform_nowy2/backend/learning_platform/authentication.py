@@ -12,6 +12,11 @@ class FirebaseAuthentication(BaseAuthentication):
         print(f"Request path: {request.path}")
         print(f"Request method: {request.method}")
         
+        # Pomiń uwierzytelnianie dla health check endpointu
+        if request.path == '/health/':
+            print("Skipping authentication for /health/ endpoint")
+            return None
+        
         auth_header = request.headers.get('Authorization')
         print(f"Authorization header: {auth_header}")
         
