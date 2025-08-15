@@ -117,6 +117,11 @@ function TeacherCourseDetailContent() {
   const [loadingQuizzes, setLoadingQuizzes] = useState(true);
   const [quizError, setQuizError] = useState<string | null>(null);
 
+  // Nowe zmienne dla zarządzania uczniami
+  const [studentSearchTerm, setStudentSearchTerm] = useState<string>("");
+  const [selectedStudentsToAdd, setSelectedStudentsToAdd] = useState<string[]>([]);
+  const [showAssignedStudents, setShowAssignedStudents] = useState<boolean>(false);
+
 
   // Banner state
   const [bannerUrl, setBannerUrl] = useState<string>("");
@@ -265,6 +270,168 @@ function TeacherCourseDetailContent() {
     
     fetchQuizzes();
   }, [courseId]);
+
+  // Filtrowanie dostępnych uczniów (nie przypisanych do kursu + wyszukiwanie)
+  const filteredAvailableStudents = students.filter(student => {
+    // Sprawdź czy uczeń nie jest już przypisany
+    const isNotAssigned = !assignedUsers.some(assigned => 
+      assigned.uid === student.uid || assigned.email === student.email
+    );
+    
+    // Sprawdź czy pasuje do wyszukiwania
+    const matchesSearch = !studentSearchTerm || 
+      student.displayName?.toLowerCase().includes(studentSearchTerm.toLowerCase()) ||
+      student.email?.toLowerCase().includes(studentSearchTerm.toLowerCase());
+    
+    return isNotAssigned && matchesSearch;
+  });
+
+  // Funkcje do zarządzania wyborem uczniów
+  const selectAllAvailableStudents = () => {
+    setSelectedStudentsToAdd(filteredAvailableStudents.map(student => student.uid));
+  };
+
+  const deselectAllStudents = () => {
+    setSelectedStudentsToAdd([]);
+  };
+
+  const toggleStudentSelection = (studentId: string) => {
+    setSelectedStudentsToAdd(prev => 
+      prev.includes(studentId) 
+        ? prev.filter(id => id !== studentId)
+        : [...prev, studentId]
+    );
+  };
+
+  // Usuwanie ucznia z kursu
+  const handleRemoveStudent = async (studentId: string) => {
+    if (!courseId) return;
+    
+    try {
+      const courseDoc = await getDoc(doc(db, "courses", String(courseId)));
+      if (!courseDoc.exists()) return;
+      
+      const courseData = courseDoc.data();
+      const currentAssignedUsers = courseData.assignedUsers || [];
+      
+      // Usuń ucznia z listy
+      const updatedAssignedUsers = currentAssignedUsers.filter((user: string) => {
+        // Sprawdź czy to UID czy email
+        if (user.includes('@')) {
+          // To email - znajdź ucznia i porównaj UID
+          const student = assignedUsers.find(s => s.uid === studentId);
+          return student && student.email !== user;
+        } else {
+          // To UID - porównaj bezpośrednio
+          return user !== studentId;
+        }
+      });
+      
+      // Zaktualizuj kurs
+      await updateDoc(doc(db, "courses", String(courseId)), {
+        assignedUsers: updatedAssignedUsers
+      });
+      
+      // Odśwież listę przypisanych uczniów
+      setAssignedUsers(prev => prev.filter(u => u.uid !== studentId));
+      setSuccess('Uczeń został usunięty z kursu!');
+      
+      // Wyczyść komunikat po 3 sekundach
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (error) {
+      console.error('Error removing student:', error);
+      setError('Błąd podczas usuwania ucznia z kursu');
+    }
+  };
+
+  // Dodawanie wielu uczniów na raz
+  const handleAddSelectedStudents = async () => {
+    if (!courseId || selectedStudentsToAdd.length === 0) return;
+    
+    try {
+      const courseDoc = await getDoc(doc(db, "courses", String(courseId)));
+      if (!courseDoc.exists()) {
+        setError('Kurs nie został znaleziony');
+        return;
+      }
+      
+      const courseData = courseDoc.data();
+      const currentAssignedUsers = courseData.assignedUsers || [];
+      
+      // Pobierz dane wybranych uczniów
+      const studentsToAdd = students.filter(s => selectedStudentsToAdd.includes(s.uid));
+      
+      // Dodaj uczniów do kursu (używając emaili)
+      const newAssignedUsers = [...currentAssignedUsers];
+      studentsToAdd.forEach(student => {
+        if (!currentAssignedUsers.includes(student.email)) {
+          newAssignedUsers.push(student.email);
+        }
+      });
+      
+      // Zaktualizuj kurs
+      await updateDoc(doc(db, "courses", String(courseId)), {
+        assignedUsers: newAssignedUsers
+      });
+      
+      // Odśwież listę przypisanych uczniów
+      const updatedAssignedUsersList = await Promise.all(
+        newAssignedUsers.map(async (userIdentifier: string) => {
+          try {
+            let userDoc;
+            if (userIdentifier.includes('@')) {
+              const usersQuery = query(collection(db, "users"), where("email", "==", userIdentifier));
+              const userSnapshot = await getDocs(usersQuery);
+              if (!userSnapshot.empty) {
+                userDoc = userSnapshot.docs[0];
+              }
+            } else {
+              userDoc = await getDoc(doc(db, "users", userIdentifier));
+            }
+            
+            if (userDoc && userDoc.exists()) {
+              const userData = userDoc.data() as { firstName?: string; lastName?: string; email?: string; };
+              return {
+                uid: userDoc.id,
+                displayName: `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || userData.email || userIdentifier,
+                email: userData.email || userIdentifier,
+                role: 'student',
+                is_active: true
+              };
+            } else {
+              return {
+                uid: userIdentifier,
+                displayName: userIdentifier.includes('@') ? userIdentifier.split('@')[0] : userIdentifier,
+                email: userIdentifier.includes('@') ? userIdentifier : `${userIdentifier}@example.com`,
+                role: 'student',
+                is_active: true
+              };
+            }
+          } catch (error) {
+            console.error('Error fetching user data for:', userIdentifier, error);
+            return {
+              uid: userIdentifier,
+              displayName: userIdentifier.includes('@') ? userIdentifier.split('@')[0] : userIdentifier,
+              email: userIdentifier.includes('@') ? userIdentifier : `${userIdentifier}@example.com`,
+              role: 'student',
+              is_active: true
+            };
+          }
+        })
+      );
+      
+      setAssignedUsers(updatedAssignedUsersList);
+      setSelectedStudentsToAdd([]);
+      setStudentSearchTerm('');
+      setSuccess(`Dodano ${studentsToAdd.length} uczniów do kursu!`);
+      
+      // Wyczyść komunikat po 3 sekundach
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (error) {
+      console.error('Error adding students:', error);
+      setError('Błąd podczas dodawania uczniów do kursu');
+    }
+  };
 
   // Assign student to course using Firestore
   const handleAssignStudent = useCallback(async (e: React.FormEvent) => {
@@ -831,9 +998,10 @@ function TeacherCourseDetailContent() {
   if (!course) return <div className="p-8">Nie znaleziono kursu.</div>;
 
   return (
-    <div className="min-h-screen bg-[#f4f6fb] flex flex-col items-center py-6 px-2 sm:px-6">
-      {/* BANNER */}
-      <div className="w-full max-w-5xl mb-6 relative rounded-2xl overflow-hidden shadow-lg bg-gradient-to-r from-[#4067EC] to-[#7aa2f7] flex items-center justify-between h-48 sm:h-56">
+    <div className="min-h-screen bg-[#f4f6fb] flex flex-col py-2 px-2 sm:px-4">
+      <div className="flex-1 flex flex-col w-full">
+      {/* BANNER - FULL WIDTH */}
+      <div className="w-full mb-4 relative rounded-2xl overflow-hidden shadow-lg bg-gradient-to-r from-[#4067EC] to-[#7aa2f7] flex items-center justify-between h-48 sm:h-56">
         <div className="p-8">
           <h1 className="text-3xl sm:text-4xl font-bold text-white drop-shadow-lg mb-2">{course?.title || 'Tytuł kursu'}</h1>
           
@@ -892,43 +1060,192 @@ function TeacherCourseDetailContent() {
       </div>
 
       {/* Dodaj sekcję przypisywania uczniów pod banerem: */}
-      <div className="w-full max-w-5xl mb-6 bg-white rounded-2xl shadow-lg p-6">
-        <h3 className="text-lg font-bold mb-2 text-[#4067EC]">Przypisani uczniowie</h3>
-        <div className="mb-4">
-  
-          <ul className="list-disc ml-6">
-            {Array.isArray(assignedUsers) && assignedUsers.length === 0 ? (
-              <li className="text-gray-500">Brak przypisanych uczniów.</li>
-            ) : (
-              Array.isArray(assignedUsers) && assignedUsers.map(u => (
-                <li key={u.uid} className="text-sm">
-                  {u.displayName || u.email} ({u.email}) - ID: {u.uid}
-                </li>
-              ))
-            )}
-          </ul>
+      <div className="w-full mb-4 bg-white rounded-2xl shadow-lg p-4 lg:p-6">
+        <h3 className="text-lg font-bold mb-2 text-[#4067EC]">Zarządzanie uczniami kursu</h3>
+        
+        {/* Aktualnie przypisani uczniowie - SCHOWANA LISTA */}
+        <div className="mb-6">
+          <button
+            onClick={() => setShowAssignedStudents(!showAssignedStudents)}
+            className="flex items-center justify-between w-full p-3 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors"
+          >
+            <h4 className="text-md font-semibold text-gray-700">
+              Przypisani uczniowie ({assignedUsers?.length || 0})
+            </h4>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-500">
+                {showAssignedStudents ? 'Ukryj' : 'Pokaż'}
+              </span>
+              <svg 
+                className={`w-5 h-5 text-gray-500 transition-transform ${showAssignedStudents ? 'rotate-180' : ''}`} 
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+          </button>
+          
+          {/* Schowana lista uczniów */}
+          {showAssignedStudents && (
+            <div className="mt-3 p-4 bg-white rounded-lg border border-gray-200">
+              {Array.isArray(assignedUsers) && assignedUsers.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {assignedUsers.map(u => (
+                    <div key={u.uid} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
+                      <div className="flex-1">
+                        <div className="font-medium text-gray-900 text-sm">{u.displayName || u.email}</div>
+                        <div className="text-xs text-gray-500">{u.email}</div>
+                      </div>
+                      <button
+                        onClick={() => handleRemoveStudent(u.uid)}
+                        className="ml-2 p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
+                        title="Usuń z kursu"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center text-gray-500 py-4 bg-gray-50 rounded-lg">
+                  <svg className="w-12 h-12 mx-auto mb-2 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+                  </svg>
+                  Brak przypisanych uczniów
+                </div>
+              )}
+            </div>
+          )}
         </div>
-        <form className="flex gap-4 items-end" onSubmit={handleAssignStudent}>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Dodaj ucznia</label>
-            <select
-              value={selectedStudent}
-              onChange={e => setSelectedStudent(e.target.value)}
-              className="border border-gray-300 rounded px-3 py-2"
-            >
-              <option value="">-- wybierz --</option>
-              {Array.isArray(students) && Array.isArray(assignedUsers) && students.filter(s => !assignedUsers.some(u => u.email === s.email)).map(s => (
-                <option key={s.uid} value={s.email}>{s.displayName || s.email} ({s.email})</option>
-              ))}
-            </select>
+
+        {/* Dodawanie nowych uczniów */}
+        <div className="border-t pt-6">
+          <h4 className="text-md font-semibold mb-4 text-gray-700">Dodaj nowych uczniów</h4>
+          
+          {/* Wyszukiwarka uczniów */}
+          <div className="mb-4">
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="🔍 Wyszukaj uczniów po imieniu, nazwisku lub emailu..."
+                value={studentSearchTerm}
+                onChange={e => setStudentSearchTerm(e.target.value)}
+                className="w-full px-4 py-3 pl-12 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#4067EC] focus:border-[#4067EC] transition-all"
+              />
+              <svg className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
           </div>
-          <button type="submit" className="bg-[#4067EC] text-white px-4 py-2 rounded font-semibold">Przypisz</button>
-          {success && <span className="text-xs text-green-600 ml-2">{success}</span>}
-        </form>
+
+          {/* Przyciski zarządzania */}
+          <div className="flex gap-2 mb-4">
+            <button
+              type="button"
+              onClick={selectAllAvailableStudents}
+              className="px-4 py-2 bg-[#4067EC] text-white text-sm font-medium rounded-lg hover:bg-[#3155d4] transition-all flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              Zaznacz wszystkich dostępnych
+            </button>
+            <button
+              type="button"
+              onClick={deselectAllStudents}
+              className="px-4 py-2 bg-gray-500 text-white text-sm font-medium rounded-lg hover:bg-gray-600 transition-all flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+              Odznacz wszystkich
+            </button>
+          </div>
+
+          {/* Lista dostępnych uczniów z checkboxami */}
+          <div className="max-h-64 overflow-y-auto border-2 border-gray-200 rounded-xl p-4 bg-gray-50">
+            {filteredAvailableStudents.length > 0 ? (
+              <div className="space-y-3">
+                {filteredAvailableStudents.map(student => (
+                  <label key={student.uid} className="flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-200 hover:border-[#4067EC] hover:bg-[#F1F4FE] transition-all cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={selectedStudentsToAdd.includes(student.uid)}
+                      onChange={() => toggleStudentSelection(student.uid)}
+                      className="w-4 h-4 text-[#4067EC] border-gray-300 rounded focus:ring-[#4067EC] focus:ring-2"
+                    />
+                    <div className="flex-1">
+                      <div className="font-medium text-gray-900">{student.displayName || 'Brak nazwy'}</div>
+                      <div className="text-sm text-gray-500">{student.email}</div>
+                    </div>
+                    <div className="text-xs text-gray-400">
+                      {selectedStudentsToAdd.includes(student.uid) ? '✓ Zaznaczony' : '○ Niezaznaczony'}
+                    </div>
+                  </label>
+                ))}
+              </div>
+            ) : studentSearchTerm ? (
+              <div className="text-center text-gray-500 py-8">
+                <svg className="w-12 h-12 mx-auto mb-2 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                Brak wyników dla: "{studentSearchTerm}"
+              </div>
+            ) : (
+              <div className="text-center text-gray-500 py-8">
+                <svg className="w-12 h-12 mx-auto mb-2 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+                </svg>
+                Brak dostępnych uczniów do dodania
+              </div>
+            )}
+          </div>
+
+          {/* Licznik i przycisk dodawania */}
+          {filteredAvailableStudents.length > 0 && (
+            <div className="mt-4 flex items-center justify-between">
+              <div className="text-sm text-gray-600">
+                Zaznaczono: <span className="font-semibold text-[#4067EC]">{selectedStudentsToAdd.length}</span> z <span className="font-semibold">{filteredAvailableStudents.length}</span> dostępnych uczniów
+              </div>
+              <button
+                onClick={handleAddSelectedStudents}
+                disabled={selectedStudentsToAdd.length === 0}
+                className="px-6 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all flex items-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+                Dodaj zaznaczonych ({selectedStudentsToAdd.length})
+              </button>
+            </div>
+          )}
+
+          {/* Komunikaty */}
+          {success && (
+            <div className="mt-3 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg flex items-center gap-2">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              {success}
+            </div>
+          )}
+          {error && (
+            <div className="mt-3 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-center gap-2">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+              {error}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* DODAJ SEKCJĘ */}
-      <div className="w-full max-w-5xl mb-4 flex justify-end">
+      <div className="w-full mb-4 flex justify-end">
         {!addingSection ? (
           <button onClick={() => setAddingSection(true)} className="flex items-center gap-2 bg-[#4067EC] text-white px-4 py-2 rounded-lg font-semibold shadow hover:bg-[#3155d4] transition">
             <FaPlus /> Dodaj sekcję
@@ -999,7 +1316,7 @@ function TeacherCourseDetailContent() {
       </div>
 
       {/* SEKCJE (Accordion) */}
-      <div className="w-full max-w-5xl space-y-4">
+      <div className="w-full space-y-4">
         {sections.map((section) => (
           <div key={section.id} className="bg-white rounded-lg border border-gray-200">
             <div 
@@ -1235,7 +1552,7 @@ function TeacherCourseDetailContent() {
       </div>
 
       {/* QUIZZES SECTION */}
-      <div className="w-full max-w-5xl mt-6">
+      <div className="w-full mt-4">
         <div className="bg-white rounded-2xl shadow-lg p-6">
           <div className="flex items-center gap-3 mb-4">
             <FaQuestionCircle className="text-2xl text-[#4067EC]" />
@@ -1293,6 +1610,7 @@ function TeacherCourseDetailContent() {
             </button>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );

@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { Search, Download, Star, BookOpen, Plus, UserPlus, Users } from 'lucide-react';
+import { Search, Star, BookOpen, Plus, UserPlus, Users } from 'lucide-react';
 import { db } from '@/config/firebase';
 import { collection, getDocs, query, where, updateDoc, doc } from 'firebase/firestore';
 
@@ -359,10 +359,7 @@ export default function StudentsPage() {
             <UserPlus className="h-4 w-4" />
             Przypisz Ucznia
           </button>
-          <button className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
-            <Download className="h-4 w-4" />
-            Eksport
-          </button>
+
         </div>
       </div>
 

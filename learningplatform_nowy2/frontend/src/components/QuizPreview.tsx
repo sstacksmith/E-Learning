@@ -1,6 +1,12 @@
 "use client";
 import React, { useState, useEffect, useCallback } from 'react';
-import MathView from './MathView';
+import dynamic from 'next/dynamic';
+
+// Dynamiczny import MathView z fallback
+const MathView = dynamic(() => import('./MathView'), { 
+  ssr: false,
+  loading: () => <div className="p-2 bg-gray-100 rounded">Ładowanie...</div>
+});
 import { useAuth } from '@/hooks/useAuth';
 import { db } from '@/config/firebase';
 import { collection, query, where, getDocs, deleteDoc, doc } from 'firebase/firestore';
@@ -71,37 +77,6 @@ const QuizPreview: React.FC<QuizPreviewProps> = ({ quiz, onClose, onDelete }) =>
   const [isDeleting, setIsDeleting] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<QuizResult | null>(null);
   const { user } = useAuth();
-
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const createTestQuiz = async () => {
-    try {
-      const token = await user?.getIdToken();
-      console.log('Got token:', token ? 'yes' : 'no');
-
-      const response = await fetch('/api/quizzes/create_test_quiz/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': token ? `Bearer ${token}` : ''
-        }
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Error response:', response.status, errorText);
-        throw new Error(`Failed to create test quiz: ${response.status} ${errorText}`);
-      }
-
-      const data = await response.json();
-      console.log('Created quiz:', data);
-      
-      // Refresh results
-      fetchResults();
-    } catch (err) {
-      console.error('Error creating test quiz:', err);
-      setError(err instanceof Error ? err.message : 'Nie udało się utworzyć quizu testowego');
-    }
-  };
 
   const handleDelete = async () => {
     if (!window.confirm('Czy na pewno chcesz usunąć ten quiz? Ta operacja jest nieodwracalna.')) {
@@ -215,9 +190,9 @@ const QuizPreview: React.FC<QuizPreviewProps> = ({ quiz, onClose, onDelete }) =>
                       Pytanie {qIndex + 1}:
                     </h4>
                     {question.type === 'math' ? (
-                      <MathView content={question.content} />
+                      <MathView content={question.content || ''} />
                     ) : (
-                      <p className="text-gray-800">{question.content}</p>
+                      <p className="text-gray-800">{question.content || 'Brak treści pytania'}</p>
                     )}
                   </div>
 
@@ -227,7 +202,7 @@ const QuizPreview: React.FC<QuizPreviewProps> = ({ quiz, onClose, onDelete }) =>
                     </h5>
                     {question.type === 'open' || !question.answers?.length ? (
                       studentAnswer.openAnswer?.type === 'math' ? (
-                        <MathView content={studentAnswer.openAnswer.content} />
+                        <MathView content={studentAnswer.openAnswer.content || ''} />
                       ) : (
                         <p className="text-gray-800">{studentAnswer.openAnswer?.content || 'Brak odpowiedzi'}</p>
                       )
@@ -235,9 +210,9 @@ const QuizPreview: React.FC<QuizPreviewProps> = ({ quiz, onClose, onDelete }) =>
                       <div>
                         {selectedAnswer ? (
                           selectedAnswer.type === 'math' ? (
-                            <MathView content={selectedAnswer.content} />
+                            <MathView content={selectedAnswer.content || ''} />
                           ) : (
-                            <p className="text-gray-800">{selectedAnswer.content}</p>
+                            <p className="text-gray-800">{selectedAnswer.content || 'Brak treści odpowiedzi'}</p>
                           )
                         ) : (
                           <p className="text-gray-500 italic">Nie wybrano odpowiedzi</p>
@@ -252,9 +227,9 @@ const QuizPreview: React.FC<QuizPreviewProps> = ({ quiz, onClose, onDelete }) =>
                         </h5>
                         {question.type === 'open' || !question.answers?.length ? (
                           question.answers[0]?.type === 'math' ? (
-                            <MathView content={question.answers[0].content} />
+                            <MathView content={question.answers[0]?.content || ''} />
                           ) : (
-                            <p className="text-gray-800">{question.answers[0]?.content}</p>
+                            <p className="text-gray-800">{question.answers[0]?.content || 'Brak treści odpowiedzi'}</p>
                           )
                         ) : (
                           <div>
@@ -262,7 +237,7 @@ const QuizPreview: React.FC<QuizPreviewProps> = ({ quiz, onClose, onDelete }) =>
                               <MathView content={question.answers.find(a => a.isCorrect)?.content || ''} />
                             ) : (
                               <p className="text-gray-800">
-                                {question.answers.find(a => a.isCorrect)?.content}
+                                {question.answers.find(a => a.isCorrect)?.content || 'Brak treści odpowiedzi'}
                               </p>
                             )}
                           </div>
@@ -326,7 +301,17 @@ const QuizPreview: React.FC<QuizPreviewProps> = ({ quiz, onClose, onDelete }) =>
     }
 
     if (error) {
-      return <div className="text-red-500 py-4">{error}</div>;
+      return (
+        <div className="text-center py-4 text-red-600">
+          <div className="mb-2">Błąd: {error}</div>
+          <button 
+            onClick={() => fetchResults()}
+            className="px-4 py-2 bg-[#4067EC] text-white rounded-lg hover:bg-[#3155d4] transition-colors"
+          >
+            Spróbuj ponownie
+          </button>
+        </div>
+      );
     }
 
     if (results.length === 0) {
@@ -389,9 +374,37 @@ const QuizPreview: React.FC<QuizPreviewProps> = ({ quiz, onClose, onDelete }) =>
 
   useEffect(() => {
     if (quiz?.id && user) {
-      fetchResults();
+      try {
+        fetchResults();
+      } catch (error) {
+        console.error('Error in useEffect:', error);
+        setError('Błąd podczas ładowania wyników quizu');
+      }
     }
   }, [quiz?.id, user, fetchResults]);
+
+  // Sprawdź czy quiz ma wszystkie wymagane dane
+  if (!quiz || !quiz.questions || quiz.questions.length === 0) {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 text-center">
+          <div className="text-red-500 mb-4">
+            <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+            </svg>
+          </div>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">Błąd ładowania quizu</h3>
+          <p className="text-gray-600 mb-4">Quiz nie zawiera wymaganych danych lub wystąpił błąd podczas ładowania.</p>
+          <button
+            onClick={onClose}
+            className="px-4 py-2 bg-[#4067EC] text-white rounded-lg hover:bg-[#3155d4] transition-colors"
+          >
+            Zamknij
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -450,7 +463,7 @@ const QuizPreview: React.FC<QuizPreviewProps> = ({ quiz, onClose, onDelete }) =>
             </button>
             <button
               onClick={() => setActiveTab('results')}
-              className={`px-6 py-3 font-medium text-sm ${
+              className={`px-6 py-3 text-sm font-medium ${
                 activeTab === 'results'
                   ? 'border-b-2 border-[#4067EC] text-[#4067EC]'
                   : 'text-gray-500 hover:text-gray-700'
@@ -484,9 +497,9 @@ const QuizPreview: React.FC<QuizPreviewProps> = ({ quiz, onClose, onDelete }) =>
                         Pytanie {qIndex + 1}:
                       </h3>
                       {question.type === 'math' ? (
-                        <MathView content={question.content} />
+                        <MathView content={question.content || ''} />
                       ) : (
-                        <p className="text-gray-800">{question.content}</p>
+                        <p className="text-gray-800">{question.content || 'Brak treści pytania'}</p>
                       )}
                     </div>
 
@@ -502,9 +515,9 @@ const QuizPreview: React.FC<QuizPreviewProps> = ({ quiz, onClose, onDelete }) =>
                           }`}
                         >
                           {answer.type === 'math' ? (
-                            <MathView content={answer.content} />
+                            <MathView content={answer.content || ''} />
                           ) : (
-                            <p className="text-gray-800">{answer.content}</p>
+                            <p className="text-gray-800">{answer.content || 'Brak treści odpowiedzi'}</p>
                           )}
                           {answer.isCorrect && (
                             <span className="text-green-600 text-sm mt-1 flex items-center">
@@ -538,4 +551,4 @@ const QuizPreview: React.FC<QuizPreviewProps> = ({ quiz, onClose, onDelete }) =>
   );
 };
 
-export default QuizPreview; 
+export default QuizPreview;

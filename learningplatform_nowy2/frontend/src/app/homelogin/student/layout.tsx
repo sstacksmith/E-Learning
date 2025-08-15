@@ -28,7 +28,7 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
                   <Link href="#" className="text-sm text-gray-700 hover:text-[#4067EC] font-medium">Wsparcie</Link>
                 </>
               )}
-              <Link href="/homelogin/student/courses" className="text-sm text-gray-700 hover:text-[#4067EC] font-medium">Moje kursy</Link>
+                              <Link href="/homelogin/my-courses" className="text-sm text-gray-700 hover:text-[#4067EC] font-medium">Moje kursy</Link>
               <Link href="/homelogin/student/grades" className="text-sm text-gray-700 hover:text-[#4067EC] font-medium">Dziennik</Link>
               <Link href="/homelogin/student/tutors" className="text-sm text-gray-700 hover:text-[#4067EC] font-medium">Tutors</Link>
             </nav>

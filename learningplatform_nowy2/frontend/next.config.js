@@ -8,16 +8,49 @@ const nextConfig = {
   images: {
     unoptimized: true
   },
-  // Force dynamic rendering and prevent prerendering
-  experimental: {
-    appDir: true
-  },
   // Disable static generation
   trailingSlash: false,
-  // Force dynamic rendering for all routes
-  generateStaticParams: async () => {
-    return [];
-  }
+  
+  // 🚀 SPEED OPTIMIZATIONS FOR DEVELOPMENT
+  experimental: {
+    // Enable Turbopack for faster builds
+    turbo: {
+      rules: {
+        '*.svg': {
+          loaders: ['@svgr/webpack'],
+          as: '*.js',
+        },
+      },
+    },
+    // Optimize package imports
+    optimizePackageImports: ['react-icons', 'lucide-react'],
+    // Faster refresh
+    fastRefresh: true,
+  },
+  
+  // Webpack optimizations
+  webpack: (config, { dev, isServer }) => {
+    if (dev && !isServer) {
+      // Faster source maps in development
+      config.devtool = 'eval-cheap-module-source-map';
+      
+      // Optimize development builds
+      config.optimization = {
+        ...config.optimization,
+        removeAvailableModules: false,
+        removeEmptyChunks: false,
+        splitChunks: false,
+      };
+    }
+    
+    return config;
+  },
+  
+  // Compiler optimizations
+  compiler: {
+    // Remove console.logs in production
+    removeConsole: process.env.NODE_ENV === 'production',
+  },
 }
 
 module.exports = nextConfig

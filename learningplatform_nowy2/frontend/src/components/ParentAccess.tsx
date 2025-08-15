@@ -7,7 +7,7 @@ import { useAuth } from '@/context/AuthContext';
 // Lista dozwolonych ścieżek dla rodzica (nieużywana, ale zachowana dla dokumentacji)
 // const ALLOWED_PARENT_PATHS = [
 //   '/homelogin',
-//   '/homelogin/student/courses',
+//   '/homelogin/my-courses',
 //   '/homelogin/student/grades',
 //   '/homelogin/student/tutors'
 // ];

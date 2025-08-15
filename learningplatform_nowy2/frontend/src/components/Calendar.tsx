@@ -104,7 +104,7 @@ const Calendar: React.FC = () => {
         hour,
         typeLabel: event.type,
         subject: event.subject,
-        onClick: event.courseId ? () => window.location.href = `/homelogin/student/courses/${event.courseId}` : undefined,
+        onClick: event.courseId ? () => window.location.href = `/homelogin/my-courses/${event.courseId}` : undefined,
       };
     });
   }, [filteredEvents]);
@@ -166,26 +166,45 @@ const Calendar: React.FC = () => {
   const nextMonth = () => setCurrent(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
 
   return (
-    <div className="w-full">
-      <div className="flex items-center justify-between mb-2">
-        <button onClick={prevMonth} className="p-1 rounded hover:bg-gray-200 text-[#4067EC] font-bold text-lg">&#8592;</button>
-        <span className="font-semibold text-[#4067EC] text-lg">
+    <div className="w-full h-full flex flex-col">
+      {/* Calendar Header */}
+      <div className="flex items-center justify-between mb-3 lg:mb-4 flex-shrink-0">
+        <button 
+          onClick={prevMonth} 
+          className="p-2 lg:p-3 rounded-xl hover:bg-[#F1F4FE] text-[#4067EC] font-bold text-lg lg:text-xl transition-all hover:scale-105"
+        >
+          <svg className="w-5 h-5 lg:w-6 lg:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+        <h2 className="font-bold text-[#4067EC] text-lg lg:text-2xl text-center flex-1">
           {monthsPl[current.getMonth()]} {current.getFullYear()}
-        </span>
-        <button onClick={nextMonth} className="p-1 rounded hover:bg-gray-200 text-[#4067EC] font-bold text-lg">&#8594;</button>
+        </h2>
+        <button 
+          onClick={nextMonth} 
+          className="p-2 lg:p-3 rounded-xl hover:bg-[#F1F4FE] text-[#4067EC] font-bold text-lg lg:text-xl transition-all hover:scale-105"
+        >
+          <svg className="w-5 h-5 lg:w-6 lg:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
       </div>
-      <div className="grid grid-cols-7 gap-1 mb-2">
+
+      {/* Days of Week Header */}
+      <div className="grid grid-cols-7 gap-1 lg:gap-2 mb-2 lg:mb-3 flex-shrink-0">
         {daysShort.map(day => (
-          <div key={day} className="text-sm font-semibold text-blue-700 text-center p-2">
+          <div key={day} className="text-xs lg:text-sm font-bold text-[#4067EC] text-center p-2 lg:p-3 bg-[#F1F4FE] rounded-lg lg:rounded-xl">
             {day}
           </div>
         ))}
       </div>
-      <div className="grid grid-cols-7 gap-1">
+
+      {/* Calendar Grid - FULL HEIGHT */}
+      <div className="grid grid-cols-7 gap-1 lg:gap-2 flex-1 min-h-0">
         {days.map((day, idx) => {
           let bg = '';
-          if (day.isToday) bg = 'bg-blue-100';
-          else if (day.isWeekend) bg = 'bg-gray-100';
+          if (day.isToday) bg = 'bg-[#4067EC] text-white';
+          else if (day.isWeekend) bg = 'bg-gray-50';
           
           let activityBg = '';
           if (day.activities.length > 0) {
@@ -197,47 +216,102 @@ const Calendar: React.FC = () => {
           const isHighlighted = localHighlight && day.dateStr === localHighlight;
           
           return (
-            <div
-              key={idx}
-              className={`aspect-square rounded-lg p-1 text-base font-medium text-center cursor-pointer transition-all border ${day.isCurrentMonth ? 'text-gray-800' : 'text-gray-400'} ${bg} relative group ${isHighlighted ? 'ring-4 ring-[#4067EC] ring-offset-2 animate-pulse' : ''}`}
-              style={{ background: activityBg || undefined, borderColor: day.isToday ? '#4067EC' : 'transparent' }}
-            >
-              <div className="font-bold mb-1 text-lg">{day.date.getDate()}</div>
+                         <div
+               key={idx}
+               className={`h-full min-h-[100px] lg:min-h-[120px] xl:min-h-[140px] rounded-lg lg:rounded-xl p-1 lg:p-2 text-xs lg:text-sm font-medium text-center cursor-pointer transition-all border-2 hover:border-[#4067EC] hover:shadow-lg relative group flex flex-col ${
+                 day.isCurrentMonth ? 'text-gray-800' : 'text-gray-400'
+               } ${bg} ${
+                 isHighlighted ? 'ring-4 ring-[#4067EC] ring-offset-2 animate-pulse' : ''
+               }`}
+               style={{ 
+                 background: activityBg || undefined, 
+                 borderColor: day.isToday ? '#4067EC' : day.isWeekend ? '#E5E7EB' : '#F3F4F6'
+               }}
+             >
+               {/* Date Number */}
+               <div className={`font-bold mb-1 lg:mb-2 text-sm lg:text-lg ${day.isToday ? 'text-white' : ''}`}>
+                 {day.date.getDate()}
+               </div>
+
+              {/* Activities */}
               {day.activities.map(act => {
                 const isOverdue = act.date < getLocalDateString(today);
                 return (
-                  <div
-                    key={act.id}
-                    className="mt-0.5 px-1 py-0.5 rounded text-base font-semibold hover:underline flex flex-col items-center"
-                    style={{ color: '#222', background: ACTIVITY_COLORS[act.type], cursor: act.onClick ? 'pointer' : 'default' }}
-                    onClick={act.onClick}
-                  >
-                    <span>
-                      {act.title}
-                      {isOverdue && (
-                        <span className="ml-1 text-red-600 font-bold text-xs align-middle">⚠️ Po terminie</span>
-                      )}
-                    </span>
-                  </div>
+                                     <div
+                     key={act.id}
+                     className="mb-1 px-1 lg:px-2 py-0.5 lg:py-1 rounded-md lg:rounded-lg text-xs font-semibold hover:underline flex flex-col items-center transition-all hover:scale-105 w-full"
+                     style={{ 
+                       color: '#222', 
+                       background: ACTIVITY_COLORS[act.type], 
+                       cursor: act.onClick ? 'pointer' : 'default' 
+                     }}
+                     onClick={act.onClick}
+                   >
+                     <span className="truncate w-full text-center text-xs">
+                       {act.title}
+                       {isOverdue && (
+                         <span className="ml-1 text-red-600 font-bold text-xs align-middle">⚠️</span>
+                       )}
+                     </span>
+                   </div>
                 );
               })}
               
-              {/* Tooltip */}
+              {/* Enhanced Tooltip */}
               {day.activities.length > 0 && (
-                <div className="absolute z-20 left-1/2 -translate-x-1/2 top-full mt-1 w-max min-w-[240px] bg-white border border-gray-300 rounded shadow-lg p-3 text-base text-left opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-200 whitespace-pre-line">
-                  {day.activities.map((act) => (
-                    <div key={act.id} className="mb-3 last:mb-0">
-                      <div><b>{act.title}</b> {act.type === 'exam' && <span className="text-red-600 font-bold">(Egzamin)</span>}</div>
-                      <div><b>Rodzaj:</b> {act.type === 'exam' ? 'Egzamin' : act.typeLabel || act.type}</div>
-                      <div><b>Godzina:</b> {act.hour ? act.hour : 'brak'}</div>
-                      <div><b>Przedmiot:</b> {act.subject ? act.subject : 'brak'}</div>
+                <div className="absolute z-20 left-1/2 -translate-x-1/2 top-full mt-2 w-max min-w-[280px] bg-white border-2 border-[#4067EC] rounded-xl shadow-2xl p-4 text-sm text-left opacity-0 group-hover:opacity-100 pointer-events-none transition-all duration-300 whitespace-pre-line">
+                  <div className="bg-[#F1F4FE] -m-4 mb-3 p-3 rounded-t-xl border-b-2 border-[#4067EC]">
+                    <div className="font-bold text-[#4067EC] text-center">
+                      {day.date.toLocaleDateString('pl-PL', { 
+                        weekday: 'long', 
+                        year: 'numeric', 
+                        month: 'long', 
+                        day: 'numeric' 
+                      })}
                     </div>
-                  ))}
+                  </div>
+                  {day.activities.map((act) => {
+                    const isOverdue = act.date < getLocalDateString(today);
+                    return (
+                      <div key={act.id} className="mb-3 last:mb-0 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                        <div className="font-bold text-gray-900 mb-2">{act.title}</div>
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div><span className="font-semibold text-[#4067EC]">Rodzaj:</span> {act.type === 'exam' ? 'Egzamin' : act.typeLabel || act.type}</div>
+                          <div><span className="font-semibold text-[#4067EC]">Godzina:</span> {act.hour ? act.hour : 'brak'}</div>
+                          <div><span className="font-semibold text-[#4067EC]">Przedmiot:</span> {act.subject ? act.subject : 'brak'}</div>
+                          {isOverdue && (
+                            <div className="col-span-2 text-red-600 font-bold text-center bg-red-50 p-1 rounded">
+                              ⚠️ Po terminie
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
           );
         })}
+      </div>
+
+      {/* Legend - Compact */}
+      <div className="mt-3 lg:mt-4 p-2 lg:p-3 bg-gray-50 rounded-lg lg:rounded-xl flex-shrink-0">
+        <h3 className="font-semibold text-gray-800 mb-2 text-sm">Legenda:</h3>
+        <div className="flex flex-wrap gap-2 lg:gap-3">
+          <div className="flex items-center gap-1 lg:gap-2">
+            <div className="w-3 h-3 rounded" style={{ background: ACTIVITY_COLORS.exam }}></div>
+            <span className="text-xs text-gray-700">Egzamin</span>
+          </div>
+          <div className="flex items-center gap-1 lg:gap-2">
+            <div className="w-3 h-3 rounded" style={{ background: ACTIVITY_COLORS.quiz }}></div>
+            <span className="text-xs text-gray-700">Quiz</span>
+          </div>
+          <div className="flex items-center gap-1 lg:gap-2">
+            <div className="w-3 h-3 rounded" style={{ background: ACTIVITY_COLORS.assignment }}></div>
+            <span className="text-xs text-gray-700">Zadanie</span>
+          </div>
+        </div>
       </div>
     </div>
   );
