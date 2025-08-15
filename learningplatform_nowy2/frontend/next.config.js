@@ -12,20 +12,18 @@ const nextConfig = {
   trailingSlash: false,
   
   // 🚀 SPEED OPTIMIZATIONS FOR DEVELOPMENT
-  experimental: {
-    // Enable Turbopack for faster builds
-    turbo: {
-      rules: {
-        '*.svg': {
-          loaders: ['@svgr/webpack'],
-          as: '*.js',
-        },
+  // Turbopack configuration (now stable)
+  turbopack: {
+    rules: {
+      '*.svg': {
+        loaders: ['@svgr/webpack'],
+        as: '*.js',
       },
     },
-    // Optimize package imports
+  },
+  // Optimize package imports
+  experimental: {
     optimizePackageImports: ['react-icons', 'lucide-react'],
-    // Faster refresh
-    fastRefresh: true,
   },
   
   // Webpack optimizations

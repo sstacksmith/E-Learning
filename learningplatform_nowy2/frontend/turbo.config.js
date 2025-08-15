@@ -20,15 +20,11 @@ module.exports = {
     },
   },
   
-  // Development optimizations
-  experimental: {
-    turbo: {
-      rules: {
-        "*.svg": {
-          loaders: ["@svgr/webpack"],
-          as: "*.js",
-        },
-      },
+  // SVG loader configuration
+  rules: {
+    "*.svg": {
+      loaders: ["@svgr/webpack"],
+      as: "*.js",
     },
   },
 }
