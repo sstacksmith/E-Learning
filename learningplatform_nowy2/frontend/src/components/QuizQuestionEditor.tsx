@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { MathEditor } from './MathEditor';
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 interface MixedContent {
@@ -37,12 +36,14 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
 }) => {
   const [question, setQuestion] = useState<QuestionData>(
     initialQuestion || {
-      id: crypto.randomUUID(),
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
       content: '',
       type: 'text',
       answers: [],
     }
   );
+
+  console.log('QuizQuestionEditor initialized with question:', question);
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [isMathMode, setIsMathMode] = useState(question.type === 'math');
@@ -50,64 +51,88 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
   const [showMathEditor, setShowMathEditor] = useState(false);
 
   const handleAddAnswer = () => {
+    console.log('Adding answer, current question type:', question.type);
     if (isOpenQuestion) {
-      setQuestion((prev) => ({
-        ...prev,
-        answers: [
-          {
-            id: crypto.randomUUID(),
-            content: '',
-            isCorrect: true,
-            type: 'mixed',
-          },
-        ],
-      }));
+      setQuestion((prev) => {
+        const updated = {
+          ...prev,
+          answers: [
+            {
+              id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+              content: '',
+              isCorrect: true,
+              type: 'mixed' as const,
+            },
+          ],
+        };
+        console.log('Updated question after adding open answer:', updated);
+        return updated;
+      });
     } else {
-      setQuestion((prev) => ({
-        ...prev,
-        answers: [
-          ...prev.answers,
-          {
-            id: crypto.randomUUID(),
-            content: '',
-            isCorrect: false,
-            type: 'mixed',
-          },
-        ],
-      }));
+      setQuestion((prev) => {
+        const updated = {
+          ...prev,
+          answers: [
+            ...prev.answers,
+            {
+              id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+              content: '',
+              isCorrect: false,
+              type: 'mixed' as const,
+            },
+          ],
+        };
+        console.log('Updated question after adding ABCD answer:', updated);
+        return updated;
+      });
     }
   };
 
   const handleAnswerChange = (answerId: string, content: string, isMath: boolean = false) => {
-    setQuestion((prev) => ({
-      ...prev,
-      answers: prev.answers.map((ans) =>
-        ans.id === answerId
-          ? {
-              ...ans,
-              [isMath ? 'mathContent' : 'content']: content,
-            }
-          : ans
-      ),
-    }));
+    console.log('Answer changing:', { answerId, content, isMath });
+    setQuestion((prev) => {
+      const updated = {
+        ...prev,
+        answers: prev.answers.map((ans) =>
+          ans.id === answerId
+            ? {
+                ...ans,
+                [isMath ? 'mathContent' : 'content']: content,
+              }
+            : ans
+        ),
+      };
+      console.log('Updated question state after answer change:', updated);
+      return updated;
+    });
   };
 
   const handleQuestionChange = (content: string, isMath: boolean = false) => {
-    setQuestion((prev) => ({
-      ...prev,
-      [isMath ? 'mathContent' : 'content']: content,
-    }));
+    console.log('Question content changing:', { content, isMath });
+    setQuestion((prev) => {
+      const updated = {
+        ...prev,
+        [isMath ? 'mathContent' : 'content']: content,
+      };
+      console.log('Updated question state:', updated);
+      return updated;
+    });
   };
 
   const handleToggleCorrect = (answerId: string) => {
     if (isOpenQuestion) return;
     
-    setQuestion((prev) => ({
-      ...prev,
-      answers: prev.answers.map((ans) =>
-        ans.id === answerId ? { ...ans, isCorrect: !ans.isCorrect } : ans
-      ),
-    }));
+    console.log('Toggling correct answer:', answerId);
+    setQuestion((prev) => {
+      const updated = {
+        ...prev,
+        answers: prev.answers.map((ans) =>
+          ans.id === answerId ? { ...ans, isCorrect: !ans.isCorrect } : ans
+        ),
+      };
+      console.log('Updated question after toggling correct answer:', updated);
+      return updated;
+    });
   };
 
   return (
@@ -119,26 +144,35 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
             value={isOpenQuestion ? 'open' : 'abcd'}
             onChange={(e) => {
               const isOpen = e.target.value === 'open';
+              console.log('Question type changing to:', isOpen ? 'open' : 'abcd');
               setIsOpenQuestion(isOpen);
               if (isOpen) {
                 // Jeśli zmieniamy na pytanie otwarte, zawsze tworzymy nową odpowiedź
-                setQuestion((prev) => ({
-                  ...prev,
-                  type: 'open',
-                  answers: [{
-                    id: crypto.randomUUID(),
-                    content: '',
-                    isCorrect: true,
-                    type: 'mixed'
-                  }]
-                }));
+                setQuestion((prev) => {
+                  const updated = {
+                    ...prev,
+                    type: 'open' as const,
+                    answers: [{
+                      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+                      content: '',
+                      isCorrect: true,
+                      type: 'mixed' as const
+                    }]
+                  };
+                  console.log('Updated question after changing to open type:', updated);
+                  return updated;
+                });
               } else {
                 // Jeśli zmieniamy na ABCD, zachowujemy poprzednie odpowiedzi jeśli istnieją
-                setQuestion((prev) => ({
-                  ...prev,
-                  type: 'mixed',
-                  answers: prev.type === 'open' ? [] : prev.answers
-                }));
+                setQuestion((prev) => {
+                  const updated = {
+                    ...prev,
+                    type: 'mixed' as const,
+                    answers: prev.type === 'open' ? [] : prev.answers
+                  };
+                  console.log('Updated question after changing to ABCD type:', updated);
+                  return updated;
+                });
               }
             }}
             className="p-2 border rounded"
@@ -177,10 +211,18 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
               <label className="block text-sm font-medium mb-2">
                 Wyrażenie matematyczne
               </label>
-              <MathEditor
-                initialValue={question.mathContent || ''}
-                onChange={(content) => handleQuestionChange(content, true)}
-              />
+              <div className="border rounded p-2 bg-white">
+                <textarea
+                  value={question.mathContent || ''}
+                  onChange={(e) => handleQuestionChange(e.target.value, true)}
+                  placeholder="Wpisz wyrażenie matematyczne w formacie LaTeX..."
+                  className="w-full p-2 border rounded"
+                  rows={2}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Możesz używać składni LaTeX dla wyrażeń matematycznych
+                </p>
+              </div>
             </div>
           )}
         </div>
@@ -241,10 +283,16 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                     <label className="block text-sm font-medium mb-2">
                       Wyrażenie matematyczne dla odpowiedzi {String.fromCharCode(65 + index)}
                     </label>
-                    <MathEditor
-                      initialValue={answer.mathContent || ''}
-                      onChange={(content) => handleAnswerChange(answer.id, content, true)}
+                    <textarea
+                      value={answer.mathContent || ''}
+                      onChange={(e) => handleAnswerChange(answer.id, e.target.value, true)}
+                      placeholder="Wpisz wyrażenie matematyczne w formacie LaTeX..."
+                      className="w-full p-2 border rounded"
+                      rows={2}
                     />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Możesz używać składni LaTeX dla wyrażeń matematycznych
+                    </p>
                   </div>
                 </div>
               </div>
@@ -275,7 +323,13 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
       </div>
 
       <button
-        onClick={() => onSave(question)}
+        onClick={() => {
+          console.log('Saving question:', question);
+          console.log('Question type:', question.type);
+          console.log('Question content:', question.content);
+          console.log('Question answers:', question.answers);
+          onSave(question);
+        }}
         className="w-full px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
       >
         Zapisz pytanie

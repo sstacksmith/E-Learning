@@ -192,15 +192,31 @@ export default function QuizTaking() {
   if (loading) return <div className="p-4">Ładowanie quizu...</div>;
   if (error) return <div className="p-4 text-red-500">{error}</div>;
   if (!quiz) return <div className="p-4">Nie znaleziono quizu</div>;
+  if (!quiz.questions || quiz.questions.length === 0) return <div className="p-4 text-red-500">Quiz nie ma pytań</div>;
+
+  // Sprawdź czy currentQuestionIndex jest w prawidłowym zakresie
+  if (currentQuestionIndex < 0 || currentQuestionIndex >= quiz.questions.length) {
+    setCurrentQuestionIndex(0); // Reset do pierwszego pytania
+  }
 
   const currentQuestion = quiz.questions[currentQuestionIndex];
 
+  // Sprawdź czy currentQuestion istnieje
+  if (!currentQuestion) {
+    return <div className="p-4 text-red-500">Błąd: Nie znaleziono pytania</div>;
+  }
+
   const renderQuestion = (question: Question) => {
+    // Sprawdź czy question istnieje
+    if (!question) {
+      return <div className="p-4 text-red-500">Błąd: Nieprawidłowe pytanie</div>;
+    }
+
     if (quizSubmitted) {
       return (
         <div className="space-y-4">
           <div className="font-medium">
-            {question.content}
+            {question.content || 'Brak treści pytania'}
 
           </div>
           <div className="pl-4">
@@ -224,7 +240,7 @@ export default function QuizTaking() {
                 </div>
               </div>
             ) : (
-              question.answers.map((answer, index) => (
+              (question.answers || []).map((answer, index) => (
                 <div
                   key={answer.id}
                   className={`p-3 mb-2 rounded ${
@@ -233,7 +249,7 @@ export default function QuizTaking() {
                   }`}
                 >
                   <span className="font-medium">{String.fromCharCode(65 + index)})</span>{' '}
-                  {answer.content}
+                  {answer.content || 'Brak treści odpowiedzi'}
 
                 </div>
               ))
@@ -246,7 +262,7 @@ export default function QuizTaking() {
     return (
       <div className="space-y-4">
         <div className="font-medium">
-          {question.content}
+          {question.content || 'Brak treści pytania'}
 
         </div>
         {(question.type === 'open' || !question.answers?.length) ? (
@@ -263,7 +279,7 @@ export default function QuizTaking() {
           </div>
         ) : (
           <div className="space-y-2">
-            {question.answers.map((answer, index) => (
+            {(question.answers || []).map((answer, index) => (
               <div
                 key={answer.id}
                 className={`p-3 border rounded cursor-pointer hover:bg-gray-50 ${
@@ -277,7 +293,7 @@ export default function QuizTaking() {
                 }}
               >
                 <span className="font-medium">{String.fromCharCode(65 + index)})</span>{' '}
-                {answer.content}
+                {answer.content || 'Brak treści odpowiedzi'}
 
               </div>
             ))}

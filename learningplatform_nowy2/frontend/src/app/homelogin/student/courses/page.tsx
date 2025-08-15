@@ -1,5 +1,8 @@
 'use client';
 
+// Force dynamic rendering to prevent SSR issues with client-side hooks
+export const dynamic = 'force-dynamic';
+
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { db } from '@/config/firebase';
@@ -20,16 +23,18 @@ interface Course {
   };
 }
 
+interface TeacherData {
+  displayName?: string;
+  email?: string;
+  [key: string]: any;
+}
+
 export default function StudentCourses() {
   const { user } = useAuth();
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [studentInfo, setStudentInfo] = useState<{ name: string; email: string } | null>(null);
-
-  useEffect(() => {
-    fetchCourses();
-  }, [user]);
 
   const fetchCourses = async () => {
     if (!user) return;
@@ -62,20 +67,61 @@ export default function StudentCourses() {
           };
           setStudentInfo(studentData);
         }
+      } else {
+        // Dla ucznia - pobierz jego dane
+        const studentDoc = await getDocs(query(collection(db, 'users'), where('uid', '==', studentId)));
+        if (!studentDoc.empty) {
+          const data = studentDoc.docs[0].data();
+          studentData = {
+            name: data.displayName || data.email,
+            email: data.email
+          };
+          setStudentInfo(studentData);
+        }
       }
+
+      console.log('Student ID:', studentId);
+      console.log('Student Data:', studentData);
 
       // Pobierz kursy ucznia
       const coursesRef = collection(db, 'courses');
       const coursesSnapshot = await getDocs(coursesRef);
+      
+      console.log('All courses found:', coursesSnapshot.docs.length);
+      
       const studentCourses = await Promise.all(
         coursesSnapshot.docs
-          .filter(doc => doc.data().students?.includes(studentId))
+          .filter(doc => {
+            const courseData = doc.data();
+            const assignedUsers = courseData.assignedUsers || [];
+            console.log(`Course: ${courseData.title}, assignedUsers:`, assignedUsers);
+            
+            // Sprawdź czy uczeń jest przypisany do kursu przez assignedUsers
+            const isAssignedByUsers = Array.isArray(assignedUsers) && 
+                                     assignedUsers.length > 0 && 
+                                     (assignedUsers.includes(studentId) || assignedUsers.includes(studentData?.email));
+            
+            // Sprawdź czy uczeń jest przypisany do nauczyciela kursu
+            const isAssignedToTeacher = courseData.created_by === studentData?.email || 
+                                       courseData.teacherEmail === studentData?.email;
+            
+            console.log(`Course: ${courseData.title}, isAssignedByUsers: ${isAssignedByUsers}, isAssignedToTeacher: ${isAssignedToTeacher}`);
+            
+            return isAssignedByUsers || isAssignedToTeacher;
+          })
           .map(async (doc) => {
             const courseData = doc.data();
             
             // Pobierz dane nauczyciela
-            const teacherDoc = await getDocs(query(collection(db, 'users'), where('uid', '==', courseData.teacher)));
-            const teacherData = teacherDoc.docs[0]?.data() || {};
+            let teacherData: TeacherData = {};
+            if (courseData.teacher) {
+              const teacherDoc = await getDocs(query(collection(db, 'users'), where('uid', '==', courseData.teacher)));
+              teacherData = teacherDoc.docs[0]?.data() || {};
+            } else if (courseData.created_by) {
+              // Jeśli nie ma pola teacher, użyj created_by
+              const teacherDoc = await getDocs(query(collection(db, 'users'), where('email', '==', courseData.created_by)));
+              teacherData = teacherDoc.docs[0]?.data() || {};
+            }
 
             // Oblicz postęp
             const lessonsRef = collection(db, 'lessons');
@@ -97,8 +143,8 @@ export default function StudentCourses() {
               title: courseData.title,
               description: courseData.description,
               teacher: {
-                name: teacherData.displayName || teacherData.email,
-                email: teacherData.email
+                name: teacherData.displayName || teacherData.email || 'Nieznany nauczyciel',
+                email: teacherData.email || 'brak@email.pl'
               },
               progress: {
                 completed: completedLessons,
@@ -109,6 +155,7 @@ export default function StudentCourses() {
           })
       );
 
+      console.log('Filtered courses for student:', studentCourses.length);
       setCourses(studentCourses);
     } catch (err) {
       console.error('Error fetching courses:', err);
@@ -117,6 +164,10 @@ export default function StudentCourses() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchCourses();
+  }, [user]);
 
   if (loading) {
     return (

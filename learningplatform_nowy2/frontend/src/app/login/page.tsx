@@ -95,6 +95,7 @@ function LoginPageContent() {
     
     try {
       await loginWithApproval(email, password);
+      // Przekierowanie zostanie obsłużone przez useEffect w /homelogin/page.tsx
       router.push("/homelogin");
     } catch (err: unknown) {
       setFirebaseError(err instanceof Error ? err.message : 'An error occurred');

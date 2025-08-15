@@ -1,5 +1,8 @@
 'use client';
 
+// Force dynamic rendering to prevent SSR issues with client-side hooks
+export const dynamic = 'force-dynamic';
+
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { db } from '@/config/firebase';
@@ -28,10 +31,6 @@ export default function ParentTutors() {
   const [assignedStudent, setAssignedStudent] = useState<AssignedStudent | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-
-  useEffect(() => {
-    fetchAssignedStudentData();
-  }, [user]);
 
   const fetchAssignedStudentData = async () => {
     if (!user) return;
@@ -71,17 +70,17 @@ export default function ParentTutors() {
         }));
 
       // 4. Pobierz dane nauczycieli
-      const teacherIds = [...new Set(studentCourses.map(course => course.teacher))];
+      const teacherIds = [...new Set(studentCourses.map(course => (course as any).teacher))];
       const teachersData = await Promise.all(
         teacherIds.map(async (teacherId) => {
           const teacherDoc = await getDocs(query(collection(db, 'users'), where('uid', '==', teacherId)));
           const teacherData = teacherDoc.docs[0]?.data() || {};
 
           const teacherCourses = studentCourses
-            .filter(course => course.teacher === teacherId)
+            .filter(course => (course as any).teacher === teacherId)
             .map(course => ({
               id: course.id,
-              title: course.title
+              title: (course as any).title
             }));
 
           return {
@@ -107,6 +106,10 @@ export default function ParentTutors() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchAssignedStudentData();
+  }, [user]);
 
   if (loading) {
     return (

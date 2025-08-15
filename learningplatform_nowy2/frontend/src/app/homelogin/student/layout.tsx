@@ -1,3 +1,5 @@
+'use client';
+
 import Link from "next/link";
 import StudentRoute from '@/components/StudentRoute';
 import ParentAccess from '@/components/ParentAccess';

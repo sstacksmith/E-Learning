@@ -40,7 +40,7 @@ function CourseDetail() {
 
   // Fetch quiz results
   const fetchQuizResults = useCallback(async (quizIds: string[]) => {
-    if (!user) return;
+    if (!user || !quizIds || quizIds.length === 0) return;
     
     try {
       const resultsCollection = collection(db, 'quiz_results');
@@ -69,7 +69,7 @@ function CourseDetail() {
 
   // Fetch quiz attempts
   const fetchQuizAttempts = useCallback(async (quizIds: string[]) => {
-    if (!user) return;
+    if (!user || !quizIds || quizIds.length === 0) return;
     
     try {
       const attemptsCollection = collection(db, 'quiz_attempts');
@@ -144,9 +144,82 @@ function CourseDetail() {
       
       if (user) {
         const assignedUsers = courseData.assignedUsers || [];
-        const userIsAssigned = assignedUsers.includes(user.uid) || assignedUsers.includes(user.email);
+        
+        // Sprawdź czy uczeń jest przypisany do kursu przez assignedUsers
+        const userIsAssignedByUsers = assignedUsers.includes(user.uid) || assignedUsers.includes(user.email);
+        
+        // Sprawdź czy uczeń jest przypisany do nauczyciela kursu
+        let userIsAssignedToTeacher = false;
+        let userIsAssignedAsParent = false;
+        
+        if (user.role === 'student') {
+          // Pobierz dane ucznia z kolekcji users
+          const usersRef = collection(db, 'users');
+          const userQuery = query(usersRef, where('uid', '==', user.uid));
+          const userSnapshot = await getDocs(userQuery);
+          
+          if (!userSnapshot.empty) {
+            const userData = userSnapshot.docs[0].data();
+            // Sprawdź czy uczeń ma przypisanego nauczyciela
+            if (userData.assignedToTeacher) {
+              // Sprawdź czy nauczyciel tego kursu to ten sam nauczyciel
+              // assignedToTeacher to uid nauczyciela, więc musimy porównać z uid nauczyciela kursu
+              const courseTeacherEmail = courseData.created_by || courseData.teacherEmail;
+              
+              // Znajdź uid nauczyciela na podstawie emaila
+              const teacherQuery = query(usersRef, where('email', '==', courseTeacherEmail));
+              const teacherSnapshot = await getDocs(teacherQuery);
+              
+              if (!teacherSnapshot.empty) {
+                const teacherData = teacherSnapshot.docs[0].data();
+                const courseTeacherUid = teacherData.uid;
+                userIsAssignedToTeacher = userData.assignedToTeacher === courseTeacherUid;
+              }
+            }
+          }
+        } else if (user.role === 'parent') {
+          // Sprawdź czy rodzic ma przypisane dziecko, które jest na tym kursie
+          const parentStudentsRef = collection(db, 'parent_students');
+          const parentStudentsQuery = query(parentStudentsRef, where('parent', '==', user.uid));
+          const parentStudentsSnapshot = await getDocs(parentStudentsQuery);
+          
+          if (!parentStudentsSnapshot.empty) {
+            const studentId = parentStudentsSnapshot.docs[0].data().student;
+            // Sprawdź czy dziecko jest przypisane do tego kursu
+            const assignedUsers = courseData.assignedUsers || [];
+            userIsAssignedAsParent = assignedUsers.includes(studentId);
+            
+            // Sprawdź też czy dziecko jest przypisane do nauczyciela kursu
+            const usersRef = collection(db, 'users');
+            const studentQuery = query(usersRef, where('uid', '==', studentId));
+            const studentSnapshot = await getDocs(studentQuery);
+            
+            if (!studentSnapshot.empty) {
+              const studentData = studentSnapshot.docs[0].data();
+              if (studentData.assignedToTeacher) {
+                const courseTeacherEmail = courseData.created_by || courseData.teacherEmail;
+                
+                // Znajdź uid nauczyciela na podstawie emaila
+                const teacherQuery = query(usersRef, where('email', '==', courseTeacherEmail));
+                const teacherSnapshot = await getDocs(teacherQuery);
+                
+                if (!teacherSnapshot.empty) {
+                  const teacherData = teacherSnapshot.docs[0].data();
+                  const courseTeacherUid = teacherData.uid;
+                  userIsAssignedAsParent = userIsAssignedAsParent || (studentData.assignedToTeacher === courseTeacherUid);
+                }
+              }
+            }
+          }
+        }
+        
+        const userIsAssigned = userIsAssignedByUsers || userIsAssignedToTeacher || userIsAssignedAsParent;
         setIsAssigned(userIsAssigned);
-        console.log('[DEBUG] User assigned to course:', userIsAssigned);
+        
+        console.log('[DEBUG] User assigned to course by users:', userIsAssignedByUsers);
+        console.log('[DEBUG] User assigned to course by teacher:', userIsAssignedToTeacher);
+        console.log('[DEBUG] User assigned to course as parent:', userIsAssignedAsParent);
+        console.log('[DEBUG] Final user assigned to course:', userIsAssigned);
       }
       
     } catch (err) {
@@ -175,10 +248,13 @@ function CourseDetail() {
       console.log('[DEBUG] Found quizzes:', quizzesList);
       setQuizzes(quizzesList);
       
-      await Promise.all([
-        fetchQuizAttempts(quizzesList.map(q => q.id)),
-        fetchQuizResults(quizzesList.map(q => q.id))
-      ]);
+      // Sprawdź czy są quizy przed wywołaniem funkcji z filtrem 'in'
+      if (quizzesList.length > 0) {
+        await Promise.all([
+          fetchQuizAttempts(quizzesList.map(q => q.id)),
+          fetchQuizResults(quizzesList.map(q => q.id))
+        ]);
+      }
     } catch (quizError) {
       console.error('[DEBUG] Error fetching quizzes:', quizError);
       setQuizError('Nie udało się załadować quizów');

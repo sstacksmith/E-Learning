@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import Providers from '@/components/Providers';
 import { db } from "@/config/firebase";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, doc, updateDoc } from "firebase/firestore";
 
 // Typ użytkownika Firestore
 interface FirestoreUser {

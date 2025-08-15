@@ -7,7 +7,6 @@ import {
   signInWithEmailAndPassword,
   signOut,
   onAuthStateChanged,
-  User as FirebaseUser,
 } from 'firebase/auth';
 import {
   doc,
@@ -41,7 +40,7 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const router = useRouter();
 
@@ -54,6 +53,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
           const userData = userDoc.exists() ? userDoc.data() : {};
           const role = userData.role as UserRole || 'student';
+
+          console.log('AuthContext - Firebase user data:', userData);
+          console.log('AuthContext - Detected role:', role);
 
           setUser({
             uid: firebaseUser.uid,
@@ -127,6 +129,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
 
     const userData = userDoc.data();
+    console.log('loginWithApproval - User data from Firestore:', userData);
+    console.log('loginWithApproval - User role:', userData.role);
+    
     if (!userData.approved && userData.role !== 'parent') {
       await signOut(auth);
       throw new Error('Twoje konto oczekuje na zatwierdzenie przez administratora.');

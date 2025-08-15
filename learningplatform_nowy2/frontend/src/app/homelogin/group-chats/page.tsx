@@ -1,182 +1,354 @@
-"use client";
-import { useEffect, useState } from "react";
-import Link from "next/link";
-import { getAuth } from "firebase/auth";
-import { getFirestore, collection, query, where, onSnapshot, getDocs, doc, getDoc } from "firebase/firestore";
-import PageTransition from "@/components/PageTransition";
-import firebaseApp from "@/config/firebase";
+'use client';
+
+// Force dynamic rendering to prevent SSR issues with client-side hooks
+export const dynamic = 'force-dynamic';
+
+import { useState, useEffect, useRef } from "react";
+import { useAuth } from '@/context/AuthContext';
+import { MessageSquare, Users, Send } from 'lucide-react';
+import { db } from '@/config/firebase';
+import { collection, query, where, onSnapshot, addDoc, serverTimestamp, orderBy, limit, getDocs } from 'firebase/firestore';
 
 interface GroupChat {
   id: string;
   name: string;
+  description?: string;
   participants: string[];
   createdBy: string;
-  createdAt: { seconds: number; };
+  createdAt: { seconds: number };
+  lastMessage?: {
+    text: string;
+    senderId: string;
+    senderName: string;
+    createdAt: { seconds: number };
+  };
 }
 
-function UnreadCount({ chatId, userUid }: { chatId: string, userUid: string }) {
-  const [count, setCount] = useState<string | number>("");
-
-  useEffect(() => {
-    if (!chatId || !userUid) return;
-    let unsub = false;
-    async function fetchUnread() {
-      // 1. Pobierz lastRead
-      const readStatusDoc = await getDoc(doc(getFirestore(firebaseApp), "groupChats", chatId, "readStatus", userUid));
-      const lastRead = readStatusDoc.exists() ? readStatusDoc.data().lastRead?.toDate() : null;
-      let q;
-      if (lastRead) {
-        q = query(
-          collection(getFirestore(firebaseApp), "groupChats", chatId, "messages"),
-          where("createdAt", ">", lastRead)
-        );
-      } else {
-        q = collection(getFirestore(firebaseApp), "groupChats", chatId, "messages");
-      }
-      const snapshot = await getDocs(q);
-      if (unsub) return;
-      const unread = snapshot.size;
-      setCount(unread > 99 ? "99+" : unread === 0 ? "Jesteś na bieżąco" : unread);
-    }
-    fetchUnread();
-    return () => { unsub = true; };
-  }, [chatId, userUid]);
-
-  return (
-    <span className="ml-auto text-xs font-bold text-[#4067EC] bg-[#EAF0FF] px-2 py-1 rounded-full">
-      {count}
-    </span>
-  );
+interface Message {
+  id: string;
+  text: string;
+  senderId: string;
+  senderName: string;
+  createdAt: { seconds: number };
 }
 
-export default function GroupChatsPage() {
-  const [chats, setChats] = useState<GroupChat[]>([]);
+export default function StudentGroupChatsPage() {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [isTeacher, setIsTeacher] = useState(false);
-  const auth = getAuth(firebaseApp);
-  const db = getFirestore(firebaseApp);
-  const [userUid, setUserUid] = useState<string>("");
+  const [chats, setChats] = useState<GroupChat[]>([]);
+  const [selectedChat, setSelectedChat] = useState<GroupChat | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [newMessage, setNewMessage] = useState('');
+  const [sending, setSending] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Pobierz czaty grupowe ucznia
   useEffect(() => {
-    let unsubscribeAuth: (() => void) | undefined;
-    let unsubscribeChats: (() => void) | undefined;
+    if (!user) return;
 
-    const initializeChats = async () => {
-      try {
-        unsubscribeAuth = auth.onAuthStateChanged(async (user) => {
-          if (user) {
-            setUserUid(user.uid);
-            try {
-              const token = await user.getIdTokenResult();
-              setIsTeacher(token.claims.role === "teacher");
-              // Pobierz czaty, w których uczestniczy użytkownik
-              const q = query(
-                collection(db, "groupChats"),
-                where("participants", "array-contains", user.uid)
-              );
-              unsubscribeChats = onSnapshot(q, (snapshot) => {
-                const chatList: GroupChat[] = snapshot.docs.map((doc) => ({ 
-                  id: doc.id, 
-                  ...doc.data() 
-                } as GroupChat));
-                setChats(chatList);
-                setLoading(false);
-                setError("");
-              }, () => {
-                setError("Błąd podczas ładowania czatów");
-                setLoading(false);
-              });
-            } catch {
-              setError("Błąd autoryzacji");
-              setLoading(false);
-            }
-          } else {
-            setLoading(false);
-            setError("Brak zalogowanego użytkownika");
-          }
+    const chatsQuery = query(
+      collection(db, 'groupChats'),
+      where('participants', 'array-contains', user.uid)
+    );
+
+    const unsubscribe = onSnapshot(chatsQuery, async (snapshot) => {
+      const chatsData: GroupChat[] = [];
+      
+      for (const chatDoc of snapshot.docs) {
+        const chatData = chatDoc.data();
+        
+        // Pobierz ostatnią wiadomość dla każdego czatu
+        const messagesQuery = query(
+          collection(db, 'groupChats', chatDoc.id, 'messages'),
+          orderBy('createdAt', 'desc'),
+          limit(1)
+        );
+        
+        const messagesSnapshot = await getDocs(messagesQuery);
+        let lastMessage = undefined;
+        
+        if (!messagesSnapshot.empty) {
+          const lastMsgData = messagesSnapshot.docs[0].data();
+          lastMessage = {
+            text: lastMsgData.text || '',
+            senderId: lastMsgData.senderId || '',
+            senderName: lastMsgData.senderName || 'Nieznany',
+            createdAt: lastMsgData.createdAt
+          };
+        }
+
+        chatsData.push({
+          id: chatDoc.id,
+          name: chatData.name || 'Czat bez nazwy',
+          description: chatData.description || '',
+          participants: chatData.participants || [],
+          createdBy: chatData.createdBy || '',
+          createdAt: chatData.createdAt,
+          lastMessage
         });
-      } catch {
-        setError("Błąd inicjalizacji aplikacji");
-        setLoading(false);
       }
-    };
+      
+      // Sortuj czaty po ostatniej wiadomości
+      chatsData.sort((a, b) => {
+        if (!a.lastMessage && !b.lastMessage) return 0;
+        if (!a.lastMessage) return 1;
+        if (!b.lastMessage) return -1;
+        return b.lastMessage.createdAt?.seconds - a.lastMessage.createdAt?.seconds;
+      });
+      
+      setChats(chatsData);
+      setLoading(false);
+    });
 
-    initializeChats();
+    return () => unsubscribe();
+  }, [user]);
 
-    return () => {
-      if (unsubscribeAuth) unsubscribeAuth();
-      if (unsubscribeChats) unsubscribeChats();
-    };
-  }, [auth, db]);
+  // Pobierz wiadomości dla wybranego czatu
+  useEffect(() => {
+    if (!selectedChat) return;
+
+    const messagesQuery = query(
+      collection(db, 'groupChats', selectedChat.id, 'messages'),
+      orderBy('createdAt', 'asc')
+    );
+
+    const unsubscribe = onSnapshot(messagesQuery, (snapshot) => {
+      const messagesData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Message[];
+      
+      setMessages(messagesData);
+      
+      // Scroll to bottom
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+    });
+
+    return () => unsubscribe();
+  }, [selectedChat]);
+
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newMessage.trim() || !selectedChat || !user) return;
+
+    setSending(true);
+    try {
+      await addDoc(collection(db, 'groupChats', selectedChat.id, 'messages'), {
+        text: newMessage.trim(),
+        senderId: user.uid,
+        senderName: (user as any).displayName || user.email,
+        createdAt: serverTimestamp()
+      });
+
+      setNewMessage('');
+    } catch (error) {
+      console.error('Error sending message:', error);
+      alert('Błąd podczas wysyłania wiadomości');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const formatTime = (timestamp: { seconds: number }) => {
+    if (!timestamp) return '';
+    const date = new Date(timestamp.seconds * 1000);
+    return date.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
 
   return (
-    <PageTransition>
-      <div className="min-h-screen bg-[#F8F9FB] flex flex-col items-center py-6 md:py-10 px-2 md:px-8">
-        <div className="w-full flex justify-start mb-8">
-          <Link
-            href="/homelogin"
-            className="inline-flex items-center px-6 py-3 bg-black text-white rounded-lg font-bold shadow-lg transition-colors text-lg md:text-xl border-2 border-black focus:outline-none focus:ring-2 focus:ring-black"
-          >
-            ← Wróć do panelu głównego
-          </Link>
-        </div>
-        <div className="w-full max-w-full bg-white rounded-2xl shadow-lg p-8 md:p-12 mx-auto min-h-[70vh]">
-          <div className="flex justify-between items-center mb-8">
-            <h1 className="text-5xl md:text-6xl font-bold text-[#4067EC]">Chaty grupowe</h1>
-            {isTeacher && (
-              <Link
-                href="/homelogin/group-chats/create"
-                className="inline-flex items-center px-6 py-3 bg-black text-white rounded-lg font-bold shadow-lg transition-colors text-xl md:text-2xl border-2 border-black focus:outline-none focus:ring-2 focus:ring-black"
-              >
-                + Utwórz czat
-              </Link>
-            )}
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-4">
+      {/* Modern Header */}
+      <div className="mb-6">
+        <div className="bg-white/80 backdrop-blur-lg rounded-2xl p-6 shadow-lg border border-white/20">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
+              <MessageSquare className="h-6 w-6 text-white" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                Czat Grupowy
+              </h2>
+              <p className="text-gray-600">Komunikuj się z nauczycielami i innymi uczniami</p>
+            </div>
           </div>
-          {error && (
-            <div className="text-red-500 font-semibold mb-4 p-3 bg-red-50 rounded-lg border border-red-200">
-              {error}
+        </div>
+      </div>
+
+      <div className="grid lg:grid-cols-3 gap-6 h-[calc(100vh-300px)]">
+        {/* Modern Chats List */}
+        <div className="lg:col-span-1">
+          <div className="bg-white/90 backdrop-blur-xl rounded-2xl border border-white/20 shadow-xl h-full overflow-hidden">
+            <div className="p-6 bg-gradient-to-r from-blue-500/10 to-purple-500/10 border-b border-white/10">
+              <h3 className="font-bold text-gray-900 text-lg">Twoje czaty</h3>
+              <p className="text-sm text-gray-600 mt-1">{chats.length} aktywnych rozmów</p>
             </div>
-          )}
-          {loading ? (
-            <div className="text-center text-gray-500 py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#4067EC] mx-auto mb-2"></div>
-              Ładowanie czatów...
-            </div>
-          ) : chats.length === 0 ? (
-            <div className="text-center text-gray-500 py-8">
-              Nie uczestniczysz w żadnych czatach grupowych.
-              {isTeacher && (
-                <div className="mt-2">
-                  <Link
-                    href="/homelogin/group-chats/create"
-                    className="text-[#4067EC] hover:underline"
-                  >
-                    Utwórz pierwszy czat
-                  </Link>
+            <div className="overflow-y-auto h-full">
+              {chats.length === 0 ? (
+                <div className="p-8 text-center">
+                  <div className="w-20 h-20 bg-gradient-to-r from-blue-100 to-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <MessageSquare className="h-8 w-8 text-blue-500" />
+                  </div>
+                  <p className="text-gray-600 font-medium mb-2">Brak czatów grupowych</p>
+                  <p className="text-sm text-gray-500">Nauczyciel może dodać Cię do czatu</p>
+                </div>
+              ) : (
+                <div className="p-2">
+                  {chats.map((chat) => (
+                    <div
+                      key={chat.id}
+                      onClick={() => setSelectedChat(chat)}
+                      className={`p-4 m-2 rounded-xl cursor-pointer transition-all duration-200 hover:shadow-lg ${
+                        selectedChat?.id === chat.id 
+                          ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg transform scale-[1.02]' 
+                          : 'bg-white/50 hover:bg-white/80 border border-gray-100'
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ${
+                          selectedChat?.id === chat.id 
+                            ? 'bg-white/20' 
+                            : 'bg-gradient-to-r from-blue-400 to-purple-500'
+                        }`}>
+                          <Users className={`h-5 w-5 ${
+                            selectedChat?.id === chat.id ? 'text-white' : 'text-white'
+                          }`} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className={`font-semibold truncate ${
+                            selectedChat?.id === chat.id ? 'text-white' : 'text-gray-900'
+                          }`}>
+                            {chat.name}
+                          </h4>
+                          <div className={`flex items-center text-sm mt-1 ${
+                            selectedChat?.id === chat.id ? 'text-white/80' : 'text-gray-500'
+                          }`}>
+                            <Users className="h-3 w-3 mr-1" />
+                            {chat.participants.length} uczestników
+                          </div>
+                          {chat.lastMessage && (
+                            <>
+                              <div className={`text-sm mt-2 ${
+                                selectedChat?.id === chat.id ? 'text-white/90' : 'text-gray-600'
+                              }`}>
+                                <span className="font-medium">{chat.lastMessage.senderName}:</span>{' '}
+                                {chat.lastMessage.text.length > 35 
+                                  ? chat.lastMessage.text.substring(0, 35) + '...' 
+                                  : chat.lastMessage.text}
+                              </div>
+                              <div className={`text-xs mt-1 ${
+                                selectedChat?.id === chat.id ? 'text-white/70' : 'text-gray-400'
+                              }`}>
+                                {formatTime(chat.lastMessage.createdAt)}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
-          ) : (
-            <ul className="space-y-8">
-              {chats.map((chat) => (
-                <li key={chat.id} className="border border-gray-200 rounded-lg p-8 bg-gray-50 hover:bg-[#F1F4FE] transition-colors">
-                  <Link href={`/homelogin/group-chats/${chat.id}`} className="font-bold text-[#4067EC] text-2xl md:text-3xl hover:underline">
-                    {chat.name}
-                  </Link>
-                  <div className="text-lg text-gray-500 mt-2">Uczestników: {chat.participants.length}</div>
-                  {chat.createdAt && (
-                    <div className="text-md text-gray-400 mt-1">
-                      Utworzono: {chat.createdAt.seconds ? new Date(chat.createdAt.seconds * 1000).toLocaleDateString("pl-PL") : ""}
+          </div>
+        </div>
+
+        {/* Modern Chat Area */}
+        <div className="lg:col-span-2">
+          {selectedChat ? (
+            <div className="bg-white/90 backdrop-blur-xl rounded-2xl border border-white/20 shadow-xl h-full flex flex-col overflow-hidden">
+              {/* Modern Chat Header */}
+              <div className="p-6 bg-gradient-to-r from-blue-500/10 to-purple-500/10 border-b border-white/10">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-gradient-to-r from-blue-400 to-purple-500 rounded-full flex items-center justify-center">
+                      <Users className="h-6 w-6 text-white" />
                     </div>
-                  )}
-                  <UnreadCount chatId={chat.id} userUid={userUid} />
-                </li>
-              ))}
-            </ul>
+                    <div>
+                      <h3 className="font-bold text-gray-900 text-lg">{selectedChat.name}</h3>
+                      <p className="text-sm text-gray-600">
+                        {selectedChat.participants.length} uczestników
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 px-3 py-1 bg-green-100 rounded-full">
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                    <span className="text-sm text-green-700 font-medium">Aktywny</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Modern Messages */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gradient-to-b from-transparent to-blue-50/30">
+                {messages.map((message) => (
+                  <div key={message.id} className={`flex ${message.senderId === user?.uid ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-xs lg:max-w-md px-4 py-3 rounded-2xl shadow-lg transition-all duration-200 hover:shadow-xl ${
+                      message.senderId === user?.uid
+                        ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white' 
+                        : 'bg-white border border-gray-100 text-gray-900'
+                    }`}>
+                      {message.senderId !== user?.uid && (
+                        <div className="text-xs font-semibold mb-2 text-blue-500 bg-blue-50 px-2 py-1 rounded-lg inline-block">
+                          {message.senderName}
+                        </div>
+                      )}
+                      <div className="text-sm leading-relaxed">{message.text}</div>
+                      <div className={`text-xs mt-2 ${
+                        message.senderId === user?.uid ? 'text-white/70' : 'text-gray-500'
+                      }`}>
+                        {formatTime(message.createdAt)}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                <div ref={messagesEndRef} />
+              </div>
+
+              {/* Modern Message Input */}
+              <form onSubmit={handleSendMessage} className="p-6 bg-white/50 backdrop-blur-sm border-t border-white/20">
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 relative">
+                    <input
+                      type="text"
+                      value={newMessage}
+                      onChange={(e) => setNewMessage(e.target.value)}
+                      placeholder="Napisz wiadomość..."
+                      disabled={sending}
+                      className="w-full border-0 bg-white rounded-2xl px-6 py-4 shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-400 focus:shadow-xl transition-all duration-200 disabled:opacity-50 text-gray-900 placeholder-gray-400"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={sending || !newMessage.trim()}
+                    className="bg-gradient-to-r from-blue-500 to-purple-600 text-white p-4 rounded-2xl hover:shadow-lg hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none shadow-lg"
+                  >
+                    <Send className="h-5 w-5" />
+                  </button>
+                </div>
+              </form>
+            </div>
+          ) : (
+            <div className="bg-white/60 backdrop-blur-xl rounded-2xl border border-white/20 shadow-xl h-full flex items-center justify-center">
+              <div className="text-center">
+                <div className="w-24 h-24 bg-gradient-to-r from-blue-100 to-purple-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <MessageSquare className="h-10 w-10 text-blue-500" />
+                </div>
+                <p className="text-xl font-bold text-gray-900 mb-2">Wybierz czat aby rozpocząć</p>
+                <p className="text-gray-600">Kliknij na czat z listy po lewej stronie</p>
+              </div>
+            </div>
           )}
         </div>
       </div>
-    </PageTransition>
+    </div>
   );
-} 
+}

@@ -28,22 +28,29 @@ interface Course {
   assignedUsers?: string[];
 }
 
-const sidebarLinks = [
-  {
-    label: "Moje kursy",
-    icon: <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V7M16 3v4M8 3v4M4 7h16" /></svg>,
-    href: "/homelogin/my-courses"
-  },
-  {
-    label: "Plan lekcji",
-    icon: <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>,
-    href: "/homelogin/schedule"
-  },
-  {
+// Function to get sidebar links based on user role
+const getSidebarLinks = (userRole?: string) => {
+  const baseLinks = [
+    {
+      label: "Moje kursy",
+      icon: <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V7M16 3v4M8 3v4M4 7h16" /></svg>,
+      href: "/homelogin/my-courses"
+    },
+    {
+      label: "Plan lekcji",
+      icon: <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>,
+      href: "/homelogin/schedule"
+    }
+  ];
+
+  // Add group chat with appropriate link based on role
+  baseLinks.push({
     label: "Czat grupowy",
     icon: <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>,
-    href: "/homelogin/group-chats"
-  },
+    href: userRole === 'teacher' ? "/homelogin/teacher/group-chats" : "/homelogin/group-chats"
+  });
+
+  baseLinks.push(
   {
     label: "Biblioteka",
     icon: <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 20h9" /><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m0 0H6a2 2 0 01-2-2V6a2 2 0 012-2h6" /></svg>,
@@ -57,9 +64,7 @@ const sidebarLinks = [
   {
     label: "Instructors",
     icon: <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5.121 17.804A13.937 13.937 0 0112 15c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0z" /></svg>,
-    sub: [
-      { label: "Tutors", href: "/homelogin/instructors/tutors" }
-    ],
+    href: "/homelogin/instructors/tutors"
   },
   {
     label: "Ankiety",
@@ -69,8 +74,7 @@ const sidebarLinks = [
   {
     label: "ZPE.gov.pl",
     icon: <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" /></svg>,
-    href: "https://zpe.gov.pl",
-    external: true
+    href: "https://zpe.gov.pl"
   },
   {
     label: "Support & FAQs",
@@ -81,8 +85,10 @@ const sidebarLinks = [
     label: "Wszystkie kursy",
     icon: <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>,
     href: "/courses"
-  },
-];
+  });
+  
+  return baseLinks;
+};
 
 
 
@@ -129,15 +135,23 @@ function DashboardPageContent() {
 
   useEffect(() => {
     if (!loading && user) {
+      console.log('HomeLogin useEffect - User:', user, 'Role:', user.role);
       // Przekieruj na podstawie roli użytkownika
       if (user.role === 'teacher') {
+        console.log('Redirecting teacher to /homelogin/teacher');
         router.replace('/homelogin/teacher');
       } else if (user.role === 'admin') {
+        console.log('Redirecting admin to /homelogin/superadmin');
         router.replace('/homelogin/superadmin');
+      } else if (user.role === 'parent') {
+        console.log('Redirecting parent to /homelogin/parent');
+        router.replace('/homelogin/parent');
       } else {
         // Student - zostaje na tej stronie
         console.log('User is student, staying on dashboard');
       }
+    } else {
+      console.log('HomeLogin useEffect - Loading:', loading, 'User:', user);
     }
   }, [user, loading, router]);
 
@@ -160,6 +174,9 @@ function Dashboard() {
   const router = useRouter();
   const { user, logout } = useAuth();
   console.log('user in Dashboard:', user);
+  
+  // Get sidebar links based on user role
+  const sidebarLinks = getSidebarLinks(user?.role);
   const [sidebarOpen, setSidebarOpen] = useState(false); // Changed to false for mobile
   const [search, setSearch] = useState('');
   const [suggestions, setSuggestions] = useState<string[]>([]);
@@ -450,11 +467,12 @@ function Dashboard() {
                 <Link 
                   href={item.href} 
                   className="flex items-center text-gray-700 font-medium py-2 px-2 rounded-lg hover:bg-[#F1F4FE] cursor-pointer transition duration-200 hover:scale-105 text-sm sm:text-base"
-                  {...(item.external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+                  target={user?.role === 'student' ? undefined : "_blank"}
+                  rel={user?.role === 'student' ? undefined : "noopener noreferrer"}
                 >
                   {item.icon}
                   <span className="truncate">{item.label}</span>
-                  {item.external && (
+                  {user?.role !== 'student' && (
                     <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                     </svg>
@@ -466,19 +484,7 @@ function Dashboard() {
                   <span className="truncate">{item.label}</span>
                 </div>
               )}
-              {item.sub && (
-                <div className="ml-6 sm:ml-7 mt-1 space-y-1">
-                  {item.sub.map((sub) => (
-                    <Link 
-                      key={sub.label} 
-                      href={sub.href}
-                      className="text-gray-500 text-xs sm:text-sm py-1 px-2 rounded hover:bg-[#F1F4FE] cursor-pointer block transition duration-200 hover:scale-105"
-                    >
-                      {sub.label}
-                    </Link>
-                  ))}
-                </div>
-              )}
+
             </div>
           ))}
         </nav>

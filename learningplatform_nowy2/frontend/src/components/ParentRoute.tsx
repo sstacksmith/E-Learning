@@ -13,10 +13,8 @@ export default function ParentRoute({ children }: { children: React.ReactNode })
     if (!loading) {
       if (!user || user.role !== 'parent') {
         router.push('/login');
-      } else if (pathname === '/homelogin/parent') {
-        // Przekieruj do strony kursów, jeśli użytkownik jest na głównej stronie rodzica
-        router.push('/homelogin/parent/courses');
       }
+      // Nie przekierowuj automatycznie - pozwól rodzicowi zostać na Plan Zajęć jako stronie głównej
     }
   }, [user, loading, router, pathname]);
 

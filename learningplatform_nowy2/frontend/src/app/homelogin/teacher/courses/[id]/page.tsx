@@ -7,7 +7,7 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db } from "@/config/firebase";
 import Image from "next/image";
 import Providers from '@/components/Providers';
-import { FaFilePdf, FaFileAlt, FaLink, FaChevronDown, FaChevronUp, FaPlus, FaImage, FaClipboardList, FaGraduationCap, FaUsers } from "react-icons/fa";
+import { FaFilePdf, FaFileAlt, FaLink, FaChevronDown, FaChevronUp, FaPlus, FaImage, FaClipboardList, FaGraduationCap, FaUsers, FaQuestionCircle } from "react-icons/fa";
 import dynamic from 'next/dynamic';
 // Dynamiczny import MDXEditor
 const MDXEditor = dynamic(() => import('@mdxeditor/editor').then(mod => mod.MDXEditor), { ssr: false });
@@ -79,7 +79,26 @@ interface Student {
   role?: string;
 }
 
-
+interface Quiz {
+  id: string;
+  title: string;
+  description: string;
+  subject: string;
+  course_id: string;
+  questions: {
+    id: string;
+    content: string;
+    type: string;
+    answers?: {
+      id: string;
+      content: string;
+      isCorrect: boolean;
+    }[];
+  }[];
+  created_at: string;
+  created_by: string;
+  max_attempts: number;
+}
 
 
 function TeacherCourseDetailContent() {
@@ -94,6 +113,9 @@ function TeacherCourseDetailContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [quizzes, setQuizzes] = useState<Quiz[]>([]);
+  const [loadingQuizzes, setLoadingQuizzes] = useState(true);
+  const [quizError, setQuizError] = useState<string | null>(null);
 
 
   // Banner state
@@ -208,6 +230,41 @@ function TeacherCourseDetailContent() {
     };
     fetchAssigned();
   }, [courseId, setAssignedUsers]);
+
+  // Fetch quizzes for this course
+  useEffect(() => {
+    const fetchQuizzes = async () => {
+      if (!courseId) return;
+      
+      try {
+        setLoadingQuizzes(true);
+        setQuizError(null);
+        
+        console.log('Fetching quizzes for course:', courseId);
+        const quizzesCollection = collection(db, 'quizzes');
+        const quizzesQuery = query(
+          quizzesCollection,
+          where('course_id', '==', courseId)
+        );
+        
+        const quizzesSnapshot = await getDocs(quizzesQuery);
+        const quizzesList = quizzesSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })) as Quiz[];
+        
+        console.log('Found quizzes for course:', quizzesList);
+        setQuizzes(quizzesList);
+      } catch (error) {
+        console.error('Error fetching quizzes:', error);
+        setQuizError('Nie udało się załadować quizów');
+      } finally {
+        setLoadingQuizzes(false);
+      }
+    };
+    
+    fetchQuizzes();
+  }, [courseId]);
 
   // Assign student to course using Firestore
   const handleAssignStudent = useCallback(async (e: React.FormEvent) => {
@@ -422,6 +479,12 @@ function TeacherCourseDetailContent() {
       console.log('Course data from Firestore:', data);
       setSections(data.sections || []);
       
+      // Update banner URL
+      if (data.bannerUrl) {
+        setBannerUrl(data.bannerUrl);
+        console.log('Banner URL refreshed:', data.bannerUrl);
+      }
+      
       // Aktualizuj sectionContents
       const sectionsData = data.sections || [];
       const updatedSectionContents: {[id:number]: SectionContent[]} = {};
@@ -536,13 +599,71 @@ function TeacherCourseDetailContent() {
   }, [sectionContents, newContent, courseId, sections, saveSectionsToFirestore, refreshCourseData]);
 
   // Banner upload handler
-  const handleBannerChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleBannerChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      // setBannerFile(e.target.files[0]); // Unused - handled via URL
-      setBannerUrl(URL.createObjectURL(e.target.files[0]));
+      try {
+        const file = e.target.files[0];
+        console.log('Uploading banner file:', file.name);
+        
+        // Upload file to Firebase Storage
+        const storage = getStorage();
+        const storageRef = ref(storage, `courses/${courseId}/banner/${Date.now()}_${file.name}`);
+        await uploadBytes(storageRef, file);
+        const fileUrl = await getDownloadURL(storageRef);
+        
+        console.log('Banner uploaded successfully:', fileUrl);
+        setBannerUrl(fileUrl);
+        
+        // Save banner URL to Firestore
+        if (courseId) {
+          const courseRef = doc(db, "courses", String(courseId));
+          await updateDoc(courseRef, { bannerUrl: fileUrl });
+          console.log('Banner URL saved to Firestore');
+          
+          // Refresh course data to ensure banner is loaded correctly
+          await refreshCourseData();
+          
+          // Also update local course state
+          setCourse(prev => prev ? { ...prev, bannerUrl: fileUrl } : null);
+        }
+      } catch (error) {
+        console.error('Error uploading banner:', error);
+        alert('Błąd podczas uploadu banera');
+      }
     }
-  }, []);
+  }, [courseId, refreshCourseData]);
 
+  // Edit course description
+  const [isEditingDescription, setIsEditingDescription] = useState(false);
+  const [editedDescription, setEditedDescription] = useState('');
+
+  const handleEditDescription = useCallback(() => {
+    setEditedDescription(course?.description || '');
+    setIsEditingDescription(true);
+  }, [course]);
+
+  const handleSaveDescription = useCallback(async () => {
+    if (!courseId || !editedDescription.trim()) return;
+    
+    try {
+      const courseRef = doc(db, "courses", String(courseId));
+      await updateDoc(courseRef, { description: editedDescription.trim() });
+      
+      // Update local state
+      setCourse(prev => prev ? { ...prev, description: editedDescription.trim() } : null);
+      setIsEditingDescription(false);
+      
+      console.log('Course description updated successfully');
+    } catch (error) {
+      console.error('Error updating course description:', error);
+      alert('Błąd podczas aktualizacji opisu kursu');
+    }
+  }, [courseId, editedDescription]);
+
+  const handleCancelDescription = useCallback(() => {
+    setIsEditingDescription(false);
+    setEditedDescription('');
+  }, []);
 
 
   // Rozpocznij edycję sekcji
@@ -715,7 +836,46 @@ function TeacherCourseDetailContent() {
       <div className="w-full max-w-5xl mb-6 relative rounded-2xl overflow-hidden shadow-lg bg-gradient-to-r from-[#4067EC] to-[#7aa2f7] flex items-center justify-between h-48 sm:h-56">
         <div className="p-8">
           <h1 className="text-3xl sm:text-4xl font-bold text-white drop-shadow-lg mb-2">{course?.title || 'Tytuł kursu'}</h1>
-          <p className="text-white text-lg font-medium drop-shadow">{course?.description || 'Opis kursu'}</p>
+          
+          {/* Editable description */}
+          {isEditingDescription ? (
+            <div className="mb-4">
+              <textarea
+                value={editedDescription}
+                onChange={(e) => setEditedDescription(e.target.value)}
+                className="w-full p-2 rounded border-2 border-white/30 bg-white/20 text-white placeholder-white/70 resize-none"
+                placeholder="Opis kursu"
+                rows={2}
+              />
+              <div className="flex gap-2 mt-2">
+                <button
+                  onClick={handleSaveDescription}
+                  className="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700 transition"
+                >
+                  Zapisz
+                </button>
+                <button
+                  onClick={handleCancelDescription}
+                  className="px-3 py-1 bg-gray-600 text-white rounded text-sm hover:bg-gray-700 transition"
+                >
+                  Anuluj
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="mb-4">
+              <p className="text-white text-lg font-medium drop-shadow mb-2">
+                {course?.description || 'Opis kursu'}
+              </p>
+              <button
+                onClick={handleEditDescription}
+                className="text-white/80 hover:text-white text-sm underline"
+              >
+                Edytuj opis
+              </button>
+            </div>
+          )}
+          
           <label className="mt-4 inline-flex items-center gap-2 cursor-pointer bg-white/20 px-3 py-2 rounded-lg text-white font-semibold hover:bg-white/40 transition">
             <FaImage />
             <input type="file" accept="image/*" className="hidden" onChange={handleBannerChange} />
@@ -724,7 +884,7 @@ function TeacherCourseDetailContent() {
         </div>
         <div className="hidden sm:block h-full">
           {bannerUrl ? (
-                    <Image src={bannerUrl} alt="Baner kursu" width={500} height={300} className="object-contain h-full w-auto opacity-80" />
+            <Image src={bannerUrl} alt="Baner kursu" width={500} height={300} className="object-contain h-full w-auto opacity-80" />
           ) : (
             <Image src="/puzzleicon.png" alt="Baner kursu" width={180} height={180} className="object-contain h-full w-auto opacity-60" />
           )}
@@ -1072,6 +1232,67 @@ function TeacherCourseDetailContent() {
             )}
           </div>
         ))}
+      </div>
+
+      {/* QUIZZES SECTION */}
+      <div className="w-full max-w-5xl mt-6">
+        <div className="bg-white rounded-2xl shadow-lg p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <FaQuestionCircle className="text-2xl text-[#4067EC]" />
+            <h2 className="text-2xl font-semibold text-[#4067EC]">Quizy w tym kursie</h2>
+          </div>
+          
+          {loadingQuizzes ? (
+            <div className="text-center py-8 text-gray-500">Ładowanie quizów...</div>
+          ) : quizError ? (
+            <div className="text-center py-8 text-red-500">
+              {quizError}
+            </div>
+          ) : quizzes.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              Brak quizów w tym kursie. Utwórz quiz w sekcji "Zarządzanie quizami".
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {quizzes.map((quiz) => (
+                <div
+                  key={quiz.id}
+                  className="p-4 border border-gray-200 rounded-lg hover:shadow-md transition-shadow"
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <h3 className="text-lg font-semibold text-gray-900">{quiz.title}</h3>
+                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                      {quiz.subject}
+                    </span>
+                  </div>
+                  <p className="text-gray-600 text-sm mb-3">{quiz.description}</p>
+                  <div className="space-y-2 text-sm text-gray-500">
+                    <div>Pytania: {quiz.questions?.length || 0}</div>
+                    <div>Maksymalne próby: {quiz.max_attempts || 1}</div>
+                    <div>Utworzono: {new Date(quiz.created_at).toLocaleDateString('pl-PL')}</div>
+                  </div>
+                  <div className="mt-4 flex gap-2">
+                    <button
+                      onClick={() => window.open(`/homelogin/teacher/quizzes`, '_blank')}
+                      className="text-sm bg-[#4067EC] text-white px-3 py-1 rounded hover:bg-[#3155d4] transition"
+                    >
+                      Zarządzaj
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          
+          <div className="mt-6 text-center">
+            <button
+              onClick={() => window.open(`/homelogin/teacher/quizzes`, '_blank')}
+              className="inline-flex items-center gap-2 bg-[#4067EC] text-white px-4 py-2 rounded-lg font-semibold hover:bg-[#3155d4] transition"
+            >
+              <FaPlus /> Utwórz nowy quiz
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

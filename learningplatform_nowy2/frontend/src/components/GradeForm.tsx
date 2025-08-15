@@ -8,6 +8,7 @@ interface Student {
   uid: string;
   displayName: string;
   role?: string;
+  assignedToTeacher?: string;
 }
 
 const SUBJECTS = [
@@ -49,11 +50,11 @@ const GradeForm: React.FC<{ onGradeAdded?: () => void }> = ({ onGradeAdded }) =>
       const usersSnapshot = await getDocs(usersCollection);
       const studentsList = usersSnapshot.docs
         .map(doc => ({ uid: doc.id, ...(doc.data() as Record<string, unknown>) } as Student))
-        .filter(user => user?.role === 'student');
+        .filter(student => student?.role === 'student' && student?.assignedToTeacher === user?.uid);
       setStudents(studentsList);
     };
     fetchStudents();
-  }, []);
+  }, [user]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

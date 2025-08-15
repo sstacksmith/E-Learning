@@ -4,13 +4,13 @@ import { useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 
-// Lista dozwolonych ścieżek dla rodzica
-const ALLOWED_PARENT_PATHS = [
-  '/homelogin',
-  '/homelogin/student/courses',
-  '/homelogin/student/grades',
-  '/homelogin/student/tutors'
-];
+// Lista dozwolonych ścieżek dla rodzica (nieużywana, ale zachowana dla dokumentacji)
+// const ALLOWED_PARENT_PATHS = [
+//   '/homelogin',
+//   '/homelogin/student/courses',
+//   '/homelogin/student/grades',
+//   '/homelogin/student/tutors'
+// ];
 
 // Lista zabronionych ścieżek dla rodzica (wszystkie inne podstrony w /homelogin)
 const FORBIDDEN_PARENT_PATHS = [
