@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { QuizQuestionEditor } from '@/components/QuizQuestionEditor';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
@@ -68,9 +68,7 @@ export default function QuizManagementPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
-  const [isSavingQuiz, setIsSavingQuiz] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [newQuiz, setNewQuiz] = useState<NewQuiz>({
     title: '',
     description: '',
@@ -122,7 +120,6 @@ export default function QuizManagementPage() {
       console.log('Fetching quizzes from Firestore...');
       
       const quizzesCollection = collection(db, 'quizzes');
-      // Pobierz wszystkie quizy utworzone przez nauczyciela
       const quizzesQuery = query(
         quizzesCollection,
         where('created_by', '==', user?.email)
@@ -192,128 +189,33 @@ export default function QuizManagementPage() {
   }, [user]);
 
   const handleCreateQuiz = async () => {
-    // Check if user is authenticated
-    if (!user?.email) {
-      setError('Nie jesteś zalogowany. Zaloguj się ponownie.');
-      return;
-    }
-
-    // Validate required fields
     if (!newQuiz.course_id) {
       setError('Proszę wybrać kurs dla tego quizu');
       return;
     }
 
-    if (!newQuiz.title.trim()) {
-      setError('Proszę podać tytuł quizu');
-      return;
-    }
-
-    if (!newQuiz.description.trim()) {
-      setError('Proszę podać opis quizu');
-      return;
-    }
-
-    if (!newQuiz.subject.trim()) {
-      setError('Proszę podać przedmiot quizu');
-      return;
-    }
-
-    // Temporarily disable question requirement for testing
-    // if (newQuiz.questions.length === 0) {
-    //   setError('Proszę dodać przynajmniej jedno pytanie do quizu');
-    //   return;
-    // }
-
-    // Temporarily disable question validation for testing
-    // // Validate that each question has content and answers
-    // for (let i = 0; i < newQuiz.questions.length; i++) {
-    //   const question = newQuiz.questions[i];
-    //   if (!question.content.trim()) {
-    //     setError(`Pytanie ${i + 1} nie ma treści`);
-    //     return;
-    //   }
-    //   if (question.answers.length === 0) {
-    //     setError(`Pytanie ${i + 1} nie ma odpowiedzi`);
-    //     return;
-    //   }
-    //   // Check if at least one answer is marked as correct (for non-open questions)
-    //   if (question.type !== 'open' && !question.answers.some(ans => ans.isCorrect)) {
-    //     setError(`Pytanie ${i + 1} nie ma oznaczonej poprawnej odpowiedzi`);
-    //     return;
-    //   }
-    // }
-
     try {
       console.log('Creating new quiz:', newQuiz);
       setError(null);
-      setIsSavingQuiz(true);
       
       const selectedCourse = courses.find(c => c.id === newQuiz.course_id);
       if (!selectedCourse) {
         throw new Error('Nie znaleziono wybranego kursu');
       }
 
-      // Verify the user has access to this course
-      const hasAccess = selectedCourse.created_by === user.email || 
-                       selectedCourse.teacherEmail === user.email ||
-                       (Array.isArray(selectedCourse.assignedUsers) && selectedCourse.assignedUsers.includes(user.email));
-      
-      if (!hasAccess) {
-        throw new Error('Nie masz uprawnień do tworzenia quizów w tym kursie');
-      }
-
       const quizzesCollection = collection(db, 'quizzes');
-      // Clean and validate quiz data
-      const cleanQuestions = newQuiz.questions.map(q => ({
-        id: q.id,
-        content: q.content.trim(),
-        type: q.type,
-        answers: q.answers.map(a => ({
-          id: a.id,
-          content: a.content.trim(),
-          isCorrect: a.isCorrect,
-          type: a.type
-        }))
-      }));
-
       const quizData = {
-        title: newQuiz.title.trim(),
-        description: newQuiz.description.trim(),
-        subject: newQuiz.subject.trim(),
-        course_id: selectedCourse.id,
-        course_title: selectedCourse.title,
-        questions: cleanQuestions,
-        max_attempts: newQuiz.max_attempts,
+        ...newQuiz,
         created_by: user?.email,
-        created_at: serverTimestamp()
+        created_at: serverTimestamp(),
+        course_title: selectedCourse.title,
+        course_id: selectedCourse.id
       };
 
       console.log('Saving quiz data:', quizData);
-      console.log('Quiz data type:', typeof quizData);
-      console.log('Quiz data stringified:', JSON.stringify(quizData, null, 2));
+      await addDoc(quizzesCollection, quizData);
+      console.log('Quiz created successfully');
       
-      try {
-        console.log('Attempting to add document to Firestore...');
-        console.log('Collection path:', quizzesCollection.path);
-        console.log('Quiz data keys:', Object.keys(quizData));
-        
-        const docRef = await addDoc(quizzesCollection, quizData);
-        console.log('Quiz created successfully with ID:', docRef.id);
-      } catch (addDocError) {
-        console.error('Error in addDoc:', addDocError);
-        console.error('Error type:', typeof addDocError);
-        console.error('Error constructor:', addDocError?.constructor?.name);
-        console.error('Error stack:', addDocError instanceof Error ? addDocError.stack : 'No stack');
-        
-        if (addDocError instanceof Error) {
-          throw new Error(`Błąd Firebase: ${addDocError.message}`);
-        } else {
-          throw new Error('Nieznany błąd podczas zapisywania do bazy danych');
-        }
-      }
-      
-      setSuccessMessage('Quiz został pomyślnie utworzony!');
       setIsCreating(false);
       setNewQuiz({
         title: '',
@@ -324,27 +226,17 @@ export default function QuizManagementPage() {
         max_attempts: 1,
       });
       fetchQuizzes();
-      
-      // Clear success message after 5 seconds
-      setTimeout(() => setSuccessMessage(null), 5000);
     } catch (error) {
       console.error('Error creating quiz:', error);
       setError('Nie udało się utworzyć quizu. Spróbuj ponownie.');
-    } finally {
-      setIsSavingQuiz(false);
     }
   };
 
   const handleAddQuestion = (question: Question) => {
-    console.log('Adding question to quiz:', question);
-    setNewQuiz((prev) => {
-      const updated = {
-        ...prev,
-        questions: [...prev.questions, question],
-      };
-      console.log('Updated newQuiz state:', updated);
-      return updated;
-    });
+    setNewQuiz((prev) => ({
+      ...prev,
+      questions: [...prev.questions, question],
+    }));
   };
 
   const filteredCourses = courses.filter(course => 
@@ -355,28 +247,6 @@ export default function QuizManagementPage() {
 
   const handleQuizDeleted = () => {
     fetchQuizzes();
-  };
-
-  // Group quizzes by course
-  const quizzesByCourse = useMemo(() => {
-    const grouped: { [courseId: string]: Quiz[] } = {};
-    
-    quizzes.forEach(quiz => {
-      if (quiz.course_id) {
-        if (!grouped[quiz.course_id]) {
-          grouped[quiz.course_id] = [];
-        }
-        grouped[quiz.course_id].push(quiz);
-      }
-    });
-    
-    return grouped;
-  }, [quizzes]);
-
-  // Get course title by ID
-  const getCourseTitle = (courseId: string) => {
-    const course = courses.find(c => c.id === courseId);
-    return course?.title || 'Nieznany kurs';
   };
 
   if (loading) {
@@ -393,45 +263,32 @@ export default function QuizManagementPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F8F9FB] p-4">
-      <div className="max-w-7xl mx-auto">
-        <div className="bg-white rounded-xl shadow-lg p-6">
-          <div className="flex justify-between items-center mb-6">
+    <div className="min-h-screen bg-[#F8F9FB]">
+      <div className="w-full px-3 sm:px-4 lg:px-6 py-4 sm:py-6 lg:py-8">
+        <div className="bg-white rounded-xl shadow-lg p-3 sm:p-4 lg:p-6">
+          <div className="flex justify-between items-center mb-4">
             <div>
               <h1 className="text-2xl font-bold text-[#4067EC]">Quizy</h1>
               <p className="text-gray-600">Zarządzaj quizami w swoich kursach</p>
             </div>
             <button
-              onClick={() => {
-                setIsCreating(true);
-                setError(null);
-                setSuccessMessage(null);
-              }}
-              className="bg-[#4067EC] text-white px-4 py-2 rounded-lg hover:bg-[#3155d4] transition-colors"
+              onClick={() => setIsCreating(true)}
+              className="bg-[#4067EC] text-white px-3 py-2 rounded-lg hover:bg-[#3155d4] transition-colors"
             >
               Utwórz quiz
             </button>
           </div>
 
           {error && (
-            <div className="mb-6 bg-red-50 border border-red-200 text-red-800 p-4 rounded-lg">
+            <div className="mb-4 bg-red-50 border border-red-200 text-red-800 p-3 rounded-lg">
               {error}
             </div>
           )}
 
-          {successMessage && (
-            <div className="mb-6 bg-green-50 border border-green-200 text-green-800 p-4 rounded-lg">
-              {successMessage}
-            </div>
-          )}
-
           {isCreating && (
-            <div className="mb-8 p-6 border rounded-xl bg-gray-50">
-              <h2 className="text-xl font-semibold mb-4">Nowy quiz</h2>
-              <p className="text-sm text-gray-600 mb-4">
-                <span className="text-red-500">*</span> - Pola wymagane
-              </p>
-              <div className="space-y-4">
+            <div className="mb-6 p-4 border rounded-xl bg-gray-50">
+              <h2 className="text-xl font-semibold mb-3">Nowy quiz</h2>
+              <div className="space-y-3">
                 <div>
                   <label className="block text-sm font-medium mb-1">
                     Kurs {newQuiz.course_id && <span className="text-green-600">✓</span>}
@@ -506,53 +363,38 @@ export default function QuizManagementPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Tytuł <span className="text-red-500">*</span>
-                  </label>
+                  <label className="block text-sm font-medium mb-1">Tytuł</label>
                   <input
                     type="text"
                     value={newQuiz.title}
                     onChange={(e) =>
                       setNewQuiz((prev) => ({ ...prev, title: e.target.value }))
                     }
-                    className={`w-full p-2 border rounded-lg ${
-                      newQuiz.title.trim() === '' ? 'border-red-300' : 'border-gray-300'
-                    }`}
-                    placeholder="Wpisz tytuł quizu..."
+                    className="w-full p-2 border rounded-lg"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Opis <span className="text-red-500">*</span>
-                  </label>
+                  <label className="block text-sm font-medium mb-1">Opis</label>
                   <textarea
                     value={newQuiz.description}
                     onChange={(e) =>
                       setNewQuiz((prev) => ({ ...prev, description: e.target.value }))
                     }
-                    className={`w-full p-2 border rounded-lg ${
-                      newQuiz.description.trim() === '' ? 'border-red-300' : 'border-gray-300'
-                    }`}
+                    className="w-full p-2 border rounded-lg"
                     rows={3}
-                    placeholder="Wpisz opis quizu..."
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Przedmiot <span className="text-red-500">*</span>
-                  </label>
+                  <label className="block text-sm font-medium mb-1">Przedmiot</label>
                   <input
                     type="text"
                     value={newQuiz.subject}
                     onChange={(e) =>
                       setNewQuiz((prev) => ({ ...prev, subject: e.target.value }))
                     }
-                    className={`w-full p-2 border rounded-lg ${
-                      newQuiz.subject.trim() === '' ? 'border-red-300' : 'border-gray-300'
-                    }`}
-                    placeholder="Wpisz przedmiot quizu..."
+                    className="w-full p-2 border rounded-lg"
                   />
                 </div>
 
@@ -571,28 +413,16 @@ export default function QuizManagementPage() {
                 </div>
 
                 <div>
-                  <h3 className="text-lg font-medium mb-2">
-                    Pytania <span className="text-red-500">*</span>
-                  </h3>
-                  <p className="text-sm text-gray-600 mb-3">
-                    Musisz dodać przynajmniej jedno pytanie do quizu
-                  </p>
-                  {newQuiz.questions.length === 0 ? (
-                    <div className="text-center py-8 text-gray-500 border-2 border-dashed border-gray-300 rounded-lg">
-                      <p className="text-lg font-medium mb-2">Brak pytań</p>
-                      <p className="text-sm">Dodaj pierwsze pytanie używając edytora poniżej</p>
+                  <h3 className="text-lg font-medium mb-2">Pytania</h3>
+                  {newQuiz.questions.map((question, index) => (
+                    <div key={index} className="mb-4 p-4 border rounded-lg bg-white">
+                      <p>
+                        <strong>Pytanie {index + 1}:</strong> {question.content}
+                      </p>
+                      <p>Typ: {question.type === 'math' ? 'Matematyczne' : 'Tekstowe'}</p>
+                      <p>Liczba odpowiedzi: {question.answers.length}</p>
                     </div>
-                  ) : (
-                    newQuiz.questions.map((question, index) => (
-                      <div key={index} className="mb-4 p-4 border rounded-lg bg-white">
-                        <p>
-                          <strong>Pytanie {index + 1}:</strong> {question.content}
-                        </p>
-                        <p>Typ: {question.type === 'math' ? 'Matematyczne' : 'Tekstowe'}</p>
-                        <p>Liczba odpowiedzi: {question.answers.length}</p>
-                      </div>
-                    ))
-                  )}
+                  ))}
 
                   <QuizQuestionEditor
                     onSave={(question) => handleAddQuestion(question)}
@@ -601,146 +431,14 @@ export default function QuizManagementPage() {
 
                 <div className="flex space-x-2 pt-4">
                   <button
-                    type="button"
-                    onClick={() => {
-                      console.log('Create quiz button clicked');
-                      console.log('Current newQuiz state:', newQuiz);
-                      console.log('User:', user);
-                      console.log('Courses:', courses);
-                      handleCreateQuiz();
-                    }}
-                    disabled={isSavingQuiz}
-                    className="px-4 py-2 bg-[#4067EC] text-white rounded-lg hover:bg-[#3155d4] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+                    onClick={handleCreateQuiz}
+                    className="px-4 py-2 bg-[#4067EC] text-white rounded-lg hover:bg-[#3155d4] transition-colors"
                   >
-                    {isSavingQuiz ? (
-                      <>
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                        <span>Zapisywanie...</span>
-                      </>
-                    ) : (
-                      <span>Zapisz quiz</span>
-                    )}
-                  </button>
-                  
-                  <button
-                    type="button"
-                    onClick={() => {
-                      console.log('Test button clicked');
-                      console.log('Testing basic quiz creation...');
-                      // Test with minimal data
-                      const testQuiz = {
-                        title: 'Test Quiz',
-                        description: 'Test Description',
-                        subject: 'Test Subject',
-                        course_id: newQuiz.course_id,
-                        questions: [],
-                        max_attempts: 1
-                      };
-                      console.log('Test quiz data:', testQuiz);
-                      setNewQuiz(testQuiz);
-                    }}
-                    className="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors"
-                  >
-                    Test
-                  </button>
-                  
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      console.log('Direct test button clicked');
-                      if (!newQuiz.course_id) {
-                        alert('Please select a course first');
-                        return;
-                      }
-                      
-                      try {
-                        console.log('Attempting direct quiz creation...');
-                        const testQuizData = {
-                          title: 'Direct Test Quiz',
-                          description: 'Direct Test Description',
-                          subject: 'Direct Test Subject',
-                          course_id: newQuiz.course_id,
-                          questions: [],
-                          max_attempts: 1,
-                          created_by: user?.email,
-                          created_at: serverTimestamp()
-                        };
-                        
-                        console.log('Test quiz data:', testQuizData);
-                        const quizzesCollection = collection(db, 'quizzes');
-                        const docRef = await addDoc(quizzesCollection, testQuizData);
-                        console.log('Direct test successful, doc ID:', docRef.id);
-                        alert('Direct test successful! Quiz created with ID: ' + docRef.id);
-                      } catch (error) {
-                        console.error('Direct test failed:', error);
-                        alert('Direct test failed: ' + (error instanceof Error ? error.message : 'Unknown error'));
-                      }
-                    }}
-                    className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors"
-                  >
-                    Test bezpośredni
-                  </button>
-                  
-                  <button
-                    type="button"
-                    onClick={() => {
-                      console.log('Test with question button clicked');
-                      // Test with one question
-                      const testQuizWithQuestion = {
-                        title: 'Test Quiz with Question',
-                        description: 'Test Description with Question',
-                        subject: 'Test Subject with Question',
-                        course_id: newQuiz.course_id,
-                        questions: [{
-                          id: 'test-question-1',
-                          content: 'What is 2+2?',
-                          type: 'text' as const,
-                          answers: [{
-                            id: 'test-answer-1',
-                            content: '4',
-                            isCorrect: true,
-                            type: 'text' as const
-                          }]
-                        }],
-                        max_attempts: 1
-                      };
-                      console.log('Test quiz with question data:', testQuizWithQuestion);
-                      setNewQuiz(testQuizWithQuestion);
-                    }}
-                    className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
-                  >
-                    Test z pytaniem
-                  </button>
-                  
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      console.log('Testing Firebase connection...');
-                      try {
-                        const testCollection = collection(db, 'test');
-                        const testDoc = await addDoc(testCollection, {
-                          test: 'data',
-                          timestamp: serverTimestamp()
-                        });
-                        console.log('Firebase connection test successful, doc ID:', testDoc.id);
-                        // Clean up test document
-                        // Note: We can't delete it here as we don't have deleteDoc imported
-                      } catch (error) {
-                        console.error('Firebase connection test failed:', error);
-                      }
-                    }}
-                    className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
-                  >
-                    Test Firebase
+                    Zapisz quiz
                   </button>
                   <button
-                    onClick={() => {
-                      setIsCreating(false);
-                      setError(null);
-                      setSuccessMessage(null);
-                    }}
-                    disabled={isSavingQuiz}
-                    className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    onClick={() => setIsCreating(false)}
+                    className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
                   >
                     Anuluj
                   </button>
@@ -750,123 +448,42 @@ export default function QuizManagementPage() {
           )}
 
           {isLoading ? (
-            <div className="flex justify-center items-center py-8">
+            <div className="flex justify-center items-center py-6">
               <div className="animate-spin rounded-full h-8 w-8 border-4 border-[#4067EC] border-r-transparent"></div>
               <div className="ml-3 text-gray-600">Ładowanie quizów...</div>
             </div>
           ) : (
-            <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
               {quizzes.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  Nie utworzono jeszcze żadnych quizów.
+                <div className="col-span-full text-center py-6 text-gray-500">
+                  Nie znaleziono żadnych quizów. Utwórz swój pierwszy quiz!
                 </div>
               ) : (
-                <>
-                  {/* Quizy pogrupowane według kursów */}
-                  {Object.entries(quizzesByCourse).map(([courseId, courseQuizzes]) => (
-                    <div key={courseId} className="bg-white rounded-lg border border-gray-200 p-6">
-                      <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                        <span className="text-[#4067EC]">📚</span>
-                        {getCourseTitle(courseId)}
-                        <span className="text-sm font-normal text-gray-500">
-                          ({courseQuizzes.length} quiz{courseQuizzes.length === 1 ? '' : 'ów'})
-                        </span>
-                      </h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {courseQuizzes.map((quiz) => (
-                          <div
-                            key={quiz.id}
-                            className="p-4 border border-gray-200 rounded-lg hover:shadow-md transition-shadow"
-                          >
-                            <div className="flex items-start justify-between mb-3">
-                              <h4 className="text-lg font-semibold text-gray-900">{quiz.title}</h4>
-                              <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
-                                {quiz.subject}
-                              </span>
-                            </div>
-                            <p className="text-gray-600 text-sm mb-3">{quiz.description}</p>
-                            <div className="space-y-2 text-sm text-gray-500">
-                              <div>Pytania: {quiz.questions?.length || 0}</div>
-                              <div>Maksymalne próby: {quiz.max_attempts || 1}</div>
-                              <div>Utworzono: {new Date(quiz.created_at).toLocaleDateString('pl-PL')}</div>
-                            </div>
-                            <div className="mt-4 flex gap-2">
-                              <button
-                                onClick={() => setSelectedQuiz(quiz)}
-                                className="text-sm bg-[#4067EC] text-white px-3 py-1 rounded hover:bg-[#3155d4] transition"
-                              >
-                                Podgląd
-                              </button>
-                              <button
-                                onClick={() => {
-                                  // Można dodać edycję quizu
-                                  console.log('Edit quiz:', quiz.id);
-                                }}
-                                className="text-sm bg-gray-500 text-white px-3 py-1 rounded hover:bg-gray-600 transition"
-                              >
-                                Edytuj
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
+                quizzes.map((quiz) => (
+                  <div key={quiz.id} className="bg-white border border-gray-200 rounded-xl shadow-sm p-4">
+                    <h3 className="text-lg font-semibold mb-1">{quiz.title}</h3>
+                    <p className="text-gray-600 mb-3 text-sm">{quiz.description}</p>
+                    <div className="space-y-1 text-xs text-gray-500">
+                      <p>Kurs: {quiz.course_title}</p>
+                      <p>Przedmiot: {quiz.subject}</p>
+                      <p>Liczba pytań: {quiz.questions?.length || 0}</p>
+                      <p>Maksymalna liczba prób: {quiz.max_attempts || 1}</p>
+                      <p>Utworzono: {new Date(quiz.created_at).toLocaleDateString()}</p>
                     </div>
-                  ))}
-                  
-                  {/* Quizy bez przypisanego kursu */}
-                  {quizzes.filter(quiz => !quiz.course_id).length > 0 && (
-                    <div className="bg-white rounded-lg border border-gray-200 p-6">
-                      <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                        <span className="text-yellow-500">⚠️</span>
-                        Quizy bez przypisanego kursu
-                        <span className="text-sm font-normal text-gray-500">
-                          ({quizzes.filter(quiz => !quiz.course_id).length} quiz{quizzes.filter(quiz => !quiz.course_id).length === 1 ? '' : 'ów'})
-                        </span>
-                      </h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {quizzes.filter(quiz => !quiz.course_id).map((quiz) => (
-                          <div
-                            key={quiz.id}
-                            className="p-4 border border-yellow-200 rounded-lg bg-yellow-50"
-                          >
-                            <div className="flex items-start justify-between mb-3">
-                              <h4 className="text-lg font-semibold text-gray-900">{quiz.title}</h4>
-                              <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full">
-                                {quiz.subject}
-                              </span>
-                            </div>
-                            <p className="text-gray-600 text-sm mb-3">{quiz.description}</p>
-                            <div className="text-yellow-700 text-sm mb-3">
-                              ⚠️ Ten quiz nie jest przypisany do żadnego kursu
-                            </div>
-                            <div className="space-y-2 text-sm text-gray-500">
-                              <div>Pytania: {quiz.questions?.length || 0}</div>
-                              <div>Maksymalne próby: {quiz.max_attempts || 1}</div>
-                              <div>Utworzono: {new Date(quiz.created_at).toLocaleDateString('pl-PL')}</div>
-                            </div>
-                            <div className="mt-4 flex gap-2">
-                              <button
-                                onClick={() => setSelectedQuiz(quiz)}
-                                className="text-sm bg-[#4067EC] text-white px-3 py-1 rounded hover:bg-[#3155d4] transition"
-                              >
-                                Podgląd
-                              </button>
-                              <button
-                                onClick={() => {
-                                  // Można dodać edycję quizu
-                                  console.log('Edit quiz:', quiz.id);
-                                }}
-                                className="text-sm bg-gray-500 text-white px-3 py-1 rounded hover:bg-gray-600 transition"
-                              >
-                                Edytuj
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
+                    <div className="mt-3 flex justify-end">
+                      <button
+                        onClick={() => setSelectedQuiz(quiz)}
+                        className="text-[#4067EC] hover:text-[#3155d4] font-medium text-xs flex items-center"
+                      >
+                        <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                        Podgląd
+                      </button>
                     </div>
-                  )}
-                </>
+                  </div>
+                ))
               )}
             </div>
           )}

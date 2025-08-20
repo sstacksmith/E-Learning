@@ -214,8 +214,24 @@ export default function TeacherCourses() {
 
   // Usunięte funkcje związane z tworzeniem kursów - tylko admin może tworzyć kursy
 
+  // Funkcja sprawdzająca czy nauczyciel może usunąć kurs
+  const canDeleteCourse = useCallback((course: Course) => {
+    if (isAdmin) return true; // Admin może usunąć każdy kurs
+    if (!user?.email) return false;
+    
+    // Nauczyciel może usunąć kurs, który sam utworzył
+    return course.created_by === user.email || course.teacherEmail === user.email;
+  }, [isAdmin, user?.email]);
+
   const handleDeleteCourse = useCallback(async (courseId: string) => {
-    if (!confirm('Czy na pewno chcesz usunąć ten kurs? Ta operacja jest nieodwracalna.')) {
+    const course = courses.find(c => c.id === courseId);
+    if (!course) return;
+
+    const confirmMessage = isAdmin 
+      ? 'Czy na pewno chcesz usunąć ten kurs? Ta operacja jest nieodwracalna.'
+      : 'Czy na pewno chcesz usunąć swój kurs? Ta operacja jest nieodwracalna.';
+    
+    if (!confirm(confirmMessage)) {
       return;
     }
 
@@ -224,7 +240,11 @@ export default function TeacherCourses() {
       const { deleteDoc, doc } = await import('firebase/firestore');
       await deleteDoc(doc(db, 'courses', courseId));
       
-      setSuccess('Kurs został pomyślnie usunięty');
+      const successMessage = isAdmin 
+        ? 'Kurs został pomyślnie usunięty'
+        : 'Twój kurs został pomyślnie usunięty';
+      
+      setSuccess(successMessage);
       clearCache();
       fetchCourses(pagination.page, false);
     } catch (error) {
@@ -233,7 +253,7 @@ export default function TeacherCourses() {
     } finally {
       setDeletingCourse(null);
     }
-  }, [setDeletingCourse, setSuccess, clearCache, fetchCourses, pagination.page, setError]);
+  }, [setDeletingCourse, setSuccess, clearCache, fetchCourses, pagination.page, setError, courses, isAdmin]);
 
   // Usunięta funkcja handleCreateCourse - tylko admin może tworzyć kursy
 
@@ -318,32 +338,32 @@ export default function TeacherCourses() {
   }, [newCourse, user, clearCache, fetchCourses]);
 
   return (
-    <div className="min-h-screen bg-[#F8F9FB] flex flex-col items-center p-3 sm:p-4 lg:p-8">
-      <div className="w-full max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 py-4 sm:py-6 lg:py-8">
-        <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg p-4 sm:p-6 lg:p-8">
+    <div className="min-h-screen bg-[#F8F9FB] flex flex-col">
+      <div className="w-full px-3 sm:px-4 lg:px-6 py-4 sm:py-6 lg:py-8">
+        <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg p-3 sm:p-4 lg:p-6">
           
           {/* Header */}
-          <div className="mb-8 flex justify-between items-center">
+          <div className="mb-6 flex justify-between items-center">
             <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-[#4067EC] mb-2">
+              <h1 className="text-2xl sm:text-3xl font-bold text-[#4067EC] mb-1">
                 {isAdmin ? 'Wszystkie kursy' : 'Moje kursy'}
               </h1>
-              <p className="text-gray-600 text-sm sm:text-base">
-                {isAdmin ? 'Zarządzaj wszystkimi kursami w systemie' : 'Zarządzaj swoimi kursami i materiałami dydaktycznymi'}
+                                            <p className="text-gray-600 text-sm sm:text-base mt-1">
+                {isAdmin ? 'Zarządzaj wszystkimi kursami w systemie' : 'Zarządzaj swoimi kursami, materiałami dydaktycznymi i usuń niepotrzebne kursy'}
               </p>
             </div>
-            <div className="flex gap-3">
+                          <div className="flex gap-2">
               {/* Add Course Button - only for teachers */}
               {!isAdmin && (
-                <button
-                  onClick={() => setShowCreateCourse(true)}
-                  className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-700 transition-colors flex items-center space-x-2"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <button
+                    onClick={() => setShowCreateCourse(true)}
+                    className="bg-green-600 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-green-700 transition-colors flex items-center space-x-2"
+                  >
+                                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                   </svg>
-                  <span>Dodaj kurs</span>
-                </button>
+                    <span>Dodaj kurs</span>
+                  </button>
               )}
               
               <button
@@ -354,9 +374,9 @@ export default function TeacherCourses() {
                   setError(null);
                   fetchCourses(1, false, 0);
                 }}
-                className="bg-[#4067EC] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#3155d4] transition-colors flex items-center space-x-2"
+                className="bg-[#4067EC] text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-[#3155d4] transition-colors flex items-center space-x-2"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
                 <span>Odśwież</span>
@@ -365,20 +385,20 @@ export default function TeacherCourses() {
           </div>
 
           {loading ? (
-            <div className="text-center py-12">
+            <div className="text-center py-8">
               <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-[#4067EC] border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]" />
-              <p className="mt-4 text-gray-600">Ładowanie kursów...</p>
-              <p className="text-sm text-gray-500 mt-2">To może potrwać kilka sekund</p>
+                              <p className="mt-3 text-gray-600">Ładowanie kursów...</p>
+                <p className="text-sm text-gray-500 mt-1">To może potrwać kilka sekund</p>
             </div>
           ) : error ? (
-            <div className="bg-red-50 border border-red-200 text-red-800 p-4 rounded-lg mb-6">{error}</div>
+            <div className="bg-red-50 border border-red-200 text-red-800 p-3 rounded-lg mb-4">{error}</div>
           ) : (
             <>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 mb-6">
                 {courses.map((course) => (
-                  <div key={`${course.id}-${course.updated_at || course.created_at}`} className="bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-lg transition-all duration-200 overflow-hidden flex flex-col h-full min-h-[400px]">
+                  <div key={`${course.id}-${course.updated_at || course.created_at}`} className="bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-lg transition-all duration-200 overflow-hidden flex flex-col h-full min-h-[350px]">
                     {/* Course Header - Fixed height */}
-                    <div className="bg-gradient-to-r from-[#4067EC] to-[#7aa2f7] p-4 text-white h-32 flex flex-col justify-between">
+                    <div className="bg-gradient-to-r from-[#4067EC] to-[#7aa2f7] p-3 text-white h-28 flex flex-col justify-between">
                       <div className="flex items-center justify-between mb-2">
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                           course.is_active 
@@ -402,10 +422,10 @@ export default function TeacherCourses() {
                     </div>
                     
                     {/* Course Content */}
-                    <div className="p-4 flex-1 flex flex-col">
+                    <div className="p-3 flex-1 flex flex-col">
                       {/* Subject Badge */}
-                      <div className="flex items-center justify-between mb-4">
-                        <span className="bg-blue-100 text-blue-800 px-3 py-2 rounded-full text-sm font-semibold border border-blue-200">
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-sm font-semibold border border-blue-200">
                           {course.subject}
                         </span>
                         <span className="text-xs text-gray-500 font-medium">
@@ -414,14 +434,14 @@ export default function TeacherCourses() {
                       </div>
                       
                       {/* Course Stats */}
-                      <div className="grid grid-cols-2 gap-3 mb-4">
-                        <div className="text-center p-3 bg-gray-50 rounded-lg border border-gray-100">
+                      <div className="grid grid-cols-2 gap-2 mb-3">
+                        <div className="text-center p-2 bg-gray-50 rounded-lg border border-gray-100">
                           <div className="text-xl font-bold text-[#4067EC]">
                             {course.sections?.length || 0}
                           </div>
                           <div className="text-xs text-gray-600 font-medium">Sekcji</div>
                         </div>
-                        <div className="text-center p-3 bg-gray-50 rounded-lg border border-gray-100">
+                        <div className="text-center p-2 bg-gray-50 rounded-lg border border-gray-100">
                           <div className="text-xl font-bold text-green-600">
                             {course.assignedUsers?.length || 0}
                           </div>
@@ -431,7 +451,7 @@ export default function TeacherCourses() {
                       
                       {/* Admin Info */}
                       {isAdmin && course.created_by && (
-                        <div className="text-xs text-gray-500 mb-4 p-2 bg-gray-50 rounded">
+                        <div className="text-xs text-gray-500 mb-3 p-2 bg-gray-50 rounded">
                           Nauczyciel: {course.created_by}
                         </div>
                       )}
@@ -441,7 +461,7 @@ export default function TeacherCourses() {
                         <div className="flex gap-2">
                           <button 
                             onClick={() => window.location.href = `/homelogin/teacher/courses/${course.id}`}
-                            className="flex-1 bg-[#4067EC] text-white text-center py-4 px-4 rounded-lg text-sm font-semibold hover:bg-[#3155d4] transition-colors shadow-sm hover:shadow-md min-h-[48px] flex items-center justify-center !important"
+                            className="flex-1 bg-[#4067EC] text-white text-center py-3 px-3 rounded-lg text-sm font-semibold hover:bg-[#3155d4] transition-colors shadow-sm hover:shadow-md min-h-[44px] flex items-center justify-center !important"
                             style={{
                               backgroundColor: '#4067EC !important',
                               color: 'white !important',
@@ -461,20 +481,20 @@ export default function TeacherCourses() {
                           </button>
                           <Link 
                             href={`/courses/${course.slug}`}
-                            className="flex-1 border-2 border-[#4067EC] text-[#4067EC] text-center py-4 px-4 rounded-lg text-sm font-semibold hover:bg-[#F1F4FE] transition-colors shadow-sm hover:shadow-md min-h-[48px] flex items-center justify-center"
+                            className="flex-1 border-2 border-[#4067EC] text-[#4067EC] text-center py-3 px-3 rounded-lg text-sm font-semibold hover:bg-[#F1F4FE] transition-colors shadow-sm hover:shadow-md min-h-[44px] flex items-center justify-center"
                           >
                             Podgląd
                           </Link>
                         </div>
                         
-                        {/* Delete button for admin - separate row */}
-                        {isAdmin && (
+                        {/* Delete button for teachers and admins */}
+                        {canDeleteCourse(course) && (
                           <div className="mt-2">
                             <button
                               onClick={() => handleDeleteCourse(course.id.toString())}
                               disabled={deletingCourse === course.id.toString()}
-                              className="w-full bg-red-500 text-white px-3 py-4 rounded-lg text-sm font-semibold hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md min-h-[48px] flex items-center justify-center"
-                              title="Usuń kurs"
+                              className="w-full bg-red-500 text-white px-3 py-3 rounded-lg text-sm font-semibold hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md min-h-[44px] flex items-center justify-center"
+                              title={isAdmin ? "Usuń kurs (Admin)" : "Usuń swój kurs"}
                             >
                               {deletingCourse === course.id.toString() ? (
                                 <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto"></div>
@@ -494,7 +514,7 @@ export default function TeacherCourses() {
               
               {/* Paginacja */}
               {pagination.total_pages > 1 && (
-                <div className="flex justify-center items-center space-x-2 mb-8">
+                <div className="flex justify-center items-center space-x-2 mb-6">
                   <button
                     onClick={() => fetchCourses(pagination.page - 1)}
                     disabled={pagination.page <= 1}
@@ -520,26 +540,30 @@ export default function TeacherCourses() {
           )}
 
           {/* Info about course management */}
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 sm:p-6">
-            <h2 className="text-lg sm:text-xl font-bold text-blue-800 mb-4">Zarządzanie kursami</h2>
-            <p className="text-blue-700 mb-4 text-sm sm:text-base">
-              Tutaj widzisz kursy, które zostały Ci przypisane przez administratora. Możesz zarządzać zawartością każdego kursu, 
-              dodawać lekcje, materiały i zadania.
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 sm:p-4">
+                          <h2 className="text-lg sm:text-xl font-bold text-blue-800 mb-3">Zarządzanie kursami</h2>
+              <p className="text-blue-700 mb-3 text-sm sm:text-base">
+              {isAdmin 
+                ? 'Tutaj widzisz wszystkie kursy w systemie. Możesz zarządzać zawartością każdego kursu, dodawać lekcje, materiały i zadania, a także usuwać kursy.'
+                : 'Tutaj widzisz kursy, które zostały Ci przypisane przez administratora lub które sam utworzyłeś. Możesz zarządzać zawartością każdego kursu, dodawać lekcje, materiały i zadania, a także usuwać swoje kursy.'
+              }
             </p>
-            <div className="bg-blue-100 border border-blue-300 rounded-lg p-4">
-              <h3 className="font-semibold text-blue-800 mb-2">Co możesz robić:</h3>
-              <ul className="text-blue-700 text-sm space-y-1">
+                        <div className="bg-blue-100 border border-blue-300 rounded-lg p-3">
+              <h3 className="font-semibold text-blue-800 mb-1">Co możesz robić:</h3>
+              <ul className="text-blue-700 text-sm space-y-0.5">
                 <li>• Dodawać i edytować lekcje</li>
                 <li>• Uploadować materiały dydaktyczne</li>
                 <li>• Tworzyć zadania i quizy</li>
                 <li>• Przeglądać postępy studentów</li>
                 <li>• Zarządzać ocenami</li>
+                {!isAdmin && <li>• Usuwać swoje kursy</li>}
+                {isAdmin && <li>• Usuwać dowolne kursy</li>}
               </ul>
             </div>
             {success && (
-              <div className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg mt-4 flex items-center justify-between">
+              <div className="bg-green-50 border border-green-200 text-green-800 px-3 py-2 rounded-lg mt-3 flex items-center justify-between">
                 <div className="flex items-center">
-                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                   <span>{success}</span>
@@ -548,7 +572,7 @@ export default function TeacherCourses() {
                   onClick={() => setSuccess(null)}
                   className="text-green-600 hover:text-green-800"
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
