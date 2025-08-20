@@ -30,7 +30,7 @@ function CourseDetail() {
   const [isAssigned, setIsAssigned] = useState(false);
   const [showSection, setShowSection] = useState<Record<string, boolean>>({});
   const [sections, setSections] = useState<Section[]>([]);
-  const [sectionContents] = useState<Record<string, Content[]>>({});
+  const [sectionContents, setSectionContents] = useState<Record<string, Content[]>>({});
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [loadingQuizzes, setLoadingQuizzes] = useState(true);
   const [quizError, setQuizError] = useState<string | null>(null);
@@ -141,6 +141,19 @@ function CourseDetail() {
       console.log('[DEBUG] Mapped course:', mappedCourse);
       setCourse(mappedCourse);
       setSections(courseData.sections || []);
+      
+      // Pobierz zawartość sekcji
+      if (courseData.sections && Array.isArray(courseData.sections)) {
+        const initialSectionContents: Record<string, Content[]> = {};
+        courseData.sections.forEach((section: Section) => {
+          if (section.contents && Array.isArray(section.contents)) {
+            initialSectionContents[section.id] = section.contents;
+            console.log(`[DEBUG] Section ${section.id} contents loaded:`, section.contents);
+          }
+        });
+        setSectionContents(initialSectionContents);
+        console.log('[DEBUG] Initial sectionContents set:', initialSectionContents);
+      }
       
       if (user) {
         const assignedUsers = courseData.assignedUsers || [];
@@ -505,6 +518,8 @@ function CourseDetail() {
           </div>
         </div>
 
+
+        
         {sections.length > 0 ? (
           sections.map(section => (
             <div key={section.id} className="bg-white rounded-2xl shadow-lg">
@@ -526,6 +541,8 @@ function CourseDetail() {
               </div>
               {showSection[section.id] && (
                 <div className="px-6 pb-6 flex flex-col gap-4">
+
+                  
                   {/* Lista materiałów/zadań/aktywności */}
                   {(sectionContents[section.id]?.length === 0 || !sectionContents[section.id]) && (
                     <div className="text-gray-400 italic">Brak materiałów.</div>

@@ -320,7 +320,7 @@ export default function QuizTaking() {
         </div>
         <div className="space-y-8">
           {quiz.questions.map((question, index) => (
-            <div key={question.id} className="border-b pb-6">
+            <div key={`question-${index}`} className="border-b pb-6">
               <div className="font-semibold mb-2">Pytanie {index + 1}</div>
               {renderQuestion(question)}
             </div>

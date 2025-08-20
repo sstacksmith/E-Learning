@@ -5,7 +5,30 @@ import Image from "next/image";
 import Link from "next/link";
 import Providers from '@/components/Providers';
 import { db } from "@/config/firebase";
-import { collection, getDocs, doc, updateDoc } from "firebase/firestore";
+import { collection, getDocs, doc, updateDoc, deleteDoc } from "firebase/firestore";
+import { auth } from "@/config/firebase";
+import { getAuth, signInWithEmailAndPassword } from "firebase/auth";
+import {
+  BookOpen,
+  Users,
+  ClipboardList,
+  BarChart3,
+  Calendar,
+  MessageSquare,
+  Award,
+  TrendingUp,
+  Clock,
+  Shield,
+  Settings,
+  Plus,
+  Edit,
+  Trash2,
+  CheckCircle,
+  XCircle,
+  UserPlus,
+  Group,
+  GraduationCap
+} from 'lucide-react';
 
 // Typ użytkownika Firestore
 interface FirestoreUser {
@@ -35,6 +58,24 @@ interface Group {
   description?: string;
   members?: string[];
   member_count?: number;
+}
+
+interface StatCard {
+  title: string;
+  value: string;
+  description: string;
+  icon: React.ComponentType<{ className?: string }>;
+  trend?: string;
+  color: string;
+}
+
+interface RecentActivity {
+  id: string;
+  type: 'user' | 'course' | 'group' | 'approval' | 'creation';
+  title: string;
+  description: string;
+  timestamp: string;
+  icon: React.ComponentType<{ className?: string }>;
 }
 
 // Usuwamy statyczne dane - będziemy pobierać z Firestore
@@ -83,6 +124,7 @@ function SuperAdminDashboardContent() {
   const [editCourseSubject, setEditCourseSubject] = useState("");
   const [editCourseTeacher, setEditCourseTeacher] = useState("");
   const [editCourseStudents, setEditCourseStudents] = useState<string[]>([]);
+  const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -131,11 +173,89 @@ function SuperAdminDashboardContent() {
     }
   }, [setGroups]);
 
+  // Pobierz ostatnie aktywności
+  const fetchRecentActivities = useCallback(async () => {
+    if (!user?.email) return;
+
+    try {
+      const activities: RecentActivity[] = [];
+      
+      // Pobierz ostatnie zatwierdzenia użytkowników
+      const recentUsers = users.slice(0, 3);
+      recentUsers.forEach(user => {
+        if (user.approved) {
+          activities.push({
+            id: `user-approved-${user.id}`,
+            type: 'approval',
+            title: 'Użytkownik zatwierdzony',
+            description: `${user.firstName || ''} ${user.lastName || ''} został zatwierdzony`,
+            timestamp: new Date().toLocaleString('pl-PL'),
+            icon: CheckCircle
+          });
+        }
+      });
+
+      // Pobierz ostatnie utworzone kursy
+      const recentCourses = courses.slice(0, 2);
+      recentCourses.forEach(course => {
+        activities.push({
+          id: `course-created-${course.id}`,
+          type: 'course',
+          title: 'Nowy kurs utworzony',
+          description: `Kurs "${course.title}" został utworzony`,
+          timestamp: new Date().toLocaleString('pl-PL'),
+          icon: BookOpen
+        });
+      });
+
+      // Pobierz ostatnie utworzone grupy
+      const recentGroups = groups.slice(0, 2);
+      recentGroups.forEach(group => {
+        activities.push({
+          id: `group-created-${group.id}`,
+          type: 'group',
+          title: 'Nowa grupa utworzona',
+          description: `Grupa "${group.name}" została utworzona`,
+          timestamp: new Date().toLocaleString('pl-PL'),
+          icon: Group
+        });
+      });
+
+      // Sortuj aktywności po czasie (najnowsze pierwsze)
+      activities.sort((a, b) => {
+        try {
+          const dateA = new Date(a.timestamp);
+          const dateB = new Date(b.timestamp);
+          return dateB.getTime() - dateA.getTime();
+        } catch (error) {
+          console.error('Error sorting activities:', error);
+          return 0;
+        }
+      });
+
+      // Usuń duplikaty i weź pierwsze 4
+      const uniqueActivities = activities.filter((activity, index, self) => 
+        index === self.findIndex(a => a.id === activity.id)
+      );
+
+      setRecentActivities(uniqueActivities.slice(0, 4));
+      
+    } catch (error) {
+      console.error('Error fetching recent activities:', error);
+    }
+  }, [user, users, courses, groups]);
+
   useEffect(() => {
     fetchUsers();
     fetchCourses();
     fetchGroups();
   }, [fetchUsers, fetchCourses, fetchGroups]);
+
+  useEffect(() => {
+    if (users.length > 0 && courses.length > 0 && groups.length > 0) {
+      fetchRecentActivities();
+    }
+  }, [users, courses, groups, fetchRecentActivities]);
 
   const setTeacherRole = async (email: string) => {
     try {
@@ -217,6 +337,63 @@ function SuperAdminDashboardContent() {
       setTimeout(() => setError(''), 3000);
     }
   };
+
+  const approveUser = async (uid: string) => {
+    try {
+      await updateDoc(doc(db, 'users', uid), {
+        approved: true
+      });
+      
+      setSuccess(`Użytkownik został zatwierdzony`);
+      setTimeout(() => setSuccess(''), 3000);
+      fetchUsers(); // Refresh the list
+    } catch (err) {
+      console.error('Error approving user:', err);
+      setError('Nie udało się zatwierdzić użytkownika');
+      setTimeout(() => setError(''), 3000);
+    }
+  };
+
+  const rejectUser = async (uid: string) => {
+    try {
+      await updateDoc(doc(db, 'users', uid), {
+        approved: false
+      });
+      
+      setSuccess(`Użytkownik został odrzucony`);
+      setTimeout(() => setSuccess(''), 3000);
+      fetchUsers(); // Refresh the list
+    } catch (err) {
+      console.error('Error rejecting user:', err);
+      setError('Nie udało się odrzucić użytkownika');
+      setTimeout(() => setError(''), 3000);
+    }
+  };
+
+  const deleteUser = async (uid: string) => {
+    if (!confirm('Czy na pewno chcesz usunąć tego użytkownika? Ta operacja jest nieodwracalna.')) {
+      return;
+    }
+    
+    try {
+      const { deleteDoc, doc } = await import('firebase/firestore');
+      await deleteDoc(doc(db, 'users', uid));
+      
+      setSuccess(`Użytkownik został usunięty`);
+      setTimeout(() => setSuccess(''), 3000);
+      fetchUsers(); // Refresh the list
+    } catch (err) {
+      console.error('Error deleting user:', err);
+      setError('Nie udało się usunąć użytkownika');
+      setTimeout(() => setError(''), 3000);
+    }
+  };
+
+
+
+
+
+
 
   const handleResetPassword = async (userId: string) => {
     try {
@@ -626,14 +803,50 @@ function SuperAdminDashboardContent() {
   };
 
   if (loading) {
-    return <div className="p-8">Loading...</div>;
+    return (
+      <div className="flex items-center justify-center min-h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
   }
+
+  // Karty statystyk
+  const statCards: StatCard[] = [
+    {
+      title: "Wszyscy Użytkownicy",
+      value: users.length.toString(),
+      description: "zarejestrowanych użytkowników",
+      icon: Users,
+      color: "bg-blue-500"
+    },
+    {
+      title: "Oczekujący na zatwierdzenie", 
+      value: users.filter(u => !u.approved).length.toString(),
+      description: "użytkowników czeka",
+      icon: Clock,
+      color: "bg-yellow-500"
+    },
+    {
+      title: "Kursy",
+      value: courses.length.toString(),
+      description: "aktywnych kursów",
+      icon: BookOpen,
+      color: "bg-green-500"
+    },
+    {
+      title: "Grupy",
+      value: groups.length.toString(),
+      description: "utworzonych grup",
+      icon: Group,
+      color: "bg-purple-500"
+    },
+  ];
 
   return (
     <div className="min-h-screen bg-[#F8F9FB]">
       {/* Header */}
       <header className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+        <div className="w-full px-4 py-4 flex justify-between items-center">
           <div className="flex items-center">
             <Image src="/puzzleicon.png" alt="Logo" width={32} height={32} />
             <span className="ml-2 text-xl font-bold text-[#4067EC]">COGITO</span>
@@ -646,74 +859,127 @@ function SuperAdminDashboardContent() {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto p-6">
-        {/* Usuwam sekcję Aktywni użytkownicy z góry */}
-        {/* Tabs */}
+      <main className="w-full p-6">
+        {/* Header z powitaniem */}
         <div className="mb-8">
-          <div className="border-b border-gray-200">
-            <nav className="-mb-px flex space-x-8">
-              <button
-                onClick={() => setActiveTab("users")}
-                className={`${
-                  activeTab === "users"
-                    ? "border-[#4067EC] text-[#4067EC]"
-                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
-              >
-                User Management
-              </button>
-              <button
-                onClick={() => setActiveTab("groups")}
-                className={`${
-                  activeTab === "groups"
-                    ? "border-[#4067EC] text-[#4067EC]"
-                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
-              >
-                Group Management
-              </button>
-              <button
-                onClick={() => setActiveTab("courses")}
-                className={`${
-                  activeTab === "courses"
-                    ? "border-[#4067EC] text-[#4067EC]"
-                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
-              >
-                Course Management
-              </button>
-              <button
-                onClick={() => setActiveTab("assignments")}
-                className={`${
-                  activeTab === "assignments"
-                    ? "border-[#4067EC] text-[#4067EC]"
-                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
-              >
-                Course Assignments
-              </button>
-              <Link
-                href="/homelogin/superadmin/parent-student"
-                className={`border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
-              >
-                Rodzic-Uczeń
-              </Link>
-            </nav>
-          </div>
+          <h2 className="text-2xl font-bold mb-4 text-gray-900">
+            Witaj z powrotem, {(user as any)?.displayName || user?.email || 'Administratorze'}!
+          </h2>
+          <p className="text-gray-600 mb-6">
+            Przegląd systemu edukacyjnego i zarządzanie użytkownikami
+          </p>
         </div>
 
-        {/* Content based on active tab */}
-        {activeTab === "users" && (
-          <div className="bg-white rounded-lg shadow">
-            <div className="p-6">
+        {/* Karty statystyk */}
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          {statCards.map((stat, index) => {
+            const Icon = stat.icon;
+            return (
+              <div key={index} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-medium text-gray-500">{stat.title}</h3>
+                  <div className={`p-2 rounded-lg ${stat.color}`}>
+                    <Icon className="h-4 w-4 text-white" />
+                  </div>
+                </div>
+                <div className="text-2xl font-bold text-gray-900 mb-1">{stat.value}</div>
+                <p className="text-xs text-gray-600 flex items-center">
+                  {stat.trend === "up" && <TrendingUp className="inline h-3 w-3 mr-1 text-green-500" />}
+                  {stat.description}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+
+
+
+        {/* Główny layout z zakładkami po lewej i akcjami po prawej */}
+        <div className="grid lg:grid-cols-4 gap-6">
+          {/* Lewa strona - zakładki i zawartość */}
+          <div className="lg:col-span-3">
+            {/* Tabs */}
+            <div className="mb-8">
+              <div className="border-b border-gray-200">
+                <nav className="-mb-px flex space-x-8">
+                  <button
+                    onClick={() => setActiveTab("users")}
+                    className={`${
+                      activeTab === "users"
+                        ? "border-[#4067EC] text-[#4067EC]"
+                        : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                    } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                  >
+                    User Management
+                  </button>
+                  <button
+                    onClick={() => setActiveTab("pending")}
+                    className={`${
+                      activeTab === "pending"
+                        ? "border-[#4067EC] text-[#4067EC]"
+                        : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                    } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                  >
+                    Pending Users ({users.filter(u => !u.approved).length})
+                  </button>
+                  <button
+                    onClick={() => setActiveTab("groups")}
+                    className={`${
+                      activeTab === "groups"
+                        ? "border-[#4067EC] text-[#4067EC]"
+                        : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                    } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                  >
+                    Group Management
+                  </button>
+                  <button
+                    onClick={() => setActiveTab("courses")}
+                    className={`${
+                      activeTab === "courses"
+                        ? "border-[#4067EC] text-[#4067EC]"
+                        : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                    } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                  >
+                    Course Management
+                  </button>
+                  <button
+                    onClick={() => setActiveTab("assignments")}
+                    className={`${
+                      activeTab === "assignments"
+                        ? "border-[#4067EC] text-[#4067EC]"
+                        : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                    } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                  >
+                    Course Assignments
+                  </button>
+                  <Link
+                    href="/homelogin/superadmin/parent-student"
+                    className={`border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                  >
+                    Rodzic-Uczeń
+                  </Link>
+                </nav>
+              </div>
+            </div>
+
+            {/* Content based on active tab */}
+            {activeTab === "users" && (
+              <div className="bg-white rounded-lg shadow">
+                <div className="p-6">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xl font-semibold text-gray-800">User Management</h2>
-                <button 
-                  onClick={() => setShowCreateUserModal(true)}
-                  className="bg-[#4067EC] text-white px-4 py-2 rounded-lg hover:bg-[#3155d4] transition"
-                >
-                  Add New User
-                </button>
+                <div className="flex items-center space-x-4">
+                  <div className="text-sm text-gray-600">
+                    <span className="font-medium text-green-600">{users.filter(u => u.approved).length}</span> zatwierdzonych, 
+                    <span className="font-medium text-yellow-600"> {users.filter(u => !u.approved).length}</span> oczekuje na zatwierdzenie
+                  </div>
+                  <button 
+                    onClick={() => setShowCreateUserModal(true)}
+                    className="bg-[#4067EC] text-white px-4 py-2 rounded-lg hover:bg-[#3155d4] transition"
+                  >
+                    Add New User
+                  </button>
+                </div>
               </div>
               {success && (
                 <div className="mb-4 bg-green-50 border border-green-200 text-green-600 px-4 py-3 rounded relative">
@@ -731,19 +997,22 @@ function SuperAdminDashboardContent() {
                 </div>
               )}
               <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
+                <table className="w-full table-fixed divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="w-1/6 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         User
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="w-1/6 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Email
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="w-1/6 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Status
+                      </th>
+                      <th className="w-1/12 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Role
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="w-1/2 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Actions
                       </th>
                     </tr>
@@ -760,6 +1029,19 @@ function SuperAdminDashboardContent() {
                           <div className="text-sm text-gray-900">{user.email}</div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium">
+                            {user.approved ? (
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                ✅ Zatwierdzony
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                ⏳ Oczekuje na zatwierdzenie
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm text-gray-900">
                             {user.role === 'admin' ? 'Admin' : 
                              user.role === 'teacher' ? 'Teacher' : 
@@ -768,46 +1050,77 @@ function SuperAdminDashboardContent() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                           <div className="flex space-x-2">
+                            {!user.approved ? (
+                              <button 
+                                onClick={() => approveUser(user.id)}
+                                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-green-700 bg-green-100 border border-green-300 rounded-md hover:bg-green-200 transition-colors"
+                              >
+                                <CheckCircle className="h-3 w-3" />
+                                Zatwierdź
+                              </button>
+                            ) : (
+                              <button 
+                                onClick={() => rejectUser(user.id)}
+                                className="text-red-600 hover:text-red-900 font-medium text-xs px-2 py-1 rounded border hover:bg-red-50"
+                              >
+                                <XCircle className="h-3 w-3" />
+                                Odrzuć
+                              </button>
+                            )}
                             {user.role !== 'teacher' && (
                               <button 
                                 onClick={() => setTeacherRole(user.email || '')}
-                                className="text-blue-600 hover:text-blue-900"
+                                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-100 border border-blue-300 rounded-md hover:bg-blue-200 transition-colors"
                               >
-                                Set as Teacher
+                                <GraduationCap className="h-3 w-3" />
+                                Nauczyciel
                               </button>
                             )}
                             {user.role !== 'admin' && (
                               <button 
                                 onClick={() => setAdminRole(user.id)}
-                                className="text-green-600 hover:text-green-900"
+                                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-green-700 bg-green-100 border border-green-300 rounded-md hover:bg-green-200 transition-colors"
                               >
-                                Set as Admin
+                                <Shield className="h-3 w-3" />
+                                Admin
                               </button>
                             )}
                             {user.role !== 'parent' && (
                               <button 
                                 onClick={() => setParentRole(user.id)}
-                                className="text-purple-600 hover:text-purple-900"
+                                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-purple-700 bg-purple-100 border border-purple-300 rounded-md hover:bg-purple-200 transition-colors"
                               >
-                                Ustaw jako Rodzic
+                                <Users className="h-3 w-3" />
+                                Rodzic
                               </button>
                             )}
                             {user.role === 'admin' && (
                               <button 
                                 onClick={() => setTeacherRole(user.email || '')}
-                                className="text-orange-600 hover:text-orange-900"
+                                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-orange-700 bg-orange-100 border border-orange-300 rounded-md hover:bg-orange-200 transition-colors"
                               >
-                                Downgrade to Teacher
+                                <GraduationCap className="h-3 w-3" />
+                                Nauczyciel
                               </button>
                             )}
                             {user.role === 'teacher' && (
                               <button 
                                 onClick={() => setStudentRole(user.id)}
-                                className="text-gray-600 hover:text-gray-900"
+                                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 transition-colors"
                               >
-                                Set as Student
+                                <Users className="h-3 w-3" />
+                                Uczeń
                               </button>
                             )}
+                            <button 
+                              onClick={() => deleteUser(user.id)}
+                                                              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-red-700 bg-red-100 border border-red-300 rounded-md hover:bg-red-200 transition-colors"
+                              title="Usuń użytkownika"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                              Usuń
+                            </button>
+
                           </div>
                         </td>
                       </tr>
@@ -819,8 +1132,113 @@ function SuperAdminDashboardContent() {
           </div>
         )}
 
-        {activeTab === "groups" && (
-          <div className="bg-white rounded-lg shadow">
+            {activeTab === "pending" && (
+              <div className="bg-white rounded-lg shadow">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-semibold text-gray-800">Pending Users - Oczekujący na zatwierdzenie</h2>
+                <div className="text-sm text-gray-600">
+                  <span className="font-medium text-yellow-600">{users.filter(u => !u.approved).length}</span> użytkowników oczekuje na zatwierdzenie
+                </div>
+              </div>
+              {success && (
+                <div className="mb-4 bg-green-50 border border-green-200 text-green-600 px-4 py-3 rounded relative">
+                  {success}
+                </div>
+              )}
+              {error && (
+                <div className="mb-4 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded relative">
+                  {error}
+                </div>
+              )}
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        User
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Email
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Status
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Role
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {users.filter(u => !u.approved).map((user) => (
+                      <tr key={user.id} className="bg-yellow-50">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium text-gray-900">
+                            {user.firstName} {user.lastName}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">{user.email}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium">
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                              Oczekuje na zatwierdzenie
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">
+                            {user.role === 'admin' ? 'Admin' : 
+                             user.role === 'teacher' ? 'Teacher' : 
+                             user.role === 'parent' ? 'Rodzic' : 'Student'}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          <div className="flex space-x-2">
+                            <button 
+                              onClick={() => approveUser(user.id)}
+                              className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 transition"
+                            >
+                              <CheckCircle className="h-3 w-3" />
+                              Zatwierdź
+                            </button>
+                            <button 
+                              onClick={() => rejectUser(user.id)}
+                              className="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 transition"
+                            >
+                              <XCircle className="h-3 w-3" />
+                              Odrzuć
+                            </button>
+                            <button 
+                              onClick={() => deleteUser(user.id)}
+                              className="bg-gray-600 text-white px-3 py-1 rounded hover:bg-gray-700 transition"
+                              title="Usuń użytkownika"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                              Usuń
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {users.filter(u => !u.approved).length === 0 && (
+                  <div className="text-center py-8 text-gray-500">
+                    Wszyscy użytkownicy zostali zatwierdzeni! 🎉
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+            {activeTab === "groups" && (
+              <div className="bg-white rounded-lg shadow">
             <div className="p-6">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xl font-semibold text-gray-800">Group Management</h2>
@@ -872,15 +1290,20 @@ function SuperAdminDashboardContent() {
                               setSelectedGroup(group);
                               setShowAddMemberModal(true);
                             }}
-                            className="text-[#4067EC] hover:text-[#3155d4] mr-3"
+                            className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-100 border border-blue-300 rounded-md hover:bg-blue-200 transition-colors mr-3"
                           >
+                            <UserPlus className="h-3 w-3" />
                             Add Member
                           </button>
-                          <button className="text-[#4067EC] hover:text-[#3155d4] mr-3">Edit</button>
+                          <button className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-100 border border-blue-300 rounded-md hover:bg-blue-200 transition-colors mr-3">
+                            <Edit className="h-3 w-3" />
+                            Edit
+                          </button>
                           <button 
                             onClick={() => deleteGroup(group.id)}
-                            className="text-red-600 hover:text-red-900"
+                            className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-red-700 bg-red-100 border border-red-300 rounded-md hover:bg-red-200 transition-colors"
                           >
+                            <Trash2 className="h-3 w-3" />
                             Delete
                           </button>
                         </td>
@@ -893,8 +1316,8 @@ function SuperAdminDashboardContent() {
           </div>
         )}
 
-        {activeTab === "courses" && (
-          <div className="bg-white rounded-lg shadow">
+            {activeTab === "courses" && (
+              <div className="bg-white rounded-lg shadow">
             <div className="p-6">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xl font-semibold text-gray-800">Course Management</h2>
@@ -970,14 +1393,16 @@ function SuperAdminDashboardContent() {
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                           <button 
                             onClick={() => openEditCourseModal(course)}
-                            className="text-[#4067EC] hover:text-[#3155d4] mr-3"
+                            className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-100 border border-blue-300 rounded-md hover:bg-blue-200 transition-colors mr-3"
                           >
+                            <Edit className="h-3 w-3" />
                             Edit
                           </button>
                           <button 
                             onClick={() => deleteCourse(course.id)}
-                            className="text-red-600 hover:text-red-900"
+                            className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-red-700 bg-red-100 border border-red-300 rounded-md hover:bg-red-200 transition-colors"
                           >
+                            <Trash2 className="h-3 w-3" />
                             Delete
                           </button>
                         </td>
@@ -990,8 +1415,8 @@ function SuperAdminDashboardContent() {
           </div>
         )}
 
-        {activeTab === "assignments" && (
-          <div className="bg-white rounded-lg shadow">
+            {activeTab === "assignments" && (
+              <div className="bg-white rounded-lg shadow">
             <div className="p-6">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xl font-semibold text-gray-800">Course Assignments</h2>
@@ -1066,8 +1491,8 @@ function SuperAdminDashboardContent() {
           </div>
         )}
 
-        {/* Reset Password Modal */}
-        {showResetPasswordModal && (
+      {/* Reset Password Modal */}
+      {showResetPasswordModal && (
           <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full">
             <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
               <div className="mt-3">
@@ -1111,8 +1536,8 @@ function SuperAdminDashboardContent() {
           </div>
         )}
 
-        {/* Create Course Modal */}
-        {showCreateCourseModal && (
+      {/* Create Course Modal */}
+      {showCreateCourseModal && (
           <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full">
             <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
               <div className="mt-3">
@@ -1227,8 +1652,8 @@ function SuperAdminDashboardContent() {
           </div>
         )}
 
-        {/* Create User Modal */}
-        {showCreateUserModal && (
+      {/* Create User Modal */}
+      {showCreateUserModal && (
           <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full">
             <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
               <div className="mt-3">
@@ -1311,8 +1736,8 @@ function SuperAdminDashboardContent() {
           </div>
         )}
 
-        {/* Create Group Modal */}
-        {showCreateGroupModal && (
+      {/* Create Group Modal */}
+      {showCreateGroupModal && (
           <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full">
             <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
               <div className="mt-3">
@@ -1368,8 +1793,8 @@ function SuperAdminDashboardContent() {
           </div>
         )}
 
-        {/* Edit Course Modal */}
-        {showEditCourseModal && editingCourse && (
+      {/* Edit Course Modal */}
+      {showEditCourseModal && editingCourse && (
           <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full">
             <div className="relative top-10 mx-auto p-5 border w-4/5 max-w-4xl shadow-lg rounded-md bg-white">
               <div className="mt-3">
@@ -1544,10 +1969,122 @@ function SuperAdminDashboardContent() {
           </div>
         )}
 
-        {/* Add Member Modal */}
-        {showAddMemberModal && (
-          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full">
-            <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+          </div>
+        </div>
+
+        {/* Prawa kolumna - Szybkie akcje i aktywności */}
+        <div className="lg:col-span-1 space-y-6">
+          {/* Quick Actions */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900">Szybkie akcje</h3>
+              <p className="text-sm text-gray-600">Najczęściej używane funkcje</p>
+            </div>
+            <div className="p-6 space-y-4">
+              <button
+                onClick={() => setShowCreateUserModal(true)}
+                className="w-full flex items-center gap-3 p-3 text-left rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+              >
+                <UserPlus className="h-5 w-5 text-blue-600" />
+                <div>
+                  <div className="font-medium text-gray-900">Dodaj użytkownika</div>
+                  <div className="text-sm text-gray-600">Utwórz nowe konto</div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => setShowCreateCourseModal(true)}
+                className="w-full flex items-center gap-3 p-3 text-left rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+              >
+                <BookOpen className="h-5 w-5 text-green-600" />
+                <div>
+                  <div className="font-medium text-gray-900">Utwórz kurs</div>
+                  <div className="text-sm text-gray-600">Dodaj nowy kurs</div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => setShowCreateGroupModal(true)}
+                className="w-full flex items-center gap-3 p-3 text-left rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+              >
+                <Group className="h-5 w-5 text-purple-600" />
+                <div>
+                  <div className="font-medium text-gray-900">Utwórz grupę</div>
+                  <div className="text-sm text-gray-600">Dodaj nową grupę</div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => setActiveTab("pending")}
+                className="w-full flex items-center gap-3 p-3 text-left rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+              >
+                <Clock className="h-5 w-5 text-yellow-600" />
+                <div>
+                  <div className="font-medium text-gray-900">Zatwierdź użytkowników</div>
+                  <div className="text-sm text-gray-600">Oczekujący na zatwierdzenie</div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => setActiveTab("assignments")}
+                className="w-full flex items-center gap-3 p-3 text-left rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+              >
+                <GraduationCap className="h-5 w-5 text-indigo-600" />
+                <div>
+                  <div className="font-medium text-gray-900">Przypisz kursy</div>
+                  <div className="text-sm text-gray-600">Zarządzaj przypisaniami</div>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          {/* Recent Activity */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900">Ostatnia aktywność</h3>
+              <p className="text-sm text-gray-600">Co się dzieje w systemie</p>
+            </div>
+            <div className="p-6">
+              <div className="space-y-4">
+                {recentActivities.length > 0 ? (
+                  recentActivities.map((activity) => {
+                    const Icon = activity.icon;
+                    return (
+                      <div key={activity.id} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                        <div className="p-2 bg-white rounded-lg border">
+                          <Icon className="h-4 w-4 text-gray-600" />
+                        </div>
+                        <div className="flex-1">
+                          <h4 className="font-medium text-gray-900">{activity.title}</h4>
+                          <p className="text-sm text-gray-600">{activity.description}</p>
+                          <div className="flex items-center gap-1 mt-1">
+                            <Clock className="h-3 w-3 text-gray-400" />
+                            <span className="text-xs text-gray-500">{activity.timestamp}</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    Brak ostatnich aktywności
+                  </div>
+                )}
+              </div>
+              
+              <div className="mt-6 pt-4 border-t border-gray-200">
+                <button className="w-full text-center text-sm text-blue-600 hover:text-blue-800 font-medium">
+                  Zobacz wszystkie aktywności
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      {/* Add Member Modal */}
+      {showAddMemberModal && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
               <div className="mt-3">
                 <h3 className="text-lg font-medium leading-6 text-gray-900 mb-4">
                   Add Member to {selectedGroup?.name}
