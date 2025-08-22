@@ -26,6 +26,27 @@ interface Course {
   instructor_name: string;
   is_featured: boolean;
   assignedUsers?: string[];
+  firebase_id?: string;
+}
+
+// Add Teacher interface
+interface Teacher {
+  uid: string;
+  displayName: string;
+  email: string;
+  subject: string;
+  role: string;
+  photoURL?: string;
+}
+
+// Add SearchResult interface
+interface SearchResult {
+  type: 'course' | 'teacher';
+  id: string;
+  title: string;
+  subtitle?: string;
+  description?: string;
+  photoURL?: string;
 }
 
 // Function to get sidebar links based on user role
@@ -80,11 +101,6 @@ const getSidebarLinks = (userRole?: string) => {
     label: "Support & FAQs",
     icon: <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>,
     href: "/homelogin/support"
-  },
-  {
-    label: "Wszystkie kursy",
-    icon: <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>,
-    href: "/courses"
   });
   
   return baseLinks;
@@ -179,9 +195,14 @@ function Dashboard() {
   const sidebarLinks = getSidebarLinks(user?.role);
   const [sidebarOpen, setSidebarOpen] = useState(false); // Changed to false for mobile
   const [search, setSearch] = useState('');
-  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [showSearchResults, setShowSearchResults] = useState(false);
   const [assignedCourses, setAssignedCourses] = useState<Course[]>([]);
   const [loadingAssigned, setLoadingAssigned] = useState(true);
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [loadingTeachers, setLoadingTeachers] = useState(true);
+  const searchRef = useRef<HTMLDivElement>(null);
+
   interface Notification {
     id: string;
     title: string;
@@ -189,6 +210,12 @@ function Dashboard() {
     deadline: string;
     isOverdue?: boolean;
     students?: string[];
+    type?: 'assignment' | 'exam' | 'announcement' | 'grade' | 'course';
+    courseId?: string;
+    courseTitle?: string;
+    actionUrl?: string;
+    priority?: 'low' | 'medium' | 'high';
+    read?: boolean;
   }
 
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -197,15 +224,6 @@ function Dashboard() {
   const notifRef = useRef<HTMLDivElement>(null);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [fileError, setFileError] = useState<string | null>(null);
-  interface Teacher {
-    uid: string;
-    displayName: string;
-    email: string;
-    subject: string;
-    role: string;
-  }
-
-  const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [selectedTeacher, setSelectedTeacher] = useState<string>('');
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
@@ -218,6 +236,7 @@ function Dashboard() {
 
 
 
+  // Pobierz kursy przypisane do użytkownika
   useEffect(() => {
     if (!user) return;
     const fetchAssignedCourses = async () => {
@@ -227,11 +246,18 @@ function Dashboard() {
         const coursesCollection = collection(db, 'courses');
         const coursesSnapshot = await getDocs(coursesCollection);
         
+        console.log('All courses from Firestore:', coursesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        
         // Filtruj kursy, do których użytkownik jest przypisany
         const assigned = coursesSnapshot.docs
-          .map(doc => ({ id: doc.id, ...doc.data() } as unknown as Course))
+          .map(doc => ({ 
+            id: doc.id, 
+            firebase_id: doc.id,
+            ...doc.data() 
+          } as unknown as Course))
           .filter(course => {
             const assignedUsers = course.assignedUsers || [];
+            console.log(`Course ${course.title} assignedUsers:`, assignedUsers, 'User:', user.uid, user.email);
             return assignedUsers.includes(user.uid) || assignedUsers.includes(user.email);
           });
         
@@ -246,6 +272,189 @@ function Dashboard() {
     };
     fetchAssignedCourses();
   }, [user]);
+
+  // Pobierz nauczycieli z Firestore
+  useEffect(() => {
+    const fetchTeachers = async () => {
+      setLoadingTeachers(true);
+      try {
+        const usersCollection = collection(db, 'users');
+        const usersSnapshot = await getDocs(usersCollection);
+        console.log('All users from Firestore:', usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        
+        const teachersList = usersSnapshot.docs
+          .map(doc => {
+            const data = doc.data();
+            return {
+              uid: doc.id,
+              displayName: data.displayName || '',
+              email: data.email || '',
+              subject: data.subject || '',
+              role: data.role || '',
+              photoURL: data.photoURL || '',
+            };
+          })
+          .filter(user => user.role === 'teacher' || user.role === 'tutor');
+        
+        console.log('Filtered teachers:', teachersList);
+        setTeachers(teachersList);
+      } catch (error) {
+        console.error('Error fetching teachers:', error);
+        setTeachers([]);
+      } finally {
+        setLoadingTeachers(false);
+      }
+    };
+    fetchTeachers();
+  }, []);
+
+  // Nowa funkcja wyszukiwania - wyświetla wszystko na początku
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setSearch(value);
+    
+    // Zawsze pokazuj wyniki, nawet przy pustym polu
+    const results: SearchResult[] = [];
+    
+    if (value.length === 0) {
+      // Pokaż wszystkie kursy i nauczycieli
+      assignedCourses.forEach(course => {
+        results.push({
+          type: 'course',
+          id: course.firebase_id || course.id.toString(),
+          title: course.title,
+          subtitle: course.category_name,
+          description: course.description,
+          photoURL: course.thumbnail
+        });
+      });
+      
+      teachers.forEach(teacher => {
+        results.push({
+          type: 'teacher',
+          id: teacher.uid,
+          title: teacher.displayName,
+          subtitle: teacher.subject,
+          description: teacher.email,
+          photoURL: teacher.photoURL
+        });
+      });
+    } else {
+      // Filtruj na podstawie wyszukiwania
+      // Wyszukaj w kursach przypisanych do użytkownika
+      assignedCourses.forEach(course => {
+        const title = course.title?.toLowerCase() || '';
+        const description = course.description?.toLowerCase() || '';
+        const searchTerm = value.toLowerCase();
+        
+        if (title.includes(searchTerm) || description.includes(searchTerm)) {
+          results.push({
+            type: 'course',
+            id: course.firebase_id || course.id.toString(),
+            title: course.title,
+            subtitle: course.category_name,
+            description: course.description,
+            photoURL: course.thumbnail
+          });
+        }
+      });
+      
+      // Wyszukaj w nauczycielach/tutorach
+      teachers.forEach(teacher => {
+        const name = teacher.displayName?.toLowerCase() || '';
+        const email = teacher.email?.toLowerCase() || '';
+        const subject = teacher.subject?.toLowerCase() || '';
+        const searchTerm = value.toLowerCase();
+        
+        if (name.includes(searchTerm) || email.includes(searchTerm) || subject.includes(searchTerm)) {
+          results.push({
+            type: 'teacher',
+            id: teacher.uid,
+            title: teacher.displayName,
+            subtitle: teacher.subject,
+            description: teacher.email,
+            photoURL: teacher.photoURL
+          });
+        }
+      });
+    }
+    
+    setSearchResults(results);
+    setShowSearchResults(true);
+  };
+
+  // Funkcja do pokazania wszystkich wyników przy focusie
+  const handleSearchFocus = () => {
+    if (search.length === 0) {
+      const results: SearchResult[] = [];
+      
+      // Dodaj wszystkie kursy
+      assignedCourses.forEach(course => {
+        results.push({
+          type: 'course',
+          id: course.firebase_id || course.id.toString(),
+          title: course.title,
+          subtitle: course.category_name,
+          description: course.description,
+          photoURL: course.thumbnail
+        });
+      });
+      
+      // Dodaj wszystkich nauczycieli
+      teachers.forEach(teacher => {
+        results.push({
+          type: 'teacher',
+          id: teacher.uid,
+          title: teacher.displayName,
+          subtitle: teacher.subject,
+          description: teacher.email,
+          photoURL: teacher.photoURL
+        });
+      });
+      
+      setSearchResults(results);
+      setShowSearchResults(true);
+    }
+  };
+
+  // Funkcja nawigacji do kursu
+  const handleCourseClick = (courseId: string) => {
+    console.log('Navigating to course:', courseId);
+    // Sprawdź czy kurs ma slug, jeśli nie użyj ID
+    const course = assignedCourses.find(c => (c.firebase_id || c.id.toString()) === courseId);
+    if (course && course.slug) {
+      console.log('Using slug for navigation:', course.slug);
+      router.push(`/courses/${course.slug}`);
+    } else {
+      console.log('Using ID for navigation:', courseId);
+      router.push(`/courses/${courseId}`);
+    }
+    setSearch('');
+    setShowSearchResults(false);
+  };
+
+  // Funkcja nawigacji do profilu nauczyciela
+  const handleTeacherClick = (teacherId: string) => {
+    console.log('Navigating to teacher:', teacherId);
+    // Przejdź do strony nauczycieli z możliwością filtrowania
+    router.push(`/homelogin/instructors/tutors?teacher=${teacherId}`);
+    setSearch('');
+    setShowSearchResults(false);
+  };
+
+  // Obsługa kliknięć poza wyszukiwarką
+  useEffect(() => {
+    if (!showSearchResults) return;
+    function handleClickOutside(event: MouseEvent) {
+      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+        setShowSearchResults(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showSearchResults]);
 
   // Pobierz eventy jako powiadomienia
   useEffect(() => {
@@ -263,14 +472,34 @@ function Dashboard() {
       // Sortuj po dacie malejąco
       eventsList.sort((a, b) => new Date((b as Notification).deadline).getTime() - new Date((a as Notification).deadline).getTime());
       
-      // Dodaj informację o przekroczonym terminie
+      // Dodaj informację o przekroczonym terminie i wzbogac dane
       const now = new Date();
       eventsList = eventsList.map((ev) => {
         const deadline = new Date((ev as Notification).deadline);
         const isOverdue = deadline < now;
+        const timeDiff = deadline.getTime() - now.getTime();
+        const daysDiff = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
+        
+        // Określ priorytet na podstawie czasu do deadline
+        let priority: 'low' | 'medium' | 'high' = 'low';
+        if (isOverdue) priority = 'high';
+        else if (daysDiff <= 3) priority = 'high';
+        else if (daysDiff <= 7) priority = 'medium';
+        
+        // Określ typ powiadomienia na podstawie tytułu
+        let type: 'assignment' | 'exam' | 'announcement' | 'grade' | 'course' = 'announcement';
+        const title = (ev as Notification).title.toLowerCase();
+        if (title.includes('zadanie') || title.includes('assignment')) type = 'assignment';
+        else if (title.includes('egzamin') || title.includes('exam') || title.includes('test')) type = 'exam';
+        else if (title.includes('ocena') || title.includes('grade')) type = 'grade';
+        else if (title.includes('kurs') || title.includes('course')) type = 'course';
+        
         return {
           ...ev,
-          isOverdue
+          isOverdue,
+          priority,
+          type,
+          read: false
         };
       });
 
@@ -286,123 +515,6 @@ function Dashboard() {
     };
     fetchNotifications();
   }, [user]);
-
-  // Pobierz nauczycieli z Firestore
-  useEffect(() => {
-    const fetchTeachers = async () => {
-      const usersCollection = collection(db, 'users');
-      const usersSnapshot = await getDocs(usersCollection);
-      const teachersList = usersSnapshot.docs
-        .map(doc => {
-          const data = doc.data();
-          return {
-            uid: doc.id,
-            displayName: data.displayName || '',
-            email: data.email || '',
-            subject: data.subject || '',
-            role: data.role || '',
-          };
-        })
-        .filter(user => user.role === 'teacher');
-      setTeachers(teachersList);
-    };
-    fetchTeachers();
-  }, []);
-
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setSearch(value);
-    if (value.length >= 3) {
-      const filtered = wszystkieKursy.filter(k => k.toLowerCase().includes(value.toLowerCase()));
-      setSuggestions(filtered);
-    } else {
-      setSuggestions([]);
-    }
-  };
-
-
-
-  // Function to handle menu click for course viewing
-  const handleViewCourses = () => {
-    router.push('/courses');
-  };
-
-  // Zaznacz powiadomienia jako przeczytane po otwarciu
-  const handleNotifClick = () => {
-    setShowNotifications((prev) => !prev);
-    if (notifications.length > 0) {
-      localStorage.setItem('lastNotifRead', notifications[0].id);
-      setHasUnread(false);
-    }
-  };
-
-  useEffect(() => {
-    if (!showNotifications) return;
-    function handleClickOutside(event: MouseEvent) {
-      if (notifRef.current && !notifRef.current.contains(event.target as Node)) {
-        setShowNotifications(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [showNotifications]);
-
-  // Handle clicks outside dropdown
-  useEffect(() => {
-    if (!showDropdown) return;
-    function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setShowDropdown(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [showDropdown]);
-
-  const handleDropdownToggle = () => {
-    setShowDropdown(prev => !prev);
-  };
-
-  const handleCourseSelect = (courseName: string) => {
-    setSearch(courseName);
-    setShowDropdown(false);
-    setSuggestions([]);
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files) return;
-    const files = Array.from(e.target.files);
-    // Sprawdź liczbę plików
-    if (files.length + selectedFiles.length > 3) {
-      setFileError('Możesz dodać maksymalnie 3 pliki.');
-      return;
-    }
-    // Sprawdź typy i sumę rozmiarów
-    const allFiles = [...selectedFiles, ...files];
-    const allowedTypes = ['image/jpeg', 'image/png', 'application/pdf'];
-    let totalSize = 0;
-    for (const file of allFiles) {
-      if (!allowedTypes.includes(file.type)) {
-        setFileError('Dozwolone są tylko pliki JPG, PNG lub PDF.');
-        return;
-      }
-      totalSize += file.size;
-    }
-    if (totalSize > 30 * 1024 * 1024) {
-      setFileError('Łączny rozmiar plików nie może przekraczać 30 MB.');
-      return;
-    }
-    setFileError(null);
-    setSelectedFiles(allFiles);
-  };
-
-  const handleRemoveFile = (idx: number) => {
-    setSelectedFiles(selectedFiles.filter((_, i) => i !== idx));
-  };
 
   // Obsługa wysyłki maila
   const handleSendMessage = async (e: React.FormEvent) => {
@@ -438,6 +550,93 @@ function Dashboard() {
     } finally {
       setSending(false);
     }
+  };
+
+  // Funkcja do obsługi kliknięcia w powiadomienie
+  const handleNotificationClick = (notification: Notification) => {
+    // Zaznacz jako przeczytane
+    setNotifications(prev => 
+      prev.map(n => 
+        n.id === notification.id ? { ...n, read: true } : n
+      )
+    );
+    
+    // Sprawdź czy są nieprzeczytane powiadomienia
+    const unreadCount = notifications.filter(n => !n.read).length;
+    setHasUnread(unreadCount > 1);
+    
+    // Nawiguj do odpowiedniej strony
+    if (notification.actionUrl) {
+      router.push(notification.actionUrl);
+    } else if (notification.courseId) {
+      // Znajdź kurs i nawiguj do niego
+      const course = assignedCourses.find(c => (c.firebase_id || c.id.toString()) === notification.courseId);
+      if (course && course.slug) {
+        router.push(`/courses/${course.slug}`);
+      } else if (notification.courseId) {
+        router.push(`/courses/${notification.courseId}`);
+      }
+    } else if (notification.type === 'grade') {
+      router.push('/homelogin/grades');
+    } else if (notification.type === 'course') {
+      router.push('/homelogin/my-courses');
+    }
+    
+    // Zamknij dropdown powiadomień
+    setShowNotifications(false);
+  };
+
+  // Zaznacz powiadomienia jako przeczytane po otwarciu
+  const handleNotifClick = () => {
+    setShowNotifications((prev) => !prev);
+    if (notifications.length > 0) {
+      localStorage.setItem('lastNotifRead', notifications[0].id);
+      setHasUnread(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!showNotifications) return;
+    function handleClickOutside(event: MouseEvent) {
+      if (notifRef.current && !notifRef.current.contains(event.target as Node)) {
+        setShowNotifications(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showNotifications]);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files) return;
+    const files = Array.from(e.target.files);
+    // Sprawdź liczbę plików
+    if (files.length + selectedFiles.length > 3) {
+      setFileError('Możesz dodać maksymalnie 3 pliki.');
+      return;
+    }
+    // Sprawdź typy i sumę rozmiarów
+    const allFiles = [...selectedFiles, ...files];
+    const allowedTypes = ['image/jpeg', 'image/png', 'application/pdf'];
+    let totalSize = 0;
+    for (const file of allFiles) {
+      if (!allowedTypes.includes(file.type)) {
+        setFileError('Dozwolone są tylko pliki JPG, PNG lub PDF.');
+        return;
+      }
+      totalSize += file.size;
+    }
+    if (totalSize > 30 * 1024 * 1024) {
+      setFileError('Łączny rozmiar plików nie może przekraczać 30 MB.');
+      return;
+    }
+    setFileError(null);
+    setSelectedFiles(allFiles);
+  };
+
+  const handleRemoveFile = (idx: number) => {
+    setSelectedFiles(selectedFiles.filter((_, i) => i !== idx));
   };
 
   return (
@@ -502,89 +701,94 @@ function Dashboard() {
       <main className="flex-1 flex flex-col w-full lg:w-auto bg-[#F8F9FB] opacity-100">
         {/* Header */}
         <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between px-3 sm:px-6 lg:px-8 py-4 sm:py-6 bg-white border-b border-gray-200 relative gap-3 sm:gap-0">
-          <div className="relative w-full sm:w-1/2 lg:w-1/3" ref={dropdownRef}>
+          <div className="relative w-full sm:w-1/2 lg:w-1/3" ref={searchRef}>
             <div className="flex">
               <input
                 type="text"
-                placeholder="Szukaj kursu..."
+                placeholder="Szukaj kursu lub nauczyciela..."
                 className="w-full px-3 sm:px-4 py-2 rounded-l-lg border border-gray-200 border-r-0 focus:outline-none focus:ring-2 focus:ring-[#4067EC] text-[#222] font-semibold pr-10 text-sm sm:text-base"
                 value={search}
                 onChange={handleSearchChange}
+                onFocus={handleSearchFocus}
               />
               <button
                 type="button"
-                onClick={handleDropdownToggle}
+                onClick={() => {
+                  setSearch('');
+                  setShowSearchResults(false);
+                  setSearchResults([]);
+                }}
                 className="px-2 sm:px-3 py-2 bg-[#4067EC] text-white rounded-r-lg border border-[#4067EC] hover:bg-[#3155d4] focus:outline-none focus:ring-2 focus:ring-[#4067EC] transition-colors"
-                aria-label="Pokaż wszystkie kursy"
-              >
-                <svg 
-                  className={`w-4 h-4 sm:w-5 sm:h-5 transition-transform ${showDropdown ? 'rotate-180' : ''}`} 
-                  fill="none" 
-                  stroke="currentColor" 
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-            </div>
-            {search && (
-              <button
-                type="button"
                 aria-label="Wyczyść wyszukiwanie"
-                className="absolute right-12 sm:right-16 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-[#4067EC] focus:outline-none"
-                onClick={() => setSearch("")}
-                tabIndex={0}
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:h-5 sm:w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
-            )}
+            </div>
             
-            {/* Suggestions from typing */}
-            {suggestions.length > 0 && !showDropdown && (
-              <ul className="absolute left-0 right-0 bg-white border border-gray-200 rounded-lg mt-1 z-10 shadow-lg max-h-60 overflow-y-auto">
-                {suggestions.map((s, idx) => (
-                  <li
-                    key={s + idx}
-                    className="px-3 sm:px-4 py-2 hover:bg-[#F1F4FE] cursor-pointer text-[#4067EC] font-semibold text-sm sm:text-base"
-                    onClick={() => setSearch(s)}
-                  >
-                    {s}
-                  </li>
-                ))}
-              </ul>
-            )}
-            
-            {/* Dropdown with all courses */}
-            {showDropdown && (
-              <div className="dropdown-course absolute left-0 right-0 !bg-white opacity-100 border border-gray-200 rounded-lg mt-1 z-50 shadow-lg" style={{ opacity: 1, background: '#fff' }}>
-                <div className="p-2 sm:p-3 border-b border-gray-100">
-                  <h3 className="text-xs sm:text-sm font-bold text-[#4067EC] mb-2">Podstawowe</h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 sm:gap-2 max-h-40 overflow-y-auto">
-                    {podstawoweKursy.map((kurs, idx) => (
-                      <button
-                        key={`podstawowe-${idx}`}
-                        className="text-left px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm bg-white border border-gray-200 rounded hover:bg-[#F1F4FE] hover:border-[#4067EC] text-gray-800 font-medium transition-colors"
-                        onClick={() => handleCourseSelect(kurs)}
-                      >
-                        {kurs}
-                      </button>
-                    ))}
+            {searchResults.length > 0 && showSearchResults && (
+              <div className="absolute left-0 right-0 bg-white border border-gray-200 rounded-lg mt-1 z-50 shadow-lg max-h-96 overflow-y-auto">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
+                  {/* Kolumna z kursami */}
+                  <div>
+                    <h3 className="text-sm font-bold text-[#4067EC] mb-3 pb-2 border-b border-gray-200">
+                      Kursy ({searchResults.filter(r => r.type === 'course').length})
+                    </h3>
+                    <div className="space-y-2">
+                      {searchResults
+                        .filter(result => result.type === 'course')
+                        .map((result) => (
+                          <div
+                            key={result.id}
+                            className="flex items-center p-3 hover:bg-[#F1F4FE] cursor-pointer transition rounded-lg border border-transparent hover:border-[#4067EC]"
+                            onClick={() => handleCourseClick(result.id)}
+                          >
+                            <div className="flex-shrink-0 w-10 h-10 bg-[#4067EC] rounded-lg flex items-center justify-center mr-3">
+                              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                              </svg>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="font-semibold text-[#1a237e] text-sm truncate">{result.title}</div>
+                              {result.subtitle && <div className="text-xs text-gray-500 truncate">{result.subtitle}</div>}
+                            </div>
+                          </div>
+                        ))}
+                    </div>
                   </div>
+
+                  {/* Kolumna z nauczycielami */}
+                  <div>
+                    <h3 className="text-sm font-bold text-[#4067EC] mb-3 pb-2 border-b border-gray-200">
+                      Nauczyciele ({searchResults.filter(r => r.type === 'teacher').length})
+                    </h3>
+                    <div className="space-y-2">
+                      {searchResults
+                        .filter(result => result.type === 'teacher')
+                        .map((result) => (
+                          <div
+                            key={result.id}
+                            className="flex items-center p-3 hover:bg-[#F1F4FE] cursor-pointer transition rounded-lg border border-transparent hover:border-[#4067EC]"
+                            onClick={() => handleTeacherClick(result.id)}
+                          >
+                            <div className="flex-shrink-0 w-10 h-10 bg-[#4CAF50] rounded-full flex items-center justify-center mr-3 overflow-hidden">
+                              {result.photoURL ? (
+                                <Image src={result.photoURL} alt={result.title} width={40} height={40} className="w-full h-full object-cover" />
+                              ) : (
+                                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                </svg>
+                              )}
+                  </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="font-semibold text-[#1a237e] text-sm truncate">{result.title}</div>
+                              {result.subtitle && <div className="text-xs text-gray-500 truncate">{result.subtitle}</div>}
+                              {result.description && <div className="text-xs text-gray-700 truncate">{result.description}</div>}
                 </div>
-                <div className="p-2 sm:p-3">
-                  <h3 className="text-xs sm:text-sm font-bold text-[#4067EC] mb-2">Moduły dodatkowe</h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 sm:gap-2 max-h-40 overflow-y-auto">
-                    {dodatkoweKursy.map((kurs, idx) => (
-                      <button
-                        key={`dodatkowe-${idx}`}
-                        className="text-left px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm bg-white border border-gray-200 rounded hover:bg-[#F1F4FE] hover:border-[#4067EC] text-[#4067EC] font-medium transition-colors"
-                        onClick={() => handleCourseSelect(kurs)}
-                      >
-                        {kurs}
-                      </button>
-                    ))}
+                          </div>
+                        ))}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -592,17 +796,10 @@ function Dashboard() {
           </div>
           
           <div className="flex items-center gap-2 sm:gap-4 w-full sm:w-auto">
-            <button 
-              onClick={handleViewCourses} 
-              className="bg-[#4067EC] text-white px-3 sm:px-6 py-2 rounded-lg font-semibold cursor-pointer transition duration-200 hover:bg-[#3050b3] hover:scale-105 text-sm sm:text-base flex-1 sm:flex-none"
-            >
-              Wszystkie kursy
-            </button>
-            
             <div className="flex items-center gap-2 sm:gap-4">
               <div className="relative">
                 <button
-                  className="p-1.5 sm:p-2 rounded-full hover:bg-[#F1F4FE] cursor-pointer transition duration-200 hover:scale-110"
+                  className="relative p-1.5 sm:p-2 rounded-full hover:bg-[#F1F4FE] cursor-pointer transition-colors duration-200"
                   onClick={handleNotifClick}
                   aria-label="Powiadomienia"
                 >
@@ -612,33 +809,141 @@ function Dashboard() {
                   )}
                 </button>
                 {showNotifications && (
-                  <div ref={notifRef} className="absolute right-0 mt-2 w-64 sm:w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-50 animate-fadeIn">
-                    <div className="p-3 sm:p-4 border-b font-bold text-[#4067EC] text-sm sm:text-base">Powiadomienia</div>
+                  <div ref={notifRef} className="absolute right-0 mt-2 w-72 sm:w-80 bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-hidden">
+                    <div className="p-4 border-b border-gray-100 bg-gradient-to-r from-[#4067EC] to-[#5577FF] text-white">
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-bold text-sm sm:text-base">Powiadomienia</h3>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs bg-white/20 px-2 py-1 rounded-full">
+                            {notifications.filter(n => !n.read).length} nowych
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    
                     {notifications.length === 0 ? (
-                      <div className="p-3 sm:p-4 text-gray-500 text-sm">Brak powiadomień.</div>
+                      <div className="p-6 text-center">
+                        <div className="w-12 h-12 mx-auto mb-3 bg-gray-100 rounded-full flex items-center justify-center">
+                          <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V4a2 2 0 10-4 0v1.341C7.67 7.165 6 9.388 6 12v2.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                          </svg>
+                        </div>
+                        <p className="text-gray-500 text-sm">Brak powiadomień</p>
+                        <p className="text-gray-400 text-xs mt-1">Wszystko jest na bieżąco!</p>
+                      </div>
                     ) : (
-                      <ul className="max-h-96 overflow-y-auto divide-y divide-gray-100">
-                        {notifications.map((notif) => (
-                          <li key={notif.id} className="p-3 sm:p-4 hover:bg-[#F1F4FE] transition">
-                            <div className="font-semibold text-[#1a237e] text-xs sm:text-sm">{notif.title}</div>
-                            <div className="text-xs text-gray-500 mb-1">
-                              Termin: {new Date(notif.deadline).toLocaleString('pl-PL', { 
+                      <ul className="max-h-96 overflow-y-auto">
+                        {notifications.map((notif, index) => {
+                          const isUnread = !notif.read;
+                          const getPriorityColor = () => {
+                            if (notif.priority === 'high') return 'border-l-red-500 bg-red-50';
+                            if (notif.priority === 'medium') return 'border-l-orange-500 bg-orange-50';
+                            return 'border-l-blue-500 bg-blue-50';
+                          };
+                          
+                          const getTypeIcon = () => {
+                            switch (notif.type) {
+                              case 'assignment':
+                                return (
+                                  <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 4H7a2 2 0 01-2-2V6a2 2 0 012-2h2l2 2h6a2 2 0 012 2v10a2 2 0 01-2 2z" />
+                                  </svg>
+                                );
+                              case 'exam':
+                                return (
+                                  <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                                  </svg>
+                                );
+                              case 'grade':
+                                return (
+                                  <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                                  </svg>
+                                );
+                              default:
+                                return (
+                                  <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                  </svg>
+                                );
+                            }
+                          };
+                          
+                          return (
+                            <li 
+                              key={notif.id} 
+                              className={`p-4 border-l-4 ${getPriorityColor()} hover:bg-white hover:shadow-md transition-colors duration-200 cursor-pointer`}
+                              onClick={() => handleNotificationClick(notif)}
+                            >
+                              <div className="flex items-start gap-3">
+                                <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${isUnread ? 'bg-white shadow-sm' : 'bg-gray-100'}`}>
+                                  {getTypeIcon()}
+                                </div>
+                                
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <h4 className={`font-semibold text-sm ${isUnread ? 'text-gray-900' : 'text-gray-700'}`}>
+                                      {notif.title}
+                                    </h4>
+                                    {isUnread && (
+                                      <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                                    )}
+                                  </div>
+                                  
+                                  <div className="text-xs text-gray-500 mb-2">
+                                    <div className="flex items-center gap-2">
+                                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                      </svg>
+                                      <span>
+                                        {new Date(notif.deadline).toLocaleString('pl-PL', { 
                                 year: 'numeric',
-                                month: 'long',
+                                          month: 'short',
                                 day: 'numeric',
                                 hour: '2-digit',
                                 minute: '2-digit'
                               })}
+                                      </span>
                               {notif.isOverdue && (
-                                <span className="ml-2 text-red-600 font-bold">⚠️ Po terminie</span>
+                                        <span className="text-red-600 font-bold text-xs">⚠️ Po terminie</span>
                               )}
                             </div>
+                                  </div>
+                                  
                             {notif.description && (
-                              <div className="text-xs text-gray-700 mt-1">{notif.description}</div>
-                            )}
+                                    <p className="text-xs text-gray-600 line-clamp-2">{notif.description}</p>
+                                  )}
+                                  
+                                  <div className="mt-2 flex items-center gap-2">
+                                    <span className="text-xs px-2 py-1 rounded-full bg-white/60 text-gray-600">
+                                      {notif.type === 'assignment' ? 'Zadanie' : 
+                                       notif.type === 'exam' ? 'Egzamin' : 
+                                       notif.type === 'grade' ? 'Ocena' : 
+                                       notif.type === 'course' ? 'Kurs' : 'Ogłoszenie'}
+                                    </span>
+                                    <span className="text-xs text-gray-400">Kliknij aby przejść →</span>
+                                  </div>
+                                </div>
+                              </div>
                           </li>
-                        ))}
+                          );
+                        })}
                       </ul>
+                    )}
+                    
+                    {notifications.length > 0 && (
+                      <div className="p-3 border-t border-gray-100 bg-gray-50">
+                        <button 
+                          onClick={() => {
+                            setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+                            setHasUnread(false);
+                          }}
+                          className="w-full text-xs text-gray-600 hover:text-gray-800 transition-colors"
+                        >
+                          Zaznacz wszystkie jako przeczytane
+                        </button>
+                      </div>
                     )}
                   </div>
                 )}
@@ -663,7 +968,7 @@ function Dashboard() {
             {/* Progress & Chart */}
             <div className="flex flex-col lg:flex-row gap-4 sm:gap-6 lg:gap-8">
               {/* Shortcut/statystyka do statystyk profilu */}
-              <div className="w-1/2">
+              <div className="w-1/3">
                 <a href="/profile/statistics" className="block bg-white rounded-xl sm:rounded-2xl shadow p-4 sm:p-6 flex flex-col justify-between hover:shadow-lg transition cursor-pointer border-2 border-[#e3eafe] hover:border-[#4067EC] h-full">
                   <div className="flex items-center gap-3 sm:gap-4 mb-3 sm:mb-4">
                     <div className="bg-[#F1F4FE] p-2 sm:p-3 rounded-lg">
@@ -687,7 +992,7 @@ function Dashboard() {
               </div>
 
               {/* Chat with Teacher */}
-              <div className="w-1/2">
+              <div className="w-1/3">
                 <div className="bg-white rounded-xl sm:rounded-2xl shadow p-4 sm:p-6 h-full">
                   <h2 className="text-base sm:text-lg font-bold text-gray-800 mb-3 sm:mb-4">Napisz do nauczyciela</h2>
                   <form className="flex flex-col gap-3 sm:gap-4" onSubmit={handleSendMessage}>
@@ -732,20 +1037,7 @@ function Dashboard() {
                         ))}
                       </ul>
                     </div>
-                    <div>
-                      <h3 className="text-xs sm:text-sm font-bold">Ankiety</h3>
-                      <p className="text-xs text-blue-100">Twoja opinia jest dla nas ważna!</p>
-                    </div>
                   </form>
-                  <a 
-                    href="/homelogin/ankiety" 
-                    className="inline-flex items-center bg-white text-blue-600 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-semibold hover:bg-blue-50 transition duration-200 hover:scale-105 w-full justify-center mt-2"
-                  >
-                    Przejdź do ankiet
-                    <svg className="w-3 h-3 sm:w-4 sm:h-4 ml-1" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                    </svg>
-                  </a>
                   {sendSuccess && <div className="text-green-600 text-xs sm:text-sm mt-1">{sendSuccess}</div>}
                   {sendError && <div className="text-red-600 text-xs sm:text-sm mt-1">{sendError}</div>}
                   <button
@@ -753,6 +1045,36 @@ function Dashboard() {
                     className="bg-[#4067EC] text-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold cursor-pointer transition duration-200 hover:bg-[#3050b3] hover:scale-105 mt-2 text-xs sm:text-sm"
                     disabled={!!fileError || selectedFiles.length > 3 || sending}
                   >{sending ? 'Wysyłanie...' : 'Wyślij'}</button>
+                </div>
+              </div>
+
+              {/* Ankiety */}
+              <div className="w-1/3">
+                <div className="bg-white rounded-xl sm:rounded-2xl shadow p-4 sm:p-6 h-full flex flex-col justify-between">
+                    <div>
+                    <h2 className="text-base sm:text-lg font-bold text-gray-800 mb-3 sm:mb-4">Ankiety</h2>
+                    <p className="text-xs sm:text-sm text-gray-600 mb-4">Twoja opinia jest dla nas ważna!</p>
+                    <div className="flex items-center gap-3 sm:gap-4 mb-4">
+                      <div className="bg-[#F1F4FE] p-2 sm:p-3 rounded-lg">
+                        <svg className="w-6 h-6 sm:w-8 sm:h-8 text-[#4067EC]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                    </div>
+                      <div>
+                        <div className="text-xs sm:text-sm text-gray-500">Wypełnij ankiety</div>
+                        <div className="text-sm sm:text-base font-semibold text-gray-800">Pomóż nam się rozwijać</div>
+                      </div>
+                    </div>
+                  </div>
+                  <a 
+                    href="/homelogin/ankiety" 
+                    className="inline-flex items-center bg-[#4067EC] text-white px-3 sm:px-4 py-2 sm:py-3 rounded-lg text-xs sm:text-sm font-semibold hover:bg-[#3050b3] transition duration-200 hover:scale-105 w-full justify-center"
+                  >
+                    Przejdź do ankiet
+                    <svg className="w-3 h-3 sm:w-4 sm:h-4 ml-1" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                  </a>
                 </div>
               </div>
             </div>

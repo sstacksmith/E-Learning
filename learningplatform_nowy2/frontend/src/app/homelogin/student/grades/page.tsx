@@ -1,0 +1,204 @@
+'use client';
+import React, { useEffect, useState } from 'react';
+import { collection, getDocs, query, where, doc, getDoc } from 'firebase/firestore';
+import { db } from '@/config/firebase';
+import { useAuth } from '@/context/AuthContext';
+import Providers from '@/components/Providers';
+
+interface Grade {
+  id: string;
+  subject: string;
+  grade: string;
+  description: string;
+  date: string;
+  teacherId: string;
+  gradeType?: string;
+}
+
+interface GroupedGrades {
+  [subject: string]: Grade[];
+}
+
+function GradesPageContent() {
+  const { user } = useAuth();
+  const [grades, setGrades] = useState<Grade[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [displayName, setDisplayName] = useState<string>('');
+  const [toast, setToast] = useState<{grade: string, description: string, date: string, gradeType?: string} | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    // Pobierz displayName z Firestore
+    const fetchDisplayName = async () => {
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      if (userDoc.exists()) {
+        const data = userDoc.data();
+        setDisplayName(data.displayName || '');
+      }
+    };
+    fetchDisplayName();
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    const fetchGrades = async () => {
+      setLoading(true);
+      const gradesQuery = query(collection(db, 'grades'), where('studentId', '==', user.uid));
+      const gradesSnapshot = await getDocs(gradesQuery);
+      const gradesList = gradesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Grade));
+      setGrades(gradesList);
+      setLoading(false);
+    };
+    fetchGrades();
+  }, [user]);
+
+  // Grupowanie ocen po przedmiocie i sortowanie po dacie rosnąco
+  const groupedGrades: GroupedGrades = grades.reduce((acc, grade) => {
+    if (!acc[grade.subject]) acc[grade.subject] = [];
+    acc[grade.subject].push(grade);
+    return acc;
+  }, {} as GroupedGrades);
+  // Sortuj oceny w każdym przedmiocie po dacie rosnąco
+  Object.keys(groupedGrades).forEach(subject => {
+    groupedGrades[subject].sort((a, b) => {
+      // Jeśli data nie istnieje, traktuj jako najstarszą
+      if (!a.date) return -1;
+      if (!b.date) return 1;
+      return new Date(a.date).getTime() - new Date(b.date).getTime();
+    });
+  });
+
+  // Funkcja do określania koloru badge na podstawie oceny
+  function getGradeColor(grade: string) {
+    if (grade === '5' || grade === '6') return 'bg-green-400 text-white';
+    if (grade === '4') return 'bg-lime-400 text-white';
+    if (grade === '3') return 'bg-yellow-300 text-gray-800';
+    if (grade === '2') return 'bg-orange-400 text-white';
+    if (grade === '1') return 'bg-red-500 text-white';
+    if (grade === '+') return 'bg-blue-200 text-gray-800';
+    if (grade === '-') return 'bg-gray-300 text-gray-800';
+    // inne przypadki, np. opisowe
+    return 'bg-gray-200 text-gray-800';
+  }
+
+  // Funkcja do liczenia średniej ocen (tylko liczbowych)
+  function calculateAverage(grades: Grade[]): string {
+    const numericGrades = grades
+      .map(g => parseFloat(g.grade.replace(',', '.')))
+      .filter(n => !isNaN(n));
+    if (numericGrades.length === 0) return '-';
+    const avg = numericGrades.reduce((a, b) => a + b, 0) / numericGrades.length;
+    return avg.toFixed(2);
+  }
+
+  return (
+    <div className="w-full min-h-screen bg-[#f7f9fb] py-8 px-4">
+      <div className="flex items-center gap-4 mb-8 max-w-5xl mx-auto">
+        <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center text-2xl font-bold text-gray-500">
+          {displayName ? displayName.split(' ').map(n => n[0]).join('').toUpperCase() : ''}
+        </div>
+        <div>
+          <h1 className="text-3xl font-bold text-gray-800">Dziennik ocen</h1>
+          <p className="text-gray-600">Twoje oceny z wszystkich przedmiotów</p>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center items-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-4 border-[#4067EC] border-t-transparent"></div>
+        </div>
+      ) : grades.length === 0 ? (
+        <div className="text-center py-12 max-w-5xl mx-auto">
+          <div className="text-gray-400 text-6xl mb-4">📚</div>
+          <h3 className="text-xl font-semibold text-gray-600 mb-2">Brak ocen</h3>
+          <p className="text-gray-500">Nie masz jeszcze żadnych ocen w dzienniku.</p>
+        </div>
+      ) : (
+        <div className="max-w-5xl mx-auto space-y-6">
+          {Object.entries(groupedGrades).map(([subject, subjectGrades]) => (
+            <div key={subject} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+              <div className="bg-gradient-to-r from-[#4067EC] to-[#5577FF] px-6 py-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xl font-bold text-white">{subject}</h2>
+                  <div className="text-right">
+                    <div className="text-white text-sm opacity-90">Średnia</div>
+                    <div className="text-white text-2xl font-bold">{calculateAverage(subjectGrades)}</div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="p-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {subjectGrades.map((grade) => (
+                    <div 
+                      key={grade.id} 
+                      className="bg-gray-50 rounded-lg p-4 border border-gray-200 hover:border-[#4067EC] transition-colors cursor-pointer"
+                      onClick={() => setToast({
+                        grade: grade.grade,
+                        description: grade.description,
+                        date: grade.date,
+                        gradeType: grade.gradeType
+                      })}
+                    >
+                      <div className="flex items-center justify-between mb-3">
+                        <span className={`px-3 py-1 rounded-full text-sm font-semibold ${getGradeColor(grade.grade)}`}>
+                          {grade.grade}
+                        </span>
+                        <span className="text-xs text-gray-500">
+                          {grade.date ? new Date(grade.date).toLocaleDateString('pl-PL') : 'Brak daty'}
+                        </span>
+                      </div>
+                      
+                      <h4 className="font-medium text-gray-800 mb-2 line-clamp-2">
+                        {grade.description}
+                      </h4>
+                      
+                      {grade.gradeType && (
+                        <span className="text-xs text-gray-500 bg-gray-200 px-2 py-1 rounded">
+                          {grade.gradeType}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Toast notification */}
+      {toast && (
+        <div className="fixed bottom-4 right-4 bg-white border border-gray-200 rounded-lg shadow-lg p-4 max-w-sm z-50">
+          <div className="flex items-start gap-3">
+            <div className={`w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold ${getGradeColor(toast.grade)}`}>
+              {toast.grade}
+            </div>
+            <div className="flex-1">
+              <h4 className="font-semibold text-gray-800 mb-1">Szczegóły oceny</h4>
+              <p className="text-sm text-gray-600 mb-2">{toast.description}</p>
+              <p className="text-xs text-gray-500">Data: {toast.date ? new Date(toast.date).toLocaleDateString('pl-PL') : 'Brak daty'}</p>
+              {toast.gradeType && (
+                <p className="text-xs text-gray-500">Typ: {toast.gradeType}</p>
+              )}
+            </div>
+            <button 
+              onClick={() => setToast(null)}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function GradesPage() {
+  return (
+    <Providers>
+      <GradesPageContent />
+    </Providers>
+  );
+}

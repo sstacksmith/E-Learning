@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 
 type NotificationType = 'success' | 'error' | 'info';
 
@@ -21,10 +21,10 @@ export default function Notification({
 }: NotificationProps) {
   const [isVisible, setIsVisible] = useState(true);
 
-  const close = useCallback(() => {
+  const close = () => {
     setIsVisible(false);
     if (onClose) onClose();
-  }, [onClose]);
+  };
 
   useEffect(() => {
     if (autoClose && isVisible) {
@@ -33,7 +33,7 @@ export default function Notification({
       }, duration);
       return () => clearTimeout(timer);
     }
-  }, [autoClose, duration, isVisible, close]);
+  }, [autoClose, duration, isVisible]);
 
   if (!isVisible) return null;
 

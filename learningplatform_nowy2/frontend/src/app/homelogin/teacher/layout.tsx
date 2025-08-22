@@ -79,6 +79,13 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
       active: pathname === '/homelogin/teacher/quizzes'
     },
     { 
+      id: 'surveys', 
+      label: 'Ankiety', 
+      icon: BarChart3, 
+      href: '/homelogin/teacher/surveys',
+      active: pathname === '/homelogin/teacher/surveys'
+    },
+    { 
       id: 'calendar', 
       label: 'Kalendarz', 
       icon: Calendar, 
@@ -110,7 +117,7 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
   
   return (
     <TeacherRoute>
-      <div className="flex min-h-screen bg-gray-50">
+      <div className="flex min-h-screen bg-gray-50 w-full max-w-none">
         {/* Desktop Sidebar */}
         <div className="hidden lg:flex lg:w-64 lg:flex-col lg:fixed lg:inset-y-0 bg-white border-r border-gray-200 shadow-sm">
           <div className="flex flex-col flex-1">
@@ -241,7 +248,7 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
         </div>
 
         {/* Main Content */}
-        <div className="lg:pl-64 flex-1">
+        <div className="lg:pl-64 flex-1 w-full max-w-none">
           {/* Header */}
           <header className="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-6 shadow-sm">
             <div className="flex items-center gap-4">
@@ -274,7 +281,7 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
           </header>
 
           {/* Page Content */}
-          <main className="p-6">
+          <main className="p-0">
             {children}
           </main>
         </div>

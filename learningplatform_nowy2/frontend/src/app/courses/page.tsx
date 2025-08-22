@@ -2,6 +2,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import BackButton from '@/components/BackButton';
 
 // Types
 
@@ -69,12 +70,12 @@ export default function CoursesPage() {
   return (
     <div className="min-h-screen bg-[#F1F4FE] flex flex-col">
       {/* Navigation Bar */}
-      <nav className="w-full bg-[#4067EC] py-4 px-8 flex items-center justify-between shadow-md">
+      <nav className="w-full bg-[#4067EC] py-4 px-4 md:px-8 flex flex-col md:flex-row items-center justify-between gap-4 shadow-md">
         <div className="flex items-center gap-3">
           <Image src="/puzzleicon.png" alt="Logo" width={32} height={32} />
           <span className="text-white text-xl font-bold tracking-wide">COGITO</span>
         </div>
-        <div className="flex items-center gap-6">
+        <div className="flex flex-col md:flex-row items-center gap-2 md:gap-6 w-full md:w-auto">
           <button onClick={() => router.push('/homelogin')} className="text-white font-medium hover:underline">Home</button>
           <button onClick={() => router.push('/profile')} className="text-white font-medium hover:underline">Profile</button>
           <button onClick={handleLogout} className="bg-white text-[#4067EC] font-semibold px-4 py-2 rounded shadow hover:bg-blue-100 transition">Wyloguj się</button>
@@ -82,7 +83,14 @@ export default function CoursesPage() {
       </nav>
 
       <div className="flex-1 w-full flex flex-col items-center justify-center py-12">
-        <div className="w-full max-w-5xl">
+        <div className="w-full max-w-5xl px-4">
+          {/* Back Button */}
+          <div className="mb-6">
+            <BackButton href="/homelogin" className="mb-4">
+              Powrót do Dashboard
+            </BackButton>
+          </div>
+
           {/* Podstawa */}
           <h2 className="text-2xl font-extrabold text-[#4067EC] mb-4">Podstawa</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 mb-10">
