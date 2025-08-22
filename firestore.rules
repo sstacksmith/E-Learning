@@ -2,8 +2,47 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Użytkownicy mogą czytać i zapisywać swoje własne dane
+    match /users/{userId} {
+      allow read, write: if request.auth != null && (request.auth.uid == userId || request.auth.token.role == 'admin');
+    }
+    
+    // Administratorzy mogą czytać i zapisywać wszystkie dane użytkowników
+    match /users/{document=**} {
+      allow read, write: if request.auth != null && request.auth.token.role == 'admin';
+    }
+    
+    // Kursy - nauczyciele mogą zarządzać swoimi kursami
+    match /courses/{courseId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && (
+        request.auth.token.role == 'admin' || 
+        request.auth.token.role == 'teacher'
+      );
+    }
+    
+    // Quizy - nauczyciele mogą zarządzać quizami
+    match /quizzes/{quizId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && (
+        request.auth.token.role == 'admin' || 
+        request.auth.token.role == 'teacher'
+      );
+    }
+    
+    // Grupy - administratorzy i nauczyciele mogą zarządzać
+    match /groups/{groupId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && (
+        request.auth.token == 'admin' || 
+        request.auth.token.role == 'teacher'
+      );
+    }
+    
+    // Domyślnie - tylko zalogowani użytkownicy mogą czytać
     match /{document=**} {
-      allow read, write: if true;
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.token.role == 'admin';
     }
   }
 }

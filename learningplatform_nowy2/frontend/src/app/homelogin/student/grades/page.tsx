@@ -202,3 +202,4 @@ export default function GradesPage() {
     </Providers>
   );
 }
+

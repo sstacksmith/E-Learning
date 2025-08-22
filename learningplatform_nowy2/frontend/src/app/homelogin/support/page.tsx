@@ -1,6 +1,8 @@
 "use client";
 import { useState, useRef } from "react";
 import Link from "next/link";
+import { useRouter } from 'next/navigation';
+import { ArrowLeft, HelpCircle, MessageSquare, Mail, Phone, Clock, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
 
 const faqs = [
   {
@@ -25,7 +27,6 @@ const faqs = [
     question: "Czy mogę korzystać z platformy na telefonie?",
     answer:
       "Tak! Nasza platforma działa na smartfonach i tabletach. Wystarczy przeglądarka internetowa.",
-    // lazyLink usunięty, nie wyświetlamy przycisku
   },
   {
     question: "Jak skontaktować się z nauczycielem?",
@@ -69,81 +70,199 @@ const faqs = [
 export default function FAQPage() {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
   const faqRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const router = useRouter();
 
   return (
-    <div className="min-h-screen bg-[#F8F9FB] flex flex-col md:flex-row items-start py-6 md:py-10 px-2 md:px-8 gap-4 md:gap-8">
-      {/* Przycisk powrotu na górze po lewej */}
-      <Link
-        href="/homelogin"
-        className="mb-4 self-start inline-flex items-center px-4 py-2 bg-black text-white rounded-lg font-bold shadow-lg hover:bg-[#4067EC] hover:text-white transition-colors text-xs md:text-sm border-2 border-black focus:outline-none focus:ring-2 focus:ring-black"
-      >
-        ← Wróć do panelu głównego
-      </Link>
-      {/* Główna sekcja FAQ */}
-      <div className="w-full max-w-2xl bg-white rounded-2xl shadow-lg p-4 md:p-8 mx-auto">
-        <h1 className="text-2xl md:text-3xl font-bold text-[#4067EC] mb-4 md:mb-6 text-center">FAQ – Najczęściej Zadawane Pytania</h1>
-        <p className="text-gray-600 mb-4 md:mb-8 text-center text-xs md:text-base">
-          Tutaj znajdziesz odpowiedzi na najczęstsze pytania dotyczące korzystania z naszej platformy edukacyjnej.
-        </p>
-        <div className="space-y-2 md:space-y-4">
-          {faqs.map((faq, idx) => (
-            <div
-              key={idx}
-              ref={(el) => {
-                faqRefs.current[idx] = el;
-              }}
-              className="border border-gray-200 rounded-lg overflow-hidden bg-gray-50"
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+      {/* Header z przyciskiem powrotu */}
+      <div className="w-full bg-white/80 backdrop-blur-lg border-b border-white/20 shadow-sm">
+        <div className="w-full px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex items-center justify-between">
+            <button
+              onClick={() => router.push('/homelogin')}
+              className="flex items-center gap-2 px-4 py-2 bg-white/60 backdrop-blur-sm text-gray-700 rounded-lg hover:bg-white hover:shadow-lg transition-all duration-200 ease-in-out border border-white/20"
             >
-              <button
-                className="w-full flex justify-between items-center px-4 py-3 text-left focus:outline-none focus:ring-2 focus:ring-[#4067EC] hover:bg-[#F1F4FE] transition-colors text-xs md:text-base"
-                onClick={() => setOpenIndex(openIndex === idx ? null : idx)}
-                aria-expanded={openIndex === idx}
-                aria-controls={`faq-panel-${idx}`}
-              >
-                <span className="font-semibold text-gray-800">{faq.question}</span>
-                <svg
-                  className={`w-5 h-5 ml-2 transform transition-transform ${openIndex === idx ? "rotate-180" : "rotate-0"}`}
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-              {openIndex === idx && (
-                <div
-                  id={`faq-panel-${idx}`}
-                  className="px-4 pb-4 text-gray-700 animate-fadeIn flex flex-col gap-2 text-xs md:text-base"
-                >
-                  <span>{faq.answer}</span>
-                  {faq.lazyLink && (
-                    <Link
-                      href={faq.lazyLink}
-                      className="self-start mt-2 inline-flex items-center px-4 py-2 bg-black text-white rounded-lg font-bold shadow-lg hover:bg-[#4067EC] hover:text-white transition-colors text-xs md:text-sm border-2 border-black focus:outline-none focus:ring-2 focus:ring-black"
-                    >
-                      Dla leniwych
-                      <svg className="w-4 h-4 ml-2" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                      </svg>
-                    </Link>
-                  )}
-                  {/* Dodaj drugi przycisk tylko dla pytania o materiały do nauki */}
-                  {faq.extraLink && (
-                    <Link
-                      href={faq.extraLink}
-                      className="self-start mt-2 inline-flex items-center px-4 py-2 bg-black text-white rounded-lg font-bold shadow-lg hover:bg-[#4067EC] hover:text-white transition-colors text-xs md:text-sm border-2 border-black focus:outline-none focus:ring-2 focus:ring-black"
-                    >
-                      Materiały w kursach
-                      <svg className="w-4 h-4 ml-2" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                      </svg>
-                    </Link>
-                  )}
+              <ArrowLeft className="w-4 h-4" />
+              Powrót do strony głównej
+            </button>
+            
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              Wsparcie i FAQ
+            </h1>
+            
+            <div className="w-20"></div>
+          </div>
+        </div>
+      </div>
+
+      {/* Główny kontener - pełna szerokość */}
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-8">
+        {/* Sekcja kontaktowa - pełna szerokość z wyrównaną wysokością */}
+        <div className="w-full grid grid-cols-1 xl:grid-cols-4 gap-6 mb-8">
+          <div className="xl:col-span-3">
+            <div className="w-full h-full bg-white/90 backdrop-blur-xl rounded-2xl shadow-lg p-6 border border-white/20 flex flex-col">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
+                  <HelpCircle className="w-6 h-6 text-white" />
                 </div>
-              )}
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-800">Potrzebujesz pomocy?</h2>
+                  <p className="text-gray-600">Skontaktuj się z naszym zespołem wsparcia</p>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 flex-1">
+                <div className="flex items-center gap-3 p-4 bg-blue-50 rounded-xl h-20">
+                  <Mail className="w-5 h-5 text-blue-600 flex-shrink-0" />
+                  <div className="min-w-0">
+                    <p className="font-semibold text-gray-800">Email</p>
+                    <p className="text-sm text-gray-600">pomoc@cogito.pl</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-3 p-4 bg-green-50 rounded-xl h-20">
+                  <Phone className="w-5 h-5 text-green-600 flex-shrink-0" />
+                  <div className="min-w-0">
+                    <p className="font-semibold text-gray-800">Telefon</p>
+                    <p className="text-sm text-gray-600">+48 123 456 789</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-3 p-4 bg-purple-50 rounded-xl h-20">
+                  <Clock className="w-5 h-5 text-purple-600 flex-shrink-0" />
+                  <div className="min-w-0">
+                    <p className="font-semibold text-gray-800">Godziny pracy</p>
+                    <p className="text-sm text-gray-600">pon-pt 9:00-17:00</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-3 p-4 bg-orange-50 rounded-xl h-20">
+                  <MessageSquare className="w-5 h-5 text-orange-600 flex-shrink-0" />
+                  <div className="min-w-0">
+                    <p className="font-semibold text-gray-800">Czat</p>
+                    <p className="text-sm text-gray-600">Dostępny 24/7</p>
+                  </div>
+                </div>
+              </div>
             </div>
-          ))}
+          </div>
+          
+          <div className="xl:col-span-1">
+            <div className="w-full h-full bg-white/90 backdrop-blur-xl rounded-2xl shadow-lg p-6 border border-white/20 flex flex-col">
+              <h3 className="text-lg font-bold text-gray-800 mb-6">Szybkie linki</h3>
+              <div className="space-y-3 flex-1">
+                <Link 
+                  href="/homelogin/my-courses"
+                  className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors h-14"
+                >
+                  <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <span className="text-white text-sm font-bold">K</span>
+                  </div>
+                  <span className="font-medium text-gray-800">Moje kursy</span>
+                </Link>
+                
+                <Link 
+                  href="/homelogin/grades"
+                  className="flex items-center gap-3 p-3 bg-green-50 rounded-lg hover:bg-green-100 transition-colors h-14"
+                >
+                  <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <span className="text-white text-sm font-bold">O</span>
+                  </div>
+                  <span className="font-medium text-gray-800">Dziennik ocen</span>
+                </Link>
+                
+                <Link 
+                  href="/homelogin/library"
+                  className="flex items-center gap-3 p-3 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors h-14"
+                >
+                  <div className="w-8 h-8 bg-purple-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <span className="text-white text-sm font-bold">B</span>
+                  </div>
+                  <span className="font-medium text-gray-800">Biblioteka</span>
+                </Link>
+                
+                <Link 
+                  href="/homelogin/group-chats"
+                  className="flex items-center gap-3 p-3 bg-orange-50 rounded-lg hover:bg-orange-100 transition-colors h-14"
+                >
+                  <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <span className="text-white text-sm font-bold">C</span>
+                  </div>
+                  <span className="font-medium text-gray-800">Czat grupowy</span>
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Sekcja FAQ - pełna szerokość z wyrównaną wysokością */}
+        <div className="w-full bg-white/90 backdrop-blur-xl rounded-2xl shadow-lg p-6 border border-white/20">
+          <div className="flex items-center gap-3 mb-8">
+            <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
+              <HelpCircle className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold text-gray-800">FAQ – Najczęściej Zadawane Pytania</h2>
+              <p className="text-gray-600">Tutaj znajdziesz odpowiedzi na najczęstsze pytania dotyczące korzystania z naszej platformy edukacyjnej.</p>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {faqs.map((faq, idx) => (
+              <div
+                key={idx}
+                ref={(el) => {
+                  faqRefs.current[idx] = el;
+                }}
+                className="border border-gray-200 rounded-xl overflow-hidden bg-gray-50/50 hover:bg-gray-50 transition-colors flex flex-col"
+              >
+                <button
+                  className="w-full flex justify-between items-center px-6 py-5 text-left focus:outline-none focus:ring-2 focus:ring-blue-500 hover:bg-blue-50/50 transition-colors min-h-[72px]"
+                  onClick={() => setOpenIndex(openIndex === idx ? null : idx)}
+                  aria-expanded={openIndex === idx}
+                  aria-controls={`faq-panel-${idx}`}
+                >
+                  <span className="font-semibold text-gray-800 text-left pr-4">{faq.question}</span>
+                  {openIndex === idx ? (
+                    <ChevronUp className="w-5 h-5 text-gray-500 flex-shrink-0" />
+                  ) : (
+                    <ChevronDown className="w-5 h-5 text-gray-500 flex-shrink-0" />
+                  )}
+                </button>
+                {openIndex === idx && (
+                  <div
+                    id={`faq-panel-${idx}`}
+                    className="px-6 pb-6 text-gray-700 animate-fadeIn flex-1"
+                  >
+                    <div className="pt-2 pb-4 border-t border-gray-200">
+                      <p className="text-gray-700 leading-relaxed mb-4">{faq.answer}</p>
+                      
+                      <div className="flex flex-wrap gap-3">
+                        {faq.lazyLink && (
+                          <Link
+                            href={faq.lazyLink}
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600 transition-colors shadow-sm hover:shadow-md"
+                          >
+                            Przejdź do sekcji
+                            <ExternalLink className="w-4 h-4" />
+                          </Link>
+                        )}
+                        {faq.extraLink && (
+                          <Link
+                            href={faq.extraLink}
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-purple-500 text-white rounded-lg font-medium hover:bg-purple-600 transition-colors shadow-sm hover:shadow-md"
+                          >
+                            Materiały w kursach
+                            <ExternalLink className="w-4 h-4" />
+                          </Link>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>

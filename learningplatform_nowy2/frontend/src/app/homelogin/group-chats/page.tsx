@@ -5,9 +5,10 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from '@/context/AuthContext';
-import { MessageSquare, Users, Send } from 'lucide-react';
+import { MessageSquare, Users, Send, ArrowLeft } from 'lucide-react';
 import { db } from '@/config/firebase';
 import { collection, query, where, onSnapshot, addDoc, serverTimestamp, orderBy, limit, getDocs } from 'firebase/firestore';
+import { useRouter } from 'next/navigation';
 
 interface GroupChat {
   id: string;
@@ -34,6 +35,7 @@ interface Message {
 
 export default function StudentGroupChatsPage() {
   const { user } = useAuth();
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [chats, setChats] = useState<GroupChat[]>([]);
   const [selectedChat, setSelectedChat] = useState<GroupChat | null>(null);
@@ -170,15 +172,24 @@ export default function StudentGroupChatsPage() {
       {/* Modern Header */}
       <div className="mb-6">
         <div className="bg-white/80 backdrop-blur-lg rounded-2xl p-6 shadow-lg border border-white/20">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
-              <MessageSquare className="h-6 w-6 text-white" />
-            </div>
-            <div>
-              <h2 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                Czat Grupowy
-              </h2>
-              <p className="text-gray-600">Komunikuj się z nauczycielami i innymi uczniami</p>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => router.push('/homelogin')}
+                className="flex items-center gap-2 px-4 py-2 bg-white/60 backdrop-blur-sm text-gray-700 rounded-lg hover:bg-white hover:shadow-lg transition-all duration-200 ease-in-out border border-white/20"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Powrót do strony głównej
+              </button>
+              <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
+                <MessageSquare className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                  Czat Grupowy
+                </h2>
+                <p className="text-gray-600">Komunikuj się z nauczycielami i innymi uczniami</p>
+              </div>
             </div>
           </div>
         </div>

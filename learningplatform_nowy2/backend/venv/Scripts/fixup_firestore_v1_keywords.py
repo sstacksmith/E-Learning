@@ -1,4 +1,4 @@
-#!C:\Users\lokadm\Desktop\Cogito\learningplatform_nowy2\backend\venv\Scripts\python.exe
+#!C:\Users\rafal\Desktop\Cogito_Patryk\learningplatform_nowy2\backend\venv\Scripts\python.exe
 # -*- coding: utf-8 -*-
 # Copyright 2025 Google LLC
 #
