@@ -5,6 +5,7 @@ import { useAuth } from '@/context/AuthContext';
 import Providers from '@/components/Providers';
 import { db } from '@/config/firebase';
 import { collection, getDocs, doc, updateDoc, getDoc } from 'firebase/firestore';
+import { ArrowLeft } from 'lucide-react';
 
 interface Course {
   id: string;
@@ -131,9 +132,28 @@ function StudentAssignmentsContent() {
   }, [selectedCourse, selectedStudent, students, setAssignSuccess, setAssignError, setLoading, setSelectedCourse, setSelectedStudent]);
 
   return (
-    <div className="min-h-screen bg-[#F8F9FB]">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 w-full">
+      {/* Header z przyciskiem powrotu */}
+      <div className="bg-white/80 backdrop-blur-lg border-b border-white/20 px-4 sm:px-6 lg:px-8 py-4">
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => window.location.href = '/homelogin'}
+            className="flex items-center gap-2 px-4 py-2 bg-white/60 backdrop-blur-sm text-gray-700 rounded-lg hover:bg-white hover:shadow-lg transition-all duration-200 ease-in-out border border-white/20"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Powrót do strony głównej
+          </button>
+
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+            Przypisz kurs uczniowi
+          </h1>
+
+          <div className="w-20"></div>
+        </div>
+      </div>
+
       <main className="max-w-3xl mx-auto px-4 py-8">
-        <h1 className="text-2xl font-bold text-[#4067EC] mb-4">Przypisz kurs uczniowi</h1>
+        <h2 className="text-2xl font-bold text-[#4067EC] mb-4">Przypisz kurs uczniowi</h2>
         <p className="mb-6 text-gray-700">Wybierz kurs i ucznia, aby przypisać ucznia do wybranego kursu.</p>
         <form onSubmit={handleAssign} className="bg-white rounded-lg shadow p-8 space-y-6">
           {assignSuccess && (

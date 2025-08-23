@@ -4,6 +4,7 @@ import { useAuth } from '@/context/AuthContext';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import Providers from '@/components/Providers';
+import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 
 interface Material {
@@ -105,10 +106,30 @@ function StudentMaterialsContent() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F4F6FB] py-6 md:py-8 px-2 md:px-8">
-      <div className="bg-white w-full max-w-6xl mx-auto p-4 md:p-6 mt-0 rounded-2xl shadow-md">
-        <h1 className="text-2xl md:text-3xl font-bold mb-2">Materiały edukacyjne <span className="inline-block">📚</span></h1>
-        <p className="text-gray-600 mb-6">Dostępne materiały z Twoich kursów</p>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 w-full">
+      {/* Header z przyciskiem powrotu */}
+      <div className="bg-white/80 backdrop-blur-lg border-b border-white/20 px-4 sm:px-6 lg:px-8 py-4">
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => window.location.href = '/homelogin'}
+            className="flex items-center gap-2 px-4 py-2 bg-white/60 backdrop-blur-sm text-gray-700 rounded-lg hover:bg-white hover:shadow-lg transition-all duration-200 ease-in-out border border-white/20"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Powrót do strony głównej
+          </button>
+          
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+            Materiały edukacyjne
+          </h1>
+          
+          <div className="w-20"></div>
+        </div>
+      </div>
+
+      <div className="px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
+        <div className="bg-white/90 backdrop-blur-xl w-full max-w-6xl mx-auto p-4 md:p-6 rounded-2xl shadow-lg border border-white/20">
+          <h2 className="text-2xl md:text-3xl font-bold mb-2">Materiały edukacyjne <span className="inline-block">📚</span></h2>
+          <p className="text-gray-600 mb-6">Dostępne materiały z Twoich kursów</p>
         
         {/* Filtry i wyszukiwanie */}
         <div className="flex flex-col md:flex-row gap-4 mb-6">
@@ -149,7 +170,7 @@ function StudentMaterialsContent() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
             {filteredMaterials.map((material) => (
-              <div key={material.id} className="bg-[#F8F9FB] rounded-xl p-4 md:p-6 border border-gray-200 hover:border-[#4067EC] transition-colors">
+              <div key={material.id} className="bg-white/90 backdrop-blur-xl rounded-xl p-4 md:p-6 border border-white/20 hover:border-[#4067EC] transition-all duration-300 hover:shadow-lg">
                 <div className="flex items-start gap-3 mb-4">
                   <div className="text-3xl">{getMaterialIcon(material.type)}</div>
                   <div className="flex-1">
@@ -211,6 +232,7 @@ function StudentMaterialsContent() {
             ))}
           </div>
         )}
+        </div>
       </div>
     </div>
   );

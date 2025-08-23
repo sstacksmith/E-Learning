@@ -10,6 +10,7 @@ import {
   BookOpen,
   Award,
   TrendingUp,
+  ArrowLeft,
 } from 'lucide-react';
 
 interface StatCard {
@@ -349,32 +350,62 @@ export default function ParentStats() {
 
   if (error) {
     return (
-      <div className="flex items-center justify-center min-h-64">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex flex-col items-center justify-center">
         <div className="text-center">
           <div className="text-red-600 text-lg font-semibold mb-2">Błąd</div>
-          <div className="text-gray-600">{error}</div>
-          <button 
-            onClick={fetchRealStatistics}
-            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-          >
-            Spróbuj ponownie
-          </button>
+          <div className="text-gray-600 mb-4">{error}</div>
+          <div className="flex gap-4">
+            <button 
+              onClick={fetchRealStatistics}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
+              Spróbuj ponownie
+            </button>
+            <button 
+              onClick={() => window.location.href = '/homelogin'}
+              className="flex items-center gap-2 px-4 py-2 bg-white/60 backdrop-blur-sm text-gray-700 rounded-lg hover:bg-white hover:shadow-lg transition-all duration-200 ease-in-out border border-white/20"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Powrót do strony głównej
+            </button>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold mb-4 text-gray-900">Statystyki i Postępy</h2>
-        <p className="text-gray-600 mb-6">
-          {assignedStudent ? 
-            `Analiza postępów w nauce ${assignedStudent.name}` : 
-            'Analiza postępów w nauce'
-          }
-        </p>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 w-full">
+      {/* Header z przyciskiem powrotu */}
+      <div className="bg-white/80 backdrop-blur-lg border-b border-white/20 px-4 sm:px-6 lg:px-8 py-4">
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => window.location.href = '/homelogin'}
+            className="flex items-center gap-2 px-4 py-2 bg-white/60 backdrop-blur-sm text-gray-700 rounded-lg hover:bg-white hover:shadow-lg transition-all duration-200 ease-in-out border border-white/20"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Powrót do strony głównej
+          </button>
+
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+            Statystyki i Postępy
+          </h1>
+
+          <div className="w-20"></div>
+        </div>
       </div>
+
+      <div className="px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
+        <div className="space-y-6">
+          <div>
+            <h2 className="text-2xl font-bold mb-4 text-gray-900">Statystyki i Postępy</h2>
+            <p className="text-gray-600 mb-6">
+              {assignedStudent ? 
+                `Analiza postępów w nauce ${assignedStudent.name}` : 
+                'Analiza postępów w nauce'
+              }
+            </p>
+          </div>
 
       {/* Stat Cards */}
       <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -469,6 +500,8 @@ export default function ParentStats() {
               ))}
             </div>
           </div>
+        </div>
+      </div>
         </div>
       </div>
     </div>

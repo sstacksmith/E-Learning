@@ -27,7 +27,8 @@ import {
   XCircle,
   UserPlus,
   Group,
-  GraduationCap
+  GraduationCap,
+  ArrowLeft
 } from 'lucide-react';
 
 // Typ użytkownika Firestore
@@ -843,20 +844,29 @@ function SuperAdminDashboardContent() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#F8F9FB]">
-      {/* Header */}
-      <header className="bg-white shadow-sm">
-        <div className="w-full px-4 py-4 flex justify-between items-center">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 w-full">
+      {/* Header z przyciskiem powrotu */}
+      <div className="bg-white/80 backdrop-blur-lg border-b border-white/20 px-4 sm:px-6 lg:px-8 py-4">
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => window.location.href = '/homelogin'}
+            className="flex items-center gap-2 px-4 py-2 bg-white/60 backdrop-blur-sm text-gray-700 rounded-lg hover:bg-white hover:shadow-lg transition-all duration-200 ease-in-out border border-white/20"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Powrót do strony głównej
+          </button>
+
           <div className="flex items-center">
             <Image src="/puzzleicon.png" alt="Logo" width={32} height={32} />
             <span className="ml-2 text-xl font-bold text-[#4067EC]">COGITO</span>
           </div>
+
           <div className="flex items-center space-x-4">
             <span className="text-gray-600">Super Administrator</span>
             <Link href="/login" className="text-[#4067EC] hover:underline">Logout</Link>
           </div>
         </div>
-      </header>
+      </div>
 
       {/* Main Content */}
       <main className="w-full p-6">

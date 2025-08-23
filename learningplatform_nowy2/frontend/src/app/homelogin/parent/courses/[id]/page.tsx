@@ -407,16 +407,17 @@ export default function ParentCourseDetails() {
 
   if (error) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex flex-col items-center justify-center">
         <div className="text-center">
           <div className="text-red-500 text-xl mb-4">⚠️</div>
           <h2 className="text-xl font-semibold text-gray-900 mb-2">Wystąpił problem</h2>
           <p className="text-gray-600 mb-4">{error}</p>
           <button 
-            onClick={() => router.back()}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            onClick={() => window.location.href = '/homelogin'}
+            className="flex items-center gap-2 px-4 py-2 bg-white/60 backdrop-blur-sm text-gray-700 rounded-lg hover:bg-white hover:shadow-lg transition-all duration-200 ease-in-out border border-white/20"
           >
-            Wróć
+            <ArrowLeft className="w-4 h-4" />
+            Powrót do strony głównej
           </button>
         </div>
       </div>
@@ -451,22 +452,37 @@ export default function ParentCourseDetails() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-4 mb-6">
-        <button 
-          onClick={() => router.back()}
-          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-        >
-          <ArrowLeft className="w-5 h-5 text-gray-600" />
-        </button>
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">{courseDetails.title}</h1>
-          <p className="text-gray-600">
-            Postęp {assignedStudent?.name || 'ucznia'} w kursie
-          </p>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 w-full">
+      {/* Header z przyciskiem powrotu */}
+      <div className="bg-white/80 backdrop-blur-lg border-b border-white/20 px-4 sm:px-6 lg:px-8 py-4">
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => window.location.href = '/homelogin'}
+            className="flex items-center gap-2 px-4 py-2 bg-white/60 backdrop-blur-sm text-gray-700 rounded-lg hover:bg-white hover:shadow-lg transition-all duration-200 ease-in-out border border-white/20"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Powrót do strony głównej
+          </button>
+
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+            {courseDetails.title}
+          </h1>
+
+          <div className="w-20"></div>
         </div>
       </div>
+
+      <div className="px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
+        <div className="space-y-6">
+          {/* Header */}
+          <div className="flex items-center gap-4 mb-6">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900">{courseDetails.title}</h2>
+              <p className="text-gray-600">
+                Postęp {assignedStudent?.name || 'ucznia'} w kursie
+              </p>
+            </div>
+          </div>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
@@ -907,7 +923,9 @@ export default function ParentCourseDetails() {
             </div>
           </div>
         </div>
-      )}
+        )}
+        </div>
+      </div>
     </div>
   );
 }

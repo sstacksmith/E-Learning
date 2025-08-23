@@ -1,9 +1,10 @@
 "use client";
 import { useState, useEffect } from 'react';
-import Link from "next/link";
 import Image from "next/image";
+import Link from "next/link";
 import { db } from '@/config/firebase';
 import { collection, getDocs, query, where } from 'firebase/firestore';
+import { ArrowLeft } from 'lucide-react';
 
 interface Instructor {
   id: string;
@@ -48,15 +49,26 @@ export default function InstructorsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#F8F9FB] flex flex-col">
-        <header className="flex items-center justify-between px-8 py-6 bg-white border-b">
-          <div className="flex items-center gap-2">
-            <Image src="/puzzleicon.png" alt="Logo" width={32} height={32} />
-            <span className="text-xl font-bold text-[#4067EC]">COGITO</span>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 w-full">
+        {/* Header z przyciskiem powrotu */}
+        <div className="bg-white/80 backdrop-blur-lg border-b border-white/20 px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex items-center justify-between">
+            <button
+              onClick={() => window.location.href = '/homelogin'}
+              className="flex items-center gap-2 px-4 py-2 bg-white/60 backdrop-blur-sm text-gray-700 rounded-lg hover:bg-white hover:shadow-lg transition-all duration-200 ease-in-out border border-white/20"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Powrót do strony głównej
+            </button>
+            
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              Instruktorzy i Tutorzy
+            </h1>
+            
+            <div className="w-20"></div>
           </div>
-          <Link href="/homelogin" className="bg-[#4067EC] text-white px-4 py-2 rounded-lg font-semibold">Dashboard</Link>
-        </header>
-        <main className="flex-1 p-8">
+        </div>
+        <main className="flex-1 px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
           <div className="flex justify-center items-center h-64">
             <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-[#4067EC] border-r-transparent"></div>
             <span className="ml-3 text-gray-600">Ładowanie instruktorów...</span>
@@ -67,16 +79,26 @@ export default function InstructorsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F8F9FB] flex flex-col">
-      <header className="flex items-center justify-between px-8 py-6 bg-white border-b">
-        <div className="flex items-center gap-2">
-          <Image src="/puzzleicon.png" alt="Logo" width={32} height={32} />
-          <span className="text-xl font-bold text-[#4067EC]">COGITO</span>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 w-full">
+      {/* Header z przyciskiem powrotu */}
+      <div className="bg-white/80 backdrop-blur-lg border-b border-white/20 px-4 sm:px-6 lg:px-8 py-4">
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => window.location.href = '/homelogin'}
+            className="flex items-center gap-2 px-4 py-2 bg-white/60 backdrop-blur-sm text-gray-700 rounded-lg hover:bg-white hover:shadow-lg transition-all duration-200 ease-in-out border border-white/20"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Powrót do strony głównej
+          </button>
+          
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+            Instruktorzy i Tutorzy
+          </h1>
+          
+          <div className="w-20"></div>
         </div>
-        <Link href="/homelogin" className="bg-[#4067EC] text-white px-4 py-2 rounded-lg font-semibold">Dashboard</Link>
-      </header>
-      <main className="flex-1 p-8">
-        <h1 className="text-3xl font-bold text-gray-800 mb-6">Instruktorzy i Tutorzy</h1>
+      </div>
+      <main className="flex-1 px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
         
         {error && (
           <div className="mb-4 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded relative">
@@ -91,7 +113,7 @@ export default function InstructorsPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
             {instructors.map((instructor) => (
-              <div key={instructor.id} className="bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition-shadow duration-300">
+              <div key={instructor.id} className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-lg p-6 hover:shadow-xl transition-all duration-300 border border-white/20">
                 {/* Profile Image */}
                 <div className="flex flex-col items-center mb-4">
                   <div className="relative w-24 h-24 rounded-full overflow-hidden border-4 border-[#4067EC] mb-4">

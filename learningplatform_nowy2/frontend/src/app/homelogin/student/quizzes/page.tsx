@@ -6,6 +6,7 @@ import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { QuizDisplay } from '@/components/QuizDisplay';
 import Providers from '@/components/Providers';
+import { ArrowLeft } from 'lucide-react';
 
 interface Quiz {
   id: string;
@@ -90,10 +91,30 @@ function StudentQuizzesPageContent() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F4F6FB] py-6 md:py-8 px-2 md:px-8">
-      <div className="bg-white w-full max-w-5xl mx-auto p-4 md:p-6 mt-0 rounded-2xl shadow-md">
-        <h1 className="text-2xl md:text-3xl font-bold mb-2">Dostępne quizy <span className="inline-block">📝</span></h1>
-        <p className="text-gray-600 mb-6">Wybierz quiz, który chcesz rozwiązać</p>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 w-full">
+      {/* Header z przyciskiem powrotu */}
+      <div className="bg-white/80 backdrop-blur-lg border-b border-white/20 px-4 sm:px-6 lg:px-8 py-4">
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => window.location.href = '/homelogin'}
+            className="flex items-center gap-2 px-4 py-2 bg-white/60 backdrop-blur-sm text-gray-700 rounded-lg hover:bg-white hover:shadow-lg transition-all duration-200 ease-in-out border border-white/20"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Powrót do strony głównej
+          </button>
+          
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+            Dostępne quizy
+          </h1>
+          
+          <div className="w-20"></div>
+        </div>
+      </div>
+
+      <div className="px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
+        <div className="bg-white/90 backdrop-blur-xl w-full max-w-5xl mx-auto p-4 md:p-6 rounded-2xl shadow-lg border border-white/20">
+          <h2 className="text-2xl md:text-3xl font-bold mb-2">Dostępne quizy <span className="inline-block">📝</span></h2>
+          <p className="text-gray-600 mb-6">Wybierz quiz, który chcesz rozwiązać</p>
         
         {quizzes.length === 0 ? (
           <div className="text-center py-12">
@@ -123,6 +144,7 @@ function StudentQuizzesPageContent() {
             ))}
           </div>
         )}
+        </div>
       </div>
     </div>
   );

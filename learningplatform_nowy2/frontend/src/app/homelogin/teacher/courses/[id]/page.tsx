@@ -9,6 +9,7 @@ import Image from "next/image";
 import Providers from '@/components/Providers';
 import { FaFilePdf, FaFileAlt, FaLink, FaChevronDown, FaChevronUp, FaPlus, FaImage, FaClipboardList, FaGraduationCap, FaUsers, FaQuestionCircle } from "react-icons/fa";
 import dynamic from 'next/dynamic';
+import { ArrowLeft } from 'lucide-react';
 // Dynamiczny import MDXEditor
 const MDXEditor = dynamic(() => import('@mdxeditor/editor').then(mod => mod.MDXEditor), { ssr: false });
 import {
@@ -998,9 +999,28 @@ function TeacherCourseDetailContent() {
   if (!course) return <div className="p-8">Nie znaleziono kursu.</div>;
 
   return (
-    <div className="min-h-screen bg-[#f4f6fb] flex flex-col py-2 px-2 sm:px-4">
-      <div className="flex-1 flex flex-col w-full">
-      {/* BANNER - FULL WIDTH */}
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 w-full">
+      {/* Header z przyciskiem powrotu */}
+      <div className="bg-white/80 backdrop-blur-lg border-b border-white/20 px-4 sm:px-6 lg:px-8 py-4">
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => window.location.href = '/homelogin'}
+            className="flex items-center gap-2 px-4 py-2 bg-white/60 backdrop-blur-sm text-gray-700 rounded-lg hover:bg-white hover:shadow-lg transition-all duration-200 ease-in-out border border-white/20"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Powrót do strony głównej
+          </button>
+
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+            {course?.title || 'Szczegóły kursu'}
+          </h1>
+
+          <div className="w-20"></div>
+        </div>
+      </div>
+
+      <div className="flex-1 flex flex-col w-full py-2 px-2 sm:px-4">
+        {/* BANNER - FULL WIDTH */}
       <div className="w-full mb-4 relative rounded-2xl overflow-hidden shadow-lg bg-gradient-to-r from-[#4067EC] to-[#7aa2f7] flex items-center justify-between h-48 sm:h-56">
         <div className="p-8">
           <h1 className="text-3xl sm:text-4xl font-bold text-white drop-shadow-lg mb-2">{course?.title || 'Tytuł kursu'}</h1>
@@ -1610,7 +1630,7 @@ function TeacherCourseDetailContent() {
             </button>
           </div>
         </div>
-      </div>
+        </div>
       </div>
     </div>
   );

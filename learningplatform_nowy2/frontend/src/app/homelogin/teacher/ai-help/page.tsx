@@ -4,6 +4,7 @@ import React, { useState, useRef } from 'react';
 import { getAI, getGenerativeModel, GoogleAIBackend } from 'firebase/ai';
 import firebaseApp from '@/config/firebase';
 import ReactMarkdown from 'react-markdown';
+import { ArrowLeft } from 'lucide-react';
 
 interface Message {
   role: 'user' | 'ai';
@@ -60,12 +61,33 @@ export default function AIHelpPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h2 className="text-2xl font-bold text-gray-900">Pomoc AI</h2>
-        <p className="text-gray-600">Asystent AI dla nauczycieli</p>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 w-full">
+      {/* Header z przyciskiem powrotu */}
+      <div className="bg-white/80 backdrop-blur-lg border-b border-white/20 px-4 sm:px-6 lg:px-8 py-4">
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => window.location.href = '/homelogin'}
+            className="flex items-center gap-2 px-4 py-2 bg-white/60 backdrop-blur-sm text-gray-700 rounded-lg hover:bg-white hover:shadow-lg transition-all duration-200 ease-in-out border border-white/20"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Powrót do strony głównej
+          </button>
+
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+            Pomoc AI
+          </h1>
+
+          <div className="w-20"></div>
+        </div>
       </div>
+
+      <div className="px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
+        <div className="space-y-6">
+          {/* Header */}
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900">Pomoc AI</h2>
+            <p className="text-gray-600">Asystent AI dla nauczycieli</p>
+          </div>
 
       {/* Main Chat Interface */}
       <div className="bg-white rounded-lg border border-gray-200 h-[calc(100vh-250px)] flex flex-col">
@@ -200,6 +222,8 @@ export default function AIHelpPage() {
           <h3 className="font-medium">Materiały</h3>
           <p className="text-sm text-gray-500">Znajdź zasoby edukacyjne</p>
         </button>
+      </div>
+        </div>
       </div>
     </div>
   );

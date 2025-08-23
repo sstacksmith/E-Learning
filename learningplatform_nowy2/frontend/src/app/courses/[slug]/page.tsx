@@ -8,6 +8,7 @@ import { collection, getDocs, query, where, DocumentData, doc, setDoc, serverTim
 import { db } from '@/config/firebase';
 import { useAuth } from '@/context/AuthContext';
 import { FaFilePdf, FaLink, FaChevronDown, FaChevronUp, FaQuestionCircle } from "react-icons/fa";
+import { ArrowLeft } from 'lucide-react';
 import { Course, Section, Content, Quiz } from '@/types';
 
 export default function CourseDetailPage() {
@@ -307,7 +308,7 @@ function CourseDetail() {
   // Render loading state
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#f4f6fb] flex flex-col items-center py-6 px-2 sm:px-6">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex flex-col items-center py-6 px-2 sm:px-6">
         <div className="flex justify-center items-center h-64">
           <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-[#4067EC] border-r-transparent"></div>
           <span className="ml-3 text-gray-600">Ładowanie kursu...</span>
@@ -319,7 +320,7 @@ function CourseDetail() {
   // Render error state
   if (error || !course) {
     return (
-      <div className="min-h-screen bg-[#f4f6fb] flex flex-col items-center py-6 px-2 sm:px-6">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex flex-col items-center py-6 px-2 sm:px-6">
         <div className="w-full max-w-5xl bg-red-50 border border-red-200 text-red-800 p-4 rounded-lg">
           <p>{error || 'Nie znaleziono kursu'}</p>
           <div className="mt-4 flex space-x-4">
@@ -341,7 +342,7 @@ function CourseDetail() {
   // Sprawdź czy użytkownik jest przypisany do kursu
   if (!isAssigned && user?.role === 'student') {
     return (
-      <div className="min-h-screen bg-[#f4f6fb] flex flex-col items-center py-6 px-2 sm:px-6">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex flex-col items-center py-6 px-2 sm:px-6">
         <div className="w-full max-w-5xl text-center py-10">
           <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
@@ -364,19 +365,27 @@ function CourseDetail() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f4f6fb] flex flex-col items-center py-6 px-2 sm:px-6">
-      {/* Przycisk powrotu do dashboardu */}
-      <div className="w-full max-w-5xl mb-4 flex justify-start">
-        <Link 
-          href="/homelogin" 
-          className="flex items-center gap-2 bg-white text-[#4067EC] px-4 py-2 rounded-lg font-semibold shadow hover:bg-gray-50 transition-colors"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-          </svg>
-          Wróć do dashboardu
-        </Link>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 w-full">
+      {/* Header z przyciskiem powrotu */}
+      <div className="bg-white/80 backdrop-blur-lg border-b border-white/20 px-4 sm:px-6 lg:px-8 py-4">
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => window.location.href = '/homelogin'}
+            className="flex items-center gap-2 px-4 py-2 bg-white/60 backdrop-blur-sm text-gray-700 rounded-lg hover:bg-white hover:shadow-lg transition-all duration-200 ease-in-out border border-white/20"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Powrót do strony głównej
+          </button>
+
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+            {course?.title || 'Szczegóły kursu'}
+          </h1>
+
+          <div className="w-20"></div>
+        </div>
       </div>
+
+      <div className="flex flex-col items-center py-6 px-2 sm:px-6">
 
       {/* BANNER - taki sam jak w panelu nauczyciela */}
       <div className="w-full max-w-5xl mb-6 relative rounded-2xl overflow-hidden shadow-lg bg-gradient-to-r from-[#4067EC] to-[#7aa2f7] flex items-center justify-between h-48 sm:h-56">
@@ -596,6 +605,7 @@ function CourseDetail() {
             <p className="mt-1 text-sm text-gray-500">Ten kurs nie ma jeszcze żadnych sekcji ani materiałów.</p>
           </div>
         )}
+      </div>
       </div>
     </div>
   );

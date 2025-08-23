@@ -13,6 +13,7 @@ import { GradesChart } from '@/components/GradesChart';
 import TimeSeriesChart from '@/components/TimeSeriesChart';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '@/config/firebase';
+import { ArrowLeft } from 'lucide-react';
 
 // Interfejsy
 interface Badge {
@@ -736,9 +737,7 @@ export default function StatisticsPage() {
         onClick={() => router.push('/homelogin')}
         className="mb-6 flex items-center gap-2 px-4 py-2 bg-white/60 backdrop-blur-sm text-gray-700 rounded-lg hover:bg-white hover:shadow-lg transition-all duration-200 ease-in-out border border-white/20"
       >
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-        </svg>
+        <ArrowLeft className="w-4 h-4" />
         <span>Powrót do strony głównej</span>
       </button>
       {/* Wskaźnik aktualnej sesji */}

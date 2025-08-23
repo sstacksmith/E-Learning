@@ -54,9 +54,9 @@ export default function ForgotPasswordPage() {
         {error && <div className="mt-4 text-red-600 text-center font-semibold">{error}</div>}
         <button
           className="mt-6 w-full text-[#4067EC] hover:underline text-sm"
-          onClick={() => router.push('/profile')}
+          onClick={() => router.push('/homelogin')}
         >
-          Powrót do profilu
+          Powrót do strony głównej
         </button>
       </div>
     </div>

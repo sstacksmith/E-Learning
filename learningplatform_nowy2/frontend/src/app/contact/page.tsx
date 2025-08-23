@@ -19,7 +19,7 @@ export default function ContactPage() {
           <h2 className="text-xl font-semibold text-[#4067EC] mb-2">Zapraszamy do kontaktu</h2>
           <p className="text-gray-700">Chętnie odpowiemy na Twoje pytania dotyczące platformy, współpracy lub wsparcia technicznego. Skorzystaj z powyższych danych lub napisz do nas przez formularz na stronie (wkrótce dostępny).</p>
         </div>
-        <Link href="/" className="text-[#4067EC] hover:underline">Powrót na stronę główną</Link>
+        <Link href="/homelogin" className="text-[#4067EC] hover:underline">Powrót na stronę główną</Link>
       </div>
     </div>
   );

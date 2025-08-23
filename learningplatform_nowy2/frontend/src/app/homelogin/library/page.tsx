@@ -1,26 +1,31 @@
+'use client';
 import React from 'react';
-import Link from 'next/link';
-import { HiOutlineBookOpen, HiArrowLeft } from 'react-icons/hi2';
+import { HiOutlineBookOpen } from 'react-icons/hi2';
+import { ArrowLeft } from 'lucide-react';
 
 export default function LibraryPage() {
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col">
-      <header className="bg-white shadow-sm p-4 relative">
-        <div className="max-w-7xl mx-auto flex justify-between items-center">
-          <Link href="/homelogin" className="flex items-center space-x-2">
-            <div className="relative overflow-hidden rounded-full h-8 w-8 bg-[#4067EC] flex items-center justify-center">
-              <HiOutlineBookOpen className="text-white w-6 h-6" />
-            </div>
-            <span className="text-xl font-semibold text-[#4067EC]">Biblioteka cyfrowa</span>
-          </Link>
-          <Link href="/homelogin" className="flex items-center px-6 py-2 bg-white text-[#4067EC] font-bold rounded-lg border-2 border-[#4067EC] shadow-lg hover:bg-[#4067EC] hover:text-white focus:outline-none focus:ring-4 focus:ring-[#4067EC]/40 transition-all duration-150 gap-2">
-            <HiArrowLeft className="w-5 h-5" />
-            Powrót do panelu głównego
-          </Link>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 w-full">
+      {/* Header z przyciskiem powrotu */}
+      <div className="bg-white/80 backdrop-blur-lg border-b border-white/20 px-4 sm:px-6 lg:px-8 py-4">
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => window.location.href = '/homelogin'}
+            className="flex items-center gap-2 px-4 py-2 bg-white/60 backdrop-blur-sm text-gray-700 rounded-lg hover:bg-white hover:shadow-lg transition-all duration-200 ease-in-out border border-white/20"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Powrót do strony głównej
+          </button>
+          
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+            Biblioteka cyfrowa
+          </h1>
+          
+          <div className="w-20"></div>
         </div>
-      </header>
-      <main className="flex-grow flex flex-col items-center justify-center px-4">
-        <div className="bg-white rounded-lg shadow-md p-8 max-w-xl w-full mt-12">
+      </div>
+      <main className="flex-grow flex flex-col items-center justify-center px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
+        <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-lg p-8 max-w-xl w-full border border-white/20">
           <div className="flex flex-col items-center mb-6">
             <HiOutlineBookOpen className="text-[#4067EC] w-16 h-16 mb-2" />
             <h1 className="text-3xl font-bold text-[#4067EC] mb-2">Twoja Biblioteka</h1>

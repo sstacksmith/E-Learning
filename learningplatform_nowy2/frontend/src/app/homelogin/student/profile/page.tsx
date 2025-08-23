@@ -6,6 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import Providers from '@/components/Providers';
 import Image from 'next/image';
+import { ArrowLeft } from 'lucide-react';
 
 function StudentProfileContent() {
   const { user } = useAuth();
@@ -130,54 +131,74 @@ function StudentProfileContent() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F4F6FB] py-8 px-4">
-      <div className="max-w-4xl mx-auto">
-        {/* Header */}
-        <div className="bg-white rounded-2xl shadow-md p-6 mb-8">
-          <div className="flex flex-col md:flex-row items-center gap-6">
-            {/* Profile Photo */}
-            <div 
-              className="relative w-32 h-32"
-              onMouseEnter={() => setHovered(true)}
-              onMouseLeave={() => setHovered(false)}
-            >
-              {photoURL ? (
-                <Image
-                  src={photoURL}
-                  alt="Profile"
-                  width={128}
-                  height={128}
-                  className="w-32 h-32 h-32 rounded-full object-cover border-4 border-[#4067EC]"
-                />
-              ) : (
-                <div className="w-32 h-32 rounded-full bg-gray-300 flex items-center justify-center text-4xl font-bold text-gray-600 border-4 border-[#4067EC]">
-                  {displayName ? displayName.split(' ').map(n => n[0]).join('').toUpperCase() : 'U'}
-                </div>
-              )}
-              
-              {/* Upload Overlay */}
-              {hovered && (
-                <div className="absolute inset-0 bg-black bg-opacity-50 rounded-full flex items-center justify-center cursor-pointer">
-                  <div className="text-white text-center">
-                    <div className="text-2xl mb-2">📷</div>
-                    <div className="text-sm">Kliknij aby zmienić</div>
-                  </div>
-                </div>
-              )}
-              
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handlePhotoChange}
-                className="hidden"
-              />
-              
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="absolute bottom-0 right-0 bg-[#4067EC] text-white p-2 rounded-full hover:bg-[#3050b3] transition-colors"
-                disabled={uploading}
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 w-full">
+      {/* Header z przyciskiem powrotu */}
+      <div className="bg-white/80 backdrop-blur-lg border-b border-white/20 px-4 sm:px-6 lg:px-8 py-4">
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => window.location.href = '/homelogin'}
+            className="flex items-center gap-2 px-4 py-2 bg-white/60 backdrop-blur-sm text-gray-700 rounded-lg hover:bg-white hover:shadow-lg transition-all duration-200 ease-in-out border border-white/20"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Powrót do strony głównej
+          </button>
+          
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+            Profil ucznia
+          </h1>
+          
+          <div className="w-20"></div>
+        </div>
+      </div>
+
+      <div className="px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
+        <div className="max-w-4xl mx-auto">
+          {/* Header */}
+          <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-lg p-6 mb-8 border border-white/20">
+            <div className="flex flex-col md:flex-row items-center gap-6">
+              {/* Profile Photo */}
+              <div 
+                className="relative w-32 h-32"
+                onMouseEnter={() => setHovered(true)}
+                onMouseLeave={() => setHovered(false)}
               >
+                {photoURL ? (
+                  <Image
+                    src={photoURL}
+                    alt="Profile"
+                    width={128}
+                    height={128}
+                    className="w-32 h-32 h-32 rounded-full object-cover border-4 border-[#4067EC]"
+                  />
+                ) : (
+                  <div className="w-32 h-32 rounded-full bg-gray-300 flex items-center justify-center text-4xl font-bold text-gray-600 border-4 border-[#4067EC]">
+                    {displayName ? displayName.split(' ').map(n => n[0]).join('').toUpperCase() : 'U'}
+                  </div>
+                )}
+              
+                {/* Upload Overlay */}
+                {hovered && (
+                  <div className="absolute inset-0 bg-black bg-opacity-50 rounded-full flex items-center justify-center cursor-pointer">
+                    <div className="text-white text-center">
+                      <div className="text-2xl mb-2">📷</div>
+                      <div className="text-sm">Kliknij aby zmienić</div>
+                    </div>
+                  </div>
+                )}
+              
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handlePhotoChange}
+                  className="hidden"
+                />
+              
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="absolute bottom-0 right-0 bg-[#4067EC] text-white p-2 rounded-full hover:bg-[#3050b3] transition-colors"
+                  disabled={uploading}
+                >
                 {uploading ? (
                   <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
                 ) : (
@@ -216,7 +237,7 @@ function StudentProfileContent() {
         </div>
 
         {/* Profile Form */}
-        <div className="bg-white rounded-2xl shadow-md p-6">
+        <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-lg p-6 border border-white/20">
           <h2 className="text-2xl font-bold text-gray-800 mb-6">Edycja profilu</h2>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -268,6 +289,7 @@ function StudentProfileContent() {
               Zapisz zmiany
             </button>
           </div>
+        </div>
         </div>
       </div>
     </div>

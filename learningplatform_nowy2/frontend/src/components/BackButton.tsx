@@ -23,10 +23,10 @@ export default function BackButton({ href, className = '', children }: BackButto
   return (
     <button
       onClick={handleClick}
-      className={`flex items-center gap-2 px-4 py-2 bg-[#4067EC] text-white rounded-lg hover:bg-[#5577FF] transition-colors ${className}`}
+      className={`flex items-center gap-2 px-4 py-2 bg-white/60 backdrop-blur-sm text-gray-700 rounded-lg hover:bg-white hover:shadow-lg transition-all duration-200 ease-in-out border border-white/20 ${className}`}
     >
       <ArrowLeft className="w-4 h-4" />
-      {children || 'Powrót'}
+      {children || 'Powrót do strony głównej'}
     </button>
   );
 }

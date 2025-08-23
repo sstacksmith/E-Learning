@@ -202,11 +202,11 @@ export default function TeacherSurveysPage() {
         <div className="w-full px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             <button
-              onClick={() => router.push('/homelogin/teacher')}
+              onClick={() => window.location.href = '/homelogin'}
               className="flex items-center gap-2 px-4 py-2 bg-white/60 backdrop-blur-sm text-gray-700 rounded-lg hover:bg-white hover:shadow-lg transition-all duration-200 ease-in-out border border-white/20"
             >
               <ArrowLeft className="w-4 h-4" />
-              Powrót do panelu
+              Powrót do strony głównej
             </button>
             
             <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">

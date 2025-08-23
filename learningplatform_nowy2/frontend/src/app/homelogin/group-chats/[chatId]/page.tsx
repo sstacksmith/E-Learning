@@ -133,13 +133,14 @@ export default function StudentGroupChatView() {
 
   if (!chatDetails) {
     return (
-      <div className="text-center text-gray-500 py-8">
-        <p>Nie znaleziono czatu lub nie masz do niego dostępu.</p>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex flex-col items-center justify-center">
+        <p className="text-gray-500 mb-4">Nie znaleziono czatu lub nie masz do niego dostępu.</p>
         <button 
-          onClick={() => router.back()}
-          className="mt-4 text-blue-600 hover:underline"
+          onClick={() => window.location.href = '/homelogin'}
+          className="flex items-center gap-2 px-4 py-2 bg-white/60 backdrop-blur-sm text-gray-700 rounded-lg hover:bg-white hover:shadow-lg transition-all duration-200 ease-in-out border border-white/20"
         >
-          Wróć do listy czatów
+          <ArrowLeft className="w-4 h-4" />
+          Powrót do strony głównej
         </button>
       </div>
     );
@@ -152,7 +153,7 @@ export default function StudentGroupChatView() {
         <div className="p-6 bg-gradient-to-r from-blue-500/10 to-purple-500/10 border-b border-white/10">
           <div className="flex items-center gap-4">
             <button 
-              onClick={() => router.back()}
+              onClick={() => window.location.href = '/homelogin'}
               className="p-3 hover:bg-white/50 rounded-xl transition-all duration-200 hover:shadow-lg group"
             >
               <ArrowLeft className="h-5 w-5 text-gray-600 group-hover:text-blue-600 transition-colors" />

@@ -36,7 +36,7 @@ export default function CommunityPage() {
             <li>Inspirujące historie rodzin</li>
           </ul>
         </div>
-        <Link href="/" className="text-[#4067EC] hover:underline">Powrót na stronę główną</Link>
+        <Link href="/homelogin" className="text-[#4067EC] hover:underline">Powrót na stronę główną</Link>
       </div>
     </div>
   );
