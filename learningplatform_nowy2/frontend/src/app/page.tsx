@@ -15,16 +15,186 @@ function HomeContent() {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-white flex flex-col items-center justify-center p-4 sm:p-6 lg:p-8">
-        <div className="flex flex-col gap-4 sm:gap-6 items-center text-center max-w-md w-full">
-          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-[#4067EC] leading-tight">Witaj w COGITO!</h1>
-          <div className="flex flex-col sm:flex-row gap-3 sm:gap-6 mt-4 w-full sm:w-auto">
-            <Link href="/login" className="px-6 sm:px-8 py-3 sm:py-4 rounded-lg text-[#4067EC] border-2 border-[#4067EC] text-base sm:text-lg font-bold hover:bg-blue-50 transition-colors duration-200 text-center">Zaloguj się</Link>
-            <Link href="/register" className="px-6 sm:px-8 py-3 sm:py-4 rounded-lg bg-[#4067EC] text-white text-base sm:text-lg font-bold hover:bg-[#3155d4] transition-colors duration-200 shadow-lg text-center" style={{ color: '#fff', fontWeight: 'bold', fontSize: '1.125rem', lineHeight: '1.75rem', textShadow: '0 1px 2px rgba(0,0,0,0.08)', zIndex: 2 }}>
-              <span style={{ color: '#fff', fontWeight: 'bold', fontSize: '1.125rem', lineHeight: '1.75rem', textShadow: '0 1px 2px rgba(0,0,0,0.08)', zIndex: 2 }}>Zarejestruj się</span>
-            </Link>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
+        {/* Header */}
+        <header className="bg-white/90 backdrop-blur-md border-b border-slate-200/50 sticky top-0 z-50">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center cursor-pointer group" onClick={() => router.push("/")}>
+                <div className="relative overflow-hidden rounded-xl p-2 bg-gradient-to-r from-blue-600 to-indigo-600 shadow-lg">
+                  <Image 
+                    src="/puzzleicon.png" 
+                    alt="COGITO Logo" 
+                    width={32} 
+                    height={32} 
+                    className="w-8 h-8 transition-transform duration-300 group-hover:scale-110"
+                  />
+                </div>
+                <span className="ml-3 text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                  COGITO
+                </span>
+              </div>
+              <div className="hidden md:flex items-center space-x-8">
+                <Link href="/about" className="text-slate-600 hover:text-blue-600 transition-colors duration-200 font-medium">
+                  O platformie
+                </Link>
+                <Link href="/courses" className="text-slate-600 hover:text-blue-600 transition-colors duration-200 font-medium">
+                  Materiały
+                </Link>
+                <Link href="/community" className="text-slate-600 hover:text-blue-600 transition-colors duration-200 font-medium">
+                  Społeczność
+                </Link>
+                <Link href="/contact" className="text-slate-600 hover:text-blue-600 transition-colors duration-200 font-medium">
+                  Kontakt
+                </Link>
+              </div>
+              <div className="flex items-center space-x-4">
+                <Link 
+                  href="/login" 
+                  className="px-6 py-2.5 text-blue-600 font-semibold hover:bg-blue-50 rounded-xl transition-all duration-200"
+                >
+                  Zaloguj się
+                </Link>
+                <Link 
+                  href="/register" 
+                  className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200"
+                >
+                  Zarejestruj się
+                </Link>
+              </div>
+            </div>
           </div>
-        </div>
+        </header>
+
+        {/* Hero Section */}
+        <main className="flex-1 flex items-center justify-center px-4 sm:px-6 lg:px-8 py-16 lg:py-24">
+          <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-16 items-center">
+            {/* Left Content */}
+            <div className="text-center lg:text-left space-y-8">
+              <div className="space-y-6">
+                <div className="inline-flex items-center px-4 py-2 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
+                  ✨ Nowoczesna edukacja domowa
+                </div>
+                <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold leading-tight">
+                  <span className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 bg-clip-text text-transparent">
+                    Edukacja domowa
+                  </span>
+                  <br />
+                  <span className="text-slate-800">w nowym wymiarze</span>
+                </h1>
+                <p className="text-xl text-slate-600 leading-relaxed max-w-2xl mx-auto lg:mx-0">
+                  Odkryj nowoczesną platformę edukacyjną, która wspiera rodziny w skutecznym nauczaniu domowym. 
+                  Materiały, narzędzia i społeczność w jednym miejscu.
+                </p>
+              </div>
+
+              {/* Features Grid */}
+              <div className="grid grid-cols-2 gap-4 max-w-lg mx-auto lg:mx-0">
+                <div className="bg-white/80 backdrop-blur-sm rounded-xl p-6 border border-slate-200/50 shadow-sm hover:shadow-md transition-all duration-200">
+                  <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-xl flex items-center justify-center mb-4">
+                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <h3 className="font-semibold text-slate-800 text-base">Indywidualne podejście</h3>
+                </div>
+                <div className="bg-white/80 backdrop-blur-sm rounded-xl p-6 border border-slate-200/50 shadow-sm hover:shadow-md transition-all duration-200">
+                  <div className="w-12 h-12 bg-gradient-to-r from-amber-500 to-orange-500 rounded-xl flex items-center justify-center mb-4">
+                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                    </svg>
+                  </div>
+                  <h3 className="font-semibold text-slate-800 text-base">Bogate materiały</h3>
+                </div>
+                <div className="bg-white/80 backdrop-blur-sm rounded-xl p-6 border border-slate-200/50 shadow-sm hover:shadow-md transition-all duration-200">
+                  <div className="w-12 h-12 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-xl flex items-center justify-center mb-4">
+                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
+                  </div>
+                  <h3 className="font-semibold text-slate-800 text-base">Społeczność</h3>
+                </div>
+                <div className="bg-white/80 backdrop-blur-sm rounded-xl p-6 border border-slate-200/50 shadow-sm hover:shadow-md transition-all duration-200">
+                  <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl flex items-center justify-center mb-4">
+                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                  </div>
+                  <h3 className="font-semibold text-slate-800 text-base">Elastyczność</h3>
+                </div>
+              </div>
+
+              {/* CTA Buttons */}
+              <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
+                <Link 
+                  href="/register" 
+                  className="px-8 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-200 text-center"
+                >
+                  Rozpocznij za darmo
+                </Link>
+                <Link 
+                  href="/about" 
+                  className="px-8 py-4 border-2 border-blue-600 text-blue-600 font-bold rounded-xl hover:bg-blue-50 transition-all duration-200 text-center"
+                >
+                  Dowiedz się więcej
+                </Link>
+              </div>
+
+              {/* Trust indicators */}
+              <div className="flex items-center justify-center lg:justify-start space-x-8 text-sm text-slate-500">
+                <div className="flex items-center space-x-2">
+                  <svg className="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span>Bezpieczna platforma</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <svg className="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span>Darmowe konto</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Content - Hero Image */}
+            <div className="relative">
+              <div className="relative z-10">
+                <Image 
+                  src="https://images.unsplash.com/photo-1513258496099-48168024aec0?auto=format&fit=crop&w=800&q=80" 
+                  alt="Edukacja domowa" 
+                  width={600} 
+                  height={500} 
+                  className="rounded-2xl shadow-2xl w-full h-auto object-cover"
+                />
+              </div>
+              {/* Decorative elements */}
+              <div className="absolute -top-6 -right-6 w-32 h-32 bg-gradient-to-r from-amber-400 to-orange-400 rounded-full opacity-20 blur-xl"></div>
+              <div className="absolute -bottom-6 -left-6 w-24 h-24 bg-gradient-to-r from-emerald-400 to-teal-400 rounded-full opacity-20 blur-xl"></div>
+            </div>
+          </div>
+        </main>
+
+        {/* Footer */}
+        <footer className="bg-white/80 backdrop-blur-sm border-t border-slate-200/50 py-12">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0">
+              <div className="flex items-center">
+                <Image src="/puzzleicon.png" alt="COGITO Logo" width={24} height={24} className="w-6 h-6" />
+                <span className="ml-2 text-lg font-bold text-blue-600">COGITO</span>
+              </div>
+              <div className="flex items-center space-x-8 text-sm text-slate-600">
+                <Link href="/about" className="hover:text-blue-600 transition-colors duration-200">O platformie</Link>
+                <Link href="/courses" className="hover:text-blue-600 transition-colors duration-200">Materiały</Link>
+                <Link href="/community" className="hover:text-blue-600 transition-colors duration-200">Społeczność</Link>
+                <Link href="/contact" className="hover:text-blue-600 transition-colors duration-200">Kontakt</Link>
+              </div>
+              <div className="text-sm text-slate-500">
+                © {new Date().getFullYear()} COGITO. Wszelkie prawa zastrzeżone.
+              </div>
+            </div>
+          </div>
+        </footer>
       </div>
     );
   }
@@ -38,15 +208,15 @@ function HomeContent() {
   ];
 
   return (
-    <div className="min-h-screen bg-white flex flex-col">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex flex-col">
       {/* Navbar */}
-      <nav className="bg-white shadow-sm sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 py-3 sm:py-4 flex flex-col sm:flex-row justify-between items-center gap-3 sm:gap-0">
+      <nav className="bg-white/90 backdrop-blur-md shadow-sm sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row justify-between items-center gap-4 sm:gap-0">
           <div className="flex items-center cursor-pointer" onClick={() => router.push("/")}> 
             <Image src="/puzzleicon.png" alt="Logo" width={32} height={32} className="w-8 h-8 sm:w-10 sm:h-10" />
-            <span className="ml-2 sm:ml-3 text-xl sm:text-2xl font-bold text-[#4067EC]">COGITO</span>
+            <span className="ml-2 sm:ml-3 text-xl sm:text-2xl font-bold text-blue-600">COGITO</span>
           </div>
-          <div className="flex flex-wrap justify-center gap-1 sm:gap-2 lg:gap-6">
+          <div className="flex flex-wrap justify-center gap-2 sm:gap-4 lg:gap-8">
             {navLinks.map((link) => (
               <button 
                 key={link.key}
@@ -54,138 +224,212 @@ function HomeContent() {
                   setActiveTab(link.key);
                   router.push(link.href);
                 }}
-                className={`text-sm sm:text-base font-medium px-2 sm:px-3 py-1 sm:py-2 rounded-lg transition-colors duration-200 whitespace-nowrap ${activeTab === link.key ? "bg-[#F1F4FE] text-[#4067EC]" : "text-gray-700 hover:bg-[#F1F4FE] hover:text-[#4067EC]"}`}
+                className={`text-sm sm:text-base font-medium px-3 sm:px-4 py-2 rounded-xl transition-all duration-200 whitespace-nowrap ${activeTab === link.key ? "bg-blue-100 text-blue-600 shadow-sm" : "text-slate-700 hover:bg-blue-50 hover:text-blue-600"}`}
               >
                 {link.label}
               </button>
             ))}
           </div>
-          <div className="flex items-center gap-2 sm:gap-4">
-            <Link href="/login" className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-[#4067EC] hover:bg-blue-50 transition-colors duration-300 text-sm sm:text-base">Logowanie</Link>
-            <Link href="/register" className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg bg-[#4067EC] text-white hover:bg-[#3155d4] transition-colors duration-300 shadow-sm text-sm sm:text-base">Rejestracja</Link>
+          <div className="flex items-center gap-3 sm:gap-4">
+            <Link href="/login" className="px-4 sm:px-6 py-2 rounded-xl text-blue-600 hover:bg-blue-50 transition-all duration-200 text-sm sm:text-base font-medium">Logowanie</Link>
+            <Link href="/register" className="px-4 sm:px-6 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:shadow-lg transition-all duration-200 text-sm sm:text-base font-medium">Rejestracja</Link>
           </div>
         </div>
       </nav>
 
       {/* Hero Section */}
-      <section className="relative bg-[#F1F4FE] pb-4 sm:pb-8">
-        <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 pt-6 sm:pt-8 pb-12 sm:pb-16 flex flex-col lg:flex-row items-center justify-between gap-8 lg:gap-12">
-            <div className="max-w-xl w-full text-center lg:text-left">
-            <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-gray-900 mb-3 sm:mb-4 leading-tight">
-              Wspieramy <span className="text-[#F6A623]">domową edukację</span> – Twoja platforma do nauczania domowego
-              </h1>
-            <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6 leading-relaxed">
+      <section className="relative py-16 sm:py-20 lg:py-24">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col lg:flex-row items-center justify-between gap-12 lg:gap-16">
+          <div className="max-w-2xl w-full text-center lg:text-left">
+            <div className="inline-flex items-center px-4 py-2 bg-blue-100 text-blue-700 rounded-full text-sm font-medium mb-6">
+              🎓 Nowoczesna edukacja domowa
+            </div>
+            <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-slate-900 mb-6 leading-tight">
+              Wspieramy <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">domową edukację</span> – Twoja platforma do nauczania domowego
+            </h1>
+            <p className="text-lg sm:text-xl text-slate-600 mb-8 leading-relaxed">
               Odkryj nowoczesne narzędzia, materiały i społeczność, które pomogą Twojej rodzinie w skutecznym i radosnym nauczaniu domowym. Ucz się w swoim tempie, zgodnie z własnymi wartościami i potrzebami.
-              </p>
-            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center lg:justify-start">
-              <Link href="/register" className="bg-[#4067EC] text-white px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg font-semibold shadow hover:bg-[#3155d4] transition-colors duration-200 text-sm sm:text-base text-center">Załóż konto</Link>
-              <Link href="/about" className="bg-white border-2 border-[#4067EC] text-[#4067EC] px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg font-semibold hover:bg-blue-50 transition-colors duration-200 text-sm sm:text-base text-center">Dowiedz się więcej</Link>
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
+              <Link href="/register" className="px-8 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-200 text-center">
+                Załóż konto
+              </Link>
+              <Link href="/about" className="px-8 py-4 border-2 border-blue-600 text-blue-600 font-bold rounded-xl hover:bg-blue-50 transition-all duration-200 text-center">
+                Dowiedz się więcej
+              </Link>
             </div>
           </div>
-          <div className="w-full max-w-md lg:max-w-lg">
-            <Image src="https://images.unsplash.com/photo-1513258496099-48168024aec0?auto=format&fit=crop&w=600&q=80" alt="Hero" width={500} height={400} className="rounded-xl shadow-lg w-full h-auto object-cover" />
+          <div className="w-full max-w-lg lg:max-w-xl">
+            <Image src="https://images.unsplash.com/photo-1513258496099-48168024aec0?auto=format&fit=crop&w=600&q=80" alt="Hero" width={500} height={400} className="rounded-2xl shadow-2xl w-full h-auto object-cover" />
           </div>
         </div>
         {/* Category Bar */}
-        <div className="bg-[#F6A623] py-2 sm:py-3 flex flex-wrap justify-center gap-4 sm:gap-8 text-white font-semibold text-xs sm:text-sm shadow">
-          <span>Materiały</span>
-          <span>Wsparcie</span>
-          <span>Indywidualizacja</span>
-          <span>Społeczność</span>
-          <span>Elastyczność</span>
+        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 py-4 mt-12">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex flex-wrap justify-center gap-6 sm:gap-8 text-white font-semibold text-sm sm:text-base">
+              <span className="flex items-center gap-2">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                </svg>
+                Materiały
+              </span>
+              <span className="flex items-center gap-2">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192L5.636 18.364M12 2.25a9.75 9.75 0 100 19.5 9.75 9.75 0 000-19.5z" />
+                </svg>
+                Wsparcie
+              </span>
+              <span className="flex items-center gap-2">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Indywidualizacja
+              </span>
+              <span className="flex items-center gap-2">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+                Społeczność
+              </span>
+              <span className="flex items-center gap-2">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                Elastyczność
+              </span>
+            </div>
+          </div>
         </div>
       </section>
 
       {/* Why Choose Us / Features */}
-      <section className="py-8 sm:py-12 lg:py-16 bg-white">
-        <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6">
-          <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-center text-[#4067EC] mb-8 sm:mb-12 leading-tight">Dlaczego warto wybrać COGITO?</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 lg:gap-8">
+      <section className="py-16 sm:py-20 lg:py-24 bg-white/50 backdrop-blur-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-slate-900 mb-6 leading-tight">
+              Dlaczego warto wybrać <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">COGITO</span>?
+            </h2>
+            <p className="text-xl text-slate-600 max-w-3xl mx-auto">
+              Oferujemy kompleksowe rozwiązania dla rodzin edukujących domowo
+            </p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
             {/* Card 1 */}
-            <div className="bg-[#F1F4FE] rounded-lg p-4 sm:p-6 shadow hover:shadow-md transition-all duration-200">
-              <Image src="https://images.unsplash.com/photo-1464983953574-0892a716854b?auto=format&fit=crop&w=400&q=80" alt="Indywidualne podejście" width={400} height={200} className="rounded mb-3 sm:mb-4 w-full h-24 sm:h-32 object-cover" />
-              <h3 className="font-bold text-base sm:text-lg mb-2 leading-tight">Indywidualne podejście</h3>
-              <p className="text-gray-600 text-xs sm:text-sm leading-relaxed">Dostosuj naukę do potrzeb swojego dziecka. Twórz własne ścieżki edukacyjne i korzystaj z gotowych planów.</p>
+            <div className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-xl transition-all duration-300 border border-slate-200/50">
+              <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-2xl flex items-center justify-center mb-6">
+                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h3 className="font-bold text-xl mb-4 text-slate-900">Indywidualne podejście</h3>
+              <p className="text-slate-600 leading-relaxed">Dostosuj naukę do potrzeb swojego dziecka. Twórz własne ścieżki edukacyjne i korzystaj z gotowych planów.</p>
             </div>
             {/* Card 2 */}
-            <div className="bg-[#F1F4FE] rounded-lg p-4 sm:p-6 shadow hover:shadow-md transition-all duration-200">
-              <Image src="https://images.unsplash.com/photo-1503676382389-4809596d5290?auto=format&fit=crop&w=400&q=80" alt="Materiały i narzędzia" width={400} height={200} className="rounded mb-3 sm:mb-4 w-full h-24 sm:h-32 object-cover" />
-              <h3 className="font-bold text-base sm:text-lg mb-2 leading-tight">Bogate materiały i narzędzia</h3>
-              <p className="text-gray-600 text-xs sm:text-sm leading-relaxed">Korzystaj z interaktywnych lekcji, ćwiczeń, testów i inspiracji do nauki w domu – od przedszkola po liceum.</p>
+            <div className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-xl transition-all duration-300 border border-slate-200/50">
+              <div className="w-16 h-16 bg-gradient-to-r from-amber-500 to-orange-500 rounded-2xl flex items-center justify-center mb-6">
+                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                </svg>
+              </div>
+              <h3 className="font-bold text-xl mb-4 text-slate-900">Bogate materiały</h3>
+              <p className="text-slate-600 leading-relaxed">Korzystaj z interaktywnych lekcji, ćwiczeń, testów i inspiracji do nauki w domu – od przedszkola po liceum.</p>
             </div>
             {/* Card 3 */}
-            <div className="bg-[#F1F4FE] rounded-lg p-4 sm:p-6 shadow hover:shadow-md transition-all duration-200">
-              <Image src="https://images.unsplash.com/photo-1465101046530-73398c7f28ca?auto=format&fit=crop&w=400&q=80" alt="Wsparcie ekspertów" width={400} height={200} className="rounded mb-3 sm:mb-4 w-full h-24 sm:h-32 object-cover" />
-              <h3 className="font-bold text-base sm:text-lg mb-2 leading-tight">Wsparcie ekspertów</h3>
-              <p className="text-gray-600 text-xs sm:text-sm leading-relaxed">Konsultacje z nauczycielami, webinary, grupy wsparcia i inspirujące historie rodzin edukujących domowo.</p>
+            <div className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-xl transition-all duration-300 border border-slate-200/50">
+              <div className="w-16 h-16 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-2xl flex items-center justify-center mb-6">
+                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192L5.636 18.364M12 2.25a9.75 9.75 0 100 19.5 9.75 9.75 0 000-19.5z" />
+                </svg>
+              </div>
+              <h3 className="font-bold text-xl mb-4 text-slate-900">Wsparcie ekspertów</h3>
+              <p className="text-slate-600 leading-relaxed">Konsultacje z nauczycielami, webinary, grupy wsparcia i inspirujące historie rodzin edukujących domowo.</p>
             </div>
             {/* Card 4 */}
-            <div className="bg-[#F1F4FE] rounded-lg p-4 sm:p-6 shadow hover:shadow-md transition-all duration-200">
-              <Image src="https://images.unsplash.com/photo-1519125323398-675f0ddb6308?auto=format&fit=crop&w=400&q=80" alt="Społeczność" width={400} height={200} className="rounded mb-3 sm:mb-4 w-full h-24 sm:h-32 object-cover" />
-              <h3 className="font-bold text-base sm:text-lg mb-2 leading-tight">Społeczność i wymiana doświadczeń</h3>
-              <p className="text-gray-600 text-xs sm:text-sm leading-relaxed">Dołącz do aktywnej społeczności rodziców i dzieci. Wymieniaj się materiałami, pomysłami i wsparciem.</p>
+            <div className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-xl transition-all duration-300 border border-slate-200/50">
+              <div className="w-16 h-16 bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center mb-6">
+                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+              </div>
+              <h3 className="font-bold text-xl mb-4 text-slate-900">Społeczność</h3>
+              <p className="text-slate-600 leading-relaxed">Dołącz do aktywnej społeczności rodziców i dzieci. Wymieniaj się materiałami, pomysłami i wsparciem.</p>
             </div>
           </div>
         </div>
       </section>
 
       {/* Testimonials */}
-      <section className="py-8 sm:py-12 lg:py-16 bg-[#F1F4FE]">
-        <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6">
-          <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-center text-[#4067EC] mb-8 sm:mb-12 leading-tight">Co mówią rodziny edukujące domowo?</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 lg:gap-8">
+      <section className="py-16 sm:py-20 lg:py-24 bg-gradient-to-br from-blue-50 to-indigo-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-slate-900 mb-6 leading-tight">
+              Co mówią rodziny edukujące domowo?
+            </h2>
+            <p className="text-xl text-slate-600 max-w-3xl mx-auto">
+              Dołącz do tysięcy zadowolonych rodzin
+            </p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
             {/* Testimonial 1 */}
-            <div className="bg-white rounded-lg p-4 sm:p-6 shadow hover:shadow-md transition-all duration-200 flex flex-col items-center text-center">
-              <span className="text-yellow-400 text-lg sm:text-xl mb-2">★★★★★</span>
-              <p className="text-gray-700 text-xs sm:text-sm mb-3 sm:mb-4 leading-relaxed">Dzięki COGITO nauka w domu stała się prostsza i bardziej uporządkowana. Moje dzieci chętniej się uczą!</p>
-              <span className="font-semibold text-[#4067EC] text-xs sm:text-sm">Anna, mama dwójki dzieci</span>
-              </div>
+            <div className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-xl transition-all duration-300 border border-slate-200/50 flex flex-col items-center text-center">
+              <div className="text-amber-400 text-2xl mb-4">★★★★★</div>
+              <p className="text-slate-700 mb-6 leading-relaxed">Dzięki COGITO nauka w domu stała się prostsza i bardziej uporządkowana. Moje dzieci chętniej się uczą!</p>
+              <div className="font-semibold text-blue-600">Anna, mama dwójki dzieci</div>
+            </div>
             {/* Testimonial 2 */}
-            <div className="bg-white rounded-lg p-4 sm:p-6 shadow hover:shadow-md transition-all duration-200 flex flex-col items-center text-center">
-              <span className="text-yellow-400 text-lg sm:text-xl mb-2">★★★★★</span>
-              <p className="text-gray-700 text-xs sm:text-sm mb-3 sm:mb-4 leading-relaxed">Świetne materiały i ogromne wsparcie społeczności. Polecam każdej rodzinie!</p>
-              <span className="font-semibold text-[#4067EC] text-xs sm:text-sm">Marek, tata nastolatka</span>
+            <div className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-xl transition-all duration-300 border border-slate-200/50 flex flex-col items-center text-center">
+              <div className="text-amber-400 text-2xl mb-4">★★★★★</div>
+              <p className="text-slate-700 mb-6 leading-relaxed">Świetne materiały i ogromne wsparcie społeczności. Polecam każdej rodzinie!</p>
+              <div className="font-semibold text-blue-600">Marek, tata nastolatka</div>
             </div>
             {/* Testimonial 3 */}
-            <div className="bg-white rounded-lg p-4 sm:p-6 shadow hover:shadow-md transition-all duration-200 flex flex-col items-center text-center">
-              <span className="text-yellow-400 text-lg sm:text-xl mb-2">★★★★★</span>
-              <p className="text-gray-700 text-xs sm:text-sm mb-3 sm:mb-4 leading-relaxed">Platforma daje mi pewność, że nie przegapię ważnych tematów i mogę dostosować naukę do potrzeb syna.</p>
-              <span className="font-semibold text-[#4067EC] text-xs sm:text-sm">Katarzyna, edukacja domowa od 3 lat</span>
+            <div className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-xl transition-all duration-300 border border-slate-200/50 flex flex-col items-center text-center">
+              <div className="text-amber-400 text-2xl mb-4">★★★★★</div>
+              <p className="text-slate-700 mb-6 leading-relaxed">Platforma daje mi pewność, że nie przegapię ważnych tematów i mogę dostosować naukę do potrzeb syna.</p>
+              <div className="font-semibold text-blue-600">Katarzyna, edukacja domowa od 3 lat</div>
             </div>
             {/* Testimonial 4 */}
-            <div className="bg-white rounded-lg p-4 sm:p-6 shadow hover:shadow-md transition-all duration-200 flex flex-col items-center text-center">
-              <span className="text-yellow-400 text-lg sm:text-xl mb-2">★★★★★</span>
-              <p className="text-gray-700 text-xs sm:text-sm mb-3 sm:mb-4 leading-relaxed">Najbardziej cenię elastyczność i możliwość kontaktu z innymi rodzicami.</p>
-              <span className="font-semibold text-[#4067EC] text-xs sm:text-sm">Joanna, mama trójki dzieci</span>
+            <div className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-xl transition-all duration-300 border border-slate-200/50 flex flex-col items-center text-center">
+              <div className="text-amber-400 text-2xl mb-4">★★★★★</div>
+              <p className="text-slate-700 mb-6 leading-relaxed">Najbardziej cenię elastyczność i możliwość kontaktu z innymi rodzicami.</p>
+              <div className="font-semibold text-blue-600">Joanna, mama trójki dzieci</div>
             </div>
           </div>
         </div>
       </section>
 
       {/* CTA Section */}
-      <section className="py-8 sm:py-12 lg:py-16 bg-white">
-        <div className="max-w-3xl mx-auto px-3 sm:px-4 lg:px-6 text-center">
-          <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-[#4067EC] mb-4 sm:mb-6 leading-tight">Dołącz do nas <span className="text-[#F6A623]">już dziś</span></h2>
-          <p className="text-base sm:text-lg text-gray-600 mb-6 sm:mb-8 leading-relaxed">Stwórz konto i przekonaj się, jak łatwa i przyjemna może być edukacja domowa z COGITO!</p>
-          <Link href="/register" className="bg-[#4067EC] text-white px-6 sm:px-8 py-3 sm:py-4 rounded-lg font-bold shadow hover:bg-[#3155d4] transition-colors duration-200 text-base sm:text-lg inline-block">Załóż darmowe konto</Link>
+      <section className="py-16 sm:py-20 lg:py-24 bg-gradient-to-r from-blue-600 to-indigo-600">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-6 leading-tight">
+            Dołącz do nas <span className="text-amber-300">już dziś</span>
+          </h2>
+          <p className="text-xl text-blue-100 mb-8 leading-relaxed">
+            Stwórz konto i przekonaj się, jak łatwa i przyjemna może być edukacja domowa z COGITO!
+          </p>
+          <Link href="/register" className="inline-block px-10 py-5 bg-white text-blue-600 font-bold rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-200 text-lg">
+            Załóż darmowe konto
+          </Link>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="bg-[#222] text-white py-6 sm:py-8 mt-auto">
-        <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 flex flex-col sm:flex-row justify-between items-center gap-4 sm:gap-0">
-          <div className="flex items-center">
-            <Image src="/puzzleicon.png" alt="Logo" width={24} height={24} className="w-6 h-6 sm:w-8 sm:h-8" />
-            <span className="ml-2 text-base sm:text-lg font-bold">COGITO</span>
+      <footer className="bg-slate-900 text-white py-12 mt-auto">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-6 sm:gap-0">
+            <div className="flex items-center">
+              <Image src="/puzzleicon.png" alt="Logo" width={32} height={32} className="w-8 h-8" />
+              <span className="ml-3 text-xl font-bold">COGITO</span>
+            </div>
+            <div className="flex flex-wrap justify-center gap-6 sm:gap-8 text-sm">
+              <Link href="/about" className="hover:text-blue-400 transition-colors duration-200">O platformie</Link>
+              <Link href="/courses" className="hover:text-blue-400 transition-colors duration-200">Materiały</Link>
+              <Link href="/community" className="hover:text-blue-400 transition-colors duration-200">Społeczność</Link>
+              <Link href="/support" className="hover:text-blue-400 transition-colors duration-200">Wsparcie</Link>
+              <Link href="/contact" className="hover:text-blue-400 transition-colors duration-200">Kontakt</Link>
+            </div>
+            <div className="text-sm text-slate-400 text-center sm:text-left">© {new Date().getFullYear()} COGITO. Wszelkie prawa zastrzeżone.</div>
           </div>
-          <div className="flex flex-wrap justify-center gap-3 sm:gap-6 text-xs sm:text-sm">
-            <Link href="/about" className="hover:underline transition-colors duration-200">O platformie</Link>
-            <Link href="/courses" className="hover:underline transition-colors duration-200">Materiały</Link>
-            <Link href="/community" className="hover:underline transition-colors duration-200">Społeczność</Link>
-            <Link href="/support" className="hover:underline transition-colors duration-200">Wsparcie</Link>
-            <Link href="/contact" className="hover:underline transition-colors duration-200">Kontakt</Link>
-          </div>
-          <div className="text-xs text-gray-400 text-center sm:text-left">© {new Date().getFullYear()} COGITO. Wszelkie prawa zastrzeżone.</div>
         </div>
       </footer>
     </div>
