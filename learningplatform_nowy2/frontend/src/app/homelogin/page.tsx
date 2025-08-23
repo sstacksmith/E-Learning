@@ -231,10 +231,28 @@ function Dashboard() {
   const [sendError, setSendError] = useState<string | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const [searchPosition, setSearchPosition] = useState({ left: 0, width: 0 });
 
 
 
 
+
+  // Oblicz pozycję i szerokość pola wyszukiwania
+  useEffect(() => {
+    const updateSearchPosition = () => {
+      if (searchRef.current) {
+        const rect = searchRef.current.getBoundingClientRect();
+        setSearchPosition({
+          left: rect.left,
+          width: rect.width
+        });
+      }
+    };
+    
+    updateSearchPosition();
+    window.addEventListener('resize', updateSearchPosition);
+    return () => window.removeEventListener('resize', updateSearchPosition);
+  }, []);
 
   // Pobierz kursy przypisane do użytkownika
   useEffect(() => {
@@ -640,50 +658,313 @@ function Dashboard() {
   };
 
   return (
-    <div className="flex min-h-screen bg-[#F8F9FB] opacity-100">
-      {/* Mobile menu button */}
-      <button
-        onClick={() => setSidebarOpen(!sidebarOpen)}
-        className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-white rounded-lg shadow-lg border border-gray-200"
-      >
-        <svg className="w-6 h-6 text-[#4067EC]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
-        </svg>
-      </button>
+    <>
+      {/* Search Results Portal - rendered outside main container */}
+      {searchResults.length > 0 && showSearchResults && (
+        <div ref={searchRef} className="fixed top-20 bg-white/95 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl max-h-96 overflow-y-auto" style={{ 
+          zIndex: 999999,
+          left: `${searchPosition.left}px`,
+          width: `${searchPosition.width}px`
+        }}>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6">
+            {/* Kolumna z kursami */}
+            <div>
+              <h3 className="text-sm font-bold text-[#4067EC] mb-4 pb-3 border-b border-white/20">
+                Kursy ({searchResults.filter(r => r.type === 'course').length})
+              </h3>
+              <div className="space-y-3">
+                {searchResults
+                  .filter(result => result.type === 'course')
+                  .map((result) => (
+                    <div
+                      key={result.id}
+                      className="flex items-center p-4 hover:bg-gradient-to-r hover:from-[#F1F4FE] hover:to-white cursor-pointer transition-all duration-200 rounded-xl border border-transparent hover:border-[#4067EC] hover:shadow-lg"
+                      onClick={() => handleCourseClick(result.id)}
+                    >
+                      <div className="flex-shrink-0 w-12 h-12 bg-gradient-to-r from-[#4067EC] to-[#5577FF] rounded-xl flex items-center justify-center mr-4 shadow-lg">
+                        <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                        </svg>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold text-gray-800 text-sm truncate">{result.title}</div>
+                        {result.subtitle && <div className="text-xs text-gray-500 truncate">{result.subtitle}</div>}
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </div>
 
-      {/* Sidebar */}
-      <aside className={`${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 fixed lg:static inset-y-0 left-0 z-40 w-64 bg-white border-r-2 border-gray-200 flex flex-col min-h-screen transition-transform duration-300 ease-in-out`} style={{height: '100vh'}}>
-        <div className="flex items-center gap-2 px-4 sm:px-6 py-4 sm:py-6 justify-between">
-          <div className="flex items-center gap-2">
-            <Image src="/puzzleicon.png" alt="Logo" width={28} height={28} className="w-7 h-7 sm:w-8 sm:h-8" />
-            <span className="text-lg sm:text-xl font-bold text-[#4067EC]">COGITO</span>
+            {/* Kolumna z nauczycielami */}
+            <div>
+              <h3 className="text-sm font-bold text-[#4067EC] mb-4 pb-3 border-b border-white/20">
+                Nauczyciele ({searchResults.filter(r => r.type === 'teacher').length})
+              </h3>
+              <div className="space-y-3">
+                {searchResults
+                  .filter(result => result.type === 'teacher')
+                  .map((result) => (
+                    <div
+                      key={result.id}
+                      className="flex items-center p-4 hover:bg-gradient-to-r hover:from-[#F1F4FE] hover:to-white cursor-pointer transition-all duration-200 rounded-xl border border-transparent hover:border-[#4067EC] hover:shadow-lg"
+                      onClick={() => handleTeacherClick(result.id)}
+                    >
+                      <div className="flex-shrink-0 w-12 h-12 bg-gradient-to-r from-green-500 to-green-600 rounded-full flex items-center justify-center mr-4 overflow-hidden shadow-lg">
+                        {result.photoURL ? (
+                          <Image src={result.photoURL} alt={result.title} width={48} height={48} className="w-full h-full object-cover" />
+                        ) : (
+                          <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                          </svg>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold text-gray-800 text-sm truncate">{result.title}</div>
+                        {result.subtitle && <div className="text-xs text-gray-500 truncate">{result.subtitle}</div>}
+                        {result.description && <div className="text-xs text-gray-700 truncate">{result.description}</div>}
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </div>
           </div>
         </div>
-        <nav className="flex-1 px-3 sm:px-4 py-4 sm:py-6 space-y-1 sm:space-y-2">
+      )}
+
+      {/* Notifications Portal - rendered outside main container */}
+      {showNotifications && (
+        <div ref={notifRef} className="fixed top-20 right-6 w-80 bg-white/95 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl overflow-hidden" style={{ zIndex: 999999 }}>
+          <div className="p-4 border-b border-white/20 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white">
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-base">Powiadomienia</h3>
+              <div className="flex items-center gap-2">
+                <span className="text-xs bg-white/20 px-3 py-1 rounded-full font-medium">
+                  {notifications.filter(n => !n.read).length} nowych
+                </span>
+              </div>
+            </div>
+          </div>
+          
+          {notifications.length === 0 ? (
+            <div className="p-8 text-center">
+              <div className="w-16 h-16 mx-auto mb-4 bg-emerald-100 rounded-full flex items-center justify-center">
+                <svg className="w-8 h-8 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <p className="text-gray-600 font-medium">Brak powiadomień</p>
+              <p className="text-gray-400 text-sm mt-1">Wszystko jest na bieżąco! 🎉</p>
+            </div>
+          ) : (
+            <ul className="max-h-96 overflow-y-auto">
+              {notifications.map((notif, index) => {
+                const isUnread = !notif.read;
+                
+                // Różnorodne kolory dla różnych typów powiadomień
+                const getNotificationColors = () => {
+                  switch (notif.type) {
+                    case 'assignment':
+                      return {
+                        bg: 'bg-blue-50',
+                        border: 'border-l-blue-500',
+                        icon: 'bg-blue-500',
+                        text: 'text-blue-700'
+                      };
+                    case 'exam':
+                      return {
+                        bg: 'bg-red-50',
+                        border: 'border-l-red-500',
+                        icon: 'bg-red-500',
+                        text: 'text-red-700'
+                      };
+                    case 'grade':
+                      return {
+                        bg: 'bg-green-50',
+                        border: 'border-l-green-500',
+                        icon: 'bg-green-500',
+                        text: 'text-green-700'
+                      };
+                    case 'course':
+                      return {
+                        bg: 'bg-purple-50',
+                        border: 'border-l-purple-500',
+                        icon: 'bg-purple-500',
+                        text: 'text-purple-700'
+                      };
+                    default:
+                      return {
+                        bg: 'bg-orange-50',
+                        border: 'border-l-orange-500',
+                        icon: 'bg-orange-500',
+                        text: 'text-orange-700'
+                      };
+                  }
+                };
+                
+                const colors = getNotificationColors();
+                
+                const getTypeIcon = () => {
+                  switch (notif.type) {
+                    case 'assignment':
+                      return (
+                        <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 4H7a2 2 0 01-2-2V6a2 2 0 012-2h2l2 2h6a2 2 0 012 2v10a2 2 0 01-2 2z" />
+                        </svg>
+                      );
+                    case 'exam':
+                      return (
+                        <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                        </svg>
+                      );
+                    case 'grade':
+                      return (
+                        <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                        </svg>
+                      );
+                    case 'course':
+                      return (
+                        <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                        </svg>
+                      );
+                    default:
+                      return (
+                        <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      );
+                  }
+                };
+                
+                return (
+                  <li 
+                    key={notif.id} 
+                    className={`p-4 border-l-4 ${colors.border} ${colors.bg} hover:bg-white hover:shadow-lg transition-all duration-200 cursor-pointer group`}
+                    onClick={() => handleNotificationClick(notif)}
+                  >
+                    <div className="flex items-start gap-4">
+                      <div className={`flex-shrink-0 w-10 h-10 ${colors.icon} rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-200`}>
+                        {getTypeIcon()}
+                      </div>
+                      
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-2">
+                          <h4 className={`font-bold text-sm ${isUnread ? 'text-gray-900' : 'text-gray-700'}`}>
+                            {notif.title}
+                          </h4>
+                          {isUnread && (
+                            <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
+                          )}
+                        </div>
+                        
+                        <div className="text-xs text-gray-500 mb-2">
+                          <div className="flex items-center gap-2">
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                            <span>
+                              {new Date(notif.deadline).toLocaleString('pl-PL', { 
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </span>
+                            {notif.isOverdue && (
+                              <span className="text-red-600 font-bold text-xs">⚠️ Po terminie</span>
+                            )}
+                          </div>
+                        </div>
+                        
+                        {notif.description && (
+                          <p className="text-xs text-gray-600 line-clamp-2 mb-2">{notif.description}</p>
+                        )}
+                        
+                        <div className="flex items-center gap-2">
+                          <span className={`text-xs px-3 py-1 rounded-full ${colors.text} bg-white/80 font-medium`}>
+                            {notif.type === 'assignment' ? 'Zadanie' : 
+                             notif.type === 'exam' ? 'Egzamin' : 
+                             notif.type === 'grade' ? 'Ocena' : 
+                             notif.type === 'course' ? 'Kurs' : 'Ogłoszenie'}
+                          </span>
+                          <span className="text-xs text-gray-400">Kliknij aby przejść →</span>
+                        </div>
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          
+          {notifications.length > 0 && (
+            <div className="p-4 border-t border-white/20 bg-gray-50/50">
+              <button 
+                onClick={() => {
+                  setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+                  setHasUnread(false);
+                }}
+                className="w-full text-sm text-gray-600 hover:text-emerald-600 transition-colors font-medium"
+              >
+                Zaznacz wszystkie jako przeczytane
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="flex min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+        {/* Mobile menu button */}
+        <button
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+          className="lg:hidden fixed top-4 left-4 z-50 p-3 bg-white/90 backdrop-blur-lg rounded-xl shadow-lg border border-white/20 hover:bg-white hover:shadow-xl transition-all duration-200"
+        >
+          <svg className="w-6 h-6 text-[#4067EC]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
+
+      {/* Sidebar */}
+      <aside className={`${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 fixed lg:static inset-y-0 left-0 z-40 w-64 bg-white/90 backdrop-blur-xl border-r border-white/20 flex flex-col min-h-screen transition-transform duration-300 ease-in-out shadow-xl`} style={{height: '100vh'}}>
+        <div className="flex items-center gap-3 px-6 py-6 justify-between bg-gradient-to-r from-[#4067EC] to-[#5577FF] text-white rounded-br-2xl">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+              <Image src="/puzzleicon.png" alt="Logo" width={24} height={24} className="w-6 h-6" />
+            </div>
+            <span className="text-xl font-bold">COGITO</span>
+          </div>
+        </div>
+        <nav className="flex-1 px-4 py-6 space-y-2">
           {sidebarLinks.map((item) => (
             <div key={item.label}>
               {item.href ? (
                 <Link 
                   href={item.href} 
-                  className="flex items-center text-gray-700 font-medium py-2 px-2 rounded-lg hover:bg-[#F1F4FE] cursor-pointer transition duration-200 hover:scale-105 text-sm sm:text-base"
+                  className="flex items-center text-gray-700 font-medium py-3 px-4 rounded-xl hover:bg-white hover:text-[#4067EC] hover:shadow-lg cursor-pointer transition-all duration-200 hover:scale-105 text-sm shadow-sm border border-transparent hover:border-[#4067EC]/20 group"
                   target={user?.role === 'student' ? undefined : "_blank"}
                   rel={user?.role === 'student' ? undefined : "noopener noreferrer"}
                 >
-                  {item.icon}
+                  <div className="w-8 h-8 bg-[#F1F4FE] rounded-lg flex items-center justify-center mr-3 group-hover:bg-[#4067EC] group-hover:text-white transition-all duration-200">
+                    {item.icon}
+                  </div>
                   <span className="truncate">{item.label}</span>
                   {user?.role !== 'student' && (
-                    <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <svg className="w-4 h-4 ml-auto text-gray-400 group-hover:text-[#4067EC]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                     </svg>
                   )}
                 </Link>
               ) : (
-                <div className="flex items-center text-gray-700 font-medium py-2 px-2 rounded-lg hover:bg-[#F1F4FE] cursor-pointer transition duration-200 hover:scale-105 text-sm sm:text-base">
-                  {item.icon}
+                <div className="flex items-center text-gray-700 font-medium py-3 px-4 rounded-xl hover:bg-white hover:text-[#4067EC] hover:shadow-lg cursor-pointer transition-all duration-200 hover:scale-105 text-sm shadow-sm border border-transparent hover:border-[#4067EC]/20 group">
+                  <div className="w-8 h-8 bg-[#F1F4FE] rounded-lg flex items-center justify-center mr-3 group-hover:bg-[#4067EC] group-hover:text-white transition-all duration-200">
+                    {item.icon}
+                  </div>
                   <span className="truncate">{item.label}</span>
                 </div>
               )}
-
             </div>
           ))}
         </nav>
@@ -692,21 +973,21 @@ function Dashboard() {
       {/* Overlay for mobile */}
       {sidebarOpen && (
         <div 
-          className="lg:hidden fixed inset-0 bg-black bg-opacity-50 z-30"
+          className="lg:hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-30"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
       {/* Main content */}
-      <main className="flex-1 flex flex-col w-full lg:w-auto bg-[#F8F9FB] opacity-100">
+      <main className="flex-1 flex flex-col w-full lg:w-auto bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
         {/* Header */}
-        <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between px-3 sm:px-6 lg:px-8 py-4 sm:py-6 bg-white border-b border-gray-200 relative gap-3 sm:gap-0">
+        <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between px-6 lg:px-8 py-6 bg-white/80 backdrop-blur-lg border-b border-white/20 shadow-sm relative gap-4 sm:gap-0">
           <div className="relative w-full sm:w-1/2 lg:w-1/3" ref={searchRef}>
             <div className="flex">
               <input
                 type="text"
                 placeholder="Szukaj kursu lub nauczyciela..."
-                className="w-full px-3 sm:px-4 py-2 rounded-l-lg border border-gray-200 border-r-0 focus:outline-none focus:ring-2 focus:ring-[#4067EC] text-[#222] font-semibold pr-10 text-sm sm:text-base"
+                className="w-full px-4 py-3 rounded-l-xl border border-white/30 bg-white/60 backdrop-blur-sm focus:outline-none focus:ring-2 focus:ring-[#4067EC] focus:bg-white text-gray-800 font-semibold pr-10 text-sm shadow-sm"
                 value={search}
                 onChange={handleSearchChange}
                 onFocus={handleSearchFocus}
@@ -718,360 +999,184 @@ function Dashboard() {
                   setShowSearchResults(false);
                   setSearchResults([]);
                 }}
-                className="px-2 sm:px-3 py-2 bg-[#4067EC] text-white rounded-r-lg border border-[#4067EC] hover:bg-[#3155d4] focus:outline-none focus:ring-2 focus:ring-[#4067EC] transition-colors"
+                className="px-4 py-3 bg-gradient-to-r from-[#4067EC] to-[#5577FF] text-white rounded-r-xl border border-[#4067EC] hover:from-[#3155d4] hover:to-[#4067EC] focus:outline-none focus:ring-2 focus:ring-[#4067EC] transition-all duration-200 shadow-sm hover:shadow-lg"
                 aria-label="Wyczyść wyszukiwanie"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:h-5 sm:w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
             
-            {searchResults.length > 0 && showSearchResults && (
-              <div className="absolute left-0 right-0 bg-white border border-gray-200 rounded-lg mt-1 z-50 shadow-lg max-h-96 overflow-y-auto">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
-                  {/* Kolumna z kursami */}
-                  <div>
-                    <h3 className="text-sm font-bold text-[#4067EC] mb-3 pb-2 border-b border-gray-200">
-                      Kursy ({searchResults.filter(r => r.type === 'course').length})
-                    </h3>
-                    <div className="space-y-2">
-                      {searchResults
-                        .filter(result => result.type === 'course')
-                        .map((result) => (
-                          <div
-                            key={result.id}
-                            className="flex items-center p-3 hover:bg-[#F1F4FE] cursor-pointer transition rounded-lg border border-transparent hover:border-[#4067EC]"
-                            onClick={() => handleCourseClick(result.id)}
-                          >
-                            <div className="flex-shrink-0 w-10 h-10 bg-[#4067EC] rounded-lg flex items-center justify-center mr-3">
-                              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                              </svg>
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="font-semibold text-[#1a237e] text-sm truncate">{result.title}</div>
-                              {result.subtitle && <div className="text-xs text-gray-500 truncate">{result.subtitle}</div>}
-                            </div>
-                          </div>
-                        ))}
-                    </div>
-                  </div>
 
-                  {/* Kolumna z nauczycielami */}
-                  <div>
-                    <h3 className="text-sm font-bold text-[#4067EC] mb-3 pb-2 border-b border-gray-200">
-                      Nauczyciele ({searchResults.filter(r => r.type === 'teacher').length})
-                    </h3>
-                    <div className="space-y-2">
-                      {searchResults
-                        .filter(result => result.type === 'teacher')
-                        .map((result) => (
-                          <div
-                            key={result.id}
-                            className="flex items-center p-3 hover:bg-[#F1F4FE] cursor-pointer transition rounded-lg border border-transparent hover:border-[#4067EC]"
-                            onClick={() => handleTeacherClick(result.id)}
-                          >
-                            <div className="flex-shrink-0 w-10 h-10 bg-[#4CAF50] rounded-full flex items-center justify-center mr-3 overflow-hidden">
-                              {result.photoURL ? (
-                                <Image src={result.photoURL} alt={result.title} width={40} height={40} className="w-full h-full object-cover" />
-                              ) : (
-                                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                                </svg>
-                              )}
-                  </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="font-semibold text-[#1a237e] text-sm truncate">{result.title}</div>
-                              {result.subtitle && <div className="text-xs text-gray-500 truncate">{result.subtitle}</div>}
-                              {result.description && <div className="text-xs text-gray-700 truncate">{result.description}</div>}
-                </div>
-                          </div>
-                        ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
           
-          <div className="flex items-center gap-2 sm:gap-4 w-full sm:w-auto">
-            <div className="flex items-center gap-2 sm:gap-4">
+          <div className="flex items-center gap-4 w-full sm:w-auto">
+            <div className="flex items-center gap-4">
               <div className="relative">
                 <button
-                  className="relative p-1.5 sm:p-2 rounded-full hover:bg-[#F1F4FE] cursor-pointer transition-colors duration-200"
+                  className="relative p-3 rounded-xl bg-white/60 backdrop-blur-sm hover:bg-white hover:shadow-lg cursor-pointer transition-all duration-200 border border-white/20"
                   onClick={handleNotifClick}
                   aria-label="Powiadomienia"
                 >
-                  <svg className="w-5 h-5 sm:w-6 sm:h-6 text-[#4067EC]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V4a2 2 0 10-4 0v1.341C7.67 7.165 6 9.388 6 12v2.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
+                  <svg className="w-6 h-6 text-[#4067EC]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V4a2 2 0 10-4 0v1.341C7.67 7.165 6 9.388 6 12v2.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
                   {hasUnread && (
-                    <span className="absolute top-0.5 sm:top-1 right-0.5 sm:right-1 w-2 h-2 sm:w-2.5 sm:h-2.5 bg-red-500 rounded-full border-2 border-white"></span>
+                    <span className="absolute top-1 right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white animate-pulse"></span>
                   )}
                 </button>
-                {showNotifications && (
-                  <div ref={notifRef} className="absolute right-0 mt-2 w-72 sm:w-80 bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-hidden">
-                    <div className="p-4 border-b border-gray-100 bg-gradient-to-r from-[#4067EC] to-[#5577FF] text-white">
-                      <div className="flex items-center justify-between">
-                        <h3 className="font-bold text-sm sm:text-base">Powiadomienia</h3>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs bg-white/20 px-2 py-1 rounded-full">
-                            {notifications.filter(n => !n.read).length} nowych
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    {notifications.length === 0 ? (
-                      <div className="p-6 text-center">
-                        <div className="w-12 h-12 mx-auto mb-3 bg-gray-100 rounded-full flex items-center justify-center">
-                          <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V4a2 2 0 10-4 0v1.341C7.67 7.165 6 9.388 6 12v2.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                          </svg>
-                        </div>
-                        <p className="text-gray-500 text-sm">Brak powiadomień</p>
-                        <p className="text-gray-400 text-xs mt-1">Wszystko jest na bieżąco!</p>
-                      </div>
-                    ) : (
-                      <ul className="max-h-96 overflow-y-auto">
-                        {notifications.map((notif, index) => {
-                          const isUnread = !notif.read;
-                          const getPriorityColor = () => {
-                            if (notif.priority === 'high') return 'border-l-red-500 bg-red-50';
-                            if (notif.priority === 'medium') return 'border-l-orange-500 bg-orange-50';
-                            return 'border-l-blue-500 bg-blue-50';
-                          };
-                          
-                          const getTypeIcon = () => {
-                            switch (notif.type) {
-                              case 'assignment':
-                                return (
-                                  <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 4H7a2 2 0 01-2-2V6a2 2 0 012-2h2l2 2h6a2 2 0 012 2v10a2 2 0 01-2 2z" />
-                                  </svg>
-                                );
-                              case 'exam':
-                                return (
-                                  <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                                  </svg>
-                                );
-                              case 'grade':
-                                return (
-                                  <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                                  </svg>
-                                );
-                              default:
-                                return (
-                                  <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                  </svg>
-                                );
-                            }
-                          };
-                          
-                          return (
-                            <li 
-                              key={notif.id} 
-                              className={`p-4 border-l-4 ${getPriorityColor()} hover:bg-white hover:shadow-md transition-colors duration-200 cursor-pointer`}
-                              onClick={() => handleNotificationClick(notif)}
-                            >
-                              <div className="flex items-start gap-3">
-                                <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${isUnread ? 'bg-white shadow-sm' : 'bg-gray-100'}`}>
-                                  {getTypeIcon()}
-                                </div>
-                                
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <h4 className={`font-semibold text-sm ${isUnread ? 'text-gray-900' : 'text-gray-700'}`}>
-                                      {notif.title}
-                                    </h4>
-                                    {isUnread && (
-                                      <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
-                                    )}
-                                  </div>
-                                  
-                                  <div className="text-xs text-gray-500 mb-2">
-                                    <div className="flex items-center gap-2">
-                                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                      </svg>
-                                      <span>
-                                        {new Date(notif.deadline).toLocaleString('pl-PL', { 
-                                year: 'numeric',
-                                          month: 'short',
-                                day: 'numeric',
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              })}
-                                      </span>
-                              {notif.isOverdue && (
-                                        <span className="text-red-600 font-bold text-xs">⚠️ Po terminie</span>
-                              )}
-                            </div>
-                                  </div>
-                                  
-                            {notif.description && (
-                                    <p className="text-xs text-gray-600 line-clamp-2">{notif.description}</p>
-                                  )}
-                                  
-                                  <div className="mt-2 flex items-center gap-2">
-                                    <span className="text-xs px-2 py-1 rounded-full bg-white/60 text-gray-600">
-                                      {notif.type === 'assignment' ? 'Zadanie' : 
-                                       notif.type === 'exam' ? 'Egzamin' : 
-                                       notif.type === 'grade' ? 'Ocena' : 
-                                       notif.type === 'course' ? 'Kurs' : 'Ogłoszenie'}
-                                    </span>
-                                    <span className="text-xs text-gray-400">Kliknij aby przejść →</span>
-                                  </div>
-                                </div>
-                              </div>
-                          </li>
-                          );
-                        })}
-                      </ul>
-                    )}
-                    
-                    {notifications.length > 0 && (
-                      <div className="p-3 border-t border-gray-100 bg-gray-50">
-                        <button 
-                          onClick={() => {
-                            setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-                            setHasUnread(false);
-                          }}
-                          className="w-full text-xs text-gray-600 hover:text-gray-800 transition-colors"
-                        >
-                          Zaznacz wszystkie jako przeczytane
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
               </div>
-              <Image 
-                src="https://images.unsplash.com/photo-1511367461989-f85a21fda167?auto=format&fit=facearea&w=256&h=256&facepad=2" 
-                alt="Profile" 
-                width={32} 
-                height={32} 
-                className="w-8 h-8 sm:w-9 sm:h-9 rounded-full border-2 border-[#4067EC] object-cover cursor-pointer" 
-                onClick={() => router.push('/profile')} 
-              />
-              <button onClick={logout} className="px-2 sm:px-4 py-1.5 sm:py-2 bg-red-500 text-white rounded hover:bg-red-600 transition text-xs sm:text-sm">Wyloguj się</button>
+              <div className="flex items-center gap-3 p-2 bg-white/60 backdrop-blur-sm rounded-xl border border-white/20 hover:bg-white hover:shadow-lg transition-all duration-200 cursor-pointer" onClick={() => router.push('/profile')}>
+                <Image 
+                  src="https://images.unsplash.com/photo-1511367461989-f85a21fda167?auto=format&fit=facearea&w=256&h=256&facepad=2" 
+                  alt="Profile" 
+                  width={32} 
+                  height={32} 
+                  className="w-8 h-8 rounded-full border-2 border-[#4067EC] object-cover" 
+                />
+                <span className="text-sm font-semibold text-gray-700 hidden sm:block">Profil</span>
+              </div>
+              <button onClick={logout} className="px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl hover:from-red-600 hover:to-red-700 transition-all duration-200 shadow-sm hover:shadow-lg text-sm font-semibold">Wyloguj się</button>
             </div>
           </div>
         </header>
         
         {/* Dashboard grid */}
-        <div className="flex-1 p-3 sm:p-4 lg:p-8 bg-[#F8F9FB]">
+        <div className="flex-1 p-6 lg:p-8">
           {/* Main dashboard */}
-          <section className="space-y-4 sm:space-y-6 lg:space-y-8">
+          <section className="space-y-6 lg:space-y-8">
             {/* Progress & Chart */}
-            <div className="flex flex-col lg:flex-row gap-4 sm:gap-6 lg:gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
               {/* Shortcut/statystyka do statystyk profilu */}
-              <div className="w-1/3">
-                <a href="/profile/statistics" className="block bg-white rounded-xl sm:rounded-2xl shadow p-4 sm:p-6 flex flex-col justify-between hover:shadow-lg transition cursor-pointer border-2 border-[#e3eafe] hover:border-[#4067EC] h-full">
-                  <div className="flex items-center gap-3 sm:gap-4 mb-3 sm:mb-4">
-                    <div className="bg-[#F1F4FE] p-2 sm:p-3 rounded-lg">
-                      <svg className="w-6 h-6 sm:w-8 sm:h-8 text-[#4067EC]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2a4 4 0 014-4h4" /></svg>
+              <div className="lg:col-span-1">
+                <a href="/profile/statistics" className="block bg-white/90 backdrop-blur-xl rounded-2xl shadow-lg p-6 flex flex-col justify-between hover:shadow-xl transition-all duration-300 cursor-pointer border border-white/20 hover:border-[#4067EC] h-full group">
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="bg-gradient-to-r from-[#4067EC] to-[#5577FF] p-3 rounded-xl text-white shadow-lg">
+                      <svg className="w-8 h-8" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2a4 4 0 014-4h4" /></svg>
                     </div>
                     <div>
-                      <div className="text-xs sm:text-sm text-gray-500">Statystyki profilu</div>
-                      <div className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-800">Zobacz szczegóły &rarr;</div>
+                      <div className="text-sm text-gray-500 font-medium">Statystyki profilu</div>
+                      <div className="text-xl font-bold text-gray-800 group-hover:text-[#4067EC] transition-colors">Zobacz szczegóły &rarr;</div>
                     </div>
                   </div>
-                  <div className="h-24 sm:h-32 flex items-center justify-center">
-                    <svg viewBox="0 0 200 80" className="w-full h-20 sm:h-24">
-                      <rect x="20" y="40" width="20" height="30" fill="#4067EC" rx="4" />
-                      <rect x="50" y="30" width="20" height="40" fill="#4067EC" rx="4" />
-                      <rect x="80" y="20" width="20" height="50" fill="#4067EC" rx="4" />
-                      <rect x="110" y="10" width="20" height="60" fill="#4067EC" rx="4" />
-                      <rect x="140" y="25" width="20" height="45" fill="#4067EC" rx="4" />
+                  <div className="h-32 flex items-center justify-center">
+                    <svg viewBox="0 0 200 80" className="w-full h-24">
+                      <rect x="20" y="40" width="20" height="30" fill="url(#gradient)" rx="4" />
+                      <rect x="50" y="30" width="20" height="40" fill="url(#gradient)" rx="4" />
+                      <rect x="80" y="20" width="20" height="50" fill="url(#gradient)" rx="4" />
+                      <rect x="110" y="10" width="20" height="60" fill="url(#gradient)" rx="4" />
+                      <rect x="140" y="25" width="20" height="45" fill="url(#gradient)" rx="4" />
+                      <defs>
+                        <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                          <stop offset="0%" style={{stopColor: '#4067EC'}} />
+                          <stop offset="100%" style={{stopColor: '#5577FF'}} />
+                        </linearGradient>
+                      </defs>
                     </svg>
                   </div>
                 </a>
               </div>
 
               {/* Chat with Teacher */}
-              <div className="w-1/3">
-                <div className="bg-white rounded-xl sm:rounded-2xl shadow p-4 sm:p-6 h-full">
-                  <h2 className="text-base sm:text-lg font-bold text-gray-800 mb-3 sm:mb-4">Napisz do nauczyciela</h2>
-                  <form className="flex flex-col gap-3 sm:gap-4" onSubmit={handleSendMessage}>
-                    <label className="text-xs sm:text-sm font-semibold text-gray-700">Wybierz nauczyciela</label>
-                    <select
-                      className="border border-gray-300 rounded px-2 sm:px-3 py-1.5 sm:py-2 focus:ring-2 focus:ring-[#4067EC] bg-white text-[#1a237e] font-semibold text-xs sm:text-sm"
-                      required
-                      value={selectedTeacher}
-                      onChange={e => setSelectedTeacher(e.target.value)}
-                    >
-                      <option value="">-- Wybierz --</option>
-                      {teachers.map(t => (
-                        <option key={t.uid} value={t.uid}>{t.displayName || t.email} | {t.subject || 'przedmiot'} | {t.email}</option>
-                      ))}
-                    </select>
-                    <label className="text-xs sm:text-sm font-semibold text-gray-700">Wiadomość (max 300 słów)</label>
-                    <textarea
-                      className="border border-gray-300 rounded px-2 sm:px-3 py-1.5 sm:py-2 focus:ring-2 focus:ring-[#4067EC] resize-none min-h-[60px] sm:min-h-[80px] max-h-[200px] bg-white text-[#1a237e] font-semibold placeholder-gray-400 text-xs sm:text-sm"
-                      maxLength={2000}
-                      placeholder="Napisz wiadomość..."
-                      required
-                      value={message}
-                      onChange={e => setMessage(e.target.value)}
-                    />
-                    <div className="flex flex-col gap-2">
-                      <label className="text-xs sm:text-sm font-semibold text-gray-700">Załącz pliki (max 3, jpg/png/pdf, max 30MB łącznie)</label>
+              <div className="lg:col-span-1">
+                <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-lg p-6 h-full border border-white/20">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="bg-gradient-to-r from-green-500 to-green-600 p-3 rounded-xl text-white shadow-lg">
+                      <svg className="w-8 h-8" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                      </svg>
+                    </div>
+                    <h2 className="text-lg font-bold text-gray-800">Napisz do nauczyciela</h2>
+                  </div>
+                  <form className="flex flex-col gap-4" onSubmit={handleSendMessage}>
+                    <div>
+                      <label className="text-sm font-semibold text-gray-700 mb-2 block">Wybierz nauczyciela</label>
+                      <select
+                        className="w-full border border-white/30 rounded-xl px-4 py-3 focus:ring-2 focus:ring-[#4067EC] bg-white/60 backdrop-blur-sm text-gray-800 font-medium text-sm shadow-sm"
+                        required
+                        value={selectedTeacher}
+                        onChange={e => setSelectedTeacher(e.target.value)}
+                      >
+                        <option value="">-- Wybierz nauczyciela --</option>
+                        {teachers.map(t => (
+                          <option key={t.uid} value={t.uid}>{t.displayName || t.email} | {t.subject || 'przedmiot'}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-sm font-semibold text-gray-700 mb-2 block">Wiadomość</label>
+                      <textarea
+                        className="w-full border border-white/30 rounded-xl px-4 py-3 focus:ring-2 focus:ring-[#4067EC] resize-none min-h-[100px] max-h-[200px] bg-white/60 backdrop-blur-sm text-gray-800 font-medium placeholder-gray-400 text-sm shadow-sm"
+                        maxLength={2000}
+                        placeholder="Napisz wiadomość..."
+                        required
+                        value={message}
+                        onChange={e => setMessage(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-semibold text-gray-700 mb-2 block">Załącz pliki (max 3, jpg/png/pdf, max 30MB)</label>
                       <input
                         type="file"
                         accept=".jpg,.jpeg,.png,.pdf"
-                        className="border border-gray-300 rounded px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm"
+                        className="w-full border border-white/30 rounded-xl px-4 py-3 text-sm bg-white/60 backdrop-blur-sm shadow-sm"
                         multiple
                         onChange={handleFileChange}
                         disabled={selectedFiles.length >= 3}
                       />
-                      {fileError && <div className="text-red-500 text-xs mt-1">{fileError}</div>}
-                      <ul className="mt-1 space-y-1">
+                      {fileError && <div className="text-red-500 text-sm mt-2">{fileError}</div>}
+                      <ul className="mt-2 space-y-2">
                         {selectedFiles.map((file) => (
-                          <li key={file.name} className="flex items-center gap-2 text-xs text-[#1a237e] font-semibold">
-                            <span>{file.name} ({(file.size/1024/1024).toFixed(2)} MB)</span>
-                            <button type="button" className="text-red-500 hover:underline" onClick={() => handleRemoveFile(selectedFiles.indexOf(file))}>Usuń</button>
+                          <li key={file.name} className="flex items-center justify-between bg-white/40 rounded-lg p-2 text-sm text-gray-700">
+                            <span className="font-medium">{file.name} ({(file.size/1024/1024).toFixed(2)} MB)</span>
+                            <button type="button" className="text-red-500 hover:text-red-700 font-semibold" onClick={() => handleRemoveFile(selectedFiles.indexOf(file))}>Usuń</button>
                           </li>
                         ))}
                       </ul>
                     </div>
+                    {sendSuccess && <div className="text-green-600 text-sm bg-green-50 rounded-lg p-3">{sendSuccess}</div>}
+                    {sendError && <div className="text-red-600 text-sm bg-red-50 rounded-lg p-3">{sendError}</div>}
+                    <button
+                      type="submit"
+                      className="w-full bg-gradient-to-r from-[#4067EC] to-[#5577FF] text-white px-6 py-3 rounded-xl font-semibold cursor-pointer transition-all duration-200 hover:from-[#3155d4] hover:to-[#4067EC] hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                      disabled={!!fileError || selectedFiles.length > 3 || sending}
+                    >
+                      {sending ? 'Wysyłanie...' : 'Wyślij wiadomość'}
+                    </button>
                   </form>
-                  {sendSuccess && <div className="text-green-600 text-xs sm:text-sm mt-1">{sendSuccess}</div>}
-                  {sendError && <div className="text-red-600 text-xs sm:text-sm mt-1">{sendError}</div>}
-                  <button
-                    type="submit"
-                    className="bg-[#4067EC] text-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold cursor-pointer transition duration-200 hover:bg-[#3050b3] hover:scale-105 mt-2 text-xs sm:text-sm"
-                    disabled={!!fileError || selectedFiles.length > 3 || sending}
-                  >{sending ? 'Wysyłanie...' : 'Wyślij'}</button>
                 </div>
               </div>
 
               {/* Ankiety */}
-              <div className="w-1/3">
-                <div className="bg-white rounded-xl sm:rounded-2xl shadow p-4 sm:p-6 h-full flex flex-col justify-between">
-                    <div>
-                    <h2 className="text-base sm:text-lg font-bold text-gray-800 mb-3 sm:mb-4">Ankiety</h2>
-                    <p className="text-xs sm:text-sm text-gray-600 mb-4">Twoja opinia jest dla nas ważna!</p>
-                    <div className="flex items-center gap-3 sm:gap-4 mb-4">
-                      <div className="bg-[#F1F4FE] p-2 sm:p-3 rounded-lg">
-                        <svg className="w-6 h-6 sm:w-8 sm:h-8 text-[#4067EC]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <div className="lg:col-span-1">
+                <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-lg p-6 h-full flex flex-col justify-between border border-white/20">
+                  <div>
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="bg-gradient-to-r from-orange-500 to-orange-600 p-3 rounded-xl text-white shadow-lg">
+                        <svg className="w-8 h-8" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                         </svg>
+                      </div>
+                      <h2 className="text-lg font-bold text-gray-800">Ankiety</h2>
                     </div>
+                    <p className="text-sm text-gray-600 mb-6">Twoja opinia jest dla nas bardzo ważna! Pomóż nam rozwijać platformę.</p>
+                    <div className="flex items-center gap-4 mb-6">
+                      <div className="bg-gradient-to-r from-[#4067EC] to-[#5577FF] p-3 rounded-xl text-white shadow-lg">
+                        <svg className="w-8 h-8" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
                       <div>
-                        <div className="text-xs sm:text-sm text-gray-500">Wypełnij ankiety</div>
-                        <div className="text-sm sm:text-base font-semibold text-gray-800">Pomóż nam się rozwijać</div>
+                        <div className="text-sm text-gray-500 font-medium">Wypełnij ankiety</div>
+                        <div className="text-base font-semibold text-gray-800">Pomóż nam się rozwijać</div>
                       </div>
                     </div>
                   </div>
                   <a 
                     href="/homelogin/ankiety" 
-                    className="inline-flex items-center bg-[#4067EC] text-white px-3 sm:px-4 py-2 sm:py-3 rounded-lg text-xs sm:text-sm font-semibold hover:bg-[#3050b3] transition duration-200 hover:scale-105 w-full justify-center"
+                    className="inline-flex items-center justify-center bg-gradient-to-r from-[#4067EC] to-[#5577FF] text-white px-6 py-3 rounded-xl font-semibold hover:from-[#3155d4] hover:to-[#4067EC] transition-all duration-200 hover:shadow-lg w-full group shadow-md"
                   >
-                    Przejdź do ankiet
-                    <svg className="w-3 h-3 sm:w-4 sm:h-4 ml-1" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <span className="text-white font-bold">Przejdź do ankiet</span>
+                    <svg className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform text-white" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                     </svg>
                   </a>
@@ -1080,41 +1185,84 @@ function Dashboard() {
             </div>
 
             {/* Top Courses (przypisane do użytkownika) */}
-            <div className="bg-white rounded-xl sm:rounded-2xl shadow p-4 sm:p-6">
-              <div className="flex justify-between items-center mb-3 sm:mb-4">
-                <h2 className="text-base sm:text-lg font-bold text-gray-800">Moje kursy</h2>
+            <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-lg p-6 border border-white/20">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="bg-gradient-to-r from-emerald-500 to-emerald-600 p-3 rounded-xl text-white shadow-lg">
+                  <svg className="w-8 h-8" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                  </svg>
+                </div>
+                <h2 className="text-xl font-bold text-gray-800">Moje kursy</h2>
               </div>
               {loadingAssigned ? (
-                <div className="text-[#4067EC] text-sm">Ładowanie kursów...</div>
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500"></div>
+                  <span className="ml-3 text-emerald-600 font-medium">Ładowanie kursów...</span>
+                </div>
               ) : assignedCourses.length === 0 ? (
-                <div className="text-gray-500 text-sm">Nie przypisano żadnych kursów.</div>
+                <div className="text-center py-8">
+                  <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
+                    <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                    </svg>
+                  </div>
+                  <p className="text-gray-500 font-medium">Nie przypisano żadnych kursów.</p>
+                  <p className="text-gray-400 text-sm mt-1">Skontaktuj się z nauczycielem, aby zostać dodanym do kursu.</p>
+                </div>
               ) : (
-                <div className="space-y-3 sm:space-y-4">
-                  {assignedCourses.map((course) => (
-                    <div key={course.id} className="flex items-center justify-between bg-[#F1F4FE] rounded-lg p-2 sm:p-3">
-                      <div className="flex items-center gap-2 sm:gap-3">
-                        <Image src="/thumb.png" alt={course.title} width={32} height={32} className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg" />
-                        <span className="font-medium text-gray-800 text-sm sm:text-base">{course.title}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {assignedCourses.map((course, index) => {
+                    const colors = [
+                      'from-emerald-500 to-emerald-600',
+                      'from-orange-500 to-orange-600', 
+                      'from-purple-500 to-purple-600',
+                      'from-pink-500 to-pink-600',
+                      'from-indigo-500 to-indigo-600',
+                      'from-teal-500 to-teal-600'
+                    ];
+                    const colorClass = colors[index % colors.length];
+                    
+                    return (
+                      <div key={course.id} className="bg-white rounded-xl p-5 border border-gray-100 hover:shadow-xl transition-all duration-300 group hover:border-gray-200">
+                        <div className="flex items-center gap-4 mb-4">
+                          <div className={`w-16 h-16 bg-gradient-to-r ${colorClass} rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-200`}>
+                            <Image src="/thumb.png" alt={course.title} width={32} height={32} className="w-8 h-8 rounded" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-bold text-gray-800 text-base truncate group-hover:text-gray-900 transition-colors">{course.title}</h3>
+                            {course.category_name && (
+                              <p className="text-sm text-gray-500 truncate mt-1">{course.category_name}</p>
+                            )}
+                          </div>
+                        </div>
                         <Link href={`/courses/${course.slug || course.id}`}>
-                          <button className="bg-[#4067EC] text-white px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm font-semibold cursor-pointer transition duration-200 hover:bg-[#3050b3] hover:scale-105">Otwórz</button>
+                          <button className="w-full bg-gradient-to-r from-slate-600 to-slate-700 text-white px-4 py-3 rounded-xl text-sm font-semibold cursor-pointer transition-all duration-200 hover:from-slate-700 hover:to-slate-800 hover:shadow-lg group-hover:scale-105 border border-slate-500/20">
+                            Otwórz kurs
+                          </button>
                         </Link>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
             
             {/* Kalendarz */}
-            <div className="bg-white rounded-xl sm:rounded-2xl shadow p-4 sm:p-6">
-              <h2 className="text-base sm:text-lg font-bold text-gray-800 mb-3 sm:mb-4">Kalendarz i Aktywności</h2>
+            <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-lg p-6 border border-white/20">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="bg-gradient-to-r from-teal-500 to-teal-600 p-3 rounded-xl text-white shadow-lg">
+                  <svg className="w-8 h-8" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                </div>
+                <h2 className="text-xl font-bold text-gray-800">Kalendarz i Aktywności</h2>
+              </div>
               <Calendar />
             </div>
           </section>
         </div>
       </main>
     </div>
+    </>
   );
 }
