@@ -14,12 +14,14 @@ interface GroupChat {
   name: string;
   description?: string;
   participants: string[];
+  participantEmails: string[]; // Dodaję emaile uczestników
   createdBy: string;
   createdAt: { seconds: number } | null;
   lastMessage?: {
     text: string;
     senderId: string;
     senderName: string;
+    senderEmail: string; // Dodaję email nadawcy
     createdAt: { seconds: number } | null;
   };
 }
@@ -29,6 +31,7 @@ interface Message {
   text: string;
   senderId: string;
   senderName: string;
+  senderEmail: string; // Dodaję email nadawcy
   createdAt: { seconds: number } | null;
 }
 
@@ -70,6 +73,39 @@ export default function GroupChatsPage() {
       for (const chatDoc of snapshot.docs) {
         const chatData = chatDoc.data();
         
+        // Pobierz emaile uczestników
+        const participantEmails: string[] = [];
+        if (chatData.participants && chatData.participants.length > 0) {
+          try {
+            // Ogranicz liczbę uczestników do 10, żeby uniknąć problemów z Firestore
+            const limitedParticipants = chatData.participants.slice(0, 10);
+            
+            if (limitedParticipants.length > 0) {
+              const usersQuery = query(
+                collection(db, 'users'),
+                where('uid', 'in', limitedParticipants)
+              );
+              const usersSnapshot = await getDocs(usersQuery);
+              usersSnapshot.forEach(userDoc => {
+                const userData = userDoc.data();
+                if (userData.email) {
+                  participantEmails.push(userData.email);
+                }
+              });
+            }
+          } catch (error) {
+            console.error('Error fetching participant emails:', error);
+            // W przypadku błędu, dodaj domyślne emaile
+            chatData.participants.forEach((uid: string) => {
+              if (uid === user.uid && user.email) {
+                participantEmails.push(user.email);
+              } else {
+                participantEmails.push(`Użytkownik ${uid.substring(0, 8)}...`);
+              }
+            });
+          }
+        }
+        
         // Pobierz ostatnią wiadomość dla każdego czatu
         const messagesQuery = query(
           collection(db, 'groupChats', chatDoc.id, 'messages'),
@@ -86,6 +122,7 @@ export default function GroupChatsPage() {
             text: lastMsgData.text || '',
             senderId: lastMsgData.senderId || '',
             senderName: lastMsgData.senderName || 'Nieznany',
+            senderEmail: lastMsgData.senderEmail || '',
             createdAt: lastMsgData.createdAt
           };
         }
@@ -95,6 +132,7 @@ export default function GroupChatsPage() {
           name: chatData.name || 'Czat bez nazwy',
           description: chatData.description || '',
           participants: chatData.participants || [],
+          participantEmails: participantEmails,
           createdBy: chatData.createdBy || '',
           createdAt: chatData.createdAt,
           lastMessage
@@ -216,6 +254,7 @@ export default function GroupChatsPage() {
         text: newMessage.trim(),
         senderId: user.uid,
         senderName: (user as any).displayName || user.email,
+        senderEmail: user.email, // Dodaj email nadawcy
         createdAt: serverTimestamp()
       });
 
@@ -238,6 +277,7 @@ export default function GroupChatsPage() {
         name: newChatName.trim(),
         description: newChatDescription.trim(),
         participants,
+        participantEmails: [user.email, ...selectedStudents.map(id => availableStudents.find(s => s.uid === id)?.email || '')], // Dodaj emaile uczestników
         createdBy: user.uid,
         createdAt: serverTimestamp()
       });
@@ -273,9 +313,9 @@ export default function GroupChatsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="h-screen space-y-6 flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center flex-shrink-0">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Czat Grupowy</h2>
           <p className="text-gray-600">Komunikuj się ze swoimi uczniami</p>
@@ -400,14 +440,15 @@ export default function GroupChatsPage() {
         </div>
       )}
 
-      <div className="grid lg:grid-cols-3 gap-6 h-[calc(100vh-250px)]">
+      {/* Chat Container - STAŁA WYSOKOŚĆ z overflow hidden */}
+      <div className="grid lg:grid-cols-3 gap-6 flex-1 min-h-0 overflow-hidden">
         {/* Chats List */}
         <div className="lg:col-span-1">
-          <div className="bg-white rounded-lg border border-gray-200 h-full">
-            <div className="p-4 border-b border-gray-200">
+          <div className="bg-white rounded-lg border border-gray-200 h-full flex flex-col">
+            <div className="p-4 border-b border-gray-200 flex-shrink-0">
               <h3 className="font-semibold text-gray-900">Twoje czaty ({chats.length})</h3>
             </div>
-            <div className="overflow-y-auto h-full">
+            <div className="overflow-y-auto flex-1 min-h-0">
               {chats.length === 0 ? (
                 <div className="p-4 text-center text-gray-500">
                   <MessageSquare className="h-12 w-12 mx-auto mb-3 text-gray-300" />
@@ -433,7 +474,9 @@ export default function GroupChatsPage() {
                     {chat.lastMessage && (
                       <>
                         <div className="text-sm text-gray-600">
-                          <span className="font-medium">{chat.lastMessage.senderName}:</span>{' '}
+                          <span className="font-medium">
+                            {chat.lastMessage.senderEmail || chat.lastMessage.senderName || 'Nieznany nadawca'}:
+                          </span>{' '}
                           {chat.lastMessage.text.length > 40 
                             ? chat.lastMessage.text.substring(0, 40) + '...' 
                             : chat.lastMessage.text}
@@ -455,7 +498,7 @@ export default function GroupChatsPage() {
           {selectedChat ? (
             <div className="bg-white rounded-lg border border-gray-200 h-full flex flex-col">
               {/* Chat Header */}
-              <div className="p-4 border-b border-gray-200 bg-gray-50">
+              <div className="p-4 border-b border-gray-200 bg-gray-50 flex-shrink-0">
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="font-semibold text-gray-900">{selectedChat.name}</h3>
@@ -468,10 +511,32 @@ export default function GroupChatsPage() {
                     Aktywny teraz
                   </div>
                 </div>
+                
+                {/* Lista uczestników */}
+                <div className="mt-3 p-3 bg-white rounded-lg border border-gray-200">
+                  <h4 className="font-medium text-gray-800 mb-2 flex items-center gap-2 text-sm">
+                    <Users className="w-4 h-4" />
+                    Uczestnicy grupy:
+                  </h4>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedChat.participantEmails && selectedChat.participantEmails.length > 0 ? (
+                      selectedChat.participantEmails.map((email, index) => (
+                        <span
+                          key={index}
+                          className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full border border-blue-200"
+                        >
+                          {email}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-gray-500 text-sm">Brak informacji o uczestnikach</span>
+                    )}
+                  </div>
+                </div>
               </div>
 
-              {/* Messages */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {/* Messages - STAŁA WYSOKOŚĆ z scrollowaniem w środku */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0 max-h-[calc(100vh-435px)]">
                 {messages.map((message) => (
                   <div key={message.id} className={`flex ${message.senderId === user?.uid ? 'justify-end' : 'justify-start'}`}>
                     <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
@@ -492,8 +557,8 @@ export default function GroupChatsPage() {
                 <div ref={messagesEndRef} />
               </div>
 
-              {/* Message Input */}
-              <form onSubmit={handleSendMessage} className="p-4 border-t border-gray-200">
+              {/* Message Input - stała wysokość */}
+              <form onSubmit={handleSendMessage} className="p-4 border-t border-gray-200 flex-shrink-0">
                 <div className="flex items-center space-x-3">
                   <input
                     type="text"

@@ -139,8 +139,8 @@ const QuizPreview: React.FC<QuizPreviewProps> = ({ quiz, onClose, onDelete }) =>
     const studentAnswers = getStudentAnswers(selectedStudent);
 
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
-        <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto m-4 p-6">
+      <div className="fixed inset-0 bg-transparent backdrop-blur-xl flex items-center justify-center z-[60]">
+        <div className="bg-white/20 backdrop-blur-2xl rounded-xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto m-4 p-6 border border-white/30">
           <div className="flex justify-between items-center mb-6">
             <div>
               <button
@@ -386,8 +386,8 @@ const QuizPreview: React.FC<QuizPreviewProps> = ({ quiz, onClose, onDelete }) =>
   // Sprawdź czy quiz ma wszystkie wymagane dane
   if (!quiz || !quiz.questions || quiz.questions.length === 0) {
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 text-center">
+      <div className="fixed inset-0 bg-transparent backdrop-blur-xl flex items-center justify-center z-50">
+        <div className="bg-white/20 backdrop-blur-2xl rounded-xl shadow-xl w-full max-w-md p-6 text-center border border-white/30">
           <div className="text-red-500 mb-4">
             <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
@@ -407,9 +407,9 @@ const QuizPreview: React.FC<QuizPreviewProps> = ({ quiz, onClose, onDelete }) =>
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto m-4">
-        <div className="sticky top-0 bg-white border-b p-4 flex justify-between items-center">
+    <div className="fixed inset-0 bg-transparent backdrop-blur-xl flex items-center justify-center z-50">
+      <div className="bg-white/20 backdrop-blur-2xl rounded-xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto m-4 border border-white/30">
+        <div className="sticky top-0 bg-white/20 backdrop-blur-2xl border-b border-white/30 p-4 flex justify-between items-center">
           <div>
             <h2 className="text-2xl font-bold text-[#4067EC]">{quiz.title}</h2>
             <p className="text-gray-600">{quiz.description}</p>

@@ -15,12 +15,14 @@ interface GroupChat {
   name: string;
   description?: string;
   participants: string[];
+  participantEmails: string[]; // Dodaję emaile uczestników
   createdBy: string;
   createdAt: { seconds: number };
   lastMessage?: {
     text: string;
     senderId: string;
     senderName: string;
+    senderEmail: string; // Dodaję email nadawcy
     createdAt: { seconds: number };
   };
 }
@@ -30,6 +32,7 @@ interface Message {
   text: string;
   senderId: string;
   senderName: string;
+  senderEmail: string; // Dodaję email nadawcy
   createdAt: { seconds: number };
 }
 
@@ -46,108 +49,268 @@ export default function StudentGroupChatsPage() {
 
   // Pobierz czaty grupowe ucznia
   useEffect(() => {
-    if (!user) return;
-
-    const chatsQuery = query(
-      collection(db, 'groupChats'),
-      where('participants', 'array-contains', user.uid)
-    );
-
-    const unsubscribe = onSnapshot(chatsQuery, async (snapshot) => {
-      const chatsData: GroupChat[] = [];
-      
-      for (const chatDoc of snapshot.docs) {
-        const chatData = chatDoc.data();
-        
-        // Pobierz ostatnią wiadomość dla każdego czatu
-        const messagesQuery = query(
-          collection(db, 'groupChats', chatDoc.id, 'messages'),
-          orderBy('createdAt', 'desc'),
-          limit(1)
-        );
-        
-        const messagesSnapshot = await getDocs(messagesQuery);
-        let lastMessage = undefined;
-        
-        if (!messagesSnapshot.empty) {
-          const lastMsgData = messagesSnapshot.docs[0].data();
-          lastMessage = {
-            text: lastMsgData.text || '',
-            senderId: lastMsgData.senderId || '',
-            senderName: lastMsgData.senderName || 'Nieznany',
-            createdAt: lastMsgData.createdAt
-          };
-        }
-
-        chatsData.push({
-          id: chatDoc.id,
-          name: chatData.name || 'Czat bez nazwy',
-          description: chatData.description || '',
-          participants: chatData.participants || [],
-          createdBy: chatData.createdBy || '',
-          createdAt: chatData.createdAt,
-          lastMessage
-        });
-      }
-      
-      // Sortuj czaty po ostatniej wiadomości
-      chatsData.sort((a, b) => {
-        if (!a.lastMessage && !b.lastMessage) return 0;
-        if (!a.lastMessage) return 1;
-        if (!b.lastMessage) return -1;
-        return b.lastMessage.createdAt?.seconds - a.lastMessage.createdAt?.seconds;
-      });
-      
-      setChats(chatsData);
+    console.log('useEffect dla czatów - start, user:', user ? 'istnieje' : 'brak');
+    
+    if (!user) {
+      console.log('Brak użytkownika - kończę useEffect');
       setLoading(false);
-    });
+      return;
+    }
 
-    return () => unsubscribe();
+    // Sprawdź czy użytkownik ma wymagane dane
+    if (!user.uid) {
+      console.error('Brak UID użytkownika');
+      setLoading(false);
+      return;
+    }
+    
+    if (!user.email) {
+      console.error('Brak emaila użytkownika');
+      setLoading(false);
+      return;
+    }
+
+    console.log('Użytkownik ma wymagane dane, tworzę query dla czatów');
+
+    try {
+      const chatsQuery = query(
+        collection(db, 'groupChats'),
+        where('participants', 'array-contains', user.uid)
+      );
+
+      console.log('Query utworzone, nasłuchuję zmian');
+
+      const unsubscribe = onSnapshot(chatsQuery, async (snapshot) => {
+        console.log('Otrzymano snapshot czatów, liczba:', snapshot.docs.length);
+        
+        try {
+          const chatsData: GroupChat[] = [];
+          
+          for (const chatDoc of snapshot.docs) {
+            try {
+              const chatData = chatDoc.data();
+              console.log('Przetwarzam czat:', chatData.name);
+              
+              // Maksymalnie uproszczone pobieranie emaili - bez zapytań do Firestore
+              const participantEmails: string[] = [];
+              if (chatData.participants && chatData.participants.length > 0) {
+                chatData.participants.forEach((uid: string) => {
+                  if (uid === user.uid && user.email) {
+                    participantEmails.push(user.email);
+                  } else {
+                    participantEmails.push(`Użytkownik ${uid.substring(0, 8)}...`);
+                  }
+                });
+              }
+              
+              // Pobierz ostatnią wiadomość dla każdego czatu
+              let lastMessage = undefined;
+              try {
+                const messagesQuery = query(
+                  collection(db, 'groupChats', chatDoc.id, 'messages'),
+                  orderBy('createdAt', 'desc'),
+                  limit(1)
+                );
+                
+                const messagesSnapshot = await getDocs(messagesQuery);
+                
+                if (!messagesSnapshot.empty) {
+                  const lastMsgData = messagesSnapshot.docs[0].data();
+                  lastMessage = {
+                    text: lastMsgData.text || '',
+                    senderId: lastMsgData.senderId || '',
+                    senderName: lastMsgData.senderName || 'Nieznany',
+                    senderEmail: lastMsgData.senderEmail || 'Nieznany nadawca',
+                    createdAt: lastMsgData.createdAt
+                  };
+                }
+              } catch (error) {
+                console.error('Error fetching last message for chat', chatDoc.id, ':', error);
+                // W przypadku błędu, nie dodawaj lastMessage
+              }
+
+              chatsData.push({
+                id: chatDoc.id,
+                name: chatData.name || 'Czat bez nazwy',
+                description: chatData.description || '',
+                participants: chatData.participants || [],
+                participantEmails: participantEmails,
+                createdBy: chatData.createdBy || '',
+                createdAt: chatData.createdAt,
+                lastMessage
+              });
+              
+              console.log('Czat dodany do listy:', chatData.name);
+              
+            } catch (error) {
+              console.error('Błąd podczas przetwarzania czatu:', chatDoc.id, error);
+              // Kontynuuj z następnym czatem
+            }
+          }
+          
+          console.log('Wszystkie czaty przetworzone, liczba:', chatsData.length);
+          
+          // Sortuj czaty po ostatniej wiadomości
+          chatsData.sort((a, b) => {
+            if (!a.lastMessage && !b.lastMessage) return 0;
+            if (!a.lastMessage) return 1;
+            if (!b.lastMessage) return 1;
+            return b.lastMessage.createdAt?.seconds - a.lastMessage.createdAt?.seconds;
+          });
+          
+          setChats(chatsData);
+          console.log('Czaty ustawione w stanie');
+          
+        } catch (error) {
+          console.error('Błąd podczas przetwarzania czatów:', error);
+          setChats([]);
+        } finally {
+          setLoading(false);
+          console.log('Loading ustawione na false');
+        }
+      }, (error) => {
+        console.error('Błąd w snapshot czatów:', error);
+        setChats([]);
+        setLoading(false);
+      });
+
+      return () => {
+        console.log('Czyszczę subscription dla czatów');
+        unsubscribe();
+      };
+      
+    } catch (error) {
+      console.error('Błąd podczas tworzenia query czatów:', error);
+      setChats([]);
+      setLoading(false);
+    }
   }, [user]);
 
   // Pobierz wiadomości dla wybranego czatu
   useEffect(() => {
-    if (!selectedChat) return;
+    if (!selectedChat) {
+      console.log('Brak wybranego czatu - nie pobieram wiadomości');
+      return;
+    }
 
-    const messagesQuery = query(
-      collection(db, 'groupChats', selectedChat.id, 'messages'),
-      orderBy('createdAt', 'asc')
-    );
+    if (!selectedChat.id) {
+      console.error('Brak ID czatu');
+      return;
+    }
 
-    const unsubscribe = onSnapshot(messagesQuery, (snapshot) => {
-      const messagesData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Message[];
+    console.log('Pobieram wiadomości dla czatu:', selectedChat.id);
+
+    try {
+      const messagesQuery = query(
+        collection(db, 'groupChats', selectedChat.id, 'messages'),
+        orderBy('createdAt', 'asc')
+      );
+
+      const unsubscribe = onSnapshot(messagesQuery, (snapshot) => {
+        try {
+          console.log('Otrzymano snapshot wiadomości, liczba:', snapshot.docs.length);
+          
+          const messagesData = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          })) as Message[];
+          
+          console.log('Przetworzone wiadomości:', messagesData.length);
+          setMessages(messagesData);
+          
+          // Scroll to bottom
+          setTimeout(() => {
+            if (messagesEndRef.current) {
+              messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+            }
+          }, 100);
+          
+        } catch (error) {
+          console.error('Błąd podczas przetwarzania wiadomości:', error);
+          setMessages([]);
+        }
+      }, (error) => {
+        console.error('Błąd w snapshot wiadomości:', error);
+        setMessages([]);
+      });
+
+      return () => {
+        console.log('Czyszczę subscription dla wiadomości');
+        unsubscribe();
+      };
       
-      setMessages(messagesData);
-      
-      // Scroll to bottom
-      setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-      }, 100);
-    });
-
-    return () => unsubscribe();
+    } catch (error) {
+      console.error('Błąd podczas tworzenia query wiadomości:', error);
+      setMessages([]);
+    }
   }, [selectedChat]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMessage.trim() || !selectedChat || !user) return;
+    
+    // Podstawowe sprawdzenia
+    if (!newMessage.trim()) {
+      console.log('Wiadomość jest pusta');
+      return;
+    }
+    
+    if (!selectedChat) {
+      console.log('Brak wybranego czatu');
+      return;
+    }
+    
+    if (!user) {
+      console.log('Brak użytkownika');
+      return;
+    }
+    
+    if (!user.uid) {
+      console.log('Brak UID użytkownika');
+      return;
+    }
+    
+    if (!user.email) {
+      console.log('Brak emaila użytkownika');
+      return;
+    }
 
     setSending(true);
+    
     try {
-      await addDoc(collection(db, 'groupChats', selectedChat.id, 'messages'), {
+      console.log('Próba wysłania wiadomości:', {
         text: newMessage.trim(),
         senderId: user.uid,
-        senderName: (user as any).displayName || user.email,
-        createdAt: serverTimestamp()
+        senderEmail: user.email,
+        chatId: selectedChat.id
       });
 
+      const messageData = {
+        text: newMessage.trim(),
+        senderId: user.uid,
+        senderName: user.email || 'Nieznany użytkownik',
+        senderEmail: user.email,
+        createdAt: serverTimestamp()
+      };
+
+      console.log('Dane wiadomości:', messageData);
+
+      await addDoc(collection(db, 'groupChats', selectedChat.id, 'messages'), messageData);
+
+      console.log('Wiadomość wysłana pomyślnie');
       setNewMessage('');
+      
     } catch (error) {
-      console.error('Error sending message:', error);
-      alert('Błąd podczas wysyłania wiadomości');
+      console.error('Błąd podczas wysyłania wiadomości:', error);
+      
+      // Prosty komunikat błędu
+      if (error instanceof Error) {
+        console.error('Szczegóły błędu:', error.message);
+        console.error('Stack trace:', error.stack);
+      }
+      
+      // Nie pokazuj alertu - tylko loguj błąd
+      console.error('Wiadomość nie została wysłana z powodu błędu');
+      
     } finally {
       setSending(false);
     }
@@ -167,10 +330,18 @@ export default function StudentGroupChatsPage() {
     );
   }
 
+  console.log('Renderuję komponent, stan:', {
+    loading,
+    chatsCount: chats.length,
+    selectedChatId: selectedChat?.id,
+    messagesCount: messages.length,
+    user: user ? { uid: user.uid, email: user.email } : 'brak'
+  });
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-4">
+    <div className="h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-4 flex flex-col overflow-hidden">
       {/* Modern Header */}
-      <div className="mb-6">
+      <div className="mb-6 flex-shrink-0">
         <div className="bg-white/80 backdrop-blur-lg rounded-2xl p-6 shadow-lg border border-white/20">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -195,15 +366,16 @@ export default function StudentGroupChatsPage() {
         </div>
       </div>
 
-      <div className="grid lg:grid-cols-3 gap-6 h-[calc(100vh-300px)]">
+      {/* Chat Container - STAŁA WYSOKOŚĆ z overflow hidden */}
+      <div className="grid lg:grid-cols-3 gap-6 flex-1 min-h-0 overflow-hidden">
         {/* Modern Chats List */}
         <div className="lg:col-span-1">
-          <div className="bg-white/90 backdrop-blur-xl rounded-2xl border border-white/20 shadow-xl h-full overflow-hidden">
-            <div className="p-6 bg-gradient-to-r from-blue-500/10 to-purple-500/10 border-b border-white/10">
+          <div className="bg-white/90 backdrop-blur-xl rounded-2xl border border-white/20 shadow-xl h-full overflow-hidden flex flex-col">
+            <div className="p-6 bg-gradient-to-r from-blue-500/10 to-purple-500/10 border-b border-white/10 flex-shrink-0">
               <h3 className="font-bold text-gray-900 text-lg">Twoje czaty</h3>
               <p className="text-sm text-gray-600 mt-1">{chats.length} aktywnych rozmów</p>
             </div>
-            <div className="overflow-y-auto h-full">
+            <div className="overflow-y-auto flex-1 min-h-0">
               {chats.length === 0 ? (
                 <div className="p-8 text-center">
                   <div className="w-20 h-20 bg-gradient-to-r from-blue-100 to-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -251,7 +423,9 @@ export default function StudentGroupChatsPage() {
                               <div className={`text-sm mt-2 ${
                                 selectedChat?.id === chat.id ? 'text-white/90' : 'text-gray-600'
                               }`}>
-                                <span className="font-medium">{chat.lastMessage.senderName}:</span>{' '}
+                                <span className="font-medium">
+                                  {chat.lastMessage.senderEmail || chat.lastMessage.senderName || 'Nieznany nadawca'}:
+                                </span>{' '}
                                 {chat.lastMessage.text.length > 35 
                                   ? chat.lastMessage.text.substring(0, 35) + '...' 
                                   : chat.lastMessage.text}
@@ -278,7 +452,7 @@ export default function StudentGroupChatsPage() {
           {selectedChat ? (
             <div className="bg-white/90 backdrop-blur-xl rounded-2xl border border-white/20 shadow-xl h-full flex flex-col overflow-hidden">
               {/* Modern Chat Header */}
-              <div className="p-6 bg-gradient-to-r from-blue-500/10 to-purple-500/10 border-b border-white/10">
+              <div className="p-6 bg-gradient-to-r from-blue-500/10 to-purple-500/10 border-b border-white/10 flex-shrink-0">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     <div className="w-12 h-12 bg-gradient-to-r from-blue-400 to-purple-500 rounded-full flex items-center justify-center">
@@ -296,36 +470,71 @@ export default function StudentGroupChatsPage() {
                     <span className="text-sm text-green-700 font-medium">Aktywny</span>
                   </div>
                 </div>
+                
+                {/* Lista uczestników */}
+                <div className="mt-3 p-3 bg-white/50 rounded-lg border border-gray-200">
+                  <h4 className="font-medium text-gray-800 mb-2 flex items-center gap-2 text-sm">
+                    <Users className="w-4 h-4" />
+                    Uczestnicy grupy:
+                  </h4>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedChat.participantEmails && selectedChat.participantEmails.length > 0 ? (
+                      selectedChat.participantEmails.map((email, index) => (
+                        <span
+                          key={index}
+                          className="px-3 py-1 bg-blue-100 text-blue-700 text-xs rounded-full border border-blue-200"
+                        >
+                          {email}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-gray-500 text-sm">Brak informacji o uczestnikach</span>
+                    )}
+                  </div>
+                </div>
               </div>
 
-              {/* Modern Messages */}
-              <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gradient-to-b from-transparent to-blue-50/30">
-                {messages.map((message) => (
-                  <div key={message.id} className={`flex ${message.senderId === user?.uid ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-xs lg:max-w-md px-4 py-3 rounded-2xl shadow-lg transition-all duration-200 hover:shadow-xl ${
-                      message.senderId === user?.uid
-                        ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white' 
-                        : 'bg-white border border-gray-100 text-gray-900'
-                    }`}>
-                      {message.senderId !== user?.uid && (
-                        <div className="text-xs font-semibold mb-2 text-blue-500 bg-blue-50 px-2 py-1 rounded-lg inline-block">
-                          {message.senderName}
-                        </div>
-                      )}
-                      <div className="text-sm leading-relaxed">{message.text}</div>
-                      <div className={`text-xs mt-2 ${
-                        message.senderId === user?.uid ? 'text-white/70' : 'text-gray-500'
-                      }`}>
-                        {formatTime(message.createdAt)}
-                      </div>
-                    </div>
+              {/* Modern Messages - STAŁA WYSOKOŚĆ z scrollowaniem w środku */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gradient-to-b from-transparent to-blue-50/30 min-h-0 max-h-[calc(100vh-435px)]">
+                {messages.length === 0 ? (
+                  <div className="text-center text-gray-500 py-8">
+                    <p>Brak wiadomości w tym czacie</p>
+                    <p className="text-sm">Rozpocznij konwersację!</p>
                   </div>
-                ))}
+                ) : (
+                  messages.map((message) => {
+                    console.log('Renderuję wiadomość:', message);
+                    return (
+                      <div key={message.id} className={`flex ${message.senderId === user?.uid ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`max-w-xs lg:max-w-md px-4 py-3 rounded-2xl shadow-lg transition-all duration-200 hover:shadow-xl ${
+                          message.senderId === user?.uid
+                            ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white' 
+                            : 'bg-white border border-gray-100 text-gray-900'
+                        }`}>
+                          {/* Zawsze pokazuj email nadawcy */}
+                          <div className={`text-xs font-semibold mb-2 px-2 py-1 rounded-lg inline-block ${
+                            message.senderId === user?.uid
+                              ? 'text-white/90 bg-white/20'
+                              : 'text-blue-500 bg-blue-50'
+                          }`}>
+                            {message.senderEmail || message.senderName || 'Nieznany nadawca'}
+                          </div>
+                          <div className="text-sm leading-relaxed">{message.text}</div>
+                          <div className={`text-xs mt-2 ${
+                            message.senderId === user?.uid ? 'text-white/70' : 'text-gray-500'
+                          }`}>
+                            {formatTime(message.createdAt)}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
                 <div ref={messagesEndRef} />
               </div>
 
-              {/* Modern Message Input */}
-              <form onSubmit={handleSendMessage} className="p-6 bg-white/50 backdrop-blur-sm border-t border-white/20">
+              {/* Modern Message Input - stała wysokość */}
+              <form onSubmit={handleSendMessage} className="p-6 bg-white/50 backdrop-blur-sm border-t border-white/20 flex-shrink-0">
                 <div className="flex items-center gap-3">
                   <div className="flex-1 relative">
                     <input

@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Notification from '@/components/Notification';
 import { useAuth } from '@/context/AuthContext';
+import { db } from '@/config/firebase';
+import { doc, getDoc } from 'firebase/firestore';
 
 import SocialLoginButtons from '@/components/Auth/SocialLoginButtons';
 import Providers from '@/components/Providers';
@@ -94,9 +96,29 @@ function LoginPageContent() {
     }
     
     try {
-      await loginWithApproval(email, password);
-      // Przekierowanie zostanie obsłużone przez useEffect w /homelogin/page.tsx
-      router.push("/homelogin");
+      const userCredential = await loginWithApproval(email, password);
+      
+      // Pobierz dane użytkownika z Firestore
+      const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        const userRole = userData.role;
+        
+        // Przekieruj bezpośrednio na właściwy panel na podstawie roli
+        if (userRole === 'teacher') {
+          router.push('/homelogin/teacher');
+        } else if (userRole === 'admin') {
+          router.push('/homelogin/superadmin');
+        } else if (userRole === 'parent') {
+          router.push('/homelogin/parent');
+        } else {
+          // Student - domyślnie na dashboard
+          router.push('/homelogin');
+        }
+      } else {
+        // Fallback - jeśli nie można pobrać roli
+        router.push('/homelogin');
+      }
     } catch (err: unknown) {
       setFirebaseError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
@@ -104,9 +126,36 @@ function LoginPageContent() {
     }
   };
 
-  const handleSocialLoginSuccess = (user: unknown) => {
+  const handleSocialLoginSuccess = async (user: any) => {
     console.log('handleSocialLoginSuccess called, user:', user);
-    router.push('/homelogin');
+    
+    try {
+      // Pobierz dane użytkownika z Firestore
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        const userRole = userData.role;
+        
+        // Przekieruj bezpośrednio na właściwy panel na podstawie roli
+        if (userRole === 'teacher') {
+          router.push('/homelogin/teacher');
+        } else if (userRole === 'admin') {
+          router.push('/homelogin/superadmin');
+        } else if (userRole === 'parent') {
+          router.push('/homelogin/parent');
+        } else {
+          // Student - domyślnie na dashboard
+          router.push('/homelogin');
+        }
+      } else {
+        // Fallback - jeśli nie można pobrać roli
+        router.push('/homelogin');
+      }
+    } catch (error) {
+      console.error('Error getting user role:', error);
+      // Fallback - jeśli wystąpi błąd
+      router.push('/homelogin');
+    }
   };
 
   return (

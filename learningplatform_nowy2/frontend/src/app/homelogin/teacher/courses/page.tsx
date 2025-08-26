@@ -47,9 +47,15 @@ export default function TeacherCourses() {
     title: '',
     description: '',
     subject: '',
-    year_of_study: 1
+    year_of_study: 1,
+    instructor_name: '',
+    category_name: ''
   });
   const [creatingCourse, setCreatingCourse] = useState(false);
+  
+  // State dla wyszukiwarki
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filteredCourses, setFilteredCourses] = useState<Course[]>([]);
 
   
 
@@ -82,6 +88,19 @@ export default function TeacherCourses() {
       localStorage.removeItem(cacheKey);
     }
   }, [cacheKey]);
+
+  // Funkcja filtrowania kursów
+  const filterCourses = useCallback((courses: Course[], search: string) => {
+    if (!search.trim()) return courses;
+    
+    const searchLower = search.toLowerCase();
+    return courses.filter(course => 
+      course.title.toLowerCase().includes(searchLower) ||
+      course.description.toLowerCase().includes(searchLower) ||
+      course.subject.toLowerCase().includes(searchLower) ||
+      course.year_of_study.toString().includes(searchLower)
+    );
+  }, []);
 
   const fetchCourses = useCallback(async (page = 1, useCache = true, retryCount = 0) => {
     console.log(`[DEBUG] fetchCourses called - page: ${page}, useCache: ${useCache}, retryCount: ${retryCount}`);
@@ -262,7 +281,7 @@ export default function TeacherCourses() {
   const handleCreateCourse = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!newCourse.title.trim() || !newCourse.description.trim() || !newCourse.subject.trim()) {
+    if (!newCourse.title.trim() || !newCourse.description.trim() || !newCourse.subject.trim() || !newCourse.instructor_name.trim() || !newCourse.category_name.trim()) {
       setError('Wypełnij wszystkie wymagane pola');
       return;
     }
@@ -296,6 +315,8 @@ export default function TeacherCourses() {
         subject: newCourse.subject.trim(),
         year_of_study: newCourse.year_of_study,
         teacherEmail: user.email,
+        instructor_name: newCourse.instructor_name.trim(),
+        category_name: newCourse.category_name.trim(),
         created_by: user.email,
         assignedUsers: [],
         sections: [],
@@ -320,7 +341,9 @@ export default function TeacherCourses() {
         title: '',
         description: '',
         subject: '',
-        year_of_study: 1
+        year_of_study: 1,
+        instructor_name: '',
+        category_name: ''
       });
       
       // Refresh courses list
@@ -338,8 +361,13 @@ export default function TeacherCourses() {
     }
   }, [newCourse, user, clearCache, fetchCourses]);
 
+  // Filtruj kursy gdy zmienia się searchTerm lub courses
+  useEffect(() => {
+    setFilteredCourses(filterCourses(courses, searchTerm));
+  }, [courses, searchTerm, filterCourses]);
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 w-full">
+    <div className="w-full h-full bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
       {/* Header z przyciskiem powrotu */}
       <div className="bg-white/80 backdrop-blur-lg border-b border-white/20 px-4 sm:px-6 lg:px-8 py-4">
         <div className="flex items-center justify-between">
@@ -359,11 +387,11 @@ export default function TeacherCourses() {
         </div>
       </div>
 
-      <div className="px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
-        <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-lg p-3 sm:p-4 lg:p-6 border border-white/20">
+      <div className="px-4 sm:px-6 lg:px-8 py-6 lg:py-8 h-full">
+        <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-lg p-3 sm:p-4 lg:p-6 border border-white/20 h-full flex flex-col">
           
           {/* Header */}
-          <div className="mb-6 flex justify-between items-center">
+          <div className="mb-6 flex justify-between items-center flex-shrink-0">
             <div>
               <h2 className="text-2xl sm:text-3xl font-bold text-[#4067EC] mb-1">
                 {isAdmin ? 'Wszystkie kursy' : 'Moje kursy'}
@@ -371,6 +399,15 @@ export default function TeacherCourses() {
               <p className="text-gray-600 text-sm sm:text-base mt-1">
                 {isAdmin ? 'Zarządzaj wszystkimi kursami w systemie' : 'Zarządzaj swoimi kursami, materiałami dydaktycznymi i usuń niepotrzebne kursy'}
               </p>
+              {searchTerm ? (
+                <p className="text-sm text-[#4067EC] mt-2">
+                  Wyświetlanie {filteredCourses.length} z {courses.length} kursów
+                </p>
+              ) : (
+                <p className="text-sm text-gray-500 mt-2">
+                  Łącznie {courses.length} kursów
+                </p>
+              )}
             </div>
                           <div className="flex gap-2">
               {/* Add Course Button - only for teachers */}
@@ -405,17 +442,50 @@ export default function TeacherCourses() {
           </div>
 
           {loading ? (
-            <div className="text-center py-8">
+            <div className="text-center py-8 flex-1 flex items-center justify-center">
               <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-[#4067EC] border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]" />
                               <p className="mt-3 text-gray-600">Ładowanie kursów...</p>
                 <p className="text-sm text-gray-500 mt-1">To może potrwać kilka sekund</p>
             </div>
           ) : error ? (
-            <div className="bg-red-50 border border-red-200 text-red-800 p-3 rounded-lg mb-4">{error}</div>
+            <div className="bg-red-50 border border-red-200 text-red-800 p-3 rounded-lg mb-4 flex-shrink-0">{error}</div>
           ) : (
             <>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 mb-6">
-                {courses.map((course) => (
+              {/* Wyszukiwarka kursów */}
+              <div className="mb-6 flex-shrink-0">
+                <div className="relative max-w-md">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                  </div>
+                  <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Wyszukaj kursy po tytule, opisie, przedmiocie..."
+                    className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-2 focus:ring-[#4067EC] focus:border-[#4067EC] transition-all duration-200"
+                  />
+                  {searchTerm && (
+                    <button
+                      onClick={() => setSearchTerm('')}
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                    >
+                      <svg className="h-5 w-5 text-gray-400 hover:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+                {searchTerm && (
+                  <p className="text-sm text-gray-600 mt-2">
+                    Znaleziono {filteredCourses.length} kursów dla "{searchTerm}"
+                  </p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 mb-6 flex-1 w-full">
+                {filteredCourses.map((course) => (
                   <div key={`${course.id}-${course.updated_at || course.created_at}`} className="bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-lg transition-all duration-200 overflow-hidden flex flex-col h-full min-h-[350px]">
                     {/* Course Header - Fixed height */}
                     <div className="bg-gradient-to-r from-[#4067EC] to-[#7aa2f7] p-3 text-white h-28 flex flex-col justify-between">
@@ -560,7 +630,7 @@ export default function TeacherCourses() {
           )}
 
           {/* Info about course management */}
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 sm:p-4">
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 sm:p-4 mt-6 flex-shrink-0">
                           <h2 className="text-lg sm:text-xl font-bold text-blue-800 mb-3">Zarządzanie kursami</h2>
               <p className="text-blue-700 mb-3 text-sm sm:text-base">
               {isAdmin 
@@ -581,7 +651,7 @@ export default function TeacherCourses() {
               </ul>
             </div>
             {success && (
-              <div className="bg-green-50 border border-green-200 text-green-800 px-3 py-2 rounded-lg mt-3 flex items-center justify-between">
+              <div className="bg-green-50 border border-green-200 text-green-800 px-4 py-2 rounded-lg mt-3 flex items-center justify-between">
                 <div className="flex items-center">
                   <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -592,7 +662,7 @@ export default function TeacherCourses() {
                   onClick={() => setSuccess(null)}
                   className="text-green-600 hover:text-green-800"
                 >
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
@@ -604,8 +674,8 @@ export default function TeacherCourses() {
       
       {/* Create Course Modal */}
       {showCreateCourse && (
-        <div className="fixed inset-0 bg-gray-900/20 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 max-w-lg w-full max-h-[90vh] overflow-y-auto transform transition-all duration-300 ease-out scale-100">
+        <div className="fixed inset-0 bg-transparent backdrop-blur-xl flex items-center justify-center z-50 p-4">
+          <div className="bg-white/20 backdrop-blur-2xl rounded-2xl shadow-2xl border border-white/30 max-w-lg w-full max-h-[90vh] overflow-y-auto">
             <div className="p-8">
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3">
@@ -667,7 +737,7 @@ export default function TeacherCourses() {
                 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Rok studiów
+                    Rok nauczania
                   </label>
                   <select
                     value={newCourse.year_of_study}
@@ -678,8 +748,35 @@ export default function TeacherCourses() {
                     <option value={2}>Rok 2</option>
                     <option value={3}>Rok 3</option>
                     <option value={4}>Rok 4</option>
-                    <option value={5}>Rok 5</option>
                   </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Imię i nazwisko nauczyciela *
+                  </label>
+                  <input
+                    type="text"
+                    value={newCourse.instructor_name}
+                    onChange={(e) => setNewCourse(prev => ({ ...prev, instructor_name: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#4067EC] focus:border-transparent"
+                    placeholder="np. Dr. Anna Kowalska"
+                    required
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Kategoria kursu *
+                  </label>
+                  <input
+                    type="text"
+                    value={newCourse.category_name}
+                    onChange={(e) => setNewCourse(prev => ({ ...prev, category_name: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#4067EC] focus:border-transparent"
+                    placeholder="np. Nauki ścisłe, Humanistyczne, Języki"
+                    required
+                  />
                 </div>
                 
                 <div className="flex gap-3 pt-4">

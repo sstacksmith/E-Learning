@@ -48,20 +48,20 @@ function HomeContent() {
                   Kontakt
                 </Link>
               </div>
-              <div className="flex items-center space-x-4">
-                <Link 
-                  href="/login" 
-                  className="px-6 py-2.5 text-blue-600 font-semibold hover:bg-blue-50 rounded-xl transition-all duration-200"
-                >
-                  Zaloguj się
-                </Link>
-                <Link 
-                  href="/register" 
-                  className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200"
-                >
-                  Zarejestruj się
-                </Link>
-              </div>
+                             <div className="flex items-center space-x-4">
+                 <Link 
+                   href="/login" 
+                   className="px-6 py-2.5 text-blue-700 font-semibold hover:bg-blue-50 hover:text-blue-800 rounded-xl transition-all duration-200"
+                 >
+                   Zaloguj się
+                 </Link>
+                 <Link 
+                   href="/register" 
+                   className="px-6 py-2.5 bg-gradient-to-r from-blue-700 to-indigo-700 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 hover:from-blue-800 hover:to-indigo-800 transition-all duration-200"
+                 >
+                   Zarejestruj się
+                 </Link>
+               </div>
             </div>
           </div>
         </header>
@@ -134,7 +134,7 @@ function HomeContent() {
                 </Link>
                 <Link 
                   href="/about" 
-                  className="px-8 py-4 border-2 border-blue-600 text-blue-600 font-bold rounded-xl hover:bg-blue-50 transition-all duration-200 text-center"
+                  className="px-8 py-4 border-2 border-blue-600 text-blue-700 font-bold rounded-xl hover:bg-blue-50 hover:text-blue-800 transition-all duration-200 text-center"
                 >
                   Dowiedz się więcej
                 </Link>
@@ -152,7 +152,7 @@ function HomeContent() {
                   <svg className="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <span>Darmowe konto</span>
+                  <span>Pełna Edukacja</span>
                 </div>
               </div>
             </div>
@@ -176,22 +176,70 @@ function HomeContent() {
         </main>
 
         {/* Footer */}
-        <footer className="bg-white/80 backdrop-blur-sm border-t border-slate-200/50 py-12">
+        <footer className="bg-slate-800 text-white py-12">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0">
-              <div className="flex items-center">
-                <Image src="/puzzleicon.png" alt="COGITO Logo" width={24} height={24} className="w-6 h-6" />
-                <span className="ml-2 text-lg font-bold text-blue-600">COGITO</span>
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-8 mb-8">
+              <div>
+                <div className="flex items-center mb-4">
+                  <div className="relative overflow-hidden rounded-xl p-2 bg-gradient-to-r from-blue-600 to-indigo-600">
+                    <Image 
+                      src="/puzzleicon.png" 
+                      alt="COGITO Logo" 
+                      width={24} 
+                      height={24} 
+                      className="w-6 h-6"
+                    />
+                  </div>
+                  <span className="ml-2 text-xl font-bold">COGITO</span>
+                </div>
+                <p className="text-slate-400 text-sm">
+                  Nowoczesna platforma edukacyjna dla edukacji domowej
+                </p>
               </div>
-              <div className="flex items-center space-x-8 text-sm text-slate-600">
-                <Link href="/about" className="hover:text-blue-600 transition-colors duration-200">O platformie</Link>
-                <Link href="/courses" className="hover:text-blue-600 transition-colors duration-200">Materiały</Link>
-                <Link href="/community" className="hover:text-blue-600 transition-colors duration-200">Społeczność</Link>
-                <Link href="/contact" className="hover:text-blue-600 transition-colors duration-200">Kontakt</Link>
+              
+              <div>
+                <h3 className="font-bold text-lg mb-4">Platforma</h3>
+                <ul className="space-y-2 text-slate-400">
+                  <li><Link href="/about" className="hover:text-white transition-colors">O platformie</Link></li>
+                  <li><Link href="/courses" className="hover:text-white transition-colors">Materiały</Link></li>
+                  <li><Link href="/community" className="hover:text-white transition-colors">Społeczność</Link></li>
+                  <li><Link href="/contact" className="hover:text-white transition-colors">Kontakt</Link></li>
+                </ul>
               </div>
-              <div className="text-sm text-slate-500">
+              
+              <div>
+                <h3 className="font-bold text-lg mb-4">Funkcje</h3>
+                <ul className="space-y-2 text-slate-400">
+                  <li><span className="hover:text-white transition-colors">Zarządzanie kursami</span></li>
+                  <li><span className="hover:text-white transition-colors">Quizy i testy</span></li>
+                  <li><span className="hover:text-white transition-colors">Czaty grupowe</span></li>
+                  <li><span className="hover:text-white transition-colors">Dziennik ocen</span></li>
+                </ul>
+              </div>
+              
+              <div>
+                <h3 className="font-bold text-lg mb-4">Wsparcie</h3>
+                <ul className="space-y-2 text-slate-400">
+                  <li><span className="hover:text-white transition-colors">Pomoc</span></li>
+                  <li><span className="hover:text-white transition-colors">FAQ</span></li>
+                  <li><span className="hover:text-white transition-colors">Kontakt</span></li>
+                </ul>
+              </div>
+              
+              <div>
+                <h3 className="font-bold text-lg mb-4">Prawne</h3>
+                <ul className="space-y-2 text-slate-400">
+                  <li><Link href="/privacy" className="hover:text-white transition-colors">Polityka prywatności</Link></li>
+                  <li><Link href="/terms" className="hover:text-white transition-colors">Regulamin</Link></li>
+                  <li><Link href="/cookies" className="hover:text-white transition-colors">Polityka cookies</Link></li>
+                </ul>
+              </div>
+            </div>
+            
+            <div className="pt-8 border-t border-slate-700 text-center">
+              <p className="text-slate-400 text-sm">
                 © {new Date().getFullYear()} COGITO. Wszelkie prawa zastrzeżone.
-              </div>
+              </p>
             </div>
           </div>
         </footer>
@@ -230,10 +278,10 @@ function HomeContent() {
               </button>
             ))}
           </div>
-          <div className="flex items-center gap-3 sm:gap-4">
-            <Link href="/login" className="px-4 sm:px-6 py-2 rounded-xl text-blue-600 hover:bg-blue-50 transition-all duration-200 text-sm sm:text-base font-medium">Logowanie</Link>
-            <Link href="/register" className="px-4 sm:px-6 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:shadow-lg transition-all duration-200 text-sm sm:text-base font-medium">Rejestracja</Link>
-          </div>
+                     <div className="flex items-center gap-3 sm:gap-4">
+             <Link href="/login" className="px-4 sm:px-6 py-2 rounded-xl text-blue-700 hover:bg-blue-50 hover:text-blue-800 transition-all duration-200 text-sm sm:text-base font-medium">Logowanie</Link>
+             <Link href="/register" className="px-4 sm:px-6 py-2 rounded-xl bg-gradient-to-r from-blue-700 to-indigo-700 text-white hover:shadow-lg hover:from-blue-800 hover:to-indigo-800 transition-all duration-200 text-sm sm:text-base font-medium">Rejestracja</Link>
+           </div>
         </div>
       </nav>
 
@@ -250,14 +298,14 @@ function HomeContent() {
             <p className="text-lg sm:text-xl text-slate-600 mb-8 leading-relaxed">
               Odkryj nowoczesne narzędzia, materiały i społeczność, które pomogą Twojej rodzinie w skutecznym i radosnym nauczaniu domowym. Ucz się w swoim tempie, zgodnie z własnymi wartościami i potrzebami.
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
-              <Link href="/register" className="px-8 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-200 text-center">
-                Załóż konto
-              </Link>
-              <Link href="/about" className="px-8 py-4 border-2 border-blue-600 text-blue-600 font-bold rounded-xl hover:bg-blue-50 transition-all duration-200 text-center">
-                Dowiedz się więcej
-              </Link>
-            </div>
+                         <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
+               <Link href="/register" className="px-8 py-4 bg-gradient-to-r from-blue-700 to-indigo-700 text-white font-bold rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-1 hover:from-blue-800 hover:to-indigo-800 transition-all duration-200 text-center">
+                 Załóż konto
+               </Link>
+               <Link href="/about" className="px-8 py-4 border-2 border-blue-600 text-blue-700 font-bold rounded-xl hover:bg-blue-50 hover:text-blue-800 transition-all duration-200 text-center">
+                 Dowiedz się więcej
+               </Link>
+             </div>
           </div>
           <div className="w-full max-w-lg lg:max-w-xl">
             <Image src="https://images.unsplash.com/photo-1513258496099-48168024aec0?auto=format&fit=crop&w=600&q=80" alt="Hero" width={500} height={400} className="rounded-2xl shadow-2xl w-full h-auto object-cover" />
@@ -358,45 +406,7 @@ function HomeContent() {
         </div>
       </section>
 
-      {/* Testimonials */}
-      <section className="py-16 sm:py-20 lg:py-24 bg-gradient-to-br from-blue-50 to-indigo-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-slate-900 mb-6 leading-tight">
-              Co mówią rodziny edukujące domowo?
-            </h2>
-            <p className="text-xl text-slate-600 max-w-3xl mx-auto">
-              Dołącz do tysięcy zadowolonych rodzin
-            </p>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-            {/* Testimonial 1 */}
-            <div className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-xl transition-all duration-300 border border-slate-200/50 flex flex-col items-center text-center">
-              <div className="text-amber-400 text-2xl mb-4">★★★★★</div>
-              <p className="text-slate-700 mb-6 leading-relaxed">Dzięki COGITO nauka w domu stała się prostsza i bardziej uporządkowana. Moje dzieci chętniej się uczą!</p>
-              <div className="font-semibold text-blue-600">Anna, mama dwójki dzieci</div>
-            </div>
-            {/* Testimonial 2 */}
-            <div className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-xl transition-all duration-300 border border-slate-200/50 flex flex-col items-center text-center">
-              <div className="text-amber-400 text-2xl mb-4">★★★★★</div>
-              <p className="text-slate-700 mb-6 leading-relaxed">Świetne materiały i ogromne wsparcie społeczności. Polecam każdej rodzinie!</p>
-              <div className="font-semibold text-blue-600">Marek, tata nastolatka</div>
-            </div>
-            {/* Testimonial 3 */}
-            <div className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-xl transition-all duration-300 border border-slate-200/50 flex flex-col items-center text-center">
-              <div className="text-amber-400 text-2xl mb-4">★★★★★</div>
-              <p className="text-slate-700 mb-6 leading-relaxed">Platforma daje mi pewność, że nie przegapię ważnych tematów i mogę dostosować naukę do potrzeb syna.</p>
-              <div className="font-semibold text-blue-600">Katarzyna, edukacja domowa od 3 lat</div>
-            </div>
-            {/* Testimonial 4 */}
-            <div className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-xl transition-all duration-300 border border-slate-200/50 flex flex-col items-center text-center">
-              <div className="text-amber-400 text-2xl mb-4">★★★★★</div>
-              <p className="text-slate-700 mb-6 leading-relaxed">Najbardziej cenię elastyczność i możliwość kontaktu z innymi rodzicami.</p>
-              <div className="font-semibold text-blue-600">Joanna, mama trójki dzieci</div>
-            </div>
-          </div>
-        </div>
-      </section>
+
 
       {/* CTA Section */}
       <section className="py-16 sm:py-20 lg:py-24 bg-gradient-to-r from-blue-600 to-indigo-600">
@@ -407,28 +417,82 @@ function HomeContent() {
           <p className="text-xl text-blue-100 mb-8 leading-relaxed">
             Stwórz konto i przekonaj się, jak łatwa i przyjemna może być edukacja domowa z COGITO!
           </p>
-          <Link href="/register" className="inline-block px-10 py-5 bg-white text-blue-600 font-bold rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-200 text-lg">
-            Załóż darmowe konto
-          </Link>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Link href="/register" className="inline-block px-10 py-5 bg-white text-blue-700 font-bold rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-200 text-lg hover:bg-blue-50 hover:text-blue-800">
+              Załóż darmowe konto
+            </Link>
+            <Link href="/login" className="inline-block px-10 py-5 border-2 border-white text-white font-bold rounded-xl hover:bg-white hover:text-blue-700 transition-all duration-200 text-lg">
+              Zaloguj się
+            </Link>
+          </div>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="bg-slate-900 text-white py-12 mt-auto">
+      <footer className="bg-slate-800 text-white py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col sm:flex-row justify-between items-center gap-6 sm:gap-0">
-            <div className="flex items-center">
-              <Image src="/puzzleicon.png" alt="Logo" width={32} height={32} className="w-8 h-8" />
-              <span className="ml-3 text-xl font-bold">COGITO</span>
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-8 mb-8">
+            <div>
+              <div className="flex items-center mb-4">
+                <div className="relative overflow-hidden rounded-xl p-2 bg-gradient-to-r from-blue-600 to-indigo-600">
+                  <Image 
+                    src="/puzzleicon.png" 
+                    alt="COGITO Logo" 
+                    width={24} 
+                    height={24} 
+                    className="w-6 h-6"
+                  />
+                </div>
+                <span className="ml-2 text-xl font-bold">COGITO</span>
+              </div>
+              <p className="text-slate-400 text-sm">
+                Nowoczesna platforma edukacyjna dla edukacji domowej
+              </p>
             </div>
-            <div className="flex flex-wrap justify-center gap-6 sm:gap-8 text-sm">
-              <Link href="/about" className="hover:text-blue-400 transition-colors duration-200">O platformie</Link>
-              <Link href="/courses" className="hover:text-blue-400 transition-colors duration-200">Materiały</Link>
-              <Link href="/community" className="hover:text-blue-400 transition-colors duration-200">Społeczność</Link>
-              <Link href="/support" className="hover:text-blue-400 transition-colors duration-200">Wsparcie</Link>
-              <Link href="/contact" className="hover:text-blue-400 transition-colors duration-200">Kontakt</Link>
+            
+            <div>
+              <h3 className="font-bold text-lg mb-4">Platforma</h3>
+              <ul className="space-y-2 text-slate-400">
+                <li><Link href="/about" className="hover:text-white transition-colors">O platformie</Link></li>
+                <li><Link href="/courses" className="hover:text-white transition-colors">Materiały</Link></li>
+                <li><Link href="/community" className="hover:text-white transition-colors">Społeczność</Link></li>
+                <li><Link href="/contact" className="hover:text-white transition-colors">Kontakt</Link></li>
+              </ul>
             </div>
-            <div className="text-sm text-slate-400 text-center sm:text-left">© {new Date().getFullYear()} COGITO. Wszelkie prawa zastrzeżone.</div>
+            
+            <div>
+              <h3 className="font-bold text-lg mb-4">Funkcje</h3>
+              <ul className="space-y-2 text-slate-400">
+                <li><span className="hover:text-white transition-colors">Zarządzanie kursami</span></li>
+                <li><span className="hover:text-white transition-colors">Quizy i testy</span></li>
+                <li><span className="hover:text-white transition-colors">Czaty grupowe</span></li>
+                <li><span className="hover:text-white transition-colors">Dziennik ocen</span></li>
+              </ul>
+            </div>
+            
+            <div>
+              <h3 className="font-bold text-lg mb-4">Wsparcie</h3>
+              <ul className="space-y-2 text-slate-400">
+                <li><span className="hover:text-white transition-colors">Pomoc</span></li>
+                <li><span className="hover:text-white transition-colors">FAQ</span></li>
+                <li><span className="hover:text-white transition-colors">Kontakt</span></li>
+              </ul>
+            </div>
+            
+            <div>
+              <h3 className="font-bold text-lg mb-4">Prawne</h3>
+              <ul className="space-y-2 text-slate-400">
+                <li><Link href="/privacy" className="hover:text-white transition-colors">Polityka prywatności</Link></li>
+                <li><Link href="/terms" className="hover:text-white transition-colors">Regulamin</Link></li>
+                <li><Link href="/cookies" className="hover:text-white transition-colors">Polityka cookies</Link></li>
+              </ul>
+            </div>
+          </div>
+          
+          <div className="pt-8 border-t border-slate-700 text-center">
+            <p className="text-slate-400 text-sm">
+              © {new Date().getFullYear()} COGITO. Wszelkie prawa zastrzeżone.
+            </p>
           </div>
         </div>
       </footer>

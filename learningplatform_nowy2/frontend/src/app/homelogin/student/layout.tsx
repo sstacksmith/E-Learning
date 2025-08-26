@@ -4,6 +4,7 @@ import Link from "next/link";
 import StudentRoute from '@/components/StudentRoute';
 import ParentAccess from '@/components/ParentAccess';
 import { useAuth } from '@/context/AuthContext';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 export default function StudentLayout({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
@@ -45,7 +46,11 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
               </div>
             </div>
           </header>
-          <main className="flex-1 w-full max-w-full mx-auto">{children}</main>
+          <main className="flex-1 w-full max-w-full mx-auto">
+            <ErrorBoundary>
+              {children}
+            </ErrorBoundary>
+          </main>
         </div>
       </ParentAccess>
     </StudentRoute>

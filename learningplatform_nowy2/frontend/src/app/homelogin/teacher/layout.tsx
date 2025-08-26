@@ -248,9 +248,9 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
         </div>
 
         {/* Main Content */}
-        <div className="lg:pl-64 flex-1 w-full max-w-none">
+        <div className="lg:pl-64 flex-1 w-full max-w-none flex flex-col">
           {/* Header */}
-          <header className="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-6 shadow-sm">
+          <header className="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-6 shadow-sm flex-shrink-0">
             <div className="flex items-center gap-4">
               {/* Mobile menu button */}
               <button
@@ -281,7 +281,7 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
           </header>
 
           {/* Page Content */}
-          <main className="p-0">
+          <main className="flex-1 flex flex-col min-h-0">
             {children}
           </main>
         </div>

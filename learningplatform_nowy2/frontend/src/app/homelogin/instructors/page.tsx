@@ -29,15 +29,23 @@ export default function InstructorsPage() {
 
   const loadInstructors = async () => {
     try {
+      console.log('Loading instructors from Firestore...');
       const usersCollection = collection(db, 'users');
       const q = query(usersCollection, where('role', '==', 'teacher'));
       const querySnapshot = await getDocs(q);
       
-      const instructorsData = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      } as Instructor));
+      console.log('Found', querySnapshot.size, 'instructors');
       
+      const instructorsData = querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        console.log('Instructor data:', { id: doc.id, ...data });
+        return {
+          id: doc.id,
+          ...data
+        } as Instructor;
+      });
+      
+      console.log('Processed instructors:', instructorsData);
       setInstructors(instructorsData);
     } catch (err) {
       console.error('Error loading instructors:', err);
@@ -189,6 +197,7 @@ export default function InstructorsPage() {
                   <Link 
                     href={`/homelogin/instructors/profile/${instructor.id}`}
                     className="bg-[#4067EC] text-white px-6 py-2 rounded-lg font-semibold hover:bg-[#3155d4] transition-colors duration-200"
+                    onClick={() => console.log('Clicking on instructor profile:', instructor.id, 'URL:', `/homelogin/instructors/profile/${instructor.id}`)}
                   >
                     Zobacz pełny profil
                   </Link>

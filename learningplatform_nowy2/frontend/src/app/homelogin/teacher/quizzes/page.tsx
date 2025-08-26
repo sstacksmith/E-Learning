@@ -5,10 +5,10 @@ import { QuizQuestionEditor } from '@/components/QuizQuestionEditor';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
 import { db } from '@/config/firebase';
-import { collection, query, where, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
 import QuizPreview from '@/components/QuizPreview';
-import { ArrowLeft } from 'lucide-react';
-
+import { ArrowLeft, Eye, Save, Plus, Trash2, Settings, Edit, Eye as ViewIcon } from 'lucide-react';
+import { ErrorDisplay } from '@/components/ErrorDisplay';
 
 interface Answer {
   id: string;
@@ -23,6 +23,7 @@ interface Question {
   type: 'text' | 'math' | 'mixed' | 'open';
   answers: Answer[];
   explanation?: string;
+  points?: number;
 }
 
 interface Course {
@@ -52,6 +53,7 @@ interface Quiz {
   created_at: string;
   created_by: string;
   max_attempts: number;
+  time_limit?: number;
 }
 
 interface NewQuiz {
@@ -61,6 +63,7 @@ interface NewQuiz {
   course_id: string | null;
   questions: Question[];
   max_attempts: number;
+  time_limit: number;
 }
 
 export default function QuizManagementPage() {
@@ -69,6 +72,8 @@ export default function QuizManagementPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingQuiz, setEditingQuiz] = useState<Quiz | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [newQuiz, setNewQuiz] = useState<NewQuiz>({
     title: '',
@@ -77,6 +82,7 @@ export default function QuizManagementPage() {
     course_id: null,
     questions: [],
     max_attempts: 1,
+    time_limit: 30,
   });
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
@@ -190,6 +196,11 @@ export default function QuizManagementPage() {
   }, [user]);
 
   const handleCreateQuiz = async () => {
+    if (!newQuiz.title.trim()) {
+      setError('Proszę wprowadzić tytuł quizu');
+      return;
+    }
+    
     if (!newQuiz.course_id) {
       setError('Proszę wybrać kurs dla tego quizu');
       return;
@@ -225,11 +236,96 @@ export default function QuizManagementPage() {
         course_id: null,
         questions: [],
         max_attempts: 1,
+        time_limit: 30,
       });
       fetchQuizzes();
     } catch (error) {
       console.error('Error creating quiz:', error);
       setError('Nie udało się utworzyć quizu. Spróbuj ponownie.');
+    }
+  };
+
+  const handleEditQuiz = (quiz: Quiz) => {
+    setEditingQuiz(quiz);
+    setNewQuiz({
+      title: quiz.title,
+      description: quiz.description,
+      subject: quiz.subject,
+      course_id: quiz.course_id,
+      questions: quiz.questions,
+      max_attempts: quiz.max_attempts,
+      time_limit: quiz.time_limit || 30,
+    });
+    setIsEditing(true);
+    setIsCreating(false);
+  };
+
+  const handleUpdateQuiz = async () => {
+    if (!newQuiz.title.trim()) {
+      setError('Proszę wprowadzić tytuł quizu');
+      return;
+    }
+    
+    if (!editingQuiz || !newQuiz.course_id) {
+      setError('Proszę wybrać kurs dla tego quizu');
+      return;
+    }
+
+    try {
+      console.log('Updating quiz:', editingQuiz.id, newQuiz);
+      setError(null);
+      
+      const selectedCourse = courses.find(c => c.id === newQuiz.course_id);
+      if (!selectedCourse) {
+        throw new Error('Nie znaleziono wybranego kursu');
+      }
+
+      const quizRef = doc(db, 'quizzes', editingQuiz.id);
+      const quizData = {
+        ...newQuiz,
+        updated_at: serverTimestamp(),
+        course_title: selectedCourse.title,
+        course_id: selectedCourse.id
+      };
+
+      console.log('Updating quiz data:', quizData);
+      await updateDoc(quizRef, quizData);
+      console.log('Quiz updated successfully');
+      
+      setIsEditing(false);
+      setEditingQuiz(null);
+      setNewQuiz({
+        title: '',
+        description: '',
+        subject: '',
+        course_id: null,
+        questions: [],
+        max_attempts: 1,
+        time_limit: 30,
+      });
+      fetchQuizzes();
+    } catch (error) {
+      console.error('Error updating quiz:', error);
+      setError('Nie udało się zaktualizować quizu. Spróbuj ponownie.');
+    }
+  };
+
+  const handleDeleteQuiz = async (quizId: string) => {
+    if (!confirm('Czy na pewno chcesz usunąć ten quiz? Tej operacji nie można cofnąć.')) {
+      return;
+    }
+
+    try {
+      console.log('Deleting quiz:', quizId);
+      setError(null);
+      
+      await deleteDoc(doc(db, 'quizzes', quizId));
+      console.log('Quiz deleted successfully');
+      
+      fetchQuizzes();
+    } catch (error) {
+      console.error('Error deleting quiz:', error);
+      setError('Nie udało się usunąć quizu. Spróbuj ponownie.');
     }
   };
 
@@ -250,11 +346,26 @@ export default function QuizManagementPage() {
     fetchQuizzes();
   };
 
+  const resetForm = () => {
+    setIsCreating(false);
+    setIsEditing(false);
+    setEditingQuiz(null);
+    setNewQuiz({
+      title: '',
+      description: '',
+      subject: '',
+      course_id: null,
+      questions: [],
+      max_attempts: 1,
+      time_limit: 30,
+    });
+  };
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#F8F9FB] flex flex-col items-center justify-center p-4">
-        <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-[#4067EC] border-r-transparent"></div>
-        <p className="mt-4 text-gray-600">Loading...</p>
+      <div className="w-full h-full bg-gray-50 flex flex-col items-center justify-center p-4">
+        <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent"></div>
+        <p className="mt-4 text-gray-600">Ładowanie...</p>
       </div>
     );
   }
@@ -264,251 +375,318 @@ export default function QuizManagementPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 w-full">
-      {/* Header z przyciskiem powrotu */}
-      <div className="bg-white/80 backdrop-blur-lg border-b border-white/20 px-4 sm:px-6 lg:px-8 py-4">
-        <div className="flex items-center justify-between">
-          <button
-            onClick={() => window.location.href = '/homelogin'}
-            className="flex items-center gap-2 px-4 py-2 bg-white/60 backdrop-blur-sm text-gray-700 rounded-lg hover:bg-white hover:shadow-lg transition-all duration-200 ease-in-out border border-white/20"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Powrót do strony głównej
-          </button>
-
-          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-            Quizy
-          </h1>
-
-          <div className="w-20"></div>
-        </div>
-      </div>
-
-      <div className="px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
-        <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-lg p-3 sm:p-4 lg:p-6 border border-white/20">
-          <div className="flex justify-between items-center mb-4">
-            <div>
-              <h2 className="text-2xl font-bold text-[#4067EC]">Quizy</h2>
-              <p className="text-gray-600">Zarządzaj quizami w swoich kursach</p>
-            </div>
+    <div className="w-full h-full bg-gray-50">
+      <div className="w-full h-full p-6 flex flex-col">
+        {/* Main Page Header */}
+        <div className="flex items-center justify-between mb-8 flex-shrink-0">
+          <div className="flex items-center space-x-4">
             <button
-              onClick={() => setIsCreating(true)}
-              className="bg-[#4067EC] text-white px-3 py-2 rounded-lg hover:bg-[#3155d4] transition-colors"
+              onClick={() => router.back()}
+              className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-900 transition-colors"
             >
-              Utwórz quiz
+              <ArrowLeft className="w-5 h-5" />
+              <span>Powrót</span>
             </button>
-          </div>
-
-          {error && (
-            <div className="mb-4 bg-red-50 border border-red-200 text-red-800 p-3 rounded-lg">
-              {error}
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">
+                {isCreating ? 'Utwórz Nowy Quiz' : isEditing ? 'Edytuj Quiz' : 'Zarządzanie Quizami'}
+              </h1>
+              <p className="text-gray-600 mt-1">
+                {isCreating ? 'Stwórz nowy quiz dla swoich uczniów' : 
+                 isEditing ? 'Edytuj istniejący quiz' : 
+                 'Zarządzaj quizami w swoich kursach'}
+              </p>
             </div>
-          )}
+          </div>
+          <div className="flex space-x-3">
+            {!isCreating && !isEditing && (
+              <button
+                onClick={() => setIsCreating(true)}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Utwórz Quiz</span>
+              </button>
+            )}
+            {isCreating && (
+              <>
+                <button
+                  onClick={resetForm}
+                  className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+                >
+                  Anuluj
+                </button>
+                <button
+                  onClick={handleCreateQuiz}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>Utwórz</span>
+                </button>
+              </>
+            )}
+            {isEditing && (
+              <>
+                <button
+                  onClick={resetForm}
+                  className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+                >
+                  Anuluj
+                </button>
+                <button
+                  onClick={handleUpdateQuiz}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>Zapisz Zmiany</span>
+                </button>
+              </>
+            )}
+          </div>
+        </div>
 
-          {isCreating && (
-            <div className="mb-6 p-4 border rounded-xl bg-gray-50">
-              <h2 className="text-xl font-semibold mb-3">Nowy quiz</h2>
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Kurs {newQuiz.course_id && <span className="text-green-600">✓</span>}
-                  </label>
-                  <div className="mb-4 relative" ref={searchRef}>
-                    <input
-                      type="text"
-                      placeholder="Szukaj kursu..."
-                      value={searchTerm}
-                      onChange={(e) => {
-                        setSearchTerm(e.target.value);
-                        setIsSearchOpen(true);
-                      }}
-                      onFocus={() => setIsSearchOpen(true)}
-                      className="w-full p-2 border rounded-lg"
-                    />
-                    {isSearchOpen && (
-                      <div className="absolute left-0 right-0 mt-2 max-h-96 overflow-y-auto border rounded-lg bg-white shadow-lg z-10">
-                        {courses.length === 0 ? (
-                          <div className="p-3 text-gray-500 text-center">
-                            Nie znaleziono żadnych kursów
-                          </div>
-                        ) : filteredCourses.length === 0 ? (
-                          <div className="p-3 text-gray-500 text-center">
-                            Nie znaleziono kursów dla &quot;{searchTerm}&quot;
-                          </div>
-                        ) : (
-                          filteredCourses.map((course) => (
-                            <div
-                              key={course.id}
-                              className={`p-3 cursor-pointer hover:bg-gray-50 transition-colors ${
-                                newQuiz.course_id === course.id ? 'bg-blue-50 border-l-4 border-blue-500' : ''
-                              }`}
-                              onClick={() => {
-                                console.log('Selecting course:', course);
-                                setNewQuiz(prev => ({
-                                  ...prev,
-                                  course_id: course.id,
-                                  subject: course.subject || ''
-                                }));
-                                setSearchTerm(course.title);
-                                setIsSearchOpen(false);
-                              }}
-                            >
-                              <div className="font-medium flex items-center justify-between">
-                                {course.title}
-                                {newQuiz.course_id === course.id && (
-                                  <span className="text-blue-500">✓</span>
-                                )}
-                              </div>
-                              {course.description && (
-                                <div className="text-sm text-gray-500 truncate mt-1">
-                                  {course.description}
-                                </div>
-                              )}
-                              {course.subject && (
-                                <div className="text-xs text-blue-600 bg-blue-50 inline-block px-2 py-1 rounded mt-1">
-                                  {course.subject}
-                                </div>
-                              )}
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    )}
-                    {newQuiz.course_id && (
-                      <div className="mt-2 text-sm text-gray-500">
-                        Wybrany kurs: {courses.find(c => c.id === newQuiz.course_id)?.title}
-                      </div>
-                    )}
-                  </div>
-                </div>
+        {error && (
+          <ErrorDisplay 
+            error={error}
+            variant="card"
+            showHomeButton={false}
+            showBackButton={false}
+            className="mb-6 flex-shrink-0"
+          />
+        )}
 
-                <div>
-                  <label className="block text-sm font-medium mb-1">Tytuł</label>
-                  <input
-                    type="text"
-                    value={newQuiz.title}
-                    onChange={(e) =>
-                      setNewQuiz((prev) => ({ ...prev, title: e.target.value }))
-                    }
-                    className="w-full p-2 border rounded-lg"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-1">Opis</label>
-                  <textarea
-                    value={newQuiz.description}
-                    onChange={(e) =>
-                      setNewQuiz((prev) => ({ ...prev, description: e.target.value }))
-                    }
-                    className="w-full p-2 border rounded-lg"
-                    rows={3}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-1">Przedmiot</label>
-                  <input
-                    type="text"
-                    value={newQuiz.subject}
-                    onChange={(e) =>
-                      setNewQuiz((prev) => ({ ...prev, subject: e.target.value }))
-                    }
-                    className="w-full p-2 border rounded-lg"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-1">Maksymalna liczba prób</label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={newQuiz.max_attempts}
-                    onChange={(e) =>
-                      setNewQuiz((prev) => ({ ...prev, max_attempts: Math.max(1, parseInt(e.target.value) || 1) }))
-                    }
-                    className="w-full p-2 border rounded-lg"
-                  />
-                  <p className="text-sm text-gray-500 mt-1">Minimalna wartość: 1</p>
-                </div>
-
-                <div>
-                  <h3 className="text-lg font-medium mb-2">Pytania</h3>
-                  {newQuiz.questions.map((question, index) => (
-                    <div key={index} className="mb-4 p-4 border rounded-lg bg-white">
-                      <p>
-                        <strong>Pytanie {index + 1}:</strong> {question.content}
-                      </p>
-                      <p>Typ: {question.type === 'math' ? 'Matematyczne' : 'Tekstowe'}</p>
-                      <p>Liczba odpowiedzi: {question.answers.length}</p>
-                    </div>
-                  ))}
-
-                  <QuizQuestionEditor
-                    onSave={(question) => handleAddQuestion(question)}
-                  />
-                </div>
-
-                <div className="flex space-x-2 pt-4">
-                  <button
-                    onClick={handleCreateQuiz}
-                    className="px-4 py-2 bg-[#4067EC] text-white rounded-lg hover:bg-[#3155d4] transition-colors"
-                  >
-                    Zapisz quiz
-                  </button>
-                  <button
-                    onClick={() => setIsCreating(false)}
-                    className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
-                  >
-                    Anuluj
-                  </button>
-                </div>
+        {/* Quiz Form */}
+        {(isCreating || isEditing) && (
+          <div className="bg-white rounded-lg shadow-sm border p-6 mb-6 flex-shrink-0">
+            <div className="flex items-center space-x-3 mb-6">
+              <Settings className="w-5 h-5 text-gray-600" />
+              <h2 className="text-xl font-semibold text-gray-900">Ustawienia Quizu</h2>
+            </div>
+            
+            {/* Tytuł i opis quizu */}
+            <div className="grid grid-cols-1 gap-6 mb-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Tytuł quizu *
+                </label>
+                <input
+                  type="text"
+                  value={newQuiz.title}
+                  onChange={(e) =>
+                    setNewQuiz((prev) => ({ ...prev, title: e.target.value }))
+                  }
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Wprowadź tytuł quizu..."
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Opis quizu
+                </label>
+                <textarea
+                  value={newQuiz.description}
+                  onChange={(e) =>
+                    setNewQuiz((prev) => ({ ...prev, description: e.target.value }))
+                  }
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Wprowadź opis quizu (opcjonalnie)..."
+                  rows={3}
+                />
               </div>
             </div>
-          )}
-
-          {isLoading ? (
-            <div className="flex justify-center items-center py-6">
-              <div className="animate-spin rounded-full h-8 w-8 border-4 border-[#4067EC] border-r-transparent"></div>
-              <div className="ml-3 text-gray-600">Ładowanie quizów...</div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Kurs
+                </label>
+                <div className="relative" ref={searchRef}>
+                  <input
+                    type="text"
+                    placeholder="Szukaj kursu..."
+                    value={searchTerm}
+                    onChange={(e) => {
+                      setSearchTerm(e.target.value);
+                      setIsSearchOpen(true);
+                    }}
+                    onFocus={() => setIsSearchOpen(true)}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                  {isSearchOpen && (
+                    <div className="absolute left-0 right-0 mt-2 max-h-96 overflow-y-auto border rounded-lg bg-white shadow-lg z-10">
+                      {filteredCourses.length === 0 ? (
+                        <div className="p-3 text-gray-500 text-center">
+                          Nie znaleziono kursów
+                        </div>
+                      ) : (
+                        filteredCourses.map((course) => (
+                          <div
+                            key={course.id}
+                            className="p-3 hover:bg-gray-100 cursor-pointer border-b border-gray-100 last:border-b-0"
+                            onClick={() => {
+                              setNewQuiz((prev) => ({ ...prev, course_id: course.id }));
+                              setSearchTerm(course.title);
+                              setIsSearchOpen(false);
+                            }}
+                          >
+                            <div className="font-medium text-gray-900">{course.title}</div>
+                            <div className="text-sm text-gray-600">{course.subject}</div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Przedmiot
+                </label>
+                <input
+                  type="text"
+                  value={newQuiz.subject}
+                  onChange={(e) =>
+                    setNewQuiz((prev) => ({ ...prev, subject: e.target.value }))
+                  }
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Wprowadź przedmiot"
+                />
+              </div>
             </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
-              {quizzes.length === 0 ? (
-                <div className="col-span-full text-center py-6 text-gray-500">
-                  Nie znaleziono żadnych quizów. Utwórz swój pierwszy quiz!
+
+            <div className="mt-6">
+              <h3 className="text-lg font-medium mb-4">Pytania ({newQuiz.questions.length})</h3>
+              {newQuiz.questions.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <p>Nie ma jeszcze żadnych pytań</p>
+                  <p className="text-sm mt-2">Użyj edytora pytań poniżej, aby dodać pierwsze pytanie</p>
                 </div>
               ) : (
-                quizzes.map((quiz) => (
-                  <div key={quiz.id} className="bg-white border border-gray-200 rounded-xl shadow-sm p-4">
-                    <h3 className="text-lg font-semibold mb-1">{quiz.title}</h3>
-                    <p className="text-gray-600 mb-3 text-sm">{quiz.description}</p>
-                    <div className="space-y-1 text-xs text-gray-500">
-                      <p>Kurs: {quiz.course_title}</p>
-                      <p>Przedmiot: {quiz.subject}</p>
-                      <p>Liczba pytań: {quiz.questions?.length || 0}</p>
-                      <p>Maksymalna liczba prób: {quiz.max_attempts || 1}</p>
-                      <p>Utworzono: {new Date(quiz.created_at).toLocaleDateString()}</p>
+                <div className="space-y-4">
+                  {newQuiz.questions.map((question, index) => (
+                    <div key={question.id} className="border border-gray-200 rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="font-medium">Pytanie {index + 1}</h4>
+                        <button
+                          onClick={() => {
+                            setNewQuiz(prev => ({
+                              ...prev,
+                              questions: prev.questions.filter((_, i) => i !== index)
+                            }));
+                          }}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <p className="text-gray-600 mb-2">{question.content}</p>
+                      <div className="text-sm text-gray-500">
+                        Typ: {question.type === 'open' ? 'Pytanie otwarte' : 'Wielokrotny wybór'} | 
+                        Punkty: {question.points || 1} | 
+                        Odpowiedzi: {question.answers.length}
+                      </div>
                     </div>
-                    <div className="mt-3 flex justify-end">
-                      <button
-                        onClick={() => setSelectedQuiz(quiz)}
-                        className="text-[#4067EC] hover:text-[#3155d4] font-medium text-xs flex items-center"
-                      >
-                        <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                        </svg>
-                        Podgląd
-                      </button>
+                  ))}
+                </div>
+              )}
+              
+              <div className="mt-4">
+                <QuizQuestionEditor
+                  onSave={(question) => handleAddQuestion(question)}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Quizzes List */}
+        {!isCreating && !isEditing && (
+          <div className="bg-white rounded-lg shadow-sm border p-6 flex-1 flex flex-col w-full">
+            <div className="flex items-center justify-between mb-6 flex-shrink-0">
+              <h2 className="text-xl font-semibold text-gray-900">Twoje Quizy</h2>
+              <div className="text-sm text-gray-500">
+                {quizzes.length} quiz{quizzes.length !== 1 ? 'y' : ''}
+              </div>
+            </div>
+
+            {isLoading ? (
+              <div className="flex justify-center items-center py-8 flex-1">
+                <div className="animate-spin rounded-full h-8 w-8 border-4 border-blue-600 border-r-transparent"></div>
+                <div className="ml-3 text-gray-600">Ładowanie quizów...</div>
+              </div>
+            ) : quizzes.length === 0 ? (
+              <div className="text-center py-8 text-gray-500 flex-1 flex flex-col items-center justify-center">
+                <p className="text-lg font-medium mb-2">Nie masz jeszcze żadnych quizów</p>
+                <p className="mb-4">Utwórz swój pierwszy quiz, aby rozpocząć</p>
+                <button
+                  onClick={() => setIsCreating(true)}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Utwórz Pierwszy Quiz
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4 flex-1 overflow-y-auto w-full">
+                {quizzes.map((quiz) => (
+                  <div key={quiz.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2">{quiz.title}</h3>
+                        <p className="text-gray-600 mb-3">{quiz.description || 'Brak opisu'}</p>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-gray-500">
+                          <div>
+                            <span className="font-medium">Kurs:</span> {quiz.course_title}
+                          </div>
+                          <div>
+                            <span className="font-medium">Przedmiot:</span> {quiz.subject}
+                          </div>
+                          <div>
+                            <span className="font-medium">Pytania:</span> {quiz.questions?.length || 0}
+                          </div>
+                          <div>
+                            <span className="font-medium">Próby:</span> {quiz.max_attempts}
+                          </div>
+                        </div>
+                        {quiz.time_limit && (
+                          <div className="text-sm text-gray-500 mt-2">
+                            <span className="font-medium">Limit czasu:</span> {quiz.time_limit} min
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex space-x-2 ml-4">
+                        <button
+                          onClick={() => setSelectedQuiz(quiz)}
+                          className="p-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
+                          title="Podgląd"
+                        >
+                          <ViewIcon className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleEditQuiz(quiz)}
+                          className="p-2 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg transition-colors"
+                          title="Edytuj"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteQuiz(quiz.id)}
+                          className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Usuń"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
                   </div>
-                ))
-              )}
-            </div>
-          )}
-        </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
+
+      {/* Quiz Preview Modal */}
       {selectedQuiz && (
         <QuizPreview
           quiz={selectedQuiz}

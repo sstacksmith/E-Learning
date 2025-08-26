@@ -36,7 +36,7 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
 }) => {
   const [question, setQuestion] = useState<QuestionData>(
     initialQuestion || {
-      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+      id: crypto.randomUUID(),
       content: '',
       type: 'text',
       answers: [],
@@ -58,7 +58,7 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
           ...prev,
           answers: [
             {
-              id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+              id: crypto.randomUUID(),
               content: '',
               isCorrect: true,
               type: 'mixed' as const,
@@ -75,7 +75,7 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
           answers: [
             ...prev.answers,
             {
-              id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+              id: crypto.randomUUID(),
               content: '',
               isCorrect: false,
               type: 'mixed' as const,
@@ -135,6 +135,18 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
     });
   };
 
+  const handleRemoveAnswer = (answerId: string) => {
+    console.log('Removing answer:', answerId);
+    setQuestion((prev) => {
+      const updated = {
+        ...prev,
+        answers: prev.answers.filter((ans) => ans.id !== answerId),
+      };
+      console.log('Updated question after removing answer:', updated);
+      return updated;
+    });
+  };
+
   return (
     <div className="space-y-4 p-4 border rounded-lg">
       <div className="flex items-center justify-between mb-4">
@@ -153,7 +165,7 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                     ...prev,
                     type: 'open' as const,
                     answers: [{
-                      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+                      id: crypto.randomUUID(),
                       content: '',
                       isCorrect: true,
                       type: 'mixed' as const
@@ -309,6 +321,23 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                   ✓
                 </button>
               )}
+              {/* Przycisk usuwania odpowiedzi */}
+              <button
+                onClick={() => handleRemoveAnswer(answer.id)}
+                disabled={!isOpenQuestion && question.answers.length <= 2}
+                className={`px-3 py-2 rounded transition-colors ${
+                  !isOpenQuestion && question.answers.length <= 2
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-red-500 text-white hover:bg-red-600'
+                }`}
+                title={
+                  !isOpenQuestion && question.answers.length <= 2
+                    ? 'Nie można usunąć ostatniej odpowiedzi (minimum 2)'
+                    : 'Usuń odpowiedź'
+                }
+              >
+                🗑️
+              </button>
             </div>
           </div>
         ))}

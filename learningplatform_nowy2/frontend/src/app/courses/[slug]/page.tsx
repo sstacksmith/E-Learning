@@ -4,12 +4,13 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import { collection, getDocs, query, where, DocumentData, doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, getDocs, query, where, DocumentData, doc, setDoc, serverTimestamp, DocumentSnapshot, addDoc } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { useAuth } from '@/context/AuthContext';
 import { FaFilePdf, FaLink, FaChevronDown, FaChevronUp, FaQuestionCircle } from "react-icons/fa";
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, BookOpen, PenTool, FileText, GraduationCap, Users, Calendar, Star, User, Clock, CheckCircle, Play, Download, ExternalLink, ChevronRight, BookOpenCheck, Target, Trophy, TrendingUp } from 'lucide-react';
 import { Course, Section, Content, Quiz } from '@/types';
+import { CourseNotFound } from '@/components/CourseNotFound';
 
 export default function CourseDetailPage() {
   return (
@@ -37,7 +38,26 @@ function CourseDetail() {
   const [quizError, setQuizError] = useState<string | null>(null);
   const [quizAttempts, setQuizAttempts] = useState<Record<string, number>>({});
   const [quizResults, setQuizResults] = useState<Record<string, number>>({});
-  const [completedQuizzes, setCompletedQuizzes] = useState<string[]>([]);;
+  const [completedQuizzes, setCompletedQuizzes] = useState<string[]>([]);
+  const [activeTab, setActiveTab] = useState('overview');
+  const [activities, setActivities] = useState<any[]>([]);
+  const [loadingActivities, setLoadingActivities] = useState(true);
+  const [courseStats, setCourseStats] = useState({
+    totalStudents: 0,
+    averageRating: 0,
+    instructorName: 'Brak informacji'
+  });
+
+  // Helper function to convert Firestore Timestamp to Date
+  const convertTimestampToDate = (timestamp: any): Date => {
+    if (timestamp && typeof timestamp === 'object' && timestamp.toDate) {
+      return timestamp.toDate();
+    }
+    if (timestamp instanceof Date) {
+      return timestamp;
+    }
+    return new Date(timestamp || 0);
+  };
 
   // Fetch quiz results
   const fetchQuizResults = useCallback(async (quizIds: string[]) => {
@@ -66,7 +86,7 @@ function CourseDetail() {
     } catch (error) {
       console.error('Error fetching quiz results:', error);
     }
-  }, [user, setQuizResults, setCompletedQuizzes]);
+  }, [user]);
 
   // Fetch quiz attempts
   const fetchQuizAttempts = useCallback(async (quizIds: string[]) => {
@@ -92,7 +112,7 @@ function CourseDetail() {
     } catch (error) {
       console.error('Error fetching quiz attempts:', error);
     }
-  }, [user, setQuizAttempts]);
+  }, [user]);
 
   // Fetch course details
   const fetchCourseDetail = useCallback(async () => {
@@ -143,139 +163,299 @@ function CourseDetail() {
       setCourse(mappedCourse);
       setSections(courseData.sections || []);
       
-      // Pobierz zawartość sekcji
-      if (courseData.sections && Array.isArray(courseData.sections)) {
-        const initialSectionContents: Record<string, Content[]> = {};
-        courseData.sections.forEach((section: Section) => {
-          if (section.contents && Array.isArray(section.contents)) {
-            initialSectionContents[section.id] = section.contents;
-            console.log(`[DEBUG] Section ${section.id} contents loaded:`, section.contents);
-          }
-        });
-        setSectionContents(initialSectionContents);
-        console.log('[DEBUG] Initial sectionContents set:', initialSectionContents);
-      }
+      // Debug logging for sections
+      console.log('[DEBUG] Raw sections from courseData:', courseData.sections);
+      console.log('[DEBUG] Sections state after setSections:', courseData.sections || []);
       
-      if (user) {
-        const assignedUsers = courseData.assignedUsers || [];
-        
-        // Sprawdź czy uczeń jest przypisany do kursu przez assignedUsers
-        const userIsAssignedByUsers = assignedUsers.includes(user.uid) || assignedUsers.includes(user.email);
-        
-        // Sprawdź czy uczeń jest przypisany do nauczyciela kursu
-        let userIsAssignedToTeacher = false;
-        let userIsAssignedAsParent = false;
-        
-        if (user.role === 'student') {
-          // Pobierz dane ucznia z kolekcji users
-          const usersRef = collection(db, 'users');
-          const userQuery = query(usersRef, where('uid', '==', user.uid));
-          const userSnapshot = await getDocs(userQuery);
-          
-          if (!userSnapshot.empty) {
-            const userData = userSnapshot.docs[0].data();
-            // Sprawdź czy uczeń ma przypisanego nauczyciela
-            if (userData.assignedToTeacher) {
-              // Sprawdź czy nauczyciel tego kursu to ten sam nauczyciel
-              // assignedToTeacher to uid nauczyciela, więc musimy porównać z uid nauczyciela kursu
-              const courseTeacherEmail = courseData.created_by || courseData.teacherEmail;
-              
-              // Znajdź uid nauczyciela na podstawie emaila
-              const teacherQuery = query(usersRef, where('email', '==', courseTeacherEmail));
-              const teacherSnapshot = await getDocs(teacherQuery);
-              
-              if (!teacherSnapshot.empty) {
-                const teacherData = teacherSnapshot.docs[0].data();
-                const courseTeacherUid = teacherData.uid;
-                userIsAssignedToTeacher = userData.assignedToTeacher === courseTeacherUid;
-              }
-            }
-          }
-        } else if (user.role === 'parent') {
-          // Sprawdź czy rodzic ma przypisane dziecko, które jest na tym kursie
-          const parentStudentsRef = collection(db, 'parent_students');
-          const parentStudentsQuery = query(parentStudentsRef, where('parent', '==', user.uid));
-          const parentStudentsSnapshot = await getDocs(parentStudentsQuery);
-          
-          if (!parentStudentsSnapshot.empty) {
-            const studentId = parentStudentsSnapshot.docs[0].data().student;
-            // Sprawdź czy dziecko jest przypisane do tego kursu
-            const assignedUsers = courseData.assignedUsers || [];
-            userIsAssignedAsParent = assignedUsers.includes(studentId);
-            
-            // Sprawdź też czy dziecko jest przypisane do nauczyciela kursu
-            const usersRef = collection(db, 'users');
-            const studentQuery = query(usersRef, where('uid', '==', studentId));
-            const studentSnapshot = await getDocs(studentQuery);
-            
-            if (!studentSnapshot.empty) {
-              const studentData = studentSnapshot.docs[0].data();
-              if (studentData.assignedToTeacher) {
-                const courseTeacherEmail = courseData.created_by || courseData.teacherEmail;
-                
-                // Znajdź uid nauczyciela na podstawie emaila
-                const teacherQuery = query(usersRef, where('email', '==', courseTeacherEmail));
-                const teacherSnapshot = await getDocs(teacherQuery);
-                
-                if (!teacherSnapshot.empty) {
-                  const teacherData = teacherSnapshot.docs[0].data();
-                  const courseTeacherUid = teacherData.uid;
-                  userIsAssignedAsParent = userIsAssignedAsParent || (studentData.assignedToTeacher === courseTeacherUid);
-                }
-              }
-            }
+      // Pobierz zawartość sekcji
+      if (courseData.sections && courseData.sections.length > 0) {
+        const contents: Record<string, Content[]> = {};
+        for (const section of courseData.sections) {
+          console.log('[DEBUG] Processing section:', section);
+          if (section.contents) {
+            contents[section.id] = section.contents;
+            console.log('[DEBUG] Section contents for', section.id, ':', section.contents);
           }
         }
-        
-        const userIsAssigned = userIsAssignedByUsers || userIsAssignedToTeacher || userIsAssignedAsParent;
-        setIsAssigned(userIsAssigned);
-        
-        console.log('[DEBUG] User assigned to course by users:', userIsAssignedByUsers);
-        console.log('[DEBUG] User assigned to course by teacher:', userIsAssignedToTeacher);
-        console.log('[DEBUG] User assigned to course as parent:', userIsAssignedAsParent);
-        console.log('[DEBUG] Final user assigned to course:', userIsAssigned);
+        setSectionContents(contents);
+        console.log('[DEBUG] Final sectionContents:', contents);
+      } else {
+        console.log('[DEBUG] No sections found in courseData');
       }
       
-    } catch (err) {
-      console.error('[DEBUG] Error fetching course from Firestore:', err);
-      setError('Błąd ładowania kursu. Spróbuj ponownie później.');
-    } finally {
+      // Sprawdź czy użytkownik jest przypisany do kursu
+      if (user) {
+        const assignedUsers = courseData.assignedUsers || [];
+        const isUserAssigned = assignedUsers.includes(user.uid) || assignedUsers.includes(user.email);
+        setIsAssigned(isUserAssigned);
+        console.log('[DEBUG] User assignment check:', { userUid: user.uid, userEmail: user.email, assignedUsers, isUserAssigned });
+      }
+      
+      setLoading(false);
+    } catch (error) {
+      console.error('[DEBUG] Error fetching course details:', error);
+      setError('Błąd podczas ładowania kursu.');
       setLoading(false);
     }
-  }, [slug, user, setError, setLoading, setCourse, setSections, setIsAssigned]);
+  }, [slug, user]);
 
-  const fetchQuizzes = useCallback(async (courseId: string) => {
+  // Fetch quizzes
+  const fetchQuizzes = useCallback(async () => {
+    if (!slug) return;
+    
     try {
       setLoadingQuizzes(true);
       setQuizError(null);
       
-      console.log('[DEBUG] Fetching quizzes for course ID:', courseId);
+      console.log('[DEBUG] Fetching quizzes for slug:', slug);
+      
       const quizzesCollection = collection(db, 'quizzes');
-      const quizzesQuery = query(quizzesCollection, where('course_id', '==', courseId));
-      const quizzesSnapshot = await getDocs(quizzesQuery);
       
-      const quizzesList = quizzesSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Quiz[];
+      // Try different possible field names for course identification
+      let querySnapshot;
       
-      console.log('[DEBUG] Found quizzes:', quizzesList);
-      setQuizzes(quizzesList);
-      
-      // Sprawdź czy są quizy przed wywołaniem funkcji z filtrem 'in'
-      if (quizzesList.length > 0) {
-        await Promise.all([
-          fetchQuizAttempts(quizzesList.map(q => q.id)),
-          fetchQuizResults(quizzesList.map(q => q.id))
-        ]);
+      // First try: course_slug
+      try {
+        const q1 = query(quizzesCollection, where('course_slug', '==', slug));
+        querySnapshot = await getDocs(q1);
+        console.log('[DEBUG] Found quizzes by course_slug:', querySnapshot.docs.length);
+      } catch (error) {
+        console.log('[DEBUG] No quizzes found by course_slug, trying course_id...');
       }
-    } catch (quizError) {
-      console.error('[DEBUG] Error fetching quizzes:', quizError);
-      setQuizError('Nie udało się załadować quizów');
+      
+      // Second try: course_id (if course exists)
+      if ((!querySnapshot || querySnapshot.empty) && course?.id) {
+        try {
+          const q2 = query(quizzesCollection, where('course_id', '==', course.id));
+          querySnapshot = await getDocs(q2);
+          console.log('[DEBUG] Found quizzes by course_id:', querySnapshot.docs.length);
+        } catch (error) {
+          console.log('[DEBUG] No quizzes found by course_id');
+        }
+      }
+      
+      // Third try: get all quizzes and filter by slug in title/description
+      if (!querySnapshot || querySnapshot.empty) {
+        try {
+          const q3 = query(quizzesCollection);
+          querySnapshot = await getDocs(q3);
+          const filteredQuizzes = querySnapshot.docs.filter((doc: DocumentSnapshot<DocumentData>) => {
+            const data = doc.data();
+            if (!data) return false;
+            return data.title?.toLowerCase().includes(slug.toLowerCase()) ||
+                   data.description?.toLowerCase().includes(slug.toLowerCase()) ||
+                   data.subject?.toLowerCase().includes(slug.toLowerCase());
+          });
+          console.log('[DEBUG] Found quizzes by filtering:', filteredQuizzes.length);
+          
+          // Create new query snapshot with filtered results
+          querySnapshot = {
+            docs: filteredQuizzes,
+            empty: filteredQuizzes.length === 0
+          } as any;
+        } catch (error) {
+          console.log('[DEBUG] Error filtering quizzes:', error);
+        }
+      }
+      
+      if (querySnapshot && !querySnapshot.empty) {
+        const quizzesList = querySnapshot.docs.map((doc: any) => ({
+          id: doc.id,
+          ...doc.data()
+        })) as Quiz[];
+        
+        console.log('[DEBUG] Final quizzes list:', quizzesList);
+        setQuizzes(quizzesList);
+        
+        // Pobierz wyniki i próby dla quizów
+        if (quizzesList.length > 0) {
+          const quizIds = quizzesList.map(q => q.id);
+          await Promise.all([
+            fetchQuizResults(quizIds),
+            fetchQuizAttempts(quizIds)
+          ]);
+        }
+      } else {
+        console.log('[DEBUG] No quizzes found for this course');
+        setQuizzes([]);
+      }
+    } catch (error) {
+      console.error('[DEBUG] Error fetching quizzes:', error);
+      setQuizError('Błąd podczas ładowania quizów.');
     } finally {
       setLoadingQuizzes(false);
     }
-  }, [fetchQuizAttempts, fetchQuizResults, setLoadingQuizzes, setQuizError, setQuizzes]);
+  }, [slug, course?.id, fetchQuizResults, fetchQuizAttempts]);
+
+  // Get real deadlines data
+  const getUpcomingDeadlines = () => {
+    const deadlines: Array<{
+      id: string;
+      title: string;
+      deadline: string;
+      points: number;
+      type: string;
+      isUrgent: boolean;
+    }> = [];
+    
+    sections.forEach(section => {
+      if (section.deadline) {
+        const deadlineDate = new Date(section.deadline);
+        const today = new Date();
+        
+        // Only show future deadlines
+        if (deadlineDate > today) {
+          deadlines.push({
+            id: section.id,
+            title: section.name,
+            deadline: section.deadline,
+            points: 0, // Default points if not specified
+            type: section.type,
+            isUrgent: deadlineDate.getTime() - today.getTime() < 7 * 24 * 60 * 60 * 1000 // 7 days
+          });
+        }
+      }
+    });
+    
+    // Sort by deadline date
+    return deadlines.sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime());
+  };
+
+  // Fetch activities for the course
+  const fetchActivities = useCallback(async () => {
+    if (!slug || !course) return;
+    
+    try {
+      setLoadingActivities(true);
+      const activitiesList = [];
+      
+      // 1. Pobierz ostatnie zmiany w kursie (sections, contents)
+      if (sections.length > 0) {
+        const recentSections = sections
+          .filter(section => section.updated_at || section.created_at)
+          .sort((a, b) => {
+            const dateA = convertTimestampToDate(a.updated_at || a.created_at);
+            const dateB = convertTimestampToDate(b.updated_at || b.created_at);
+            return dateB.getTime() - dateA.getTime();
+          })
+          .slice(0, 3);
+        
+        recentSections.forEach(section => {
+          // Mapuj angielskie typy na polskie nazwy
+          const typeLabels = {
+            'material': 'Materiał',
+            'assignment': 'Zadanie',
+            'form': 'Egzamin'
+          };
+          
+          activitiesList.push({
+            id: `section_${section.id}`,
+            type: 'course_update',
+            title: `Zaktualizowano: ${section.name}`,
+            date: convertTimestampToDate(section.updated_at || section.created_at),
+            description: `Sekcja ${typeLabels[section.type as keyof typeof typeLabels] || section.type} została ${section.updated_at ? 'zaktualizowana' : 'utworzona'}`,
+            isActive: true
+          });
+        });
+      }
+      
+      // 2. Pobierz nowe quizy
+      if (quizzes.length > 0) {
+        const newQuizzes = quizzes
+          .filter(quiz => quiz.created_at)
+          .sort((a, b) => {
+            const dateA = convertTimestampToDate(a.created_at);
+            const dateB = convertTimestampToDate(b.created_at);
+            return dateB.getTime() - dateA.getTime();
+          })
+          .slice(0, 2);
+        
+        newQuizzes.forEach(quiz => {
+          activitiesList.push({
+            id: `quiz_${quiz.id}`,
+            type: 'new_quiz',
+            title: `Nowy quiz: ${quiz.title}`,
+            date: convertTimestampToDate(quiz.created_at),
+            description: `Dostępny nowy quiz z ${quiz.questions?.length || 0} pytaniami`,
+            isActive: true
+          });
+        });
+      }
+      
+      // 3. Pobierz aktywności użytkownika w tym kursie
+      if (user) {
+        try {
+          const userActivitiesCollection = collection(db, 'user_activities');
+          const userActivitiesQuery = query(
+            userActivitiesCollection,
+            where('user_id', '==', user.uid),
+            where('course_id', '==', course.id)
+          );
+          const userActivitiesSnapshot = await getDocs(userActivitiesQuery);
+          
+          if (!userActivitiesSnapshot.empty) {
+            const userActivity = userActivitiesSnapshot.docs[0].data();
+            if (userActivity.last_accessed) {
+              // Handle Firestore Timestamp
+              let lastAccessDate;
+              if (userActivity.last_accessed && typeof userActivity.last_accessed === 'object' && userActivity.last_accessed.toDate) {
+                lastAccessDate = userActivity.last_accessed.toDate();
+              } else {
+                lastAccessDate = new Date(userActivity.last_accessed || 0);
+              }
+              
+              activitiesList.push({
+                id: 'user_last_access',
+                type: 'user_activity',
+                title: 'Ostatnie odwiedziny kursu',
+                date: lastAccessDate,
+                description: `Ostatni dostęp: ${lastAccessDate.toLocaleDateString('pl-PL')}`,
+                isActive: true
+              });
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching user activities:', error);
+        }
+      }
+      
+      // 4. Pobierz nadchodzące terminy jako aktywności (wywołamy po zdefiniowaniu funkcji)
+      const upcomingDeadlines = getUpcomingDeadlines();
+      upcomingDeadlines.slice(0, 2).forEach(deadline => {
+        activitiesList.push({
+          id: `deadline_${deadline.id}`,
+          type: 'deadline',
+          title: `Termin: ${deadline.title}`,
+          date: deadline.deadline,
+          description: `Termin upływa: ${new Date(deadline.deadline).toLocaleDateString('pl-PL')}`,
+          isActive: true,
+          isUrgent: deadline.isUrgent
+        });
+      });
+      
+      // Sortuj wszystkie aktywności po dacie
+      activitiesList.sort((a, b) => {
+        const dateA = new Date(a.date);
+        const dateB = new Date(b.date);
+        return dateB.getTime() - dateA.getTime();
+      });
+      
+      setActivities(activitiesList);
+    } catch (error) {
+      console.error('Error fetching activities:', error);
+    } finally {
+      setLoadingActivities(false);
+    }
+  }, [slug, course, user]); // Usunąłem sections i quizzes z zależności
+
+  // Debug sections data
+  useEffect(() => {
+    console.log('[DEBUG] Sections state changed:', sections);
+    console.log('[DEBUG] Section contents state:', sectionContents);
+    console.log('[DEBUG] Materials count:', sections.filter(s => s.type === 'material').length);
+    console.log('[DEBUG] Tasks count:', sections.filter(s => s.type === 'assignment').length);
+    console.log('[DEBUG] Exams count:', sections.filter(s => s.type === 'form').length);
+  }, [sections, sectionContents]);
 
   useEffect(() => {
     fetchCourseDetail();
@@ -283,20 +463,37 @@ function CourseDetail() {
 
   useEffect(() => {
     if (course) {
-      fetchQuizzes(course.id.toString());
+      fetchQuizzes();
     }
   }, [course, fetchQuizzes]);
 
-  // Zapisz aktywność użytkownika w tym kursie, aby sekcja „Ostatnio aktywne kursy” mogła ją odczytać
   useEffect(() => {
+    if (course) {
+      fetchActivities();
+    }
+  }, [course, fetchActivities]);
+
+  // Refresh activities when sections and quizzes are loaded
+  useEffect(() => {
+    if (course && activities.length > 0 && sections.length > 0 && quizzes.length > 0) {
+      // Only refresh if we already have activities loaded
+      fetchActivities();
+    }
+  }, [sections, quizzes]); // Nie dodaję fetchActivities do zależności
+
+  // Save user activity
+  useEffect(() => {
+    if (!user || !course) return;
+    
     const saveActivity = async () => {
       try {
-        if (!user || !course) return;
-        const activityRef = doc(collection(db, 'courseActivity'), `${user.uid}_${course.id}`);
+        const activityRef = doc(db, 'user_activities', `${user.uid}_${course.id}`);
         await setDoc(activityRef, {
-          userId: user.uid,
-          courseId: course.id,
-          lastAccessed: serverTimestamp(),
+          user_id: user.uid,
+          course_id: course.id,
+          course_title: course.title,
+          last_accessed: serverTimestamp(),
+          access_count: 1
         }, { merge: true });
       } catch (e) {
         console.error('Nie udało się zapisać aktywności kursu', e);
@@ -305,10 +502,98 @@ function CourseDetail() {
     saveActivity();
   }, [user, course]);
 
+  // Get real course statistics
+  useEffect(() => {
+    const getCourseStats = async () => {
+      const totalStudents = course?.assignedUsers?.length || 0;
+      const instructorName = course?.instructor_name || 'Brak informacji';
+      
+      // Pobierz rzeczywiste oceny kursu z Firestore
+      let averageRating = 0;
+      try {
+        if (course?.id) {
+          const ratingsCollection = collection(db, 'course_ratings');
+          const ratingsQuery = query(ratingsCollection, where('course_id', '==', course.id));
+          const ratingsSnapshot = await getDocs(ratingsQuery);
+          
+          if (!ratingsSnapshot.empty) {
+            const ratings = ratingsSnapshot.docs.map(doc => doc.data().rating || 0);
+            const validRatings = ratings.filter(rating => rating > 0);
+            
+            if (validRatings.length > 0) {
+              averageRating = Math.round((validRatings.reduce((sum, rating) => sum + rating, 0) / validRatings.length) * 10) / 10;
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching course ratings:', error);
+        averageRating = 0;
+      }
+      
+      // Jeśli brak ocen, pokaż domyślną wartość
+      if (averageRating === 0) {
+        averageRating = 0;
+      }
+      
+      setCourseStats({ totalStudents, averageRating, instructorName });
+    };
+    getCourseStats();
+  }, [course]);
+
+  // Add course rating
+  const addCourseRating = async (rating: number) => {
+    if (!user || !course?.id) return;
+    
+    try {
+      const ratingData = {
+        course_id: course.id,
+        user_id: user.uid,
+        user_email: user.email,
+        rating: rating,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      
+      // Zapisz ocenę do Firestore
+      await addDoc(collection(db, 'course_ratings'), ratingData);
+      
+      // Odśwież statystyki kursu
+      const getCourseStats = async () => {
+        const totalStudents = course?.assignedUsers?.length || 0;
+        const instructorName = course?.instructor_name || 'Brak informacji';
+        
+        let averageRating = 0;
+        try {
+          const ratingsCollection = collection(db, 'course_ratings');
+          const ratingsQuery = query(ratingsCollection, where('course_id', '==', course.id));
+          const ratingsSnapshot = await getDocs(ratingsQuery);
+          
+          if (!ratingsSnapshot.empty) {
+            const ratings = ratingsSnapshot.docs.map(doc => doc.data().rating || 0);
+            const validRatings = ratings.filter(rating => rating > 0);
+            
+            if (validRatings.length > 0) {
+              averageRating = Math.round((validRatings.reduce((sum, rating) => sum + rating, 0) / validRatings.length) * 10) / 10;
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching course ratings:', error);
+        }
+        
+        setCourseStats({ totalStudents, averageRating, instructorName });
+      };
+      
+      getCourseStats();
+      
+    } catch (error) {
+      console.error('Error adding course rating:', error);
+    }
+  };
+
   // Render loading state
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex flex-col items-center py-6 px-2 sm:px-6">
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center py-6 px-2 sm:px-6">
         <div className="flex justify-center items-center h-64">
           <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-[#4067EC] border-r-transparent"></div>
           <span className="ml-3 text-gray-600">Ładowanie kursu...</span>
@@ -317,10 +602,15 @@ function CourseDetail() {
     );
   }
 
+  // Render course not found state
+  if (error && error.includes('Nie znaleziono kursu')) {
+    return <CourseNotFound />;
+  }
+
   // Render error state
   if (error || !course) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex flex-col items-center py-6 px-2 sm:px-6">
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center py-6 px-2 sm:px-6">
         <div className="w-full max-w-5xl bg-red-50 border border-red-200 text-red-800 p-4 rounded-lg">
           <p>{error || 'Nie znaleziono kursu'}</p>
           <div className="mt-4 flex space-x-4">
@@ -342,10 +632,10 @@ function CourseDetail() {
   // Sprawdź czy użytkownik jest przypisany do kursu
   if (!isAssigned && user?.role === 'student') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex flex-col items-center py-6 px-2 sm:px-6">
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center py-6 px-2 sm:px-6">
         <div className="w-full max-w-5xl text-center py-10">
           <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
           </svg>
           <h3 className="mt-2 text-lg font-medium text-gray-900">Dostęp ograniczony</h3>
           <p className="mt-1 text-sm text-gray-500">
@@ -364,76 +654,387 @@ function CourseDetail() {
     );
   }
 
+  // Calculate course statistics
+  const totalQuizzes = quizzes.length;
+  const totalMaterials = sections.filter(s => s.type === 'material').length;
+  const totalTasks = sections.filter(s => s.type === 'assignment').length;
+  const totalExams = sections.filter(s => s.type === 'form').length;
+  
+  // Calculate real course progress based on completed items
+  const calculateCourseProgress = () => {
+    if (sections.length === 0) return 0;
+    
+    let completedItems = 0;
+    let totalItems = 0;
+    
+    sections.forEach(section => {
+      if (section.contents) {
+        totalItems += section.contents.length;
+        // Check if items are completed (you can add completion logic here)
+        // For now, we'll use a simple calculation
+      }
+    });
+    
+    // Add quizzes to progress calculation
+    totalItems += totalQuizzes;
+    completedItems += completedQuizzes.length;
+    
+    if (totalItems === 0) return 0;
+    return Math.round((completedItems / totalItems) * 100);
+  };
+  
+  const courseProgress = calculateCourseProgress();
+  
+  const upcomingDeadlines = getUpcomingDeadlines();
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 w-full">
-      {/* Header z przyciskiem powrotu */}
-      <div className="bg-white/80 backdrop-blur-lg border-b border-white/20 px-4 sm:px-6 lg:px-8 py-4">
-        <div className="flex items-center justify-between">
+    <div className="min-h-screen bg-gray-50">
+      {/* Back button - positioned like in "Moje kursy" */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="px-4 sm:px-6 lg:px-8 py-4">
           <button
-            onClick={() => window.location.href = '/homelogin'}
-            className="flex items-center gap-2 px-4 py-2 bg-white/60 backdrop-blur-sm text-gray-700 rounded-lg hover:bg-white hover:shadow-lg transition-all duration-200 ease-in-out border border-white/20"
+            onClick={() => window.location.href = '/homelogin/my-courses'}
+            className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
-            Powrót do strony głównej
+            Powrót do moich kursów
           </button>
-
-          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-            {course?.title || 'Szczegóły kursu'}
-          </h1>
-
-          <div className="w-20"></div>
         </div>
       </div>
 
-      <div className="flex flex-col items-center py-6 px-2 sm:px-6">
-
-      {/* BANNER - taki sam jak w panelu nauczyciela */}
-      <div className="w-full max-w-5xl mb-6 relative rounded-2xl overflow-hidden shadow-lg bg-gradient-to-r from-[#4067EC] to-[#7aa2f7] flex items-center justify-between h-48 sm:h-56">
-        <div className="p-8">
-          <h1 className="text-3xl sm:text-4xl font-bold text-white drop-shadow-lg mb-2">{course?.title || 'Tytuł kursu'}</h1>
-          <p className="text-white text-lg font-medium drop-shadow">{course?.description || 'Opis kursu'}</p>
-        </div>
-        <div className="hidden sm:block h-full">
-          <Image src="/puzzleicon.png" alt="Baner kursu" width={180} height={180} className="object-contain h-full w-auto opacity-60" />
+      {/* Course Header - Blue background */}
+      <div className="bg-gradient-to-r from-[#4067EC] to-[#5577FF] text-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
+            {/* Left side - Course info */}
+            <div className="flex-1">
+              <h1 className="text-3xl lg:text-4xl font-bold mb-3">{course?.title || 'Tytuł kursu'}</h1>
+              <p className="text-lg text-blue-100 mb-6">{course?.description || 'Opis kursu'}</p>
+              
+              {/* Course statistics */}
+              <div className="flex flex-wrap items-center gap-6 mb-6">
+                <div className="flex items-center gap-2">
+                  <Users className="w-5 h-5" />
+                  <span className="text-blue-100">{courseStats.totalStudents} uczniów</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        onClick={() => addCourseRating(star)}
+                        className={`text-lg transition-colors ${
+                          star <= courseStats.averageRating
+                            ? 'text-yellow-300 fill-current'
+                            : 'text-yellow-300'
+                        } hover:scale-110`}
+                        title={`Oceń na ${star} gwiazdek`}
+                      >
+                        ★
+                      </button>
+                    ))}
+                  </div>
+                  <span className="text-blue-100">
+                    {courseStats.averageRating > 0 ? courseStats.averageRating : 'Brak ocen'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <GraduationCap className="w-5 h-5" />
+                  <span className="text-blue-100">{courseStats.instructorName}</span>
         </div>
       </div>
 
-      {/* SEKCJE (Accordion) - taki sam jak w panelu nauczyciela */}
-      <div className="w-full max-w-5xl flex flex-col gap-4">
-        {/* Sekcja quizów */}
-        <div className="bg-white rounded-2xl shadow-lg">
-          <div className="px-6 py-4">
-            <h2 className="text-xl font-bold text-[#4067EC] flex items-center gap-2">
-              <FaQuestionCircle />
-              Quizy
-            </h2>
+              {/* Course progress */}
+              <div className="mb-6">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-blue-100 font-medium">Postęp kursu</span>
+                  <span className="text-white font-bold">{courseProgress}%</span>
+                </div>
+                <div className="w-full bg-blue-200/30 rounded-full h-3">
+                  <div 
+                    className="bg-white h-3 rounded-full transition-all duration-300" 
+                    style={{ width: `${courseProgress}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+            
+            {/* Right side - Course Image */}
+            <div className="lg:ml-8 mt-6 lg:mt-0">
+              <div className="bg-white/20 backdrop-blur-sm rounded-2xl p-6 max-w-sm">
+                {course?.thumbnail ? (
+                  <div className="relative">
+                    <img 
+                      src={course.thumbnail} 
+                      alt={`Zdjęcie kursu: ${course.title}`}
+                      className="w-full h-48 object-cover rounded-xl"
+                    />
+                    <div className="absolute inset-0 bg-black/20 rounded-xl"></div>
+        </div>
+                ) : (
+                  <div className="w-full h-48 bg-gradient-to-br from-blue-400 via-purple-500 to-indigo-600 rounded-xl flex items-center justify-center relative overflow-hidden">
+                    {/* Animated background elements */}
+                    <div className="absolute top-0 left-0 w-20 h-20 bg-white/10 rounded-full -translate-x-10 -translate-y-10"></div>
+                    <div className="absolute bottom-0 right-0 w-16 h-16 bg-white/10 rounded-full translate-x-8 translate-y-8"></div>
+                    <div className="absolute top-1/2 left-1/2 w-12 h-12 bg-white/10 rounded-full -translate-x-6 -translate-y-6"></div>
+                    
+                    {/* Course logo with initials */}
+                    <div className="text-center z-10">
+                      <div className="w-20 h-20 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center mx-auto mb-3 border-2 border-white/30">
+                        <span className="text-2xl font-bold text-white">
+                          {course?.title ? course.title.charAt(0).toUpperCase() : 'K'}
+                        </span>
+                      </div>
+                      <p className="text-white/90 text-sm font-medium">Logo kursu</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
-          <div className="px-6 pb-6">
+        </div>
+      </div>
+
+      {/* Navigation Tabs */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <nav className="flex space-x-8 overflow-x-auto">
+            {[
+              { id: 'overview', label: 'Przegląd', icon: BookOpen },
+              { id: 'quizzes', label: 'Quizy', icon: PenTool },
+              { id: 'materials', label: 'Materiały', icon: FileText },
+              { id: 'tasks', label: 'Zadania', icon: Calendar },
+              { id: 'exams', label: 'Egzaminy', icon: GraduationCap },
+              { id: 'activities', label: 'Aktywności', icon: Users }
+            ].map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex items-center gap-2 py-4 px-2 border-b-2 font-medium text-sm transition-all duration-200 whitespace-nowrap ${
+                    isActive
+                      ? 'border-[#4067EC] text-[#4067EC] bg-blue-50'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  <Icon className={`w-4 h-4 ${isActive ? 'text-[#4067EC]' : 'text-gray-500'}`} />
+                  <span className={isActive ? 'text-[#4067EC]' : 'text-gray-500'}>{tab.label}</span>
+                </button>
+              );
+            })}
+          </nav>
+          </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-8">
+        {/* Summary Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
+            <div className="flex items-center gap-4">
+              <div className="bg-blue-100 p-3 rounded-xl">
+                <PenTool className="w-6 h-6 text-blue-600" />
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-gray-900">{totalQuizzes}</div>
+                <div className="text-sm text-gray-600">Quizy</div>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
+            <div className="flex items-center gap-4">
+              <div className="bg-blue-100 p-3 rounded-xl">
+                <FileText className="w-6 h-6 text-blue-600" />
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-gray-900">{totalMaterials}</div>
+                <div className="text-sm text-gray-600">Materiały</div>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
+            <div className="flex items-center gap-4">
+              <div className="bg-blue-100 p-3 rounded-xl">
+                <Calendar className="w-6 h-6 text-blue-600" />
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-gray-900">{totalTasks}</div>
+                <div className="text-sm text-gray-600">Zadania</div>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
+            <div className="flex items-center gap-4">
+              <div className="bg-blue-100 p-3 rounded-xl">
+                <GraduationCap className="w-6 h-6 text-blue-600" />
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-gray-900">{totalExams}</div>
+                <div className="text-sm text-gray-600">Egzaminy</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Content based on active tab */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+          {/* Left Column - Latest Activities */}
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+            <h3 className="text-lg font-bold text-gray-900 mb-4">Ostatnie aktywności</h3>
+            {loadingActivities ? (
+              <div className="flex justify-center items-center py-4">
+                <div className="animate-spin rounded-full h-6 w-6 border-2 border-[#4067EC] border-r-transparent"></div>
+                <span className="ml-2 text-sm text-gray-500">Ładowanie aktywności...</span>
+              </div>
+            ) : activities.length > 0 ? (
+              <div className="space-y-4">
+                {activities.map((activity) => (
+                  <div key={activity.id} className={`flex items-center justify-between p-3 rounded-lg ${
+                    activity.type === 'deadline' && activity.isUrgent ? 'bg-red-50 border border-red-200' :
+                    activity.type === 'deadline' ? 'bg-orange-50 border border-orange-200' :
+                    activity.type === 'course_update' ? 'bg-blue-50 border border-blue-200' :
+                    activity.type === 'new_quiz' ? 'bg-green-50 border border-green-200' :
+                    'bg-blue-50 border border-blue-200'
+                  }`}>
+                    <div className="flex items-center gap-3 flex-1">
+                      <div className={`w-2 h-2 rounded-full ${
+                        activity.type === 'deadline' && activity.isUrgent ? 'bg-red-500' :
+                        activity.type === 'deadline' ? 'bg-orange-500' :
+                        activity.type === 'course_update' ? 'bg-blue-500' :
+                        activity.type === 'new_quiz' ? 'bg-green-500' :
+                        'bg-blue-500'
+                      }`}></div>
+                      <div className="flex-1">
+                        <span className="text-sm font-medium text-gray-800 block">{activity.title}</span>
+                        {activity.description && (
+                          <span className="text-xs text-gray-600 block mt-1">{activity.description}</span>
+                        )}
+                      </div>
+                    </div>
+                    <span className="text-xs text-gray-500 whitespace-nowrap ml-2">
+                      {activity.date instanceof Date ? 
+                        activity.date.toLocaleDateString('pl-PL') : 
+                        new Date(activity.date).toLocaleDateString('pl-PL')
+                      }
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-4 text-gray-500">
+                Brak aktywności do wyświetlenia
+              </div>
+            )}
+          </div>
+
+          {/* Right Column - Upcoming Deadlines */}
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+            <h3 className="text-lg font-bold text-gray-900 mb-4">Nadchodzące terminy</h3>
+            <div className="space-y-4">
+              {upcomingDeadlines.length > 0 ? (
+                upcomingDeadlines.map((deadline) => (
+                  <div key={deadline.id} className={`flex items-center justify-between p-3 rounded-lg ${
+                    deadline.isUrgent ? 'bg-red-50' : 'bg-orange-50'
+                  }`}>
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-medium text-gray-800">{deadline.title}</span>
+                      {deadline.points > 0 && (
+                        <span className={`text-xs px-2 py-1 rounded-full ${
+                          deadline.isUrgent 
+                            ? 'bg-red-100 text-red-800' 
+                            : 'bg-orange-100 text-orange-800'
+                        }`}>
+                          {deadline.points} pkt
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-xs text-gray-500">
+                      Termin: {new Date(deadline.deadline).toLocaleDateString('pl-PL')}
+                    </span>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-4 text-gray-500">
+                  Brak nadchodzących terminów
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Tab Content */}
+        {activeTab === 'overview' && (
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+            <h3 className="text-xl font-bold text-gray-900 mb-6">Przegląd kursu</h3>
+            <p className="text-gray-600 mb-6">{course?.description}</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div>
+                <h4 className="font-semibold text-gray-800 mb-4 text-lg">Informacje o kursie</h4>
+                <ul className="space-y-3 text-sm text-gray-600">
+                  <li className="flex items-center gap-2">
+                    <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                    <strong>Poziom:</strong> {course?.level}
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                    <strong>Kategoria:</strong> {course?.category_name}
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                    <strong>Nauczyciel:</strong> {course?.instructor_name}
+                  </li>
+                </ul>
+              </div>
+              <div>
+                <h4 className="font-semibold text-gray-800 mb-4 text-lg">Statystyki</h4>
+                <ul className="space-y-3 text-sm text-gray-600">
+                  <li className="flex items-center gap-2">
+                    <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                    <strong>Liczba sekcji:</strong> {sections.length}
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                    <strong>Liczba quizów:</strong> {totalQuizzes}
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                    <strong>Postęp:</strong> {courseProgress}%
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'quizzes' && (
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+            <h3 className="text-xl font-bold text-gray-900 mb-6">Quizy</h3>
             {loadingQuizzes ? (
               <div className="flex justify-center items-center py-8">
                 <div className="animate-spin rounded-full h-8 w-8 border-4 border-[#4067EC] border-r-transparent"></div>
                 <span className="ml-3 text-gray-600">Ładowanie quizów...</span>
               </div>
             ) : quizError ? (
-              <div className="bg-red-50 text-red-800 p-4 rounded-lg">
-                {quizError}
-              </div>
+              <div className="bg-red-50 text-red-800 p-4 rounded-lg">{quizError}</div>
             ) : quizzes.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                Brak dostępnych quizów dla tego kursu.
-              </div>
+              <div className="text-center py-8 text-gray-500">Brak dostępnych quizów dla tego kursu.</div>
             ) : (
               <div className="space-y-6">
-                {/* Sekcja nierozwiązanych quizów */}
+                {/* Quizy do rozwiązania */}
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-800 mb-4">Quizy do rozwiązania</h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <h4 className="text-lg font-semibold text-gray-800 mb-4">Quizy do rozwiązania</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {quizzes
                       .filter(quiz => !completedQuizzes.includes(quiz.id))
                       .map(quiz => (
-                        <div key={quiz.id} className="bg-white border rounded-xl p-5 hover:shadow-lg transition-shadow">
+                        <div key={quiz.id} className="bg-gray-50 border border-gray-200 rounded-xl p-5 hover:shadow-md transition-shadow">
                           <div className="flex items-start justify-between mb-3">
-                            <h3 className="font-semibold text-lg text-gray-900">{quiz.title}</h3>
+                            <h5 className="font-semibold text-lg text-gray-900">{quiz.title}</h5>
                             <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
                               {quiz.subject}
                             </span>
@@ -450,12 +1051,23 @@ function CourseDetail() {
                               <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
                               </svg>
-                              <span>Pozostało prób: {Math.max(0, (quiz.max_attempts || 1) - (quizAttempts[quiz.id] || 0))}</span>
+                              <span>
+                                Próby: {quizAttempts[quiz.id] || 0} z {quiz.max_attempts || 1}
+                                {quizAttempts[quiz.id] && quizAttempts[quiz.id] > 0 && (
+                                  <span className="ml-1 text-blue-600 font-medium">
+                                    (Pozostało: {Math.max(0, (quiz.max_attempts || 1) - (quizAttempts[quiz.id] || 0))})
+                                  </span>
+                                )}
+                              </span>
                             </div>
                           </div>
+                          <div className="flex gap-2">
                           <button 
-                            onClick={() => router.push(`/courses/${slug}/quiz/${quiz.id}`)}
-                            className={`w-full py-3 px-4 rounded-lg transition-colors flex items-center justify-center ${
+                              onClick={() => {
+                                console.log('[DEBUG] Navigating to quiz:', `/courses/${slug}/quiz/${quiz.id}`);
+                                router.push(`/courses/${slug}/quiz/${quiz.id}`);
+                              }}
+                              className={`flex-1 py-3 px-4 rounded-lg transition-colors flex items-center justify-center ${
                               (quizAttempts[quiz.id] || 0) >= (quiz.max_attempts || 1)
                                 ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
                                 : 'bg-[#4067EC] text-white hover:bg-[#3155d4]'
@@ -465,7 +1077,7 @@ function CourseDetail() {
                             {(quizAttempts[quiz.id] || 0) >= (quiz.max_attempts || 1) ? (
                               <>
                                 <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                                 </svg>
                                 Wykorzystano wszystkie próby
                               </>
@@ -479,22 +1091,40 @@ function CourseDetail() {
                               </>
                             )}
                           </button>
+                            
+                            {/* Fallback Link */}
+                            <Link 
+                              href={`/courses/${slug}/quiz/${quiz.id}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={`flex-1 py-3 px-4 rounded-lg transition-colors flex items-center justify-center border-2 border-[#4067EC] text-[#4067EC] hover:bg-[#4067EC] hover:text-white ${
+                                (quizAttempts[quiz.id] || 0) >= (quiz.max_attempts || 1)
+                                  ? 'opacity-50 cursor-not-allowed pointer-events-none'
+                                  : ''
+                              }`}
+                            >
+                              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                              </svg>
+                              Otwórz w nowej karcie
+                            </Link>
+                          </div>
                         </div>
                     ))}
                   </div>
                 </div>
 
-                {/* Sekcja rozwiązanych quizów */}
+                {/* Rozwiązane quizy */}
                 {completedQuizzes.length > 0 && (
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-800 mb-4">Rozwiązane quizy</h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <h4 className="text-lg font-semibold text-gray-800 mb-4">Rozwiązane quizy</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {quizzes
                         .filter(quiz => completedQuizzes.includes(quiz.id))
                         .map(quiz => (
-                          <div key={quiz.id} className="bg-gray-50 border rounded-xl p-5">
+                          <div key={quiz.id} className="bg-green-50 border border-green-200 rounded-xl p-5">
                             <div className="flex items-start justify-between mb-3">
-                              <h3 className="font-semibold text-lg text-gray-900">{quiz.title}</h3>
+                              <h5 className="font-semibold text-lg text-gray-900">{quiz.title}</h5>
                               <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
                                 Ukończony
                               </span>
@@ -514,7 +1144,14 @@ function CourseDetail() {
                                 <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>
-                                <span>Wykorzystane próby: {quizAttempts[quiz.id] || 0} z {quiz.max_attempts || 1}</span>
+                                <span>
+                                  Wykorzystane próby: {quizAttempts[quiz.id] || 0} z {quiz.max_attempts || 1}
+                                  {quizAttempts[quiz.id] && quizAttempts[quiz.id] > 1 && (
+                                    <span className="ml-1 text-orange-600 font-medium">
+                                      (Ostatnia próba była najlepsza)
+                                    </span>
+                                  )}
+                                </span>
                               </div>
                             </div>
                           </div>
@@ -525,87 +1162,193 @@ function CourseDetail() {
               </div>
             )}
           </div>
+        )}
+
+        {activeTab === 'materials' && (
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+            <h3 className="text-xl font-bold text-gray-900 mb-6">Materiały</h3>
+            {sections.length > 0 ? (
+              <div className="space-y-6">
+                {sections
+                  .filter(section => section.type === 'material')
+                  .map(section => (
+                    <div key={section.id} className="bg-gray-50 rounded-xl p-6">
+                      <h4 className="text-lg font-semibold text-gray-800 mb-4">{section.name}</h4>
+                      <div className="space-y-3">
+                        {sectionContents[section.id]?.map((item: Content) => (
+                          <div key={item.id} className="flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-200">
+                            {item.fileUrl && <FaFilePdf className="text-2xl text-[#4067EC]" />}
+                            {item.link && <FaLink className="text-2xl text-[#4067EC]" />}
+                            {item.text && <span className="text-2xl text-[#4067EC]">📝</span>}
+                            <span className="font-medium flex-1">{item.name || item.link || 'Materiał'}</span>
+                            {item.fileUrl && (
+                              <a href={item.fileUrl} target="_blank" rel="noopener" className="text-[#4067EC] underline">
+                                Pobierz
+                              </a>
+                            )}
+                            {item.link && (
+                              <a href={item.link} target="_blank" rel="noopener" className="text-[#4067EC] underline">
+                                Otwórz link
+                              </a>
+                            )}
         </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                Brak dostępnych materiałów. 
+                <div className="text-xs text-gray-400 mt-2">
+                  Liczba sekcji: {sections.length}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
-
-        
+        {activeTab === 'tasks' && (
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+            <h3 className="text-xl font-bold text-gray-900 mb-6">Zadania</h3>
         {sections.length > 0 ? (
-          sections.map(section => (
-            <div key={section.id} className="bg-white rounded-2xl shadow-lg">
-              <div className="w-full flex items-center justify-between px-6 py-4 text-xl font-bold text-[#4067EC] focus:outline-none">
-                <button 
-                  onClick={() => setShowSection(s => ({...s, [section.id]: !s[section.id]}))} 
-                  className="mr-3 text-[#4067EC] text-2xl focus:outline-none"
-                >
-                  {showSection[section.id] ? <FaChevronUp /> : <FaChevronDown />}
-                </button>
-                <span className="flex-1">
-                  {section.name} <span className="text-base font-normal">({section.type})</span>
-                  {section.type === 'zadanie' && section.deadline && (
-                    <span className="text-sm font-normal text-gray-600 ml-2">
+              <div className="space-y-6">
+                {sections
+                  .filter(section => section.type === 'assignment')
+                  .map(section => (
+                    <div key={section.id} className="bg-gray-50 rounded-xl p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <h4 className="text-lg font-semibold text-gray-800">{section.name}</h4>
+                        {section.deadline && (
+                          <span className="text-sm text-gray-600">
                       Termin: {new Date(section.deadline).toLocaleString('pl-PL')}
                     </span>
                   )}
-                </span>
               </div>
-              {showSection[section.id] && (
-                <div className="px-6 pb-6 flex flex-col gap-4">
+                      <div className="space-y-3">
+                        {sectionContents[section.id]?.map((item: Content) => (
+                          <div key={item.id} className="flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-200">
+                            {item.fileUrl && <FaFilePdf className="text-2xl text-[#4067EC]" />}
+                            {item.link && <FaLink className="text-2xl text-[#4067EC]" />}
+                            {item.text && <span className="text-2xl text-[#4067EC]">📝</span>}
+                            <span className="font-medium flex-1">{item.name || item.link || 'Zadanie'}</span>
+                            {item.fileUrl && (
+                              <a href={item.fileUrl} target="_blank" rel="noopener" className="text-[#4067EC] underline">
+                                Pobierz
+                              </a>
+                            )}
+                            {item.link && (
+                              <a href={item.link} target="_blank" rel="noopener" className="text-[#4067EC] underline">
+                                Otwórz link
+                              </a>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-gray-500">Brak dostępnych zadań.</div>
+            )}
+          </div>
+        )}
 
-                  
-                  {/* Lista materiałów/zadań/aktywności */}
-                  {(sectionContents[section.id]?.length === 0 || !sectionContents[section.id]) && (
-                    <div className="text-gray-400 italic">Brak materiałów.</div>
-                  )}
+        {activeTab === 'exams' && (
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+            <h3 className="text-xl font-bold text-gray-900 mb-6">Egzaminy</h3>
+            {sections.length > 0 ? (
+              <div className="space-y-6">
+                {sections
+                  .filter(section => section.type === 'form')
+                  .map(section => (
+                    <div key={section.id} className="bg-gray-50 rounded-xl p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <h4 className="text-lg font-semibold text-gray-800">{section.name}</h4>
+                        {section.deadline && (
+                          <span className="text-sm text-gray-600">
+                            Termin: {new Date(section.deadline).toLocaleString('pl-PL')}
+                          </span>
+                        )}
+                      </div>
+                      <div className="space-y-3">
                   {sectionContents[section.id]?.map((item: Content) => (
-                    <div key={item.id} className="flex flex-col gap-3 p-4 bg-[#f4f6fb] rounded-lg">
-                      <div className="flex items-center gap-3">
+                          <div key={item.id} className="flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-200">
                         {item.fileUrl && <FaFilePdf className="text-2xl text-[#4067EC]" />}
                         {item.link && <FaLink className="text-2xl text-[#4067EC]" />}
                         {item.text && <span className="text-2xl text-[#4067EC]">📝</span>}
-                        <span className="font-semibold">{item.name || item.link || 'Materiał'}</span>
+                            <span className="font-medium flex-1">{item.name || item.link || 'Egzamin'}</span>
                         {item.fileUrl && (
-                          <a href={item.fileUrl} target="_blank" rel="noopener" className="ml-auto text-[#4067EC] underline">
+                              <a href={item.fileUrl} target="_blank" rel="noopener" className="text-[#4067EC] underline">
                             Pobierz
                           </a>
                         )}
-
                         {item.link && (
-                          <a href={item.link} target="_blank" rel="noopener" className="ml-auto text-[#4067EC] underline">
+                              <a href={item.link} target="_blank" rel="noopener" className="text-[#4067EC] underline">
                             Otwórz link
                           </a>
                         )}
                       </div>
-                      {item.text && (
-                        <div className="mt-2 p-3 bg-white rounded border-l-4 border-[#4067EC]">
-                          <div className="text-sm text-gray-600 mb-1">Treść:</div>
-                          <div 
-                            className="whitespace-pre-wrap text-gray-800 prose prose-sm max-w-none"
-                            dangerouslySetInnerHTML={{ 
-                              __html: item.text
-                                .replace(/\n/g, '<br>')
-                                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                                .replace(/\*(.*?)\*/g, '<em>$1</em>')
-                                .replace(/`(.*?)`/g, '<code class="bg-gray-100 px-1 rounded">$1</code>')
-                            }} 
-                          />
+                        ))}
                         </div>
-                      )}
                     </div>
                   ))}
                 </div>
+            ) : (
+              <div className="text-center py-8 text-gray-500">Brak dostępnych egzaminów.</div>
               )}
             </div>
-          ))
-        ) : (
-          <div className="w-full max-w-5xl text-center py-10">
-            <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
-            <h3 className="mt-2 text-lg font-medium text-gray-900">Brak dostępnych materiałów</h3>
-            <p className="mt-1 text-sm text-gray-500">Ten kurs nie ma jeszcze żadnych sekcji ani materiałów.</p>
+        )}
+
+        {activeTab === 'activities' && (
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+            <h3 className="text-xl font-bold text-gray-900 mb-6">Aktywności</h3>
+            {loadingActivities ? (
+              <div className="flex justify-center items-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#4067EC] border-r-transparent"></div>
+                <span className="ml-3 text-gray-500">Ładowanie aktywności...</span>
+              </div>
+            ) : activities.length > 0 ? (
+              <div className="space-y-4">
+                {activities.map((activity) => (
+                  <div key={activity.id} className={`flex items-center justify-between p-4 rounded-lg border ${
+                    activity.type === 'deadline' && activity.isUrgent ? 'bg-red-50 border-red-200' :
+                    activity.type === 'deadline' ? 'bg-orange-50 border-orange-200' :
+                    activity.type === 'course_update' ? 'bg-blue-50 border-blue-200' :
+                    activity.type === 'new_quiz' ? 'bg-green-50 border-green-200' :
+                    'bg-blue-50 border-blue-200'
+                  }`}>
+                    <div className="flex items-center gap-3 flex-1">
+                      <div className={`w-3 h-3 rounded-full ${
+                        activity.type === 'deadline' && activity.isUrgent ? 'bg-red-500' :
+                        activity.type === 'deadline' ? 'bg-orange-500' :
+                        activity.type === 'course_update' ? 'bg-blue-500' :
+                        activity.type === 'new_quiz' ? 'bg-green-500' :
+                        'bg-blue-500'
+                      }`}></div>
+                      <div className="flex-1">
+                        <span className="text-sm font-medium text-gray-800 block">{activity.title}</span>
+                        {activity.description && (
+                          <span className="text-xs text-gray-600 block mt-1">{activity.description}</span>
+                        )}
+                      </div>
+                    </div>
+                    <span className="text-xs text-gray-500 whitespace-nowrap ml-3">
+                      {activity.date instanceof Date ? 
+                        activity.date.toLocaleDateString('pl-PL') : 
+                        new Date(activity.date).toLocaleDateString('pl-PL')
+                      }
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                Brak aktywności do wyświetlenia
           </div>
         )}
       </div>
+        )}
       </div>
     </div>
   );

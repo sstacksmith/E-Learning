@@ -7,6 +7,7 @@ import {
   signInWithEmailAndPassword,
   signOut,
   onAuthStateChanged,
+  UserCredential,
 } from 'firebase/auth';
 import {
   doc,
@@ -28,7 +29,7 @@ type AuthContextType = {
   error: string | null;
   register: (email: string, password: string, displayName: string, role: string) => Promise<boolean>;
   login: (email: string, password: string) => Promise<void>;
-  loginWithApproval: (email: string, password: string) => Promise<void>;
+  loginWithApproval: (email: string, password: string) => Promise<UserCredential>;
   logout: () => Promise<void>;
   getCurrentUserRole: () => Promise<UserRole | null>;
   isAuthenticated: boolean;
@@ -143,7 +144,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     localStorage.setItem('token', token);
     console.log('Token zapisany do localStorage');
 
-    // Nie przekierowujemy rodzica nigdzie - ma widzieć normalną stronę homelogin
+    // Zwróć userCredential aby można było pobrać rolę w komponencie logowania
+    return userCredential;
   };
 
   // Logout user

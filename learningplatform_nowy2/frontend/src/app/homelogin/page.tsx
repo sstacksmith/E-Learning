@@ -73,11 +73,6 @@ const getSidebarLinks = (userRole?: string) => {
 
   baseLinks.push(
   {
-    label: "Biblioteka",
-    icon: <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 20h9" /><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m0 0H6a2 2 0 01-2-2V6a2 2 0 012-2h6" /></svg>,
-    href: "/homelogin/library"
-  },
-  {
     label: "Dziennik",
     icon: <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 4H7a2 2 0 01-2-2V6a2 2 0 012-2h2l2 2h6a2 2 0 012 2v10a2 2 0 01-2 2z" /></svg>,
     href: "/homelogin/grades"

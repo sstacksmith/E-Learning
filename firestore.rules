@@ -30,11 +30,57 @@ service cloud.firestore {
       );
     }
     
+    // Wyniki quizów - uczniowie mogą zapisywać swoje wyniki
+    match /quiz_results/{resultId} {
+      allow read: if request.auth != null && (
+        request.auth.uid == resource.data.user_id || 
+        request.auth.token.role == 'admin' || 
+        request.auth.token.role == 'teacher'
+      );
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.user_id;
+      allow update, delete: if request.auth != null && (
+        request.auth.uid == resource.data.user_id || 
+        request.auth.token.role == 'admin'
+      );
+    }
+    
+    // Próby quizów - uczniowie mogą zapisywać swoje próby
+    match /quiz_attempts/{attemptId} {
+      allow read: if request.auth != null && (
+        request.auth.uid == resource.data.user_id || 
+        request.auth.token.role == 'admin' || 
+        request.auth.token.role == 'teacher'
+      );
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.user_id;
+      allow update, delete: if request.auth != null && (
+        request.auth.uid == resource.data.user_id || 
+        request.auth.token.role == 'admin'
+      );
+    }
+    
     // Grupy - administratorzy i nauczyciele mogą zarządzać
     match /groups/{groupId} {
       allow read: if request.auth != null;
       allow write: if request.auth != null && (
         request.auth.token == 'admin' || 
+        request.auth.token.role == 'teacher'
+      );
+    }
+    
+    // Czaty grupowe - uczestnicy mogą czytać i pisać
+    match /groupChats/{chatId} {
+      allow read, write: if request.auth != null && (
+        request.auth.uid in resource.data.participants ||
+        request.auth.token.role == 'admin' ||
+        request.auth.token.role == 'teacher'
+      );
+    }
+    
+    // Wiadomości w czatach grupowych - uczestnicy mogą czytać i pisać
+    match /groupChats/{chatId}/messages/{messageId} {
+      allow read, write: if request.auth != null && (
+        request.auth.uid in get(/databases/$(database)/documents/groupChats/$(chatId)).data.participants ||
+        request.auth.token.role == 'admin' ||
         request.auth.token.role == 'teacher'
       );
     }

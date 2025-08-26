@@ -196,7 +196,7 @@ function ProfilePageContent() {
                 </Link>
                 
                 <Link 
-                  href="/profile/grades" 
+                  href="/homelogin/grades" 
                   className="flex items-center gap-3 w-full px-4 py-3 bg-gradient-to-r from-amber-500 to-orange-600 text-white rounded-xl hover:from-amber-600 hover:to-orange-700 transition-all duration-200 ease-in-out shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]"
                 >
                   <Award className="w-5 h-5 text-white" />
