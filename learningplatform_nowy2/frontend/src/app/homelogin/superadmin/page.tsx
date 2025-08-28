@@ -127,8 +127,26 @@ function SuperAdminDashboardContent() {
   const [editCourseStudents, setEditCourseStudents] = useState<string[]>([]);
   const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
 
+  // Funkcja do odświeżenia tokenu
+  const refreshToken = async () => {
+    try {
+      console.log('Refreshing token...');
+      await auth.currentUser?.getIdToken(true);
+      const newToken = await auth.currentUser?.getIdTokenResult();
+      console.log('New token after refresh:', newToken);
+      console.log('New custom claims:', newToken?.claims);
+      setSuccess('Token odświeżony pomyślnie');
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      console.error('Error refreshing token:', err);
+      setError('Błąd podczas odświeżania tokenu');
+      setTimeout(() => setError(''), 3000);
+    }
+  };
+
   const fetchUsers = useCallback(async () => {
     try {
+      console.log('Fetching users from Firestore...');
       const { collection, getDocs } = await import('firebase/firestore');
       const usersCollection = collection(db, 'users');
       const usersSnapshot = await getDocs(usersCollection);
@@ -140,6 +158,11 @@ function SuperAdminDashboardContent() {
       console.log('Users loaded from Firestore:', usersData.length);
     } catch (err) {
       console.error('Failed to load users:', err);
+      console.error('Error details:', {
+        code: (err as any)?.code,
+        message: (err as any)?.message,
+        stack: (err as any)?.stack
+      });
       setError('Failed to load users');
     } finally {
       setLoading(false);
@@ -341,6 +364,23 @@ function SuperAdminDashboardContent() {
 
   const approveUser = async (uid: string) => {
     try {
+      console.log('Attempting to approve user with UID:', uid);
+      console.log('Current user:', user);
+      
+      // Sprawdź token i custom claims
+      const token = await auth.currentUser?.getIdTokenResult();
+      console.log('Current user token:', token);
+      console.log('Custom claims:', token?.claims);
+      
+      // Jeśli nie ma custom claims, wymuś odświeżenie tokenu
+      if (!token?.claims?.role) {
+        console.log('No custom claims found, forcing token refresh...');
+        await auth.currentUser?.getIdToken(true);
+        const newToken = await auth.currentUser?.getIdTokenResult();
+        console.log('New token after refresh:', newToken);
+        console.log('New custom claims:', newToken?.claims);
+      }
+      
       await updateDoc(doc(db, 'users', uid), {
         approved: true
       });
@@ -350,8 +390,13 @@ function SuperAdminDashboardContent() {
       fetchUsers(); // Refresh the list
     } catch (err) {
       console.error('Error approving user:', err);
-      setError('Nie udało się zatwierdzić użytkownika');
-      setTimeout(() => setError(''), 3000);
+      console.error('Error details:', {
+        code: (err as any)?.code,
+        message: (err as any)?.message,
+        stack: (err as any)?.stack
+      });
+      setError(`Nie udało się zatwierdzić użytkownika: ${(err as any)?.message || 'Nieznany błąd'}`);
+      setTimeout(() => setError(''), 5000);
     }
   };
 
