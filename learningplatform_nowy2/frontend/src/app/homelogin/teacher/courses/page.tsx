@@ -52,6 +52,7 @@ export default function TeacherCourses() {
     category_name: ''
   });
   const [creatingCourse, setCreatingCourse] = useState(false);
+  const [fixingPermissions, setFixingPermissions] = useState(false);
   
   // State dla wyszukiwarki
   const [searchTerm, setSearchTerm] = useState('');
@@ -275,7 +276,50 @@ export default function TeacherCourses() {
     }
   }, [setDeletingCourse, setSuccess, clearCache, fetchCourses, pagination.page, setError, courses, isAdmin]);
 
-  // Usunięta funkcja handleCreateCourse - tylko admin może tworzyć kursy
+  // Function to fix permissions for current user
+  const handleFixPermissions = useCallback(async () => {
+    if (!user?.uid) {
+      setError('Nie można zidentyfikować użytkownika');
+      return;
+    }
+    
+    setFixingPermissions(true);
+    setError(null);
+    
+    try {
+      console.log('Fixing permissions for user:', user.uid);
+      
+      const response = await fetch('/api/set-teacher-role-api', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ uid: user.uid })
+      });
+      
+      if (response.ok) {
+        console.log('✅ Permissions fixed successfully');
+        setSuccess('Uprawnienia zostały naprawione! Teraz możesz tworzyć kursy.');
+        
+        // Refresh token to get new custom claims
+        const { getAuth } = await import('firebase/auth');
+        const auth = getAuth();
+        if (auth.currentUser) {
+          const token = await auth.currentUser.getIdToken(true);
+          localStorage.setItem('token', token);
+        }
+      } else {
+        const errorData = await response.json();
+        console.error('Failed to fix permissions:', errorData);
+        setError('Nie udało się naprawić uprawnień. Spróbuj ponownie.');
+      }
+    } catch (error) {
+      console.error('Error fixing permissions:', error);
+      setError('Błąd podczas naprawy uprawnień. Spróbuj ponownie.');
+    } finally {
+      setFixingPermissions(false);
+    }
+  }, [user, setError, setSuccess]);
 
   // Function to create new course
   const handleCreateCourse = useCallback(async (e: React.FormEvent) => {
@@ -412,15 +456,28 @@ export default function TeacherCourses() {
                           <div className="flex gap-2">
               {/* Add Course Button - only for teachers */}
               {!isAdmin && (
-                                  <button
+                <>
+                  <button
                     onClick={() => setShowCreateCourse(true)}
                     className="bg-green-600 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-green-700 transition-colors flex items-center space-x-2"
                   >
-                                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                  </svg>
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    </svg>
                     <span>Dodaj kurs</span>
                   </button>
+                  
+                  <button
+                    onClick={handleFixPermissions}
+                    disabled={fixingPermissions}
+                    className="bg-orange-600 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-orange-700 transition-colors flex items-center space-x-2 disabled:opacity-50"
+                  >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span>{fixingPermissions ? 'Naprawiam...' : 'Napraw uprawnienia'}</span>
+                  </button>
+                </>
               )}
               
               <button

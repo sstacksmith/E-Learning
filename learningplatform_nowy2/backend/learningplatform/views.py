@@ -6,13 +6,14 @@ from rest_framework.response import Response
 from rest_framework import status, permissions
 from .models import Course, CourseAssignment
 from .serializers import CourseSerializer
-from firebase_utils import set_user_role, auth
+from firebase_utils import set_user_role, auth, delete_user_from_firebase_auth
 from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
 import json
 from django.contrib.admin.views.decorators import staff_member_required
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from .firebase_config import verify_firebase_token
+from datetime import datetime
 from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.decorators import api_view, permission_classes
@@ -95,54 +96,67 @@ class CourseListCreateView(APIView):
         print(f"User is_superuser: {request.user.is_superuser}")
         print(f"User is_student: {request.user.is_student}")
         
-        # Filtruj kursy na podstawie roli użytkownika
-        if request.user.is_teacher:
-            # Nauczyciele widzą tylko swoje kursy
-            courses = Course.objects.filter(created_by=request.user).order_by('-created_at')
-            print(f"Teacher filtering: found {courses.count()} courses for teacher {request.user.email}")
-            for course in courses:
-                print(f"  - Course: {course.title} (ID: {course.id}) created by: {course.created_by.email}")
-        elif request.user.is_superuser:
-            # Administratorzy widzą wszystkie kursy
-            courses = Course.objects.all().order_by('-created_at')
-            print(f"Superuser: found {courses.count()} total courses")
-        else:
-            # Studenci widzą tylko kursy do których są przypisani
-            from learningplatform.models import CourseAssignment
-            assignments = CourseAssignment.objects.filter(student=request.user, is_active=True)
-            course_ids = [assignment.course.id for assignment in assignments]
-            courses = Course.objects.filter(id__in=course_ids).order_by('-created_at')
-            print(f"Student: found {courses.count()} assigned courses")
-        
-        # Dodaj paginację dla lepszej wydajności
-        page = self.request.query_params.get('page', 1)
-        page_size = self.request.query_params.get('page_size', 20)
-        
         try:
-            page = int(page)
-            page_size = int(page_size)
-        except ValueError:
-            page = 1
-            page_size = 20
+            # Pobierz kursy z Firestore
+            db = firestore.client()
+            courses_ref = db.collection('courses')
+            
+            # Filtruj kursy na podstawie roli użytkownika
+            if request.user.is_teacher:
+                # Nauczyciele widzą tylko swoje kursy
+                courses_query = courses_ref.where('teacherEmail', '==', request.user.email)
+                print(f"Teacher filtering: getting courses for teacher {request.user.email}")
+            elif request.user.is_superuser:
+                # Administratorzy widzą wszystkie kursy
+                courses_query = courses_ref
+                print(f"Superuser: getting all courses")
+            else:
+                # Studenci widzą tylko kursy do których są przypisani
+                courses_query = courses_ref.where('assignedUsers', 'array_contains', request.user.email)
+                print(f"Student: getting assigned courses for {request.user.email}")
+            
+            # Pobierz kursy
+            courses_snapshot = courses_query.get()
+            courses = []
+            
+            for doc in courses_snapshot:
+                course_data = doc.to_dict()
+                course_data['id'] = doc.id
+                courses.append(course_data)
+            
+            # Sortuj po dacie utworzenia (najnowsze pierwsze)
+            courses.sort(key=lambda x: x.get('created_at', ''), reverse=True)
+            
+            print(f"Found {len(courses)} courses")
+            
+            # Dodaj paginację dla lepszej wydajności
+            page = int(self.request.query_params.get('page', 1))
+            page_size = int(self.request.query_params.get('page_size', 20))
         
-        # Ogranicz page_size do rozsądnej wartości
-        page_size = min(page_size, 50)
-        
-        start = (page - 1) * page_size
-        end = start + page_size
-        
-        paginated_courses = courses[start:end]
-        serializer = CourseSerializer(paginated_courses, many=True)
-        
-        response_data = {
-            'results': serializer.data,
-            'count': courses.count(),
-            'page': page,
-            'page_size': page_size,
-            'total_pages': (courses.count() + page_size - 1) // page_size
-        }
-        
-        return Response(response_data)
+            # Ogranicz page_size do rozsądnej wartości
+            page_size = min(page_size, 50)
+            
+            start = (page - 1) * page_size
+            end = start + page_size
+            
+            paginated_courses = courses[start:end]
+            
+            response_data = {
+                'results': paginated_courses,
+                'count': len(courses),
+                'page': page,
+                'page_size': page_size,
+                'total_pages': (len(courses) + page_size - 1) // page_size
+            }
+            
+            return Response(response_data)
+            
+        except Exception as e:
+            print(f"Error fetching courses from Firestore: {e}")
+            return Response({
+                'detail': 'Error fetching courses',
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def post(self, request):
         print(f"=== COURSE CREATION ATTEMPT ===")
@@ -171,30 +185,50 @@ class CourseListCreateView(APIView):
         
         print("User is authenticated and is a teacher, proceeding with course creation...")
         
-        # Prepare data for serializer
-        course_data = request.data.copy()
-        course_data['created_by'] = request.user.id
-        
-        print(f"Course data for serializer: {course_data}")
-        
-        serializer = CourseSerializer(data=course_data)
-        if serializer.is_valid():
-            print("Serializer is valid, saving course...")
-            course = serializer.save(created_by=request.user)
-            print(f"Course created successfully: {serializer.data}")
+        try:
+            # Generuj slug z tytułu
+            def generate_slug(title):
+                import re
+                return re.sub(r'[^a-z0-9\s-]', '', title.lower()).replace(' ', '-').strip('-')
             
-            # Synchronize with Firestore
-            sync_success = sync_course_to_firestore(course, 'create')
-            if not sync_success:
-                print("Warning: Course created in Django but failed to sync with Firestore")
+            # Przygotuj dane kursu dla Firestore
+            course_data = {
+                'title': request.data.get('title'),
+                'description': request.data.get('description'),
+                'year_of_study': request.data.get('year_of_study'),
+                'subject': request.data.get('subject', ''),
+                'is_active': True,
+                'pdfUrls': request.data.get('pdfUrls', []),
+                'links': request.data.get('links', []),
+                'slug': generate_slug(request.data.get('title', '')),
+                'created_by': request.user.email,
+                'teacherEmail': request.user.email,
+                'assignedUsers': [],
+                'sections': [],
+                'created_at': datetime.now().isoformat(),
+                'updated_at': datetime.now().isoformat()
+            }
             
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        else:
-            print(f"Serializer errors: {serializer.errors}")
+            print(f"Prepared course data for Firestore: {course_data}")
+            
+            # Zapisz bezpośrednio do Firestore
+            db = firestore.client()
+            course_ref = db.collection('courses').document()
+            course_ref.set(course_data)
+            
+            # Dodaj ID do danych
+            course_data['id'] = course_ref.id
+            
+            print(f"Course created successfully in Firestore with ID: {course_ref.id}")
+            
+            return Response(course_data, status=status.HTTP_201_CREATED)
+            
+        except Exception as e:
+            print(f"Error creating course in Firestore: {e}")
             return Response({
-                'detail': 'Validation error',
-                'errors': serializer.errors
-            }, status=status.HTTP_400_BAD_REQUEST)
+                'detail': 'Error creating course',
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class CourseDetailView(APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -279,7 +313,6 @@ def set_student_role(request):
         set_user_role(uid, 'student')
         return JsonResponse({'status': 'student role set'})
 
-@staff_member_required
 @csrf_exempt
 def set_teacher_role(request):
     if request.method == 'POST':
@@ -290,7 +323,6 @@ def set_teacher_role(request):
         set_user_role(uid, 'teacher')
         return JsonResponse({'status': 'teacher role set'})
 
-@staff_member_required
 @csrf_exempt
 def set_admin_role(request):
     if request.method == 'POST':
@@ -300,6 +332,17 @@ def set_admin_role(request):
             return JsonResponse({'error': 'No UID provided'}, status=400)
         set_user_role(uid, 'admin')
         return JsonResponse({'status': 'admin role set'})
+
+@staff_member_required
+@csrf_exempt
+def set_student_role(request):
+    if request.method == 'POST':
+        data = json.loads(request.body)
+        uid = data.get('uid')
+        if not uid:
+            return JsonResponse({'error': 'No UID provided'}, status=400)
+        set_user_role(uid, 'student')
+        return JsonResponse({'status': 'student role set'})
 
 @csrf_exempt
 def check_user_role(request):
@@ -873,4 +916,56 @@ class QuizAttemptViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return QuizAttempt.objects.filter(user=self.request.user) 
+        return QuizAttempt.objects.filter(user=self.request.user)
+
+class DeleteUserView(APIView):
+    """
+    Endpoint do usuwania użytkowników z Firebase Auth i Firestore
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        try:
+            uid = request.data.get('uid')
+            if not uid:
+                return Response({'error': 'UID jest wymagany'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Sprawdź czy użytkownik ma uprawnienia administratora
+            user = request.user
+            if not (user.is_superuser or user.is_staff):
+                return Response({'error': 'Brak uprawnień'}, status=status.HTTP_403_FORBIDDEN)
+            
+            print(f"🗑️ Deleting user with UID: {uid}")
+            
+            # 1. Usuń z Firebase Auth
+            auth_success = delete_user_from_firebase_auth(uid)
+            if not auth_success:
+                return Response({'error': 'Nie udało się usunąć użytkownika z Firebase Auth'}, 
+                              status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+            # 2. Usuń z Firestore (jeśli istnieje)
+            try:
+                db = firestore.client()
+                user_doc_ref = db.collection('users').document(uid)
+                user_doc_ref.delete()
+                print(f"✅ User document deleted from Firestore")
+            except Exception as e:
+                print(f"⚠️ Warning: Could not delete from Firestore: {e}")
+            
+            # 3. Usuń z Django (jeśli istnieje)
+            try:
+                django_user = User.objects.get(firebase_uid=uid)
+                django_user.delete()
+                print(f"✅ Django user deleted")
+            except User.DoesNotExist:
+                print(f"ℹ️ Django user not found for UID: {uid}")
+            except Exception as e:
+                print(f"⚠️ Warning: Could not delete Django user: {e}")
+            
+            return Response({'message': 'Użytkownik został pomyślnie usunięty'}, 
+                          status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            print(f"❌ Error deleting user: {e}")
+            return Response({'error': f'Błąd podczas usuwania użytkownika: {str(e)}'}, 
+                          status=status.HTTP_500_INTERNAL_SERVER_ERROR) 

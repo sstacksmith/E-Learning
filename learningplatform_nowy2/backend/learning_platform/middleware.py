@@ -4,7 +4,7 @@ from django.utils.functional import SimpleLazyObject
 from django.contrib.auth.models import AnonymousUser
 import jwt
 from django.conf import settings
-from api.models import User
+# from api.models import User  # Removed - using Firebase only
 from django.http import HttpResponse
 from firebase_admin import auth
 import firebase_admin
@@ -46,32 +46,14 @@ def get_user_from_token(request):
             email = decoded_token.get('email', '')
             firebase_role = decoded_token.get('role', 'student')  # Get role from Firebase token
             
-            # Get or create user
-            user, created = User.objects.get_or_create(
+            # Create FirebaseUser object (no database storage)
+            user = FirebaseUser(
                 firebase_uid=uid,
-                defaults={
-                    'email': email,
-                    'username': email,
-                    'is_teacher': firebase_role == 'teacher',
-                    'is_student': firebase_role == 'student'
-                }
+                email=email,
+                username=email,
+                is_teacher=firebase_role == 'teacher',
+                is_student=firebase_role == 'student'
             )
-
-            # Update user role if it changed in Firebase
-            if not created:
-                should_update = False
-                if firebase_role == 'teacher' and not user.is_teacher:
-                    user.is_teacher = True
-                    user.is_student = False
-                    should_update = True
-                elif firebase_role == 'student' and not user.is_student:
-                    user.is_teacher = False
-                    user.is_student = True
-                    should_update = True
-                
-                if should_update:
-                    print(f"Updating user role to {firebase_role}")
-                    user.save()
 
             return user
         except Exception as firebase_error:
@@ -83,7 +65,8 @@ def get_user_from_token(request):
                 decoded_jwt = jwt.decode(token, settings.SECRET_KEY, algorithms=['HS256'])
                 user_id = decoded_jwt.get('user_id')
                 if user_id:
-                    return User.objects.get(id=user_id)
+                    # Return AnonymousUser since we don't use Django User model
+                    return AnonymousUser()
             except Exception as jwt_error:
                 print(f"JWT verification failed: {str(jwt_error)}")
                 return AnonymousUser()

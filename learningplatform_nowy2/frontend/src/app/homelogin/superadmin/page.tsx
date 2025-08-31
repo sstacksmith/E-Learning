@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import Providers from '@/components/Providers';
 import { db } from "@/config/firebase";
-import { collection, getDocs, doc, updateDoc, deleteDoc, getDoc } from "firebase/firestore";
+import { collection, getDocs, doc, updateDoc, deleteDoc } from "firebase/firestore";
 import { auth } from "@/config/firebase";
 import { getAuth, signInWithEmailAndPassword } from "firebase/auth";
 import {
@@ -273,9 +273,30 @@ function SuperAdminDashboardContent() {
       }
       
       const userDoc = querySnapshot.docs[0];
+      const userData = userDoc.data();
+      
+      // Aktualizuj rolę w Firestore
       await updateDoc(doc(db, 'users', userDoc.id), {
-        role: 'teacher'
+        role: 'teacher',
+        approved: true
       });
+      
+      // Ustaw custom claims w Firebase Auth (ważne dla uprawnień)
+      try {
+        const response = await fetch('/api/set-teacher-role-api', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ uid: userData.uid })
+        });
+        
+        if (!response.ok) {
+          console.error('Failed to set Firebase Auth custom claims');
+        }
+      } catch (authError) {
+        console.error('Error setting Firebase Auth custom claims:', authError);
+      }
       
       setSuccess(`Successfully set ${email} as teacher`);
       setTimeout(() => setSuccess(''), 3000);
@@ -290,10 +311,28 @@ function SuperAdminDashboardContent() {
   const setAdminRole = async (uid: string) => {
     try {
       // Znajdź użytkownika po ID w Firestore
-      const { updateDoc, doc } = await import('firebase/firestore');
+      const { updateDoc, doc, getDoc } = await import('firebase/firestore');
       await updateDoc(doc(db, 'users', uid), {
-        role: 'admin'
+        role: 'admin',
+        approved: true
       });
+      
+      // Ustaw custom claims w Firebase Auth (ważne dla uprawnień)
+      try {
+        const response = await fetch('/api/set-admin-role-api', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ uid: uid })
+        });
+        
+        if (!response.ok) {
+          console.error('Failed to set Firebase Auth custom claims');
+        }
+      } catch (authError) {
+        console.error('Error setting Firebase Auth custom claims:', authError);
+      }
       
       setSuccess(`Successfully set user as admin`);
       setTimeout(() => setSuccess(''), 3000);
@@ -341,31 +380,11 @@ function SuperAdminDashboardContent() {
 
   const approveUser = async (uid: string) => {
     try {
-      // 1. Zaktualizuj dokument w Firestore
       await updateDoc(doc(db, 'users', uid), {
-        approved: true,
-        role: "student"  // Ustaw rolę student po akceptacji
+        approved: true
       });
       
-      // 2. Ustaw Firebase custom claims (wymaga backend endpoint)
-      try {
-        const response = await fetch('/api/set-student-role/', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${await (user as any)?.getIdToken?.()}`
-          },
-          body: JSON.stringify({ uid })
-        });
-        
-        if (!response.ok) {
-          console.warn('Failed to set Firebase custom claims, but user was approved');
-        }
-      } catch (claimsError) {
-        console.warn('Error setting Firebase custom claims:', claimsError);
-      }
-      
-      setSuccess(`Użytkownik został zatwierdzony jako student`);
+      setSuccess(`Użytkownik został zatwierdzony`);
       setTimeout(() => setSuccess(''), 3000);
       fetchUsers(); // Refresh the list
     } catch (err) {
@@ -391,67 +410,47 @@ function SuperAdminDashboardContent() {
     }
   };
 
-  const fixUserDisplayName = async (uid: string) => {
-    try {
-      const userRef = doc(db, 'users', uid);
-      const userDoc = await getDoc(userRef);
-      
-      if (userDoc.exists()) {
-        const userData = userDoc.data();
-        const firstName = userData.firstName || '';
-        const lastName = userData.lastName || '';
-        
-        if (firstName && lastName) {
-          await updateDoc(userRef, {
-            displayName: `${firstName} ${lastName}`.trim()
-          });
-          setSuccess(`Naprawiono nazwę użytkownika: ${firstName} ${lastName}`);
-          setTimeout(() => setSuccess(''), 3000);
-          fetchUsers(); // Refresh the list
-        } else {
-          setError('Użytkownik nie ma imienia lub nazwiska');
-          setTimeout(() => setError(''), 3000);
-        }
-      }
-    } catch (err) {
-      console.error('Error fixing user display name:', err);
-      setError('Nie udało się naprawić nazwy użytkownika');
-      setTimeout(() => setError(''), 3000);
-    }
-  };
-
   const deleteUser = async (uid: string) => {
     if (!confirm('Czy na pewno chcesz usunąć tego użytkownika? Ta operacja jest nieodwracalna.')) {
       return;
     }
     
     try {
-      console.log('🗑️ Deleting user:', uid);
-      
-      // Wywołaj endpoint backendu do usuwania użytkownika
-      const response = await fetch('/api/delete-user/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${await (user as any)?.getIdToken?.()}`
-        },
-        body: JSON.stringify({ uid })
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Błąd podczas usuwania użytkownika');
+      // Najpierw upewnij się, że administrator ma custom claims
+      if (user?.role === 'admin') {
+        try {
+          const response = await fetch('/api/set-admin-role-api', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ uid: user.uid })
+          });
+          
+          if (response.ok) {
+            console.log('✅ Admin custom claims updated');
+            // Refresh token to get new custom claims
+            const { getAuth } = await import('firebase/auth');
+            const auth = getAuth();
+            if (auth.currentUser) {
+              const token = await auth.currentUser.getIdToken(true);
+              localStorage.setItem('token', token);
+            }
+          }
+        } catch (authError) {
+          console.error('Error updating admin custom claims:', authError);
+        }
       }
       
-      const result = await response.json();
-      console.log('✅ User deleted successfully:', result);
+      const { deleteDoc, doc } = await import('firebase/firestore');
+      await deleteDoc(doc(db, 'users', uid));
       
-      setSuccess(`Użytkownik został pomyślnie usunięty z systemu`);
+      setSuccess(`Użytkownik został usunięty`);
       setTimeout(() => setSuccess(''), 3000);
       fetchUsers(); // Refresh the list
     } catch (err) {
-      console.error('❌ Error deleting user:', err);
-      setError('Nie udało się usunąć użytkownika: ' + (err as Error).message);
+      console.error('Error deleting user:', err);
+      setError('Nie udało się usunąć użytkownika: ' + (err instanceof Error ? err.message : 'Unknown error'));
       setTimeout(() => setError(''), 5000);
     }
   };
@@ -725,38 +724,21 @@ function SuperAdminDashboardContent() {
     }
     
     try {
-      const { createUserWithEmailAndPassword } = await import('firebase/auth');
-      const { setDoc, doc } = await import('firebase/firestore');
-      const { auth, db } = await import('@/config/firebase');
-      
-      // Generuj tymczasowe hasło
-      const tempPassword = Math.random().toString(36).slice(-8) + 'A1!';
-      
-      // Utwórz użytkownika w Firebase Auth
-      const userCredential = await createUserWithEmailAndPassword(auth, newUserEmail, tempPassword);
-      const firebaseUser = userCredential.user;
-      
-      // Utwórz dokument użytkownika w Firestore z poprawnym UID
+      const { addDoc, collection } = await import('firebase/firestore');
       const userData = {
-        uid: firebaseUser.uid,
         email: newUserEmail,
         firstName: newUserFirstName,
         lastName: newUserLastName,
-        displayName: `${newUserFirstName} ${newUserLastName}`,
         role: newUserRole,
         approved: true,
         banned: false,
         created_at: new Date().toISOString(),
-        created_by: user?.email || 'admin',
-        tempPassword: tempPassword // Tymczasowe hasło do przekazania użytkownikowi
+        created_by: user?.email || 'admin'
       };
       
-      await setDoc(doc(db, 'users', firebaseUser.uid), userData);
+      await addDoc(collection(db, 'users'), userData);
       
-      // Wyloguj utworzonego użytkownika (żeby nie był zalogowany)
-      await auth.signOut();
-      
-      setSuccess(`Użytkownik został pomyślnie utworzony! Tymczasowe hasło: ${tempPassword}`);
+      setSuccess('Użytkownik został pomyślnie utworzony');
       setNewUserEmail('');
       setNewUserFirstName('');
       setNewUserLastName('');
@@ -764,13 +746,13 @@ function SuperAdminDashboardContent() {
       setShowCreateUserModal(false);
       fetchUsers(); // Refresh the list
       
-      // Clear success message after 10 seconds (żeby użytkownik zdążył skopiować hasło)
-      setTimeout(() => setSuccess(''), 10000);
+      // Clear success message after 3 seconds
+      setTimeout(() => setSuccess(''), 3000);
     } catch (error) {
       console.error('Error creating user:', error);
-      setError('Błąd podczas tworzenia użytkownika: ' + (error as Error).message);
-      // Clear error message after 5 seconds
-      setTimeout(() => setError(''), 5000);
+      setError('Błąd podczas tworzenia użytkownika');
+      // Clear error message after 3 seconds
+      setTimeout(() => setError(''), 3000);
     }
   };
 
@@ -928,9 +910,17 @@ function SuperAdminDashboardContent() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 w-full">
-      {/* Header */}
+      {/* Header z przyciskiem powrotu */}
       <div className="bg-white/80 backdrop-blur-lg border-b border-white/20 px-4 sm:px-6 lg:px-8 py-4">
         <div className="flex items-center justify-between">
+          <button
+            onClick={() => window.location.href = '/homelogin'}
+            className="flex items-center gap-2 px-4 py-2 bg-white/60 backdrop-blur-sm text-gray-700 rounded-lg hover:bg-white hover:shadow-lg transition-all duration-200 ease-in-out border border-white/20"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Powrót do strony głównej
+          </button>
+
           <div className="flex items-center">
             <Image src="/puzzleicon.png" alt="Logo" width={32} height={32} />
             <span className="ml-2 text-xl font-bold text-[#4067EC]">COGITO</span>
@@ -1195,16 +1185,6 @@ function SuperAdminDashboardContent() {
                               >
                                 <Users className="h-3 w-3" />
                                 Uczeń
-                              </button>
-                            )}
-                            {(!user.firstName || !user.lastName) && (
-                              <button 
-                                onClick={() => fixUserDisplayName(user.id)}
-                                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-yellow-700 bg-yellow-100 border border-yellow-300 rounded-md hover:bg-yellow-200 transition-colors"
-                                title="Napraw nazwę użytkownika"
-                              >
-                                <Edit className="h-3 w-3" />
-                                Napraw nazwę
                               </button>
                             )}
                             <button 

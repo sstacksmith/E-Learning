@@ -138,6 +138,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       throw new Error('Twoje konto oczekuje na zatwierdzenie przez administratora.');
     }
 
+    // Ustaw custom claims w Firebase Auth jeśli rola jest teacher/admin
+    if (userData.role === 'teacher' || userData.role === 'admin') {
+      try {
+        const response = await fetch(`/api/set-${userData.role}-role-api`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ uid: user.uid })
+        });
+        
+        if (response.ok) {
+          console.log(`✅ Custom claims set for ${userData.role}`);
+        } else {
+          console.warn(`⚠️ Failed to set custom claims for ${userData.role}`);
+        }
+      } catch (error) {
+        console.error('Error setting custom claims:', error);
+      }
+    }
+
     // Zapisz token JWT do localStorage pod kluczem 'token'
     const token = await user.getIdToken();
     console.log('Pobrany token:', token);

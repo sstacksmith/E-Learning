@@ -1,6 +1,6 @@
 from django.db import models
 from django.conf import settings
-from api.models import User
+# from api.models import User  # Removed - using Firebase only
 
 class UserGroup(models.Model):
     name = models.CharField(max_length=100)
@@ -93,7 +93,7 @@ class Quiz(models.Model):
     description = models.TextField(blank=True)
     subject = models.CharField(max_length=100)
     course = models.ForeignKey('Course', related_name='quizzes', on_delete=models.CASCADE, null=True, blank=True)
-    created_by = models.ForeignKey(User, on_delete=models.CASCADE)
+    created_by = models.CharField(max_length=128)  # Firebase UID
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     firebase_id = models.CharField(max_length=100, unique=True, null=True, blank=True)
@@ -141,7 +141,7 @@ class Answer(models.Model):
 
 class QuizAttempt(models.Model):
     quiz = models.ForeignKey(Quiz, related_name='attempts', on_delete=models.CASCADE)
-    user = models.ForeignKey(User, related_name='quiz_attempts', on_delete=models.CASCADE)
+    user = models.CharField(max_length=128)  # Firebase UID
     score = models.FloatField(default=0)
     started_at = models.DateTimeField(auto_now_add=True)
     completed_at = models.DateTimeField(null=True, blank=True)

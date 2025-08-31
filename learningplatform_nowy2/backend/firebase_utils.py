@@ -83,4 +83,16 @@ def verify_token(token: str):
         return decoded_token
     except Exception as e:
         print(f"Error verifying token: {e}")
-        return None 
+        return None
+
+def delete_user_from_firebase_auth(uid: str):
+    """
+    Delete user from Firebase Authentication
+    """
+    try:
+        auth.delete_user(uid)
+        print(f"Successfully deleted user {uid} from Firebase Auth")
+        return True
+    except Exception as e:
+        print(f"Error deleting user from Firebase Auth: {str(e)}")
+        return False 

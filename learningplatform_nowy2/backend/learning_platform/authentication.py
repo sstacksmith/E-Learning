@@ -1,10 +1,8 @@
 from rest_framework.authentication import BaseAuthentication
 from rest_framework.exceptions import AuthenticationFailed
-from django.contrib.auth import get_user_model
 from firebase_utils import auth
 from learningplatform.firebase_config import verify_firebase_token
-
-User = get_user_model()
+from api.firebase_user import FirebaseUser
 
 class FirebaseAuthentication(BaseAuthentication):
     def authenticate(self, request):
@@ -48,62 +46,47 @@ class FirebaseAuthentication(BaseAuthentication):
                 print("No email in token")
                 raise AuthenticationFailed('No email in token')
             
-            # Get or create Django user
-            try:
-                user = User.objects.get(email=email)
-                print(f"Found existing user: {user.email}, is_teacher: {user.is_teacher}")
-                
-                # Update user's Firebase UID if not set
-                if not user.firebase_uid and decoded_token.get('uid'):
-                    user.firebase_uid = decoded_token['uid']
-                    user.save()
-                    print(f"Updated Firebase UID for user: {user.email}")
-                
-            except User.DoesNotExist:
-                print(f"Creating new user for email: {email}")
-                # Create new user
-                username = email.split('@')[0]
-                user = User.objects.create_user(
-                    username=username,
-                    email=email,
-                    password=None,
-                    firebase_uid=decoded_token.get('uid')
-                )
-                print(f"Created new user: {user.email}")
-                
-                # Set role from Firebase for new users
-                try:
-                    firebase_user = auth.get_user(decoded_token['uid'])
-                    custom_claims = firebase_user.custom_claims or {}
-                    role = custom_claims.get('role', decoded_token.get('role', 'student'))
-                    print(f"Firebase role for new user: {role}")
-                    
-                    # Update Django user role based on Firebase claims
-                    if role == 'teacher':
-                        user.is_teacher = True
-                        user.is_student = False
-                    elif role == 'admin':
-                        user.is_superuser = True
-                        user.is_teacher = True
-                        user.is_student = False
-                    elif role == 'parent':
-                        user.is_parent = True
-                        user.is_teacher = False
-                        user.is_student = False
-                    else:  # student
-                        user.is_teacher = False
-                        user.is_student = True
-                    
-                    user.save()
-                    print(f"Set new user role - is_teacher: {user.is_teacher}")
-                    
-                except Exception as e:
-                    print(f"Error syncing user role for new user: {e}")
-                    # Default to student for new users
-                    user.is_student = True
-                    user.save()
+            # Create Firebase user object
+            print(f"Creating Firebase user for email: {email}")
             
-            print(f"Authentication successful for user: {user.email}, is_teacher: {user.is_teacher}")
+            # Get role from Firebase custom claims
+            try:
+                firebase_user = auth.get_user(decoded_token['uid'])
+                custom_claims = firebase_user.custom_claims or {}
+                role = custom_claims.get('role', decoded_token.get('role', 'student'))
+                print(f"🔍 Firebase role for user {email}: {role}")
+                print(f"🔍 Firebase custom claims: {custom_claims}")
+                
+                # Set role flags based on Firebase claims
+                is_teacher = role == 'teacher'
+                is_student = role in ['student', 'user'] or not role
+                is_parent = role == 'parent'
+                is_superuser = role == 'admin'
+                is_staff = role == 'admin'
+                
+            except Exception as e:
+                print(f"❌ Error getting Firebase custom claims: {e}")
+                # Default to student if can't get claims
+                is_teacher = False
+                is_student = True
+                is_parent = False
+                is_superuser = False
+                is_staff = False
+            
+            # Create Firebase user object
+            user = FirebaseUser(
+                uid=decoded_token['uid'],
+                email=email,
+                username=email.split('@')[0],
+                is_teacher=is_teacher,
+                is_student=is_student,
+                is_parent=is_parent,
+                is_superuser=is_superuser,
+                is_staff=is_staff,
+                is_active=True
+            )
+            
+            print(f"✅ Created Firebase user: {user.email}, is_teacher: {user.is_teacher}, is_student: {user.is_student}, is_superuser: {user.is_superuser}")
             return (user, None)
             
         except Exception as e:

@@ -14,43 +14,18 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
-from django.contrib import admin
-from django.urls import path, include
-from rest_framework.routers import DefaultRouter
-from learningplatform.views import (
-    CourseListCreateView, CourseDetailView, CourseDetailBySlugView,
-    set_teacher_role, set_admin_role, check_user_role, FirebaseLoginView,
-    VerifyFirebaseTokenView, SetTeacherRoleView, UserListView,
-    assign_course, my_courses, teacher_course_detail, health_check,
-    courses_public, QuizViewSet, QuestionViewSet, QuizAttemptViewSet
-)
-from rest_framework.authtoken.views import obtain_auth_token
-
-router = DefaultRouter()
-router.register(r'quizzes', QuizViewSet, basename='quiz')
-router.register(r'questions', QuestionViewSet, basename='question')
-router.register(r'quiz-attempts', QuizAttemptViewSet, basename='quiz-attempts')
+from django.urls import path
+from learningplatform.views import health_check, set_teacher_role, set_admin_role, set_student_role
+from learningplatform.firebase_views import UpdateLearningTimeView
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
     path('health/', health_check, name='health-check'),
-    path('api/courses/public/', courses_public, name='courses-public'),
-    path('api/courses/', CourseListCreateView.as_view(), name='course-list-create'),
-    path('api/courses/<int:pk>/', CourseDetailView.as_view(), name='course-detail'),
-    path('api/courses/slug/<slug:slug>/', CourseDetailBySlugView.as_view(), name='course-detail-by-slug'),
-    path('api/users/', UserListView.as_view(), name='user-list'),
-    path('api/token-auth/', obtain_auth_token),
-    path('api/set-teacher-role/', set_teacher_role, name='set-teacher-role'),
-    path('api/set-admin-role/', set_admin_role, name='set-admin-role'),
-    path('api/set-teacher-role-api/', SetTeacherRoleView.as_view(), name='set-teacher-role-api'),
-    path('api/check-user-role/', check_user_role, name='check-user-role'),
-    path('api/auth/firebase-login/', FirebaseLoginView.as_view(), name='firebase-login'),
-    path('api/assign-course/', assign_course, name='assign-course'),
-    path('api/my-courses/', my_courses, name='my-courses'),
-    path('api/teacher-course/<int:course_id>/', teacher_course_detail, name='teacher-course-detail'),
     
-    # Dodajemy include dla całego modułu API (zawiera get_user_stats, update_learning_time, etc.)
-    path('api/', include('api.urls')),
+    # Only API endpoint that works with Firebase
+    path('api/update-learning-time/', UpdateLearningTimeView.as_view(), name='update-learning-time'),
     
-    path('api/', include(router.urls)),
+    # Role management endpoints
+    path('api/set-teacher-role-api/', set_teacher_role, name='set-teacher-role'),
+    path('api/set-admin-role-api/', set_admin_role, name='set-admin-role'),
+    path('api/set-student-role-api/', set_student_role, name='set-student-role'),
 ]

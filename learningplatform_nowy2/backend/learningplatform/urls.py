@@ -16,4 +16,9 @@ urlpatterns = [
     path('courses/debug/', views.courses_debug, name='courses-debug'),
     path('assign-course/', views.assign_course, name='assign-course'),
     path('teacher-course/<int:course_id>/', views.teacher_course_detail, name='teacher-course-detail'),
+    
+    # Role management endpoints
+    path('api/set-teacher-role-api/', views.set_teacher_role, name='set-teacher-role'),
+    path('api/set-admin-role-api/', views.set_admin_role, name='set-admin-role'),
+    path('api/set-student-role-api/', views.set_student_role, name='set-student-role'),
 ]

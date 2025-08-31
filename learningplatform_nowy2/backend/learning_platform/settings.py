@@ -40,28 +40,25 @@ SESSION_COOKIE_HTTPONLY = True
 # Application definition
 
 INSTALLED_APPS = [
-    'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
-    'django.contrib.sessions',
-    'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
     'corsheaders',
-    'api',
     'learningplatform',
-    'rest_framework.authtoken',
 ]
+
+# Disable migrations since we use Firestore
+MIGRATION_MODULES = {
+    'api': None,
+    'learningplatform': None,
+}
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'django.contrib.messages.middleware.MessageMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'learning_platform.middleware.FirebaseAuthenticationMiddleware',
 ]
 
@@ -85,13 +82,13 @@ TEMPLATES = [
 WSGI_APPLICATION = 'learning_platform.wsgi.application'
 
 
-# Database
-# https://docs.djangoproject.com/en/5.2/ref/settings/#databases
+# Database - Using Firestore instead of SQLite
+# All data is now stored in Firestore (Firebase)
+# No local database needed
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.dummy',  # Dummy engine since we use Firestore
     }
 }
 
@@ -138,6 +135,8 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# No AUTH_USER_MODEL needed - we use Firebase only
+
 # CORS settings
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
@@ -180,8 +179,6 @@ CSRF_COOKIE_SAMESITE = None
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'learning_platform.authentication.FirebaseAuthentication',
-        'rest_framework.authentication.TokenAuthentication',
-        'rest_framework.authentication.SessionAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
@@ -197,7 +194,7 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 # Custom user model
-AUTH_USER_MODEL = 'api.User'
+# AUTH_USER_MODEL = 'api.User'  # Removed - using Firebase only
 
 # Railway/Render configuration
 if os.getenv('RAILWAY_ENVIRONMENT') or os.getenv('RENDER'):

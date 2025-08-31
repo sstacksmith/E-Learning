@@ -62,7 +62,7 @@ service cloud.firestore {
     match /groups/{groupId} {
       allow read: if request.auth != null;
       allow write: if request.auth != null && (
-        request.auth.token == 'admin' || 
+        request.auth.token.role == 'admin' || 
         request.auth.token.role == 'teacher'
       );
     }
@@ -81,6 +81,24 @@ service cloud.firestore {
       allow read, write: if request.auth != null && (
         request.auth.uid in get(/databases/$(database)/documents/groupChats/$(chatId)).data.participants ||
         request.auth.token.role == 'admin' ||
+        request.auth.token.role == 'teacher'
+      );
+    }
+    
+    // Oceny - nauczyciele mogą dodawać oceny, uczniowie mogą czytać swoje oceny
+    match /grades/{gradeId} {
+      allow read: if request.auth != null && (
+        request.auth.uid == resource.data.studentId || 
+        request.auth.token.role == 'admin' || 
+        request.auth.token.role == 'teacher' ||
+        request.auth.token.role == 'parent'
+      );
+      allow create: if request.auth != null && (
+        request.auth.token.role == 'admin' || 
+        request.auth.token.role == 'teacher'
+      );
+      allow update, delete: if request.auth != null && (
+        request.auth.token.role == 'admin' || 
         request.auth.token.role == 'teacher'
       );
     }
