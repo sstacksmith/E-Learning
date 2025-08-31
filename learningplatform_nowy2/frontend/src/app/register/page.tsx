@@ -67,9 +67,10 @@ function RegisterPageContent() {
         email,
         firstName,
         lastName,
+        displayName: `${firstName} ${lastName}`.trim(),
         approved: false,
         createdAt: new Date(),
-        role: "user"
+        role: "student"
       });
       setSuccess("Rejestracja przebiegła pomyślnie. Poczekaj na zatwierdzenie przez administratora.");
       await auth.signOut(); // NIE loguj automatycznie!

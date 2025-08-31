@@ -939,14 +939,14 @@ function Dashboard() {
                 <Link 
                   href={item.href} 
                   className="flex items-center text-gray-700 font-medium py-3 px-4 rounded-xl hover:bg-white hover:text-[#4067EC] hover:shadow-lg cursor-pointer transition-all duration-200 hover:scale-105 text-sm shadow-sm border border-transparent hover:border-[#4067EC]/20 group"
-                  target={user?.role === 'student' ? undefined : "_blank"}
-                  rel={user?.role === 'student' ? undefined : "noopener noreferrer"}
+                  target={item.href.startsWith('http') ? "_blank" : undefined}
+                  rel={item.href.startsWith('http') ? "noopener noreferrer" : undefined}
                 >
                   <div className="w-8 h-8 bg-[#F1F4FE] rounded-lg flex items-center justify-center mr-3 group-hover:bg-[#4067EC] group-hover:text-white transition-all duration-200">
                     {item.icon}
                   </div>
                   <span className="truncate">{item.label}</span>
-                  {user?.role !== 'student' && (
+                  {item.href.startsWith('http') && (
                     <svg className="w-4 h-4 ml-auto text-gray-400 group-hover:text-[#4067EC]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                     </svg>

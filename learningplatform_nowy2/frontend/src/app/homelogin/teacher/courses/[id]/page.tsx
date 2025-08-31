@@ -8,6 +8,8 @@ import { db } from "@/config/firebase";
 import Image from "next/image";
 import Providers from '@/components/Providers';
 import { FaFilePdf, FaFileAlt, FaLink, FaChevronDown, FaChevronUp, FaPlus, FaImage, FaClipboardList, FaGraduationCap, FaUsers, FaQuestionCircle } from "react-icons/fa";
+import VideoPlayer from '@/components/VideoPlayer';
+import YouTubePlayer from '@/components/YouTubePlayer';
 import dynamic from 'next/dynamic';
 import { ArrowLeft } from 'lucide-react';
 // Dynamiczny import MDXEditor
@@ -68,9 +70,64 @@ interface Section {
   order?: number;
   deadline?: string;
   contents?: SectionContent[];
+  subsections?: Subsection[];
   fileUrl?: string;
   formUrl?: string;
   submissions?: { userId: string; fileUrl?: string; submittedAt?: string }[];
+}
+
+interface Subsection {
+  id: string | number;
+  name: string;
+  description?: string;
+  sectionId: string | number;
+  materials: Material[];
+  order: number;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: string;
+}
+
+interface Material {
+  id: string | number;
+  title: string;
+  description?: string;
+  type: "text" | "file" | "task" | "exam" | "activity" | "video";
+  subsectionId: string | number;
+  order: number;
+  deadline?: string;
+  fileUrl?: string;
+  videoUrl?: string;
+  youtubeUrl?: string;
+  content?: string;
+  questions?: Question[];
+  submissions?: Submission[];
+  createdAt: string;
+  updatedAt: string;
+  createdBy: string;
+}
+
+interface Question {
+  id: string;
+  type: "multiple_choice" | "open_ended" | "true_false";
+  question: string;
+  options?: string[];
+  correctAnswer?: string | string[];
+  points: number;
+}
+
+interface Submission {
+  id: string;
+  userId: string;
+  materialId: string | number;
+  content?: string;
+  fileUrl?: string;
+  answers?: Record<string, string>;
+  score?: number;
+  submittedAt: string;
+  gradedAt?: string;
+  gradedBy?: string;
+  feedback?: string;
 }
 
 interface Student {
@@ -137,6 +194,33 @@ function TeacherCourseDetailContent() {
   const [newSection, setNewSection] = useState<{name: string, type: string, deadline?: string}>({name: '', type: 'material'});
   const [editingSectionId, setEditingSectionId] = useState<number | null>(null);
   const [editSection, setEditSection] = useState<Section | null>(null);
+
+  // Nowe stany dla podsekcji i materiałów
+  const [showSubsection, setShowSubsection] = useState<{[id:number]: boolean}>({});
+  const [addingSubsection, setAddingSubsection] = useState<number | null>(null);
+  const [newSubsection, setNewSubsection] = useState<{name: string, description: string}>({name: '', description: ''});
+  const [addingMaterial, setAddingMaterial] = useState<number | null>(null);
+  const [newMaterial, setNewMaterial] = useState<{
+    title: string;
+    description: string;
+    type: "text" | "file" | "task" | "exam" | "activity" | "video";
+    deadline?: string;
+    content?: string;
+    file?: File | null;
+    video?: File | null;
+    youtubeUrl?: string;
+    videoSource?: "upload" | "youtube";
+  }>({
+    title: '',
+    description: '',
+    type: 'text',
+    deadline: '',
+    content: '',
+    file: null,
+    video: null,
+    youtubeUrl: '',
+    videoSource: 'upload'
+  });
   const [editingContentId, setEditingContentId] = useState<number | null>(null);
   const [editContent, setEditContent] = useState<SectionContent | null>(null);
 
@@ -645,6 +729,20 @@ function TeacherCourseDetailContent() {
     if (courseDoc.exists()) {
       const data = courseDoc.data();
       console.log('Course data from Firestore:', data);
+      console.log('Sections from Firestore:', data.sections);
+      if (data.sections) {
+        data.sections.forEach((section: any, index: number) => {
+          console.log(`Section ${index}:`, section);
+          if (section.subsections) {
+            section.subsections.forEach((subsection: any, subIndex: number) => {
+              console.log(`  Subsection ${subIndex}:`, subsection);
+              if (subsection.materials) {
+                console.log(`    Materials:`, subsection.materials);
+              }
+            });
+          }
+        });
+      }
       setSections(data.sections || []);
       
       // Update banner URL
@@ -953,12 +1051,25 @@ function TeacherCourseDetailContent() {
   // Add delete handlers:
   const handleDeleteSection = async (sectionId: number) => {
     if (!window.confirm('Czy na pewno chcesz usunąć tę sekcję?')) return;
-    const newSections = sections.filter(s => s.id !== sectionId);
+    
+    console.log('Deleting section with ID:', sectionId);
+    console.log('Current sections:', sections);
+    console.log('Section IDs:', sections.map(s => ({ id: s.id, type: typeof s.id })));
+    
+    const newSections = sections.filter(s => {
+      const sectionIdNum = Number(s.id);
+      const shouldKeep = sectionIdNum !== sectionId;
+      console.log(`Section ${s.id} (${typeof s.id}) -> ${sectionIdNum} !== ${sectionId} = ${shouldKeep}`);
+      return shouldKeep;
+    });
+    
+    console.log('New sections after deletion:', newSections);
     setSections(newSections);
+    
     // On any change to sections or banner, update Firestore
     if (courseId) {
       const courseRef = doc(db, "courses", String(courseId));
-      updateDoc(courseRef, { sections: newSections });
+      await updateDoc(courseRef, { sections: newSections });
       await refreshCourseData();
     }
   };
@@ -985,6 +1096,300 @@ function TeacherCourseDetailContent() {
     if (courseId) {
       const courseRef = doc(db, "courses", String(courseId));
       updateDoc(courseRef, { sections: newSections });
+      await refreshCourseData();
+    }
+  };
+
+  // Nowe funkcje dla podsekcji
+  const handleAddSubsection = async (sectionId: number) => {
+    if (!newSubsection.name.trim()) return;
+    
+    const subsectionId = Date.now();
+    const newSubsectionData: Subsection = {
+      id: subsectionId,
+      name: newSubsection.name.trim(),
+      description: newSubsection.description.trim() || undefined,
+      sectionId: sectionId,
+      materials: [],
+      order: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      createdBy: user?.uid || ''
+    };
+
+    const newSections = sections.map(section =>
+      section.id === sectionId
+        ? {
+            ...section,
+            subsections: [...(section.subsections || []), newSubsectionData]
+          }
+        : section
+    );
+
+    setSections(newSections);
+    setNewSubsection({name: '', description: ''});
+    setAddingSubsection(null);
+
+    // Funkcja do usuwania undefined wartości
+    const cleanData = (obj: any): any => {
+      if (obj === null || obj === undefined) return null;
+      if (Array.isArray(obj)) {
+        return obj.map(cleanData).filter(item => item !== null && item !== undefined);
+      }
+      if (typeof obj === 'object') {
+        const cleaned: any = {};
+        for (const [key, value] of Object.entries(obj)) {
+          if (value !== undefined) {
+            cleaned[key] = cleanData(value);
+          }
+        }
+        return cleaned;
+      }
+      return obj;
+    };
+
+    // Zapisz do Firestore
+    if (courseId) {
+      const courseRef = doc(db, "courses", String(courseId));
+      const cleanedSections = cleanData(newSections);
+      await updateDoc(courseRef, { sections: cleanedSections });
+      await refreshCourseData();
+    }
+  };
+
+  const handleDeleteSubsection = async (sectionId: number, subsectionId: number) => {
+    if (!window.confirm('Czy na pewno chcesz usunąć tę podsekcję?')) return;
+    
+    const newSections = sections.map(section =>
+      section.id === sectionId
+        ? {
+            ...section,
+            subsections: (section.subsections || []).filter(sub => sub.id !== subsectionId)
+          }
+        : section
+    );
+
+    setSections(newSections);
+
+    // Funkcja do usuwania undefined wartości
+    const cleanData = (obj: any): any => {
+      if (obj === null || obj === undefined) return null;
+      if (Array.isArray(obj)) {
+        return obj.map(cleanData).filter(item => item !== null && item !== undefined);
+      }
+      if (typeof obj === 'object') {
+        const cleaned: any = {};
+        for (const [key, value] of Object.entries(obj)) {
+          if (value !== undefined) {
+            cleaned[key] = cleanData(value);
+          }
+        }
+        return cleaned;
+      }
+      return obj;
+    };
+
+    if (courseId) {
+      const courseRef = doc(db, "courses", String(courseId));
+      const cleanedSections = cleanData(newSections);
+      await updateDoc(courseRef, { sections: cleanedSections });
+      await refreshCourseData();
+    }
+  };
+
+  // Nowe funkcje dla materiałów
+  const handleAddMaterial = async (subsectionId: number) => {
+    // Walidacja formularza
+    if (!newMaterial.title.trim()) {
+      alert('Podaj tytuł materiału');
+      return;
+    }
+
+    if (newMaterial.type === 'video') {
+      if (newMaterial.videoSource === 'upload' && !newMaterial.video) {
+        alert('Wybierz plik wideo lub zmień źródło na YouTube');
+        return;
+      }
+      if (newMaterial.videoSource === 'youtube' && !newMaterial.youtubeUrl?.trim()) {
+        alert('Podaj link do filmu YouTube');
+        return;
+      }
+    }
+
+    if (newMaterial.type === 'file' && !newMaterial.file) {
+      alert('Wybierz plik do wgrania');
+      return;
+    }
+    
+    const materialId = Date.now();
+    let fileUrl = '';
+    let videoUrl = '';
+    
+    // Upload file if provided
+    if (newMaterial.file) {
+      const storage = getStorage();
+      const fileRef = ref(storage, `courses/${courseId}/materials/${materialId}_${newMaterial.file.name}`);
+      const snapshot = await uploadBytes(fileRef, newMaterial.file);
+      fileUrl = await getDownloadURL(snapshot.ref);
+    }
+
+    // Upload video if provided
+    if (newMaterial.video) {
+      const storage = getStorage();
+      const videoRef = ref(storage, `courses/${courseId}/videos/${materialId}_${newMaterial.video.name}`);
+      const snapshot = await uploadBytes(videoRef, newMaterial.video);
+      videoUrl = await getDownloadURL(snapshot.ref);
+    }
+
+    const newMaterialData: Material = {
+      id: materialId,
+      title: newMaterial.title.trim(),
+      description: newMaterial.description.trim() || undefined,
+      type: newMaterial.type,
+      subsectionId: subsectionId,
+      order: 0,
+      deadline: newMaterial.deadline || undefined,
+      fileUrl: fileUrl || undefined,
+      videoUrl: videoUrl || undefined,
+      youtubeUrl: newMaterial.youtubeUrl?.trim() || undefined,
+      content: newMaterial.content || undefined,
+      questions: newMaterial.type === 'exam' ? [] : undefined,
+      submissions: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      createdBy: user?.uid || ''
+    };
+
+    // Find section and subsection to update
+    const newSections = sections.map(section => {
+      if (section.subsections) {
+        return {
+          ...section,
+          subsections: section.subsections.map(subsection =>
+            subsection.id === subsectionId
+              ? {
+                  ...subsection,
+                  materials: [...(subsection.materials || []), newMaterialData]
+                }
+              : subsection
+          )
+        };
+      }
+      return section;
+    });
+
+    setSections(newSections);
+            setNewMaterial({
+          title: '',
+          description: '',
+          type: 'text',
+          deadline: '',
+          content: '',
+          file: null,
+          video: null,
+          youtubeUrl: '',
+          videoSource: 'upload'
+        });
+    setAddingMaterial(null);
+
+    // Funkcja do usuwania undefined wartości
+    const cleanData = (obj: any): any => {
+      if (obj === null || obj === undefined) return null;
+      if (Array.isArray(obj)) {
+        return obj.map(cleanData).filter(item => item !== null && item !== undefined);
+      }
+      if (typeof obj === 'object') {
+        const cleaned: any = {};
+        for (const [key, value] of Object.entries(obj)) {
+          if (value !== undefined) {
+            cleaned[key] = cleanData(value);
+          }
+        }
+        return cleaned;
+      }
+      return obj;
+    };
+
+    // Zapisz do Firestore
+    if (courseId) {
+      console.log('CourseId:', courseId, 'Type:', typeof courseId);
+      const courseRef = doc(db, "courses", String(courseId));
+      console.log('Saving to Firestore - courseRef:', courseRef);
+      console.log('Saving to Firestore - newSections (before cleaning):', newSections);
+      
+      // Oczyść dane z undefined wartości
+      const cleanedSections = cleanData(newSections);
+      console.log('Saving to Firestore - cleanedSections:', cleanedSections);
+      try {
+        // Sprawdź czy dokument istnieje
+        const docSnapshot = await getDoc(courseRef);
+        console.log('Document exists:', docSnapshot.exists());
+        console.log('Document data:', docSnapshot.data());
+        
+        if (docSnapshot.exists()) {
+          await updateDoc(courseRef, { sections: cleanedSections });
+          console.log('✅ Material saved to Firestore successfully with updateDoc');
+        } else {
+          // Jeśli dokument nie istnieje, utwórz go
+          await setDoc(courseRef, { sections: cleanedSections }, { merge: true });
+          console.log('✅ Material saved to Firestore successfully with setDoc');
+        }
+        
+        console.log('Material saved to Firestore:', newMaterialData);
+        console.log('Updated sections:', newSections);
+      } catch (error) {
+        console.error('❌ Error saving to Firestore:', error);
+        console.error('Error details:', error);
+        alert(`Błąd podczas zapisywania materiału: ${error instanceof Error ? error.message : String(error)}`);
+        return;
+      }
+      await refreshCourseData();
+    }
+  };
+
+  const handleDeleteMaterial = async (sectionId: number, subsectionId: number, materialId: number) => {
+    if (!window.confirm('Czy na pewno chcesz usunąć ten materiał?')) return;
+    
+    const newSections = sections.map(section =>
+      section.id === sectionId
+        ? {
+            ...section,
+            subsections: (section.subsections || []).map(subsection =>
+              subsection.id === subsectionId
+                ? {
+                    ...subsection,
+                    materials: subsection.materials.filter(mat => mat.id !== materialId)
+                  }
+                : subsection
+            )
+          }
+        : section
+    );
+
+    setSections(newSections);
+
+    // Funkcja do usuwania undefined wartości
+    const cleanData = (obj: any): any => {
+      if (obj === null || obj === undefined) return null;
+      if (Array.isArray(obj)) {
+        return obj.map(cleanData).filter(item => item !== null && item !== undefined);
+      }
+      if (typeof obj === 'object') {
+        const cleaned: any = {};
+        for (const [key, value] of Object.entries(obj)) {
+          if (value !== undefined) {
+            cleaned[key] = cleanData(value);
+          }
+        }
+        return cleaned;
+      }
+      return obj;
+    };
+
+    if (courseId) {
+      const courseRef = doc(db, "courses", String(courseId));
+      const cleanedSections = cleanData(newSections);
+      await updateDoc(courseRef, { sections: cleanedSections });
       await refreshCourseData();
     }
   };
@@ -1422,58 +1827,414 @@ function TeacherCourseDetailContent() {
                   </form>
                 )}
 
-                <form onSubmit={e => handleAddContent(Number(section.id), e)} className="flex flex-col gap-4 mb-4">
-                  <div className="flex flex-col sm:flex-row gap-2 items-center">
-                    <input 
-                      type="text" 
-                      placeholder="Nazwa (opcjonalna)" 
-                      className="border rounded px-3 py-2" 
-                      value={newContent[Number(section.id)]?.name || ''} 
-                      onChange={e => setNewContent(nc => ({...nc, [Number(section.id)]: {...(nc[Number(section.id)]||{}), name: e.target.value}}))} 
-                    />
-                    <input 
-                      type="file" 
-                      onChange={e => setNewContent(nc => ({...nc, [Number(section.id)]: {...(nc[Number(section.id)]||{}), file: e.target.files ? e.target.files[0] : null}}))} 
-                    />
-                    <input 
-                      type="url" 
-                      placeholder="Link (np. YouTube, Google Docs)" 
-                      className="border rounded px-3 py-2" 
-                      value={newContent[Number(section.id)]?.link || ''} 
-                      onChange={e => setNewContent(nc => ({...nc, [Number(section.id)]: {...(nc[Number(section.id)]||{}), link: e.target.value}}))} 
-                    />
-                    <button type="submit" className="bg-[#4067EC] text-white px-4 py-2 rounded font-semibold">
-                      Dodaj
-                    </button>
+                {/* Przycisk dodawania podsekcji */}
+                <div className="mb-4">
+                  <button
+                    onClick={() => setAddingSubsection(Number(section.id))}
+                    className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
+                  >
+                    <FaPlus className="text-sm" />
+                    Dodaj podsekcję
+                  </button>
+                </div>
+
+                {/* Formularz dodawania podsekcji */}
+                {addingSubsection === Number(section.id) && (
+                  <div className="bg-green-50 p-4 rounded-lg border border-green-200 mb-4">
+                    <h4 className="font-semibold text-green-800 mb-3">Dodaj podsekcję</h4>
+                    <div className="space-y-3">
+                      <input
+                        type="text"
+                        placeholder="Nazwa podsekcji"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                        value={newSubsection.name}
+                        onChange={e => setNewSubsection(prev => ({...prev, name: e.target.value}))}
+                      />
+                      <textarea
+                        placeholder="Opis podsekcji (opcjonalny)"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                        rows={3}
+                        value={newSubsection.description}
+                        onChange={e => setNewSubsection(prev => ({...prev, description: e.target.value}))}
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleAddSubsection(Number(section.id))}
+                          className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+                        >
+                          Dodaj
+                        </button>
+                        <button
+                          onClick={() => {
+                            setAddingSubsection(null);
+                            setNewSubsection({name: '', description: ''});
+                          }}
+                          className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600"
+                        >
+                          Anuluj
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                  {MDXEditor && (
-                    <MDXEditor
-                      markdown={newContent[Number(section.id)]?.text || ''}
-                      onChange={(val: string) => setNewContent(nc => ({ ...nc, [Number(section.id)]: { ...(nc[Number(section.id)] || {}), text: val } }))}
-                      className="border rounded prose mdxeditor"
-                      contentEditableClassName="min-h-[120px]"
-                      plugins={[
-                        listsPlugin(),
-                        toolbarPlugin({
-                          toolbarContents: () => (
-                            <>
-                              <UndoRedo />
-                              <Separator />
-                              <BoldItalicUnderlineToggles />
-                              <CodeToggle />
-                              <Separator />
-                              <ListsToggle />
-                              <Separator />
-                              <CreateLink />
-                            </>
-                          ),
-                        }),
-                        linkPlugin(),
-                        linkDialogPlugin()
-                      ]}
-                    />
+                )}
+
+                {/* Lista podsekcji */}
+                <div className="space-y-4 mb-4">
+                  {(!section.subsections || section.subsections.length === 0) ? (
+                    <div className="text-gray-400 italic">Brak podsekcji.</div>
+                  ) : (
+                    section.subsections.map((subsection) => (
+                      <div key={subsection.id} className="bg-gray-50 rounded-lg border border-gray-200">
+                        {/* Nagłówek podsekcji */}
+                        <div 
+                          className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-100"
+                          onClick={() => setShowSubsection(prev => ({...prev, [Number(subsection.id)]: !prev[Number(subsection.id)]}))}
+                        >
+                          <div className="flex items-center gap-3">
+                            <span>{showSubsection[Number(subsection.id)] ? <FaChevronUp /> : <FaChevronDown />}</span>
+                            <div>
+                              <h4 className="font-semibold text-gray-800">{subsection.name}</h4>
+                              {subsection.description && (
+                                <p className="text-sm text-gray-600">{subsection.description}</p>
+                              )}
+                              <p className="text-xs text-gray-500">
+                                {subsection.materials.length} materiałów
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setAddingMaterial(Number(subsection.id));
+                              }}
+                              className="text-blue-600 hover:text-blue-800"
+                              title="Dodaj materiał"
+                            >
+                              <FaPlus />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteSubsection(Number(section.id), Number(subsection.id));
+                              }}
+                              className="text-red-500 hover:text-red-700"
+                              title="Usuń podsekcję"
+                            >
+                              🗑️
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Zawartość podsekcji */}
+                        {showSubsection[Number(subsection.id)] && (
+                          <div className="px-4 pb-4">
+                            {/* Formularz dodawania materiału */}
+                            {addingMaterial === Number(subsection.id) && (
+                              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200 mb-4">
+                                <h5 className="font-semibold text-blue-800 mb-3">Dodaj materiał</h5>
+                                <div className="space-y-3">
+                                  <div className="grid grid-cols-2 md:grid-cols-6 gap-2">
+                                    {[
+                                      { type: 'text', label: 'Tekst', icon: '📄' },
+                                      { type: 'file', label: 'Plik', icon: '📎' },
+                                      { type: 'video', label: 'Video', icon: '🎥' },
+                                      { type: 'task', label: 'Zadanie', icon: '📝' },
+                                      { type: 'exam', label: 'Egzamin', icon: '🎓' },
+                                      { type: 'activity', label: 'Aktywność', icon: '🎯' }
+                                    ].map(({ type, label, icon }) => (
+                                      <button
+                                        key={type}
+                                        type="button"
+                                        onClick={() => setNewMaterial(prev => ({...prev, type: type as any}))}
+                                        className={`p-2 rounded-lg border-2 transition-all ${
+                                          newMaterial.type === type
+                                            ? 'border-blue-500 bg-blue-50 text-blue-700'
+                                            : 'border-gray-300 hover:border-gray-400'
+                                        }`}
+                                      >
+                                        <div className="text-lg mb-1">{icon}</div>
+                                        <div className="text-xs font-medium">{label}</div>
+                                      </button>
+                                    ))}
+                                  </div>
+                                  
+                                  <input
+                                    type="text"
+                                    placeholder="Tytuł materiału"
+                                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                                    value={newMaterial.title}
+                                    onChange={e => setNewMaterial(prev => ({...prev, title: e.target.value}))}
+                                  />
+                                  
+                                  <textarea
+                                    placeholder="Opis materiału"
+                                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                                    rows={3}
+                                    value={newMaterial.description}
+                                    onChange={e => setNewMaterial(prev => ({...prev, description: e.target.value}))}
+                                  />
+
+                                  {(newMaterial.type === 'task' || newMaterial.type === 'exam') && (
+                                    <input
+                                      type="datetime-local"
+                                      placeholder="Termin"
+                                      className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                                      value={newMaterial.deadline}
+                                      onChange={e => setNewMaterial(prev => ({...prev, deadline: e.target.value}))}
+                                    />
+                                  )}
+
+                                  {(newMaterial.type === 'file' || newMaterial.type === 'task') && (
+                                    <div>
+                                      <input
+                                        type="file"
+                                        accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.jpg,.jpeg,.png,.gif,.mp4,.avi,.mov,.zip,.rar"
+                                        className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                                        onChange={e => {
+                                          const file = e.target.files?.[0];
+                                          if (file) {
+                                            // Walidacja typów plików
+                                            const allowedTypes = [
+                                              "application/pdf",
+                                              "application/msword",
+                                              "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                                              "application/vnd.ms-excel",
+                                              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                              "application/vnd.ms-powerpoint",
+                                              "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                                              "text/plain",
+                                              "image/jpeg",
+                                              "image/jpg",
+                                              "image/png",
+                                              "image/gif",
+                                              "video/mp4",
+                                              "video/avi",
+                                              "video/quicktime",
+                                              "application/zip",
+                                              "application/x-rar-compressed"
+                                            ];
+                                            
+                                            if (!allowedTypes.includes(file.type)) {
+                                              alert("Dozwolone typy plików: PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, TXT, JPG, PNG, GIF, MP4, AVI, MOV, ZIP, RAR");
+                                              e.target.value = '';
+                                              return;
+                                            }
+                                            
+                                            // Sprawdź rozmiar pliku (max 50MB)
+                                            if (file.size > 50 * 1024 * 1024) {
+                                              alert("Plik jest za duży. Maksymalny rozmiar to 50MB.");
+                                              e.target.value = '';
+                                              return;
+                                            }
+                                          }
+                                          setNewMaterial(prev => ({...prev, file: file || null}));
+                                        }}
+                                      />
+                                      <p className="text-xs text-gray-500 mt-1">
+                                        Dozwolone: PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, TXT, JPG, PNG, GIF, MP4, AVI, MOV, ZIP, RAR (max 50MB)
+                                      </p>
+                                    </div>
+                                  )}
+
+                                  {newMaterial.type === 'video' && (
+                                    <div className="space-y-4">
+                                      {/* Wybór źródła wideo */}
+                                      <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                          Źródło wideo
+                                        </label>
+                                        <div className="flex gap-4">
+                                          <label className="flex items-center">
+                                            <input
+                                              type="radio"
+                                              name="videoSource"
+                                              value="upload"
+                                              checked={newMaterial.videoSource === 'upload'}
+                                              onChange={e => setNewMaterial(prev => ({...prev, videoSource: e.target.value as "upload" | "youtube"}))}
+                                              className="mr-2"
+                                            />
+                                            Wgraj plik wideo
+                                          </label>
+                                          <label className="flex items-center">
+                                            <input
+                                              type="radio"
+                                              name="videoSource"
+                                              value="youtube"
+                                              checked={newMaterial.videoSource === 'youtube'}
+                                              onChange={e => setNewMaterial(prev => ({...prev, videoSource: e.target.value as "upload" | "youtube"}))}
+                                              className="mr-2"
+                                            />
+                                            Link YouTube
+                                          </label>
+                                        </div>
+                                      </div>
+
+                                      {/* Wgrywanie pliku */}
+                                      {newMaterial.videoSource === 'upload' && (
+                                        <div className="space-y-2">
+                                          <label className="block text-sm font-medium text-gray-700">
+                                            Wybierz plik wideo (MP4, WebM, AVI)
+                                          </label>
+                                          <input
+                                            type="file"
+                                            accept="video/*"
+                                            className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                                            onChange={e => setNewMaterial(prev => ({...prev, video: e.target.files?.[0] || null}))}
+                                          />
+                                          {newMaterial.video && (
+                                            <div className="text-sm text-green-600">
+                                              ✅ Wybrano: {newMaterial.video.name} ({(newMaterial.video.size / 1024 / 1024).toFixed(2)} MB)
+                                            </div>
+                                          )}
+                                        </div>
+                                      )}
+
+                                      {/* Link YouTube */}
+                                      {newMaterial.videoSource === 'youtube' && (
+                                        <div className="space-y-2">
+                                          <label className="block text-sm font-medium text-gray-700">
+                                            Link do filmu YouTube
+                                          </label>
+                                          <input
+                                            type="url"
+                                            placeholder="https://www.youtube.com/watch?v=..."
+                                            className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                                            value={newMaterial.youtubeUrl}
+                                            onChange={e => setNewMaterial(prev => ({...prev, youtubeUrl: e.target.value}))}
+                                          />
+                                          <div className="text-xs text-gray-500">
+                                            Wklej pełny link do filmu YouTube. Film będzie odtwarzany bezpośrednio na platformie.
+                                          </div>
+                                          {newMaterial.youtubeUrl && (
+                                            <div className="text-sm text-green-600">
+                                              ✅ Link YouTube: {newMaterial.youtubeUrl}
+                                            </div>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+
+                                  {newMaterial.type === 'text' && (
+                                    <textarea
+                                      placeholder="Treść materiału"
+                                      className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                                      rows={6}
+                                      value={newMaterial.content}
+                                      onChange={e => setNewMaterial(prev => ({...prev, content: e.target.value}))}
+                                    />
+                                  )}
+
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={() => handleAddMaterial(Number(subsection.id))}
+                                      className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                                    >
+                                      Dodaj
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        setAddingMaterial(null);
+                                                setNewMaterial({
+          title: '',
+          description: '',
+          type: 'text',
+          deadline: '',
+          content: '',
+          file: null,
+          video: null,
+          youtubeUrl: '',
+          videoSource: 'upload'
+        });
+                                      }}
+                                      className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600"
+                                    >
+                                      Anuluj
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Lista materiałów */}
+                            <div className="space-y-2">
+                              {subsection.materials.length === 0 ? (
+                                <div className="text-gray-400 italic text-sm">Brak materiałów w tej podsekcji.</div>
+                              ) : (
+                                subsection.materials.map((material) => (
+                                  <div key={material.id} className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                                    {/* Header */}
+                                    <div className="flex items-center gap-3 p-3">
+                                      <div className="text-lg">
+                                        {material.type === 'text' && '📄'}
+                                        {material.type === 'file' && '📎'}
+                                        {material.type === 'video' && '🎥'}
+                                        {material.type === 'task' && '📝'}
+                                        {material.type === 'exam' && '🎓'}
+                                        {material.type === 'activity' && '🎯'}
+                                      </div>
+                                      <div className="flex-1">
+                                        <h5 className="font-medium text-gray-800">{material.title}</h5>
+                                        {material.description && (
+                                          <p className="text-sm text-gray-600">{material.description}</p>
+                                        )}
+                                        {material.deadline && (
+                                          <p className="text-xs text-red-600">
+                                            Termin: {new Date(material.deadline).toLocaleString('pl-PL')}
+                                          </p>
+                                        )}
+                                                                              {material.videoUrl && (
+                                        <p className="text-xs text-blue-600">
+                                          🎥 Film wideo dostępny
+                                        </p>
+                                      )}
+                                      {material.youtubeUrl && (
+                                        <p className="text-xs text-red-600">
+                                          📺 Film YouTube dostępny
+                                        </p>
+                                      )}
+                                      </div>
+                                      <button
+                                        onClick={() => handleDeleteMaterial(Number(section.id), Number(subsection.id), Number(material.id))}
+                                        className="text-red-500 hover:text-red-700"
+                                        title="Usuń materiał"
+                                      >
+                                        🗑️
+                                      </button>
+                                    </div>
+                                    
+                                    {/* Video Player */}
+                                    {material.type === 'video' && material.videoUrl && (
+                                      <div className="px-3 pb-3">
+                                        <VideoPlayer 
+                                          videoUrl={material.videoUrl} 
+                                          title={material.title}
+                                          className="w-full h-64"
+                                        />
+                                      </div>
+                                    )}
+
+                                    {/* YouTube Player */}
+                                    {material.type === 'video' && material.youtubeUrl && (
+                                      <div className="px-3 pb-3">
+                                        <YouTubePlayer 
+                                          youtubeUrl={material.youtubeUrl} 
+                                          title={material.title}
+                                          className="w-full h-64"
+                                        />
+                                      </div>
+                                    )}
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))
                   )}
-                </form>
+                </div>
 
                 <div className="space-y-4">
                   {(!sectionContents[Number(section.id)] || sectionContents[Number(section.id)].length === 0) ? (
@@ -1570,6 +2331,8 @@ function TeacherCourseDetailContent() {
           </div>
         ))}
       </div>
+
+
 
       {/* QUIZZES SECTION */}
       <div className="w-full mt-4">

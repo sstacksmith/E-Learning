@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { Search, Download, Star, BookOpen, Plus, UserPlus, Users, ArrowLeft } from 'lucide-react';
+import { Search, Star, BookOpen, Plus, UserPlus, Users, ArrowLeft } from 'lucide-react';
 import { db } from '@/config/firebase';
 import { collection, getDocs, query, where, updateDoc, doc } from 'firebase/firestore';
 
@@ -23,7 +23,9 @@ interface Student {
 interface UserData {
   uid: string;
   email: string;
-  displayName: string;
+  displayName?: string;
+  firstName?: string;
+  lastName?: string;
   role: string;
   assignedToTeacher?: string;
 }
@@ -44,54 +46,91 @@ export default function StudentsPage() {
   const [assignError, setAssignError] = useState('');
 
   useEffect(() => {
-    if (user) {
+    console.log('🔍 useEffect - user changed:', user);
+    if (user && user.uid) {
+      console.log('🔍 useEffect - user ma UID, wywołuję fetchStudents i fetchAllStudents');
       fetchStudents();
       fetchAllStudents();
+    } else {
+      console.log('🔍 useEffect - brak użytkownika lub UID');
     }
   }, [user]);
 
   const fetchAllStudents = async () => {
-    if (!user) return;
+    if (!user || !user.uid) {
+      console.error('❌ Brak użytkownika lub UID w fetchAllStudents');
+      return;
+    }
     
     try {
       const usersRef = collection(db, 'users');
       const usersSnapshot = await getDocs(usersRef);
-      const studentsList = usersSnapshot.docs
-        .map(doc => ({ uid: doc.id, ...doc.data() } as UserData))
-        .filter(userData => userData.role === 'student')
-        .filter(userData => userData.assignedToTeacher !== user.uid); // Usuń uczniów już przypisanych do tego nauczyciela
       
-      console.log('🔍 fetchAllStudents - Wszyscy uczniowie:', usersSnapshot.docs.filter(doc => doc.data().role === 'student').length);
-      console.log('🔍 fetchAllStudents - Po filtrowaniu assignedToTeacher:', studentsList.length);
-      console.log('🔍 fetchAllStudents - Uczniowie już przypisani do nauczyciela:', usersSnapshot.docs.filter(doc => doc.data().role === 'student' && doc.data().assignedToTeacher === user.uid).length);
+      console.log('🔍 fetchAllStudents - Wszyscy użytkownicy:', usersSnapshot.docs.length);
+      console.log('🔍 fetchAllStudents - Nauczyciel UID:', user.uid);
       
-      setAllStudents(studentsList);
+      // Loguj wszystkich użytkowników
+      usersSnapshot.docs.forEach(doc => {
+        const data = doc.data();
+        console.log(`👤 Użytkownik: ${data.email || data.displayName || doc.id}, rola: ${data.role}, assignedToTeacher: ${data.assignedToTeacher}, uid: ${doc.id}`);
+      });
+      
+      const allUsers = usersSnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserData));
+      const studentsOnly = allUsers.filter(userData => userData.role === 'student');
+      const unassignedStudents = studentsOnly.filter(userData => userData.assignedToTeacher !== user.uid);
+      
+      console.log('🔍 fetchAllStudents - Wszyscy użytkownicy:', allUsers.length);
+      console.log('🔍 fetchAllStudents - Tylko uczniowie (role=student):', studentsOnly.length);
+      console.log('🔍 fetchAllStudents - Uczniowie nieprzypisani do tego nauczyciela:', unassignedStudents.length);
+      console.log('🔍 fetchAllStudents - Uczniowie już przypisani do tego nauczyciela:', studentsOnly.filter(userData => userData.assignedToTeacher === user.uid).length);
+      
+      // Loguj szczegóły uczniów
+      studentsOnly.forEach(student => {
+        console.log(`🎓 Uczeń: ${student.email || student.displayName}, assignedToTeacher: ${student.assignedToTeacher}, nauczyciel: ${user.uid}`);
+      });
+      
+      setAllStudents(unassignedStudents);
     } catch (error) {
       console.error('Error fetching all students:', error);
     }
   };
 
   const fetchStudents = async () => {
-    if (!user) return;
+    if (!user || !user.uid) {
+      console.error('❌ Brak użytkownika lub UID');
+      setError('Brak danych użytkownika');
+      setLoading(false);
+      return;
+    }
     
     setLoading(true);
     setError(null);
     
     try {
-      console.log('Fetching students for teacher:', user.email);
+      console.log('Fetching students for teacher:', user.email, 'UID:', user.uid);
       
       // 1. Pobierz kursy nauczyciela
       const coursesRef = collection(db, 'courses');
       const coursesSnapshot = await getDocs(coursesRef);
       
-      const teacherCourses = coursesSnapshot.docs.filter(doc => {
+      console.log('🔍 fetchStudents - Wszystkie kursy w bazie:', coursesSnapshot.docs.length);
+      coursesSnapshot.docs.forEach(doc => {
         const data = doc.data();
-        return data.created_by === user.email || 
-               data.teacherEmail === user.email ||
-               (Array.isArray(data.assignedUsers) && data.assignedUsers.includes(user.email));
+        console.log(`📚 Kurs: ${data.title}, created_by: ${data.created_by}, teacherEmail: ${data.teacherEmail}, assignedUsers: ${data.assignedUsers}`);
       });
       
-      console.log('Teacher courses:', teacherCourses.length);
+      const teacherCourses = coursesSnapshot.docs.filter(doc => {
+        const data = doc.data();
+        const isCreatedBy = data.created_by === user.email;
+        const isTeacherEmail = data.teacherEmail === user.email;
+        const isAssignedUser = Array.isArray(data.assignedUsers) && data.assignedUsers.includes(user.email);
+        
+        console.log(`🔍 Sprawdzam kurs "${data.title}": created_by=${isCreatedBy}, teacherEmail=${isTeacherEmail}, assignedUser=${isAssignedUser}`);
+        
+        return isCreatedBy || isTeacherEmail || isAssignedUser;
+      });
+      
+      console.log('🔍 fetchStudents - Kursy nauczyciela:', teacherCourses.length);
       
       if (teacherCourses.length === 0) {
         setStudents([]);
@@ -155,6 +194,12 @@ export default function StudentsPage() {
       const studentsData: Student[] = [];
       
       for (const studentId of allStudentIds) {
+        // Sprawdź czy studentId nie jest undefined
+        if (!studentId) {
+          console.warn('⚠️ Pomijam studentId undefined');
+          continue;
+        }
+        
         const usersRef = collection(db, 'users');
         const studentQuery = query(usersRef, where('uid', '==', studentId));
         const studentSnapshot = await getDocs(studentQuery);
@@ -298,6 +343,11 @@ export default function StudentsPage() {
         const assignedUsers = courseData.assignedUsers || [];
         
         // Znajdź email ucznia
+        if (!studentId) {
+          console.warn('⚠️ Pomijam studentId undefined w handleUnassignStudent');
+          continue;
+        }
+        
         const studentDoc = await getDocs(query(collection(db, 'users'), where('uid', '==', studentId)));
         if (!studentDoc.empty) {
           const studentData = studentDoc.docs[0].data();
@@ -380,10 +430,6 @@ export default function StudentsPage() {
             <UserPlus className="h-4 w-4" />
             Przypisz Ucznia
           </button>
-          <button className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
-            <Download className="h-4 w-4" />
-            Eksport
-          </button>
         </div>
       </div>
 
@@ -453,7 +499,7 @@ export default function StudentsPage() {
                         />
                         <div className="ml-3 flex-1">
                           <div className="text-sm font-medium text-gray-900 group-hover:text-blue-600">
-                            {student.displayName || 'Brak nazwy'}
+                            {student.displayName || (student.firstName && student.lastName ? `${student.firstName} ${student.lastName}` : 'Brak nazwy')}
                           </div>
                           <div className="text-xs text-gray-500">{student.email}</div>
                         </div>

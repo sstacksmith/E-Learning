@@ -224,14 +224,24 @@ export const TimeTrackingProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
 
     try {
-      console.log(`Sending ${minutes} minutes to backend for user ${user.uid}`);
+      console.log(`=== SENDING TIME TO BACKEND ===`);
+      console.log(`User UID: ${user.uid}`);
+      console.log(`User email: ${user.email}`);
+      console.log(`Minutes to send: ${minutes}`);
+      console.log(`API base URL: ${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}`);
+      
       const response = await api.post('/api/update-learning-time/', {
         lesson_id: 'general_learning',
         time_spent_minutes: minutes
       });
-      console.log(`Successfully sent ${minutes} minutes to backend:`, response);
+      console.log(`✅ Successfully sent ${minutes} minutes to backend:`, response);
     } catch (error) {
-      console.error('Error sending time to backend:', error);
+      console.error('❌ Error sending time to backend:', error);
+      console.error('Error details:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        status: (error as any)?.status,
+        response: (error as any)?.response
+      });
     }
   }, [api, user]);
 

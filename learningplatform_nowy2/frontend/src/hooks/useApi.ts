@@ -59,7 +59,13 @@ const useApi = (): UseApiMethods => {
 
   const fetchWithAuth = useCallback(async (url: string, options: RequestInit = {}) => {
     try {
+      console.log(`=== API REQUEST START ===`);
+      console.log(`URL: ${url}`);
+      console.log(`Options:`, options);
+      
       const token = await getAuthToken();
+      console.log(`Token obtained: ${!!token}`);
+      console.log(`Token preview: ${token ? token.substring(0, 20) + '...' : 'null'}`);
       
       if (!token) {
         throw new Error('Brak tokenu autoryzacji. Zaloguj się ponownie.');
@@ -76,6 +82,7 @@ const useApi = (): UseApiMethods => {
       console.log(`Making API request to: ${fullUrl}`);
       console.log(`Request method: ${options.method || 'GET'}`);
       console.log(`Request headers:`, headers);
+      console.log(`Request body:`, options.body);
 
       // Sprawdź połączenie z internetem
       if (!navigator.onLine) {
@@ -89,8 +96,10 @@ const useApi = (): UseApiMethods => {
 
       console.log(`API response status: ${response.status}`);
       console.log(`API response URL: ${response.url}`);
+      console.log(`API response headers:`, Object.fromEntries(response.headers.entries()));
 
       if (response.status === 401) {
+        console.log(`❌ 401 Unauthorized - redirecting to login`);
         // Wyloguj użytkownika tylko jeśli token jest nieprawidłowy
         localStorage.removeItem('firebaseToken');
         localStorage.removeItem('firebaseTokenExpiry');
@@ -99,6 +108,13 @@ const useApi = (): UseApiMethods => {
       }
 
       if (response.status === 403) {
+        console.log(`❌ 403 Forbidden - checking response body`);
+        try {
+          const errorText = await response.text();
+          console.log(`403 Error response body:`, errorText);
+        } catch (e) {
+          console.log(`Could not read 403 response body:`, e);
+        }
         throw new Error('Brak uprawnień do wykonania tej operacji.');
       }
 

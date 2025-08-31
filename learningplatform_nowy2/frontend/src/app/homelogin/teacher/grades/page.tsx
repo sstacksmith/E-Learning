@@ -102,11 +102,19 @@ export default function TeacherGradesPage() {
     if (!user) return;
     
     try {
-      // console.log('Fetching courses for teacher:', user.email);
+      console.log('📚 fetchCourses - Fetching courses for teacher:', user.email);
       
       // Pobierz kursy nauczyciela
       const coursesRef = collection(db, 'courses');
       const coursesSnapshot = await getDocs(coursesRef);
+      
+      console.log('📚 fetchCourses - All courses in database:', coursesSnapshot.docs.length);
+      
+      // Loguj wszystkie kursy
+      coursesSnapshot.docs.forEach(doc => {
+        const data = doc.data();
+        console.log(`📖 Kurs: ${data.title}, created_by: ${data.created_by}, teacherEmail: ${data.teacherEmail}, assignedUsers: ${data.assignedUsers}`);
+      });
       
       const teacherCourses = coursesSnapshot.docs.filter(doc => {
         const data = doc.data();
@@ -115,7 +123,7 @@ export default function TeacherGradesPage() {
                (Array.isArray(data.assignedUsers) && data.assignedUsers.includes(user.email));
       });
       
-      // console.log('Teacher courses found:', teacherCourses.length);
+      console.log('📚 fetchCourses - Teacher courses found:', teacherCourses.length);
       
       // Wyciągnij nazwy kursów nauczyciela i utwórz mapę nazwa -> ID
       const courseNames = new Set<string>();
@@ -283,19 +291,28 @@ export default function TeacherGradesPage() {
     if (!user) return;
     
     try {
-      console.log('Fetching students for teacher:', user.email);
+      console.log('🔍 fetchStudents - Fetching students for teacher:', user.email);
       const usersRef = collection(db, 'users');
       const usersSnapshot = await getDocs(usersRef);
-      console.log('All users from database:', usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       
-      const studentsList = usersSnapshot.docs
-        .map(doc => ({ uid: doc.id, ...doc.data() } as Student))
-        .filter(userData => userData.role === 'student');
+      console.log('🔍 fetchStudents - All users from database:', usersSnapshot.docs.length);
       
-      console.log('Filtered students:', studentsList);
+      // Loguj wszystkich użytkowników
+      usersSnapshot.docs.forEach(doc => {
+        const data = doc.data();
+        console.log(`👤 Użytkownik: ${data.email || data.displayName || doc.id}, rola: ${data.role}, uid: ${doc.id}`);
+      });
+      
+      const allUsers = usersSnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as Student));
+      const studentsList = allUsers.filter(userData => userData.role === 'student');
+      
+      console.log('🔍 fetchStudents - Wszyscy użytkownicy:', allUsers.length);
+      console.log('🔍 fetchStudents - Tylko uczniowie (role=student):', studentsList.length);
+      console.log('🔍 fetchStudents - Lista uczniów:', studentsList.map(s => ({ uid: s.uid, email: s.email, displayName: s.displayName, role: s.role })));
+      
       setStudents(studentsList);
     } catch (error) {
-      console.error('Error fetching students:', error);
+      console.error('❌ Error fetching students:', error);
     }
   };
 
@@ -308,10 +325,12 @@ export default function TeacherGradesPage() {
       return;
     }
     
-    console.log('Form submitted with data:', {
+    console.log('📝 handleAddGrade - Form submitted with data:', {
       selectedStudents,
       gradeData,
-      user: user?.email
+      user: user?.email,
+      studentsCount: students.length,
+      filteredStudentsCount: filteredStudents.length
     });
     
     if (!user) {
@@ -358,7 +377,7 @@ export default function TeacherGradesPage() {
           // Sprawdź czy student ma displayName, jeśli nie, użyj email
           const studentName = student.displayName || student.email || 'Nieznany uczeń';
           
-          console.log('Adding grade for student:', {
+          console.log('📝 Adding grade for student:', {
             studentId,
             studentName,
             studentData: student
@@ -376,13 +395,20 @@ export default function TeacherGradesPage() {
             type: gradeData.gradeType,
             comments: gradeData.description || '',
             teacherId: user.uid,
+            teacherEmail: user.email,
             createdAt: Timestamp.now(),
           };
           
-          console.log('Saving grade data:', gradeDataToSave);
+          console.log('💾 Saving grade data to Firestore:', gradeDataToSave);
           
-          await addDoc(collection(db, 'grades'), gradeDataToSave);
-          successCount++;
+          try {
+            const docRef = await addDoc(collection(db, 'grades'), gradeDataToSave);
+            console.log('✅ Grade saved successfully with ID:', docRef.id);
+            successCount++;
+          } catch (saveError) {
+            console.error('❌ Error saving grade to Firestore:', saveError);
+            throw saveError;
+          }
           
         } catch (error) {
           console.error(`Error adding grade for student ${studentId}:`, error);

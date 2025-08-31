@@ -8,6 +8,8 @@ import { collection, getDocs, query, where, DocumentData, doc, setDoc, serverTim
 import { db } from '@/config/firebase';
 import { useAuth } from '@/context/AuthContext';
 import { FaFilePdf, FaLink, FaChevronDown, FaChevronUp, FaQuestionCircle } from "react-icons/fa";
+import VideoPlayer from '@/components/VideoPlayer';
+import YouTubePlayer from '@/components/YouTubePlayer';
 import { ArrowLeft, BookOpen, PenTool, FileText, GraduationCap, Users, Calendar, Star, User, Clock, CheckCircle, Play, Download, ExternalLink, ChevronRight, BookOpenCheck, Target, Trophy, TrendingUp } from 'lucide-react';
 import { Course, Section, Content, Quiz } from '@/types';
 import { CourseNotFound } from '@/components/CourseNotFound';
@@ -167,12 +169,43 @@ function CourseDetail() {
       console.log('[DEBUG] Raw sections from courseData:', courseData.sections);
       console.log('[DEBUG] Sections state after setSections:', courseData.sections || []);
       
-      // Pobierz zawartość sekcji
+      // Pobierz zawartość sekcji - obsłuż obie struktury: starą (contents) i nową (subsections)
       if (courseData.sections && courseData.sections.length > 0) {
         const contents: Record<string, Content[]> = {};
         for (const section of courseData.sections) {
           console.log('[DEBUG] Processing section:', section);
-          if (section.contents) {
+          console.log('[DEBUG] Section has contents:', !!section.contents);
+          console.log('[DEBUG] Section has subsections:', !!section.subsections);
+          
+          // Obsłuż nową strukturę (subsections)
+          if (section.subsections && section.subsections.length > 0) {
+            console.log('[DEBUG] Using NEW structure (subsections) for section:', section.id);
+            // Zbierz wszystkie materiały z podsekcji
+            const allMaterials: Content[] = [];
+            section.subsections.forEach((subsection: any) => {
+              if (subsection.materials && subsection.materials.length > 0) {
+                subsection.materials.forEach((material: any) => {
+                  allMaterials.push({
+                    id: material.id,
+                    name: material.title || material.name || "Materiał",
+                    type: material.type || "text",
+                    text: material.content || material.text || "",
+                    fileUrl: material.fileUrl || material.file,
+                    link: material.youtubeUrl || material.url || material.link,
+                    order: material.order || 0,
+                    created_at: material.createdAt || material.created_at || new Date().toISOString(),
+                    updated_at: material.updatedAt || material.updated_at || new Date().toISOString(),
+                    created_by: material.createdBy || material.created_by || ""
+                  });
+                });
+              }
+            });
+            contents[section.id] = allMaterials;
+            console.log('[DEBUG] Section subsections materials for', section.id, ':', allMaterials);
+          }
+          // Obsłuż starą strukturę (contents)
+          else if (section.contents) {
+            console.log('[DEBUG] Using OLD structure (contents) for section:', section.id);
             contents[section.id] = section.contents;
             console.log('[DEBUG] Section contents for', section.id, ':', section.contents);
           }
@@ -711,38 +744,11 @@ function CourseDetail() {
               <h1 className="text-3xl lg:text-4xl font-bold mb-3">{course?.title || 'Tytuł kursu'}</h1>
               <p className="text-lg text-blue-100 mb-6">{course?.description || 'Opis kursu'}</p>
               
-              {/* Course statistics */}
-              <div className="flex flex-wrap items-center gap-6 mb-6">
-                <div className="flex items-center gap-2">
-                  <Users className="w-5 h-5" />
-                  <span className="text-blue-100">{courseStats.totalStudents} uczniów</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-1">
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <button
-                        key={star}
-                        onClick={() => addCourseRating(star)}
-                        className={`text-lg transition-colors ${
-                          star <= courseStats.averageRating
-                            ? 'text-yellow-300 fill-current'
-                            : 'text-yellow-300'
-                        } hover:scale-110`}
-                        title={`Oceń na ${star} gwiazdek`}
-                      >
-                        ★
-                      </button>
-                    ))}
-                  </div>
-                  <span className="text-blue-100">
-                    {courseStats.averageRating > 0 ? courseStats.averageRating : 'Brak ocen'}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <GraduationCap className="w-5 h-5" />
-                  <span className="text-blue-100">{courseStats.instructorName}</span>
-        </div>
-      </div>
+              {/* Instructor info */}
+              <div className="flex items-center gap-2 mb-6">
+                <GraduationCap className="w-5 h-5" />
+                <span className="text-blue-100">Nauczyciel: {course?.instructor_name || 'Brak informacji'}</span>
+              </div>
 
               {/* Course progress */}
               <div className="mb-6">
@@ -1175,23 +1181,58 @@ function CourseDetail() {
                     <div key={section.id} className="bg-gray-50 rounded-xl p-6">
                       <h4 className="text-lg font-semibold text-gray-800 mb-4">{section.name}</h4>
                       <div className="space-y-3">
-                        {sectionContents[section.id]?.map((item: Content) => (
-                          <div key={item.id} className="flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-200">
-                            {item.fileUrl && <FaFilePdf className="text-2xl text-[#4067EC]" />}
-                            {item.link && <FaLink className="text-2xl text-[#4067EC]" />}
-                            {item.text && <span className="text-2xl text-[#4067EC]">📝</span>}
-                            <span className="font-medium flex-1">{item.name || item.link || 'Materiał'}</span>
-                            {item.fileUrl && (
-                              <a href={item.fileUrl} target="_blank" rel="noopener" className="text-[#4067EC] underline">
-                                Pobierz
-                              </a>
+                                                {sectionContents[section.id]?.map((item: Content) => (
+                          <div key={item.id} className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                            
+                            {/* Header z ikoną i tytułem */}
+                            <div className="flex items-center gap-3 p-4">
+                              {item.fileUrl && <FaFilePdf className="text-2xl text-[#4067EC]" />}
+                              {item.link && !item.text && !item.type?.includes('video') && !item.link.includes('youtube') && <FaLink className="text-2xl text-[#4067EC]" />}
+                              {item.text && !item.link && <span className="text-2xl text-[#4067EC]">📝</span>}
+                              {(item.type?.includes('video') || item.link?.includes('youtube')) && <span className="text-2xl text-[#4067EC]">🎥</span>}
+                              <span className="font-medium flex-1">{item.name || 'Materiał'}</span>
+                              {item.fileUrl && (
+                                <a href={item.fileUrl} target="_blank" rel="noopener" className="text-[#4067EC] underline">
+                                  Pobierz
+                                </a>
+                              )}
+                              {item.link && !item.text && !item.type?.includes('video') && !item.link.includes('youtube') && (
+                                <a href={item.link} target="_blank" rel="noopener" className="text-[#4067EC] underline">
+                                  Otwórz link
+                                </a>
+                              )}
+                            </div>
+                            
+                            {/* YouTube Video Player */}
+                            {(item.type?.includes('video') || item.link?.includes('youtube')) && (
+                              <div className="px-4 pb-4">
+                                <YouTubePlayer 
+                                  youtubeUrl={item.link || ''} 
+                                  title={item.name || 'Film YouTube'}
+                                  className="w-full aspect-video"
+                                />
+                              </div>
                             )}
-                            {item.link && (
-                              <a href={item.link} target="_blank" rel="noopener" className="text-[#4067EC] underline">
-                                Otwórz link
-                              </a>
+                            
+                            {/* Text Content */}
+                            {item.text && !item.link && (
+                              <div className="px-4 pb-4">
+                                <div className="bg-gray-50 p-3 rounded border">
+                                  <div className="text-sm text-gray-600 mb-2">Treść:</div>
+                                  <div 
+                                    className="whitespace-pre-wrap text-gray-800 prose prose-sm max-w-none"
+                                    dangerouslySetInnerHTML={{ 
+                                      __html: item.text
+                                        .replace(/\n/g, '<br>')
+                                        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                                        .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                                        .replace(/`(.*?)`/g, '<code class="bg-gray-100 px-1 rounded">$1</code>')
+                                    }} 
+                                  />
+                                </div>
+                              </div>
                             )}
-        </div>
+                          </div>
                         ))}
                       </div>
                     </div>
@@ -1227,20 +1268,54 @@ function CourseDetail() {
               </div>
                       <div className="space-y-3">
                         {sectionContents[section.id]?.map((item: Content) => (
-                          <div key={item.id} className="flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-200">
-                            {item.fileUrl && <FaFilePdf className="text-2xl text-[#4067EC]" />}
-                            {item.link && <FaLink className="text-2xl text-[#4067EC]" />}
-                            {item.text && <span className="text-2xl text-[#4067EC]">📝</span>}
-                            <span className="font-medium flex-1">{item.name || item.link || 'Zadanie'}</span>
-                            {item.fileUrl && (
-                              <a href={item.fileUrl} target="_blank" rel="noopener" className="text-[#4067EC] underline">
-                                Pobierz
-                              </a>
+                          <div key={item.id} className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                            {/* Header z ikoną i tytułem */}
+                            <div className="flex items-center gap-3 p-4">
+                              {item.fileUrl && <FaFilePdf className="text-2xl text-[#4067EC]" />}
+                              {item.link && !item.text && !item.type?.includes('video') && !item.link.includes('youtube') && <FaLink className="text-2xl text-[#4067EC]" />}
+                              {item.text && !item.link && <span className="text-2xl text-[#4067EC]">📝</span>}
+                              {(item.type?.includes('video') || item.link?.includes('youtube')) && <span className="text-2xl text-[#4067EC]">🎥</span>}
+                              <span className="font-medium flex-1">{item.name || 'Zadanie'}</span>
+                              {item.fileUrl && (
+                                <a href={item.fileUrl} target="_blank" rel="noopener" className="text-[#4067EC] underline">
+                                  Pobierz
+                                </a>
+                              )}
+                              {item.link && !item.text && !item.type?.includes('video') && !item.link.includes('youtube') && (
+                                <a href={item.link} target="_blank" rel="noopener" className="text-[#4067EC] underline">
+                                  Otwórz link
+                                </a>
+                              )}
+                            </div>
+                            
+                            {/* YouTube Video Player */}
+                            {(item.type?.includes('video') || item.link?.includes('youtube')) && (
+                              <div className="px-4 pb-4">
+                                <YouTubePlayer 
+                                  youtubeUrl={item.link || ''} 
+                                  title={item.name || 'Film YouTube'}
+                                  className="w-full aspect-video"
+                                />
+                              </div>
                             )}
-                            {item.link && (
-                              <a href={item.link} target="_blank" rel="noopener" className="text-[#4067EC] underline">
-                                Otwórz link
-                              </a>
+                            
+                            {/* Text Content */}
+                            {item.text && !item.link && (
+                              <div className="px-4 pb-4">
+                                <div className="bg-gray-50 p-3 rounded border">
+                                  <div className="text-sm text-gray-600 mb-2">Treść zadania:</div>
+                                  <div 
+                                    className="whitespace-pre-wrap text-gray-800 prose prose-sm max-w-none"
+                                    dangerouslySetInnerHTML={{ 
+                                      __html: item.text
+                                        .replace(/\n/g, '<br>')
+                                        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                                        .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                                        .replace(/`(.*?)`/g, '<code class="bg-gray-100 px-1 rounded">$1</code>')
+                                    }} 
+                                  />
+                                </div>
+                              </div>
                             )}
                           </div>
                         ))}
@@ -1273,22 +1348,56 @@ function CourseDetail() {
                       </div>
                       <div className="space-y-3">
                   {sectionContents[section.id]?.map((item: Content) => (
-                          <div key={item.id} className="flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-200">
-                        {item.fileUrl && <FaFilePdf className="text-2xl text-[#4067EC]" />}
-                        {item.link && <FaLink className="text-2xl text-[#4067EC]" />}
-                        {item.text && <span className="text-2xl text-[#4067EC]">📝</span>}
-                            <span className="font-medium flex-1">{item.name || item.link || 'Egzamin'}</span>
-                        {item.fileUrl && (
-                              <a href={item.fileUrl} target="_blank" rel="noopener" className="text-[#4067EC] underline">
-                            Pobierz
-                          </a>
-                        )}
-                        {item.link && (
-                              <a href={item.link} target="_blank" rel="noopener" className="text-[#4067EC] underline">
-                            Otwórz link
-                          </a>
-                        )}
-                      </div>
+                          <div key={item.id} className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                            {/* Header z ikoną i tytułem */}
+                            <div className="flex items-center gap-3 p-4">
+                              {item.fileUrl && <FaFilePdf className="text-2xl text-[#4067EC]" />}
+                              {item.link && !item.text && !item.type?.includes('video') && !item.link.includes('youtube') && <FaLink className="text-2xl text-[#4067EC]" />}
+                              {item.text && !item.link && <span className="text-2xl text-[#4067EC]">📝</span>}
+                              {(item.type?.includes('video') || item.link?.includes('youtube')) && <span className="text-2xl text-[#4067EC]">🎥</span>}
+                              <span className="font-medium flex-1">{item.name || 'Egzamin'}</span>
+                              {item.fileUrl && (
+                                <a href={item.fileUrl} target="_blank" rel="noopener" className="text-[#4067EC] underline">
+                                  Pobierz
+                                </a>
+                              )}
+                              {item.link && !item.text && !item.type?.includes('video') && !item.link.includes('youtube') && (
+                                <a href={item.link} target="_blank" rel="noopener" className="text-[#4067EC] underline">
+                                  Otwórz link
+                                </a>
+                              )}
+                            </div>
+                            
+                            {/* YouTube Video Player */}
+                            {(item.type?.includes('video') || item.link?.includes('youtube')) && (
+                              <div className="px-4 pb-4">
+                                <YouTubePlayer 
+                                  youtubeUrl={item.link || ''} 
+                                  title={item.name || 'Film YouTube'}
+                                  className="w-full aspect-video"
+                                />
+                              </div>
+                            )}
+                            
+                            {/* Text Content */}
+                            {item.text && !item.link && (
+                              <div className="px-4 pb-4">
+                                <div className="bg-gray-50 p-3 rounded border">
+                                  <div className="text-sm text-gray-600 mb-2">Treść egzaminu:</div>
+                                  <div 
+                                    className="whitespace-pre-wrap text-gray-800 prose prose-sm max-w-none"
+                                    dangerouslySetInnerHTML={{ 
+                                      __html: item.text
+                                        .replace(/\n/g, '<br>')
+                                        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                                        .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                                        .replace(/`(.*?)`/g, '<code class="bg-gray-100 px-1 rounded">$1</code>')
+                                    }} 
+                                  />
+                                </div>
+                              </div>
+                            )}
+                          </div>
                         ))}
                         </div>
                     </div>

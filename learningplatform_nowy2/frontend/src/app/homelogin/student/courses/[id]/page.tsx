@@ -2,11 +2,44 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
-import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/config/firebase";
-import Image from "next/image";
 import Providers from '@/components/Providers';
+import { FaChevronDown, FaChevronUp, FaFilePdf, FaFileAlt, FaLink, FaImage, FaClipboardList, FaGraduationCap, FaUsers, FaQuestionCircle, FaInfoCircle, FaFolder, FaFolderOpen, FaFileCode, FaExternalLinkAlt, FaFile, FaYoutube } from "react-icons/fa";
+import VideoPlayer from '@/components/VideoPlayer';
+import YouTubePlayer from '@/components/YouTubePlayer';
+
+// Function to render appropriate icon for content type
+function renderContentIcon(item: any, isExpanded?: boolean) {
+  if (item.type === 'subsection') {
+    return isExpanded ? <FaFolderOpen className="text-xl text-blue-600" /> : <FaFolder className="text-xl text-blue-600" />;
+  }
+  if (item.type === 'video') {
+    return <span className="text-xl">🎥</span>;
+  }
+  if (item.type === 'file') {
+    return <FaFilePdf className="text-xl text-red-600" />;
+  }
+  if (item.type === 'task') {
+    return <span className="text-xl">📝</span>;
+  }
+  if (item.type === 'exam') {
+    return <span className="text-xl">🎓</span>;
+  }
+  if (item.type === 'activity') {
+    return <span className="text-xl">🎯</span>;
+  }
+  if (item.fileUrl || item.file) {
+    return <FaFilePdf className="text-xl text-red-600" />;
+  }
+  if (item.link) {
+    return <FaExternalLinkAlt className="text-xl text-green-600" />;
+  }
+  if (item.text) {
+    return <FaFileCode className="text-xl text-purple-600" />;
+  }
+  return <FaFile className="text-xl text-gray-600" />;
+}
 
 function StudentCourseDetailContent() {
   const { user, loading: authLoading } = useAuth();
@@ -17,146 +50,9 @@ function StudentCourseDetailContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showSection, setShowSection] = useState<{[id:number]: boolean}>({});
-  const [submittingAssignment, setSubmittingAssignment] = useState<{[id:number]: boolean}>({});
-  const [assignmentFile, setAssignmentFile] = useState<{[id:number]: File | null}>({});
-  const [assignmentText, setAssignmentText] = useState<{[id:number]: string}>({});
-
-  // Funkcja do obliczania pozostałego czasu
-  const getTimeRemaining = (deadline: string) => {
-    const now = new Date();
-    const deadlineDate = new Date(deadline);
-    const diff = deadlineDate.getTime() - now.getTime();
-    
-    if (diff <= 0) {
-      return { expired: true, text: 'Termin minął' };
-    }
-    
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    
-    return { 
-      expired: false, 
-      text: `Pozostało: ${days}d ${hours}h ${minutes}m` 
-    };
-  };
-
-  // Funkcja do przesyłania zadania
-  const handleSubmitAssignment = async (sectionId: number) => {
-    if (!user || !courseId) return;
-    
-    const file = assignmentFile[sectionId];
-    const text = assignmentText[sectionId];
-    
-    if (!file && !text) {
-      alert('Dodaj plik lub tekst przed przesłaniem zadania');
-      return;
-    }
-    
-    setSubmittingAssignment(prev => ({ ...prev, [sectionId]: true }));
-    
-    try {
-      console.log('Rozpoczynam przesyłanie zadania...');
-      console.log('User:', user.uid);
-      console.log('Course ID:', courseId);
-      console.log('Section ID:', sectionId);
-      console.log('File:', file);
-      console.log('Text:', text);
-      
-      let fileUrl = '';
-      
-      // Upload file if exists
-      if (file) {
-        console.log('Rozpoczynam upload pliku...');
-        const storage = getStorage();
-        const storageRef = ref(storage, `assignments/${courseId}/${sectionId}/${user.uid}/${Date.now()}_${file.name}`);
-        console.log('Storage reference:', storageRef.fullPath);
-        
-        await uploadBytes(storageRef, file);
-        console.log('Plik został uploadowany');
-        
-        fileUrl = await getDownloadURL(storageRef);
-        console.log('URL pliku:', fileUrl);
-      }
-      
-      // Create submission object
-      const submission = {
-        userId: user.uid,
-        userName: (user as any).displayName || user.email,
-        fileUrl,
-        text: text || '',
-        submittedAt: new Date().toISOString(),
-        fileName: file?.name || ''
-      };
-      
-      console.log('Submission object:', submission);
-      
-      // Update course document with submission
-      const courseRef = doc(db, "courses", String(courseId));
-      const courseDoc = await getDoc(courseRef);
-      
-      if (courseDoc.exists()) {
-        const courseData = courseDoc.data();
-        const sections = courseData.sections || [];
-        
-        // Find and update the specific section
-        const updatedSections = sections.map((section: any) => {
-          if (section.id === sectionId) {
-            const submissions = section.submissions || [];
-            // Check if user already submitted
-            const existingSubmissionIndex = submissions.findIndex((s: any) => s.userId === user.uid);
-            
-            if (existingSubmissionIndex >= 0) {
-              // Update existing submission
-              submissions[existingSubmissionIndex] = submission;
-            } else {
-              // Add new submission
-              submissions.push(submission);
-            }
-            
-            return { ...section, submissions };
-          }
-          return section;
-        });
-        
-        console.log('Updating Firestore...');
-        await updateDoc(courseRef, { sections: updatedSections });
-        console.log('Firestore zaktualizowany');
-        
-        // Clear form
-        setAssignmentFile(prev => ({ ...prev, [sectionId]: null }));
-        setAssignmentText(prev => ({ ...prev, [sectionId]: '' }));
-        
-        // Refresh course data
-        const updatedCourseDoc = await getDoc(courseRef);
-        if (updatedCourseDoc.exists()) {
-          setCourse(updatedCourseDoc.data());
-        }
-        
-        alert('Zadanie zostało przesłane pomyślnie!');
-      }
-    } catch (error: any) {
-      console.error('Error submitting assignment:', error);
-      alert(`Błąd podczas przesyłania zadania: ${error.message}`);
-    } finally {
-      setSubmittingAssignment(prev => ({ ...prev, [sectionId]: false }));
-    }
-  };
-
-  // Check if user has already submitted
-  const hasSubmitted = (section: any) => {
-    if (!user || !section.submissions) return false;
-    return section.submissions.some((s: any) => s.userId === user.uid);
-  };
-
-  // Get user's submission
-  const getUserSubmission = (section: any) => {
-    if (!user || !section.submissions) return null;
-    return section.submissions.find((s: any) => s.userId === user.uid);
-  };
+  const [showSubsection, setShowSubsection] = useState<{[sectionId:number]: {[contentId:number]: boolean}}>({});
 
   useEffect(() => {
-    if (!courseId) return;
     const fetchCourse = async () => {
       setLoading(true);
       try {
@@ -166,14 +62,124 @@ function StudentCourseDetailContent() {
           setLoading(false);
           return;
         }
-        setCourse(courseDoc.data());
-      } catch (err) {
-        setError("Błąd ładowania kursu.");
+        const courseData = courseDoc.data();
+        console.log('Course data loaded for student:', courseData);
+        console.log('Sections:', courseData.sections);
+        console.log('Assigned users:', courseData.assignedUsers);
+        console.log('Current user:', user?.email);
+        console.log('Current user UID:', user?.uid);
+        
+        // Sprawdź czy uczeń ma dostęp do kursu
+        const assignedUsers = courseData.assignedUsers || [];
+        console.log('Assigned users array:', assignedUsers);
+        const hasAccess = assignedUsers.includes(user?.email) || assignedUsers.includes(user?.uid);
+        console.log('Has access to course:', hasAccess);
+        
+        if (!hasAccess) {
+          console.log('User does not have access to course');
+          setError("Nie masz dostępu do tego kursu. Skontaktuj się z nauczycielem.");
+          setLoading(false);
+          return;
+        }
+        
+        console.log('User has access to course, loading data...');
+        console.log('Course data sections:', courseData.sections);
+        console.log('Course data sections length:', courseData.sections?.length);
+        
+        // Użyj rzeczywistych danych sekcji i podsekcji z bazy danych
+        console.log('=== DEBUGGING COURSE DATA ===');
+        console.log('Full course data:', JSON.stringify(courseData, null, 2));
+        console.log('Course sections:', courseData.sections);
+        console.log('Course sections type:', typeof courseData.sections);
+        console.log('Course sections length:', courseData.sections?.length);
+        
+        if (courseData.sections && courseData.sections.length > 0) {
+          console.log('Using real sections data from database:', courseData.sections);
+          
+          // Obsłuż obie struktury: starą (contents) i nową (subsections)
+          const processedSections = courseData.sections.map((section: any, index: number) => {
+            console.log(`=== SECTION ${index} ===`);
+            console.log(`Section ${index} full data:`, JSON.stringify(section, null, 2));
+            console.log(`Section ${index} subsections:`, section.subsections);
+            console.log(`Section ${index} contents:`, section.contents);
+            
+            // Jeśli sekcja ma subsections (nowa struktura), użyj ich
+            if (section.subsections && section.subsections.length > 0) {
+              console.log(`Section ${index} using NEW structure (subsections)`);
+              return section;
+            }
+            
+            // Jeśli sekcja ma contents (stara struktura), stwórz subsections
+            if (section.contents && section.contents.length > 0) {
+              console.log(`Section ${index} using OLD structure (contents), converting to subsections`);
+              return {
+                ...section,
+                subsections: [
+                  {
+                    id: Date.now() + index,
+                    name: section.name + " - Materiały",
+                    description: "Materiały z tej sekcji",
+                    sectionId: section.id,
+                    materials: section.contents.map((content: any, contentIndex: number) => ({
+                      id: Date.now() + index * 100 + contentIndex,
+                      title: content.name || content.title || "Materiał",
+                      description: content.description || "",
+                      type: content.type || "text",
+                      content: content.text || content.content || "",
+                      fileUrl: content.fileUrl || content.file,
+                      youtubeUrl: content.url || content.link,
+                      videoUrl: content.videoUrl,
+                      createdAt: new Date().toISOString(),
+                      updatedAt: new Date().toISOString()
+                    })),
+                    order: 0,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
+                    createdBy: section.createdBy || ""
+                  }
+                ]
+              };
+            }
+            
+            // Jeśli sekcja nie ma ani subsections ani contents, stwórz pustą podsekcję
+            console.log(`Section ${index} has no subsections or contents, creating empty subsection`);
+            return {
+              ...section,
+              subsections: [
+                {
+                  id: Date.now() + index,
+                  name: section.name + " - Materiały",
+                  description: "Brak materiałów w tej sekcji",
+                  sectionId: section.id,
+                  materials: [],
+                  order: 0,
+                  createdAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString(),
+                  createdBy: section.createdBy || ""
+                }
+              ]
+            };
+          });
+          
+          courseData.sections = processedSections;
+          console.log('Processed sections:', processedSections);
+        } else {
+          console.log('NO SECTIONS FOUND OR SECTIONS IS EMPTY');
+          console.log('Available course properties:', Object.keys(courseData));
+        }
+        
+        setCourse(courseData);
+      } catch (error) {
+        console.error("Error fetching course:", error);
+        setError("Błąd podczas ładowania kursu.");
       } finally {
         setLoading(false);
       }
     };
-    fetchCourse();
+
+    if (courseId) {
+      fetchCourse();
+    }
   }, [courseId]);
 
   if (authLoading || loading) return <div className="p-8">Ładowanie...</div>;
@@ -181,6 +187,18 @@ function StudentCourseDetailContent() {
   if (!course) return <div className="p-8">Nie znaleziono kursu.</div>;
 
   const sections = Array.isArray((course as any).sections) ? (course as any).sections : [];
+  console.log('Student sections data:', sections);
+  console.log('Student sections length:', sections.length);
+  console.log('Course object:', course);
+  console.log('Course sections property:', (course as any).sections);
+  if (sections.length > 0) {
+    console.log('First section:', sections[0]);
+    console.log('First section subsections:', sections[0].subsections);
+    console.log('First section contents:', sections[0].contents);
+  } else {
+    console.log('NO SECTIONS FOUND - sections array is empty!');
+    console.log('Course data:', course);
+  }
 
   return (
     <div className="min-h-screen bg-[#F4F6FB] py-8 px-[15px]">
@@ -194,124 +212,274 @@ function StudentCourseDetailContent() {
           {(course as any).bannerUrl ? (
             <img src={(course as any).bannerUrl} alt="Baner kursu" className="object-contain h-full w-auto opacity-80" />
           ) : (
-            <Image src="/puzzleicon.png" alt="Baner kursu" width={180} height={180} className="object-contain h-full w-auto opacity-60" />
+            <div className="h-full w-32 bg-white/20 rounded-l-2xl flex items-center justify-center">
+              <span className="text-6xl">🧩</span>
+            </div>
           )}
         </div>
       </div>
-      {/* Dynamic Sections as Accordions */}
-      <div className="w-full max-w-5xl mx-auto flex flex-col gap-4">
-        {sections.length === 0 && <div className="text-gray-400 italic">Brak sekcji w tym kursie.</div>}
-        {sections.map((section: any) => (
-          <div key={section.id} className="bg-white rounded-2xl shadow-lg">
-            <button onClick={() => setShowSection(s => ({...s, [section.id]: !s[section.id]}))} className="w-full flex items-center justify-between px-6 py-4 text-xl font-bold text-[#4067EC] focus:outline-none">
-              <div className="flex-1 text-left">
-                <div>{section.name} <span className="text-base font-normal">({section.type})</span></div>
-                {section.type === 'zadanie' && section.deadline && (
-                  <div className="text-sm font-normal text-gray-600 mt-1">
-                    Termin: {new Date(section.deadline).toLocaleString('pl-PL')}
-                    <span className={`ml-2 px-2 py-1 rounded text-xs ${getTimeRemaining(section.deadline).expired ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
-                      {getTimeRemaining(section.deadline).text}
-                    </span>
-                  </div>
-                )}
-              </div>
-              {showSection[section.id] ? '▲' : '▼'}
-            </button>
-            {showSection[section.id] && (
-              <div className="px-6 pb-6 flex flex-col gap-4">
-                {/* Section contents */}
-                {Array.isArray((section as any).contents) && (section as any).contents.length > 0 ? (
-                  (section as any).contents.map((item: any) => (
-                    <div key={item.id} className="flex flex-col gap-3 p-4 bg-[#f4f6fb] rounded-lg">
-                      <div className="flex items-center gap-3">
-                        {item.fileUrl && <span className="text-2xl text-[#4067EC]">📄</span>}
-                        {item.link && <span className="text-2xl text-[#4067EC]">🔗</span>}
-                        {item.text && <span className="text-2xl text-[#4067EC]">📝</span>}
-                        <span className="font-semibold">{item.name || item.fileUrl || item.link || 'Materiał'}</span>
-                        {item.fileUrl && <a href={item.fileUrl} target="_blank" rel="noopener" className="ml-auto text-[#4067EC] underline">Pobierz</a>}
-                        {item.link && <a href={item.link} target="_blank" rel="noopener" className="ml-auto text-[#4067EC] underline">Otwórz link</a>}
-                      </div>
-                      {item.text && (
-                        <div className="mt-2 p-3 bg-white rounded border-l-4 border-[#4067EC]">
-                          <div className="text-sm text-gray-600 mb-1">Treść:</div>
-                          <div 
-                            className="whitespace-pre-wrap text-gray-800 prose prose-sm max-w-none"
-                            dangerouslySetInnerHTML={{ 
-                              __html: item.text
-                                .replace(/\n/g, '<br>')
-                                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                                .replace(/\*(.*?)\*/g, '<em>$1</em>')
-                                .replace(/`(.*?)`/g, '<code class="bg-gray-100 px-1 rounded">$1</code>')
-                            }} 
-                          />
-                        </div>
-                      )}
-                    </div>
-                  ))
-                ) : (
-                  <div className="text-gray-400 italic">Brak materiałów w tej sekcji.</div>
-                )}
 
-                {/* Assignment submission form for zadanie sections */}
-                {section.type === 'zadanie' && (
-                  <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                    <h4 className="font-semibold text-blue-800 mb-3">Prześlij zadanie</h4>
-                    
-                    {hasSubmitted(section) ? (
-                      <div className="bg-green-50 border border-green-200 rounded p-3">
-                        <div className="text-green-800 font-medium">✅ Zadanie zostało przesłane</div>
-                        {(() => {
-                          const submission = getUserSubmission(section);
-                          return (
-                            <div className="text-sm text-green-700 mt-1">
-                              Przesłano: {new Date(submission?.submittedAt || '').toLocaleString('pl-PL')}
-                              {submission?.fileName && <div>Plik: {submission.fileName}</div>}
-                              {submission?.text && <div>Tekst: {submission.text.substring(0, 100)}...</div>}
-                            </div>
-                          );
-                        })()}
+      {/* Summary Cards */}
+      <div className="w-full max-w-5xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <div className="bg-white rounded-2xl shadow-lg p-6 text-center">
+          <div className="text-3xl mb-2">📝</div>
+          <div className="text-2xl font-bold text-[#4067EC]">1</div>
+          <div className="text-gray-600">Quizy</div>
+        </div>
+        <div className="bg-white rounded-2xl shadow-lg p-6 text-center">
+          <div className="text-3xl mb-2">📚</div>
+          <div className="text-2xl font-bold text-[#4067EC]">2</div>
+          <div className="text-gray-600">Materiały</div>
+        </div>
+        <div className="bg-white rounded-2xl shadow-lg p-6 text-center">
+          <div className="text-3xl mb-2">📅</div>
+          <div className="text-2xl font-bold text-[#4067EC]">0</div>
+          <div className="text-gray-600">Zadania</div>
+        </div>
+        <div className="bg-white rounded-2xl shadow-lg p-6 text-center">
+          <div className="text-3xl mb-2">🎓</div>
+          <div className="text-2xl font-bold text-[#4067EC]">0</div>
+          <div className="text-gray-600">Egzaminy</div>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="w-full max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        {/* Ostatnie aktywności */}
+        <div className="bg-white rounded-2xl shadow-lg p-6">
+          <h2 className="text-xl font-semibold text-[#4067EC] mb-4">Ostatnie aktywności</h2>
+          <div className="text-gray-500">Brak aktywności do wyświetlenia</div>
+        </div>
+
+        {/* Nadchodzące terminy */}
+        <div className="bg-white rounded-2xl shadow-lg p-6">
+          <h2 className="text-xl font-semibold text-[#4067EC] mb-4">Nadchodzące terminy</h2>
+          <div className="text-gray-500">Brak nadchodzących terminów</div>
+        </div>
+      </div>
+
+      {/* SEKCJE Z PODSEKCJAMI I MATERIAŁAMI */}
+      <div className="w-full max-w-5xl mx-auto">
+        <div className="bg-white rounded-2xl shadow-lg p-6">
+          <div className="flex items-center gap-3 mb-6">
+            <span className="text-2xl">📚</span>
+            <h2 className="text-2xl font-semibold text-[#4067EC]">Materiały kursu</h2>
+          </div>
+          
+          <div className="space-y-4">
+            {/* DEBUG INFO */}
+            <div className="bg-yellow-100 p-4 rounded-lg border border-yellow-300 mb-4">
+              <h3 className="font-bold text-yellow-800">DEBUG INFO:</h3>
+              <p className="text-sm text-yellow-700">Sections length: {sections.length}</p>
+              <p className="text-sm text-yellow-700">Sections data: {JSON.stringify(sections, null, 2)}</p>
+              <p className="text-sm text-yellow-700">Course data: {JSON.stringify(course, null, 2)}</p>
+            </div>
+            
+            {sections.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <p className="text-lg">Brak sekcji w kursie</p>
+                <p className="text-sm">Skontaktuj się z nauczycielem</p>
+                <p className="text-xs text-red-500">DEBUG: sections.length = {sections.length}</p>
+                <p className="text-xs text-red-500">DEBUG: sections = {JSON.stringify(sections)}</p>
+              </div>
+            ) : (
+              sections.map((section: any) => {
+                console.log('Rendering section:', section);
+                console.log('Section subsections:', section.subsections);
+                console.log('Section ID:', section.id);
+                console.log('Section name:', section.name);
+                return (
+                <div key={`section-${section.id}`} className="bg-white rounded-lg border border-gray-200 shadow-sm">
+                  <div 
+                    className="w-full flex items-center justify-between px-6 py-4 text-xl font-bold text-[#4067EC] hover:bg-gray-50 rounded-t-lg cursor-pointer"
+                    onClick={() => {
+                      console.log('Student clicking section:', section.id);
+                      console.log('Current showSection state:', showSection);
+                      setShowSection(prev => {
+                        const newState = {...prev, [Number(section.id)]: !prev[Number(section.id)]};
+                        console.log('New showSection state:', newState);
+                        return newState;
+                      });
+                    }}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span>{showSection[Number(section.id)] ? <FaChevronUp /> : <FaChevronDown />}</span>
+                      <div>
+                        <span>{section.name}</span>
+                        <span className="text-base font-normal ml-2">({section.type || 'material'})</span>
+                        {section.type === 'assignment' && section.deadline && (
+                          <span className="block text-sm font-normal text-gray-600">
+                            Termin: {new Date(section.deadline).toLocaleString('pl-PL')}
+                          </span>
+                        )}
+                        <p className="text-sm text-gray-600 font-normal">
+                          {section.subsections?.length || 0} podsekcji
+                        </p>
                       </div>
-                    ) : (
-                      <div className="space-y-3">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Plik (opcjonalny):</label>
-                          <input 
-                            type="file" 
-                            onChange={(e) => setAssignmentFile(prev => ({ ...prev, [section.id]: e.target.files ? e.target.files[0] : null }))}
-                            className="w-full border rounded px-3 py-2"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Tekst odpowiedzi (opcjonalny):</label>
-                          <textarea 
-                            value={assignmentText[section.id] || ''}
-                            onChange={(e) => setAssignmentText(prev => ({ ...prev, [section.id]: e.target.value }))}
-                            placeholder="Wpisz swoją odpowiedź..."
-                            className="w-full border rounded px-3 py-2 min-h-[100px] resize-y"
-                          />
-                        </div>
-                        <button 
-                          onClick={() => handleSubmitAssignment(section.id)}
-                          disabled={submittingAssignment[section.id] || getTimeRemaining(section.deadline).expired}
-                          className={`px-4 py-2 rounded font-semibold ${
-                            getTimeRemaining(section.deadline).expired 
-                              ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
-                              : 'bg-blue-600 text-white hover:bg-blue-700'
-                          }`}
-                        >
-                          {submittingAssignment[section.id] ? 'Przesyłanie...' : 'Prześlij zadanie'}
-                        </button>
-                        {getTimeRemaining(section.deadline).expired && (
-                          <div className="text-red-600 text-sm">Termin oddania minął</div>
+                    </div>
+                  </div>
+
+                  {showSection[Number(section.id)] && (
+                    <div className="px-6 pb-6 border-t border-gray-200">
+                      {/* Lista podsekcji */}
+                      <div className="space-y-4">
+                        {(!section.subsections || section.subsections.length === 0) ? (
+                          <div className="text-gray-400 italic">Brak podsekcji.</div>
+                        ) : (
+                          section.subsections.map((subsection: any) => (
+                            <div key={subsection.id} className="bg-gray-50 rounded-lg border border-gray-200">
+                              {/* Nagłówek podsekcji */}
+                              <div 
+                                className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-100"
+                                onClick={() => {
+                                  console.log('Student clicking subsection:', subsection.id, 'in section:', section.id);
+                                  console.log('Current showSubsection state:', showSubsection);
+                                  setShowSubsection(prev => {
+                                    const newState = {
+                                      ...prev, 
+                                      [Number(section.id)]: {
+                                        ...prev[Number(section.id)],
+                                        [Number(subsection.id)]: !prev[Number(section.id)]?.[Number(subsection.id)]
+                                      }
+                                    };
+                                    console.log('New showSubsection state:', newState);
+                                    return newState;
+                                  });
+                                }}
+                              >
+                                <div className="flex items-center gap-3">
+                                  <span>{showSubsection[Number(section.id)]?.[Number(subsection.id)] ? <FaChevronUp /> : <FaChevronDown />}</span>
+                                  <div>
+                                    <h4 className="font-semibold text-gray-800">{subsection.name}</h4>
+                                    {subsection.description && (
+                                      <p className="text-sm text-gray-600">{subsection.description}</p>
+                                    )}
+                                    <p className="text-xs text-gray-500">
+                                      {subsection.materials?.length || 0} materiałów
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Zawartość podsekcji */}
+                              {showSubsection[Number(section.id)]?.[Number(subsection.id)] && (
+                                <div className="px-4 pb-4">
+                                  {/* Lista materiałów */}
+                                  <div className="space-y-2">
+                                    {(!subsection.materials || subsection.materials.length === 0) ? (
+                                      <div className="text-gray-400 italic text-sm">Brak materiałów w tej podsekcji.</div>
+                                    ) : (
+                                      subsection.materials.map((material: any) => {
+                                        console.log('Rendering material for student:', material);
+                                        console.log('Material type:', material.type);
+                                        console.log('Material videoUrl:', material.videoUrl);
+                                        console.log('Material youtubeUrl:', material.youtubeUrl);
+                                        return (
+                                        <div key={material.id} className="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">
+                                          {/* Header */}
+                                          <div className="flex items-center gap-3 p-4">
+                                            <div className="text-lg">
+                                              {renderContentIcon(material)}
+                                            </div>
+                                            <div className="flex-1">
+                                              <h5 className="font-medium text-gray-800">{material.title}</h5>
+                                              {material.description && (
+                                                <p className="text-sm text-gray-600 mt-1">{material.description}</p>
+                                              )}
+                                              <div className="flex flex-wrap gap-2 mt-2">
+                                                {material.deadline && (
+                                                  <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded">
+                                                    Termin: {new Date(material.deadline).toLocaleString('pl-PL')}
+                                                  </span>
+                                                )}
+                                                {material.videoUrl && (
+                                                  <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
+                                                    🎥 Film wideo dostępny
+                                                  </span>
+                                                )}
+                                                {material.youtubeUrl && (
+                                                  <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded">
+                                                    📺 Film YouTube dostępny
+                                                  </span>
+                                                )}
+                                              </div>
+                                            </div>
+                                          </div>
+                                          
+                                          {/* Video Player */}
+                                          {material.type === 'video' && material.videoUrl && (
+                                            <div className="px-3 pb-3">
+                                              <VideoPlayer 
+                                                videoUrl={material.videoUrl} 
+                                                title={material.title}
+                                                className="w-full h-64"
+                                              />
+                                            </div>
+                                          )}
+
+                                          {/* YouTube Player */}
+                                          {material.type === 'video' && material.youtubeUrl && (
+                                            <div className="px-3 pb-3">
+                                              <YouTubePlayer 
+                                                youtubeUrl={material.youtubeUrl} 
+                                                title={material.title}
+                                                className="w-full h-64"
+                                              />
+                                            </div>
+                                          )}
+
+                                          {/* File Download */}
+                                          {material.fileUrl && (
+                                            <div className="px-3 pb-3">
+                                              <a 
+                                                href={material.fileUrl} 
+                                                target="_blank" 
+                                                rel="noopener noreferrer"
+                                                className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                                              >
+                                                <FaFilePdf className="text-sm" />
+                                                Pobierz plik
+                                              </a>
+                                            </div>
+                                          )}
+
+                                          {/* Text Content */}
+                                          {material.content && (
+                                            <div className="px-3 pb-3">
+                                              <div className="bg-white p-3 rounded border">
+                                                <div className="text-sm text-gray-600 mb-2">Treść:</div>
+                                                <div 
+                                                  className="whitespace-pre-wrap text-gray-800 prose prose-sm max-w-none"
+                                                  dangerouslySetInnerHTML={{ 
+                                                    __html: material.content
+                                                      .replace(/\n/g, '<br>')
+                                                      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                                                      .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                                                      .replace(/`(.*?)`/g, '<code class="bg-gray-100 px-1 rounded">$1</code>')
+                                                  }} 
+                                                />
+                                              </div>
+                                            </div>
+                                          )}
+                                        </div>
+                                        );
+                                      })
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ))
                         )}
                       </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
+                    </div>
+                  )}
+                </div>
+                );
+                })
+              )}
           </div>
-        ))}
+        </div>
       </div>
     </div>
   );
@@ -323,4 +491,4 @@ export default function StudentCourseDetail() {
       <StudentCourseDetailContent />
     </Providers>
   );
-} 
+}

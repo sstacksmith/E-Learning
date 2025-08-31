@@ -61,12 +61,13 @@ const Calendar: React.FC = () => {
     if (user?.role === 'teacher') fetchStudents();
   }, [user]);
 
-  // Filtrowanie wydarzeń dla ucznia
+  // Filtrowanie wydarzeń dla użytkownika
   const filteredEvents = React.useMemo(() => {
     console.log('Filtering events for user:', user);
     console.log('All events:', events);
     
     if (!user) return [];
+    
     if (user.role === 'student') {
       const filtered = events.filter(event => {
         // Sprawdź czy uczeń jest przypisany do eventu (stara struktura)
@@ -84,9 +85,24 @@ const Calendar: React.FC = () => {
       console.log('Filtered events for student:', filtered);
       return filtered;
     }
+    
+    if (user.role === 'parent') {
+      // Rodzic widzi wydarzenia swojego przypisanego ucznia
+      // TODO: Implement parent-student relationship filtering
+      // Na razie rodzic nie widzi żadnych wydarzeń
+      console.log('Parent - showing no events (not implemented yet)');
+      return [];
+    }
+    
     // nauczyciel/admin widzą wszystko
-    console.log('Teacher/admin - showing all events');
-    return events;
+    if (user.role === 'teacher' || user.role === 'admin') {
+      console.log('Teacher/admin - showing all events');
+      return events;
+    }
+    
+    // Dla innych ról - nie pokazuj nic
+    console.log('Unknown role - showing no events');
+    return [];
   }, [events, user]);
 
   const calendarEvents = filteredEvents.map(event => {
@@ -359,9 +375,10 @@ export const CalendarWithActivity: React.FC = () => {
     fetchEvents();
   }, []);
 
-  // Filtrowanie wydarzeń dla ucznia
+  // Filtrowanie wydarzeń dla użytkownika
   const filteredEvents = React.useMemo(() => {
     if (!user) return [];
+    
     if (user.role === 'student') {
       return events.filter(event => {
         if (event.assignedTo && event.assignedTo.includes(user.uid)) {
@@ -373,7 +390,21 @@ export const CalendarWithActivity: React.FC = () => {
         return false;
       });
     }
-    return events;
+    
+    if (user.role === 'parent') {
+      // Rodzic widzi wydarzenia swojego przypisanego ucznia
+      // TODO: Implement parent-student relationship filtering
+      // Na razie rodzic nie widzi żadnych wydarzeń
+      return [];
+    }
+    
+    // nauczyciel/admin widzą wszystko
+    if (user.role === 'teacher' || user.role === 'admin') {
+      return events;
+    }
+    
+    // Dla innych ról - nie pokazuj nic
+    return [];
   }, [events, user]);
 
   const calendarEvents = filteredEvents.map(event => {
