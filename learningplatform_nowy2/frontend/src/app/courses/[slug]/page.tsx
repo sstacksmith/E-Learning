@@ -1,16 +1,14 @@
 "use client";
 import { useState, useEffect, useCallback } from 'react';
-import Image from 'next/image';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import { collection, getDocs, query, where, DocumentData, doc, setDoc, serverTimestamp, DocumentSnapshot, addDoc } from 'firebase/firestore';
+import { collection, getDocs, query, where, DocumentData, doc, setDoc, serverTimestamp, DocumentSnapshot } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { useAuth } from '@/context/AuthContext';
-import { FaFilePdf, FaLink, FaChevronDown, FaChevronUp, FaQuestionCircle } from "react-icons/fa";
-import VideoPlayer from '@/components/VideoPlayer';
+import { FaFilePdf, FaLink, FaChevronDown, FaChevronUp } from "react-icons/fa";
 import YouTubePlayer from '@/components/YouTubePlayer';
-import { ArrowLeft, BookOpen, PenTool, FileText, GraduationCap, Users, Calendar, Star, User, Clock, CheckCircle, Play, Download, ExternalLink, ChevronRight, BookOpenCheck, Target, Trophy, TrendingUp } from 'lucide-react';
+import { ArrowLeft, BookOpen, PenTool, FileText, GraduationCap, Users, Calendar } from 'lucide-react';
 import { Course, Section, Content, Quiz } from '@/types';
 import { CourseNotFound } from '@/components/CourseNotFound';
 
@@ -365,7 +363,7 @@ function CourseDetail() {
         const q1 = query(quizzesCollection, where('course_slug', '==', slug));
         querySnapshot = await getDocs(q1);
         console.log('[DEBUG] Found quizzes by course_slug:', querySnapshot.docs.length);
-      } catch (error) {
+      } catch {
         console.log('[DEBUG] No quizzes found by course_slug, trying course_id...');
       }
       
@@ -375,7 +373,7 @@ function CourseDetail() {
           const q2 = query(quizzesCollection, where('course_id', '==', course.id));
           querySnapshot = await getDocs(q2);
           console.log('[DEBUG] Found quizzes by course_id:', querySnapshot.docs.length);
-        } catch (error) {
+        } catch {
           console.log('[DEBUG] No quizzes found by course_id');
         }
       }
@@ -686,55 +684,55 @@ function CourseDetail() {
     getCourseStats();
   }, [course]);
 
-  // Add course rating
-  const addCourseRating = async (rating: number) => {
-    if (!user || !course?.id) return;
-    
-    try {
-      const ratingData = {
-        course_id: course.id,
-        user_id: user.uid,
-        user_email: user.email,
-        rating: rating,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      };
-      
-      // Zapisz ocenę do Firestore
-      await addDoc(collection(db, 'course_ratings'), ratingData);
-      
-      // Odśwież statystyki kursu
-      const getCourseStats = async () => {
-        const totalStudents = course?.assignedUsers?.length || 0;
-        const instructorName = course?.instructor_name || 'Brak informacji';
-        
-        let averageRating = 0;
-        try {
-          const ratingsCollection = collection(db, 'course_ratings');
-          const ratingsQuery = query(ratingsCollection, where('course_id', '==', course.id));
-          const ratingsSnapshot = await getDocs(ratingsQuery);
-          
-          if (!ratingsSnapshot.empty) {
-            const ratings = ratingsSnapshot.docs.map(doc => doc.data().rating || 0);
-            const validRatings = ratings.filter(rating => rating > 0);
-            
-            if (validRatings.length > 0) {
-              averageRating = Math.round((validRatings.reduce((sum, rating) => sum + rating, 0) / validRatings.length) * 10) / 10;
-            }
-          }
-        } catch (error) {
-          console.error('Error fetching course ratings:', error);
-        }
-        
-        setCourseStats({ totalStudents, averageRating, instructorName });
-      };
-      
-      getCourseStats();
-      
-    } catch (error) {
-      console.error('Error adding course rating:', error);
-    }
-  };
+  // Add course rating (currently unused)
+  // const addCourseRating = async (rating: number) => {
+  //   if (!user || !course?.id) return;
+  //   
+  //   try {
+  //     const ratingData = {
+  //       course_id: course.id,
+  //       user_id: user.uid,
+  //       user_email: user.email,
+  //       rating: rating,
+  //       created_at: new Date().toISOString(),
+  //       updated_at: new Date().toISOString()
+  //     };
+  //     
+  //     // Zapisz ocenę do Firestore
+  //     await addDoc(collection(db, 'course_ratings'), ratingData);
+  //     
+  //     // Odśwież statystyki kursu
+  //     const getCourseStats = async () => {
+  //       const totalStudents = course?.assignedUsers?.length || 0;
+  //       const instructorName = course?.instructor_name || 'Brak informacji';
+  //       
+  //       let averageRating = 0;
+  //       try {
+  //         const ratingsCollection = collection(db, 'course_ratings');
+  //         const ratingsQuery = query(ratingsCollection, where('course_id', '==', course.id));
+  //         const ratingsSnapshot = await getDocs(ratingsQuery);
+  //         
+  //         if (!ratingsSnapshot.empty) {
+  //           const ratings = ratingsSnapshot.docs.map(doc => doc.data().rating || 0);
+  //           const validRatings = ratings.filter(rating => rating > 0);
+  //           
+  //           if (validRatings.length > 0) {
+  //             averageRating = Math.round((validRatings.reduce((sum, rating) => sum + rating, 0) / validRatings.length) * 10) / 10;
+  //           }
+  //         }
+  //       } catch (error) {
+  //         console.error('Error fetching course ratings:', error);
+  //       }
+  //       
+  //       setCourseStats({ totalStudents, averageRating, instructorName });
+  //     };
+  //     
+  //     getCourseStats();
+  //     
+  //   } catch (error) {
+  //     console.error('Error adding course rating:', error);
+  //   }
+  // };
 
   // Render loading state
   if (loading) {

@@ -134,7 +134,7 @@ export default function AnkietyPage() {
         const availableSurveys = surveysSnapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data()
-        }));
+        } as any));
 
         console.log(`Znaleziono ${availableSurveys.length} dostępnych ankiet`);
         
@@ -277,7 +277,7 @@ export default function AnkietyPage() {
       );
       const surveysSnapshot = await getDocs(surveysQuery);
       
-      let surveyTemplate = null;
+      let surveyTemplate: any = null;
       if (!surveysSnapshot.empty) {
         surveyTemplate = { id: surveysSnapshot.docs[0].id, ...surveysSnapshot.docs[0].data() };
       }

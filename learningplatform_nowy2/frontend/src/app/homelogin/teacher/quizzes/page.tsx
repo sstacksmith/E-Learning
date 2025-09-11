@@ -621,8 +621,11 @@ export default function QuizManagementPage() {
               )}
               
               <div className="mt-4">
-                {console.log('Rendering QuizQuestionEditor, editingQuestionIndex:', editingQuestionIndex)}
-                {console.log('Initial question:', editingQuestionIndex !== null ? newQuiz.questions[editingQuestionIndex] : undefined)}
+                {(() => {
+                  console.log('Rendering QuizQuestionEditor, editingQuestionIndex:', editingQuestionIndex);
+                  console.log('Initial question:', editingQuestionIndex !== null ? newQuiz.questions[editingQuestionIndex] : undefined);
+                  return null;
+                })()}
                 <QuizQuestionEditor
                   initialQuestion={editingQuestionIndex !== null ? newQuiz.questions[editingQuestionIndex] : undefined}
                   onSave={(question) => {

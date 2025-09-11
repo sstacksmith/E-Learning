@@ -49,7 +49,7 @@ export default function CookiesPolicy() {
             <section className="mb-12">
               <h2 className="text-2xl font-bold text-slate-900 mb-6">1. Czym są pliki cookies?</h2>
               <p className="text-slate-700 mb-4">
-                Pliki cookies (tzw. "ciasteczka") to małe pliki tekstowe, które są zapisywane na urządzeniu użytkownika 
+                Pliki cookies (tzw. &quot;ciasteczka&quot;) to małe pliki tekstowe, które są zapisywane na urządzeniu użytkownika 
                 podczas przeglądania strony internetowej. Służą one do przechowywania informacji o preferencjach 
                 użytkownika i umożliwiają poprawne funkcjonowanie platformy.
               </p>

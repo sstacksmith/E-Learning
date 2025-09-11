@@ -287,8 +287,8 @@ function TeacherCourseDetailContent() {
             if (userData.role === "student") {
               // Znajdź klasy do których należy uczeń
               const userClasses = classesData
-                .filter(cls => cls.students && cls.students.includes(doc.id))
-                .map(cls => cls.id);
+                .filter((cls: any) => cls.students && cls.students.includes(doc.id))
+                .map((cls: any) => cls.id);
               
               return {
                 uid: doc.id,
@@ -397,16 +397,16 @@ function TeacherCourseDetailContent() {
   // 🆕 NOWE - Automatyczna synchronizacja uczniów z klas przypisanych do kursu
   useEffect(() => {
     const syncClassStudents = async () => {
-      if (!courseId || !course?.assignedClasses?.length) return;
+      if (!courseId || !(course as any)?.assignedClasses?.length) return;
       
       try {
         console.log('Synchronizacja uczniów z klas dla kursu:', courseId);
-        console.log('Przypisane klasy:', course.assignedClasses);
+        console.log('Przypisane klasy:', (course as any).assignedClasses);
         
         // Pobierz wszystkich uczniów z przypisanych klas
         const studentsFromClasses = new Set<string>();
         
-        for (const classId of course.assignedClasses) {
+        for (const classId of (course as any).assignedClasses) {
           const classRef = doc(db, 'classes', classId);
           const classDoc = await getDoc(classRef);
           
@@ -504,7 +504,7 @@ function TeacherCourseDetailContent() {
     );
     
     // 🆕 NOWE - Sprawdź czy uczeń nie jest w klasie przypisanej do kursu
-    const isNotInAssignedClass = !course?.assignedClasses?.some(classId => {
+    const isNotInAssignedClass = !(course as any)?.assignedClasses?.some((classId: any) => {
       // Sprawdź czy uczeń jest w tej klasie
       return classId && student.classes && student.classes.includes(classId);
     });
@@ -1833,7 +1833,7 @@ function TeacherCourseDetailContent() {
                 <svg className="w-12 h-12 mx-auto mb-2 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
-                Brak wyników dla: "{studentSearchTerm}"
+                Brak wyników dla: &quot;{studentSearchTerm}&quot;
               </div>
             ) : (
               <div className="text-center text-gray-500 py-8">
@@ -2554,7 +2554,7 @@ function TeacherCourseDetailContent() {
                                           </p>
                                           <div className="flex gap-2">
                                             <button
-                                              onClick={() => window.open(`/courses/${course?.slug}/quiz/${material.quizId}`, '_blank')}
+                                              onClick={() => window.open(`/courses/${(course as any)?.slug}/quiz/${material.quizId}`, '_blank')}
                                               className="text-sm bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 transition"
                                             >
                                               Podgląd quizu
@@ -2694,7 +2694,7 @@ function TeacherCourseDetailContent() {
             </div>
           ) : quizzes.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
-              Brak quizów w tym kursie. Utwórz quiz w sekcji "Zarządzanie quizami".
+              Brak quizów w tym kursie. Utwórz quiz w sekcji &quot;Zarządzanie quizami&quot;.
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -2806,7 +2806,7 @@ function TeacherCourseDetailContent() {
       <QuizAssignmentModal
         isOpen={showQuizAssignmentModal}
         onClose={() => setShowQuizAssignmentModal(false)}
-        courseId={courseId}
+        courseId={Array.isArray(courseId) ? courseId[0] : courseId || ''}
         courseTitle={course?.title || ''}
         onQuizAssigned={fetchQuizzes}
       />

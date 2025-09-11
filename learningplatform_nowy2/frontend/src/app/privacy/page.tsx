@@ -49,7 +49,7 @@ export default function PrivacyPolicy() {
             <section className="mb-12">
               <h2 className="text-2xl font-bold text-slate-900 mb-6">1. Wprowadzenie</h2>
               <p className="text-slate-700 mb-4">
-                Platforma COGITO ("my", "nas", "nasza") szanuje prywatność użytkowników i zobowiązuje się do ochrony ich danych osobowych. 
+                Platforma COGITO (&quot;my&quot;, &quot;nas&quot;, &quot;nasza&quot;) szanuje prywatność użytkowników i zobowiązuje się do ochrony ich danych osobowych. 
                 Niniejsza Polityka Prywatności wyjaśnia, w jaki sposób zbieramy, używamy, przechowujemy i chronimy informacje o użytkownikach.
               </p>
             </section>

@@ -255,7 +255,7 @@ export default function ContactPage() {
                 Jak mogę zarejestrować się na platformie?
               </h3>
               <p className="text-slate-600">
-                Rejestracja jest bardzo prosta! Kliknij przycisk "Zarejestruj się" w prawym górnym rogu strony, 
+                Rejestracja jest bardzo prosta! Kliknij przycisk &quot;Zarejestruj się&quot; w prawym górnym rogu strony, 
                 wypełnij formularz z podstawowymi danymi i potwierdź swój email.
               </p>
             </div>

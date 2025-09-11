@@ -49,7 +49,7 @@ function StudentCourseDetailContent() {
   const params = useParams();
   const courseId = params?.id;
 
-  const [course, setCourse] = useState<unknown>(null);
+  const [course, setCourse] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showSection, setShowSection] = useState<{[id:number]: boolean}>({});

@@ -59,7 +59,7 @@ function StudentQuizzesPageContent() {
             
             // Sprawdź czy użytkownik jest w klasie, która ma przypisane kursy
             const isInAssignedClass = course.assignedClasses && course.assignedClasses.length > 0 &&
-              user.classes && user.classes.some((classId: string) => 
+              (user as any).classes && (user as any).classes.some((classId: string) =>
                 course.assignedClasses.includes(classId)
               );
             

@@ -25,9 +25,9 @@ export default function ChatAssistant({ open, onClose }: ChatAssistantProps) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   async function getRecaptchaToken() {
-    // @ts-ignore
+    // @ts-expect-error - grecaptcha is loaded from external script
     if (window.grecaptcha) {
-      // @ts-ignore
+      // @ts-expect-error - grecaptcha is loaded from external script
       return await window.grecaptcha.execute('khbjasd76892kbasbd89621-21', { action: 'chat' });
     }
     return '';

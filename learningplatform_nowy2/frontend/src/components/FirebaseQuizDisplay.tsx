@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { collection, doc, getDocs, addDoc, updateDoc, query, where, orderBy } from 'firebase/firestore';
+import { collection, doc, getDocs, addDoc, updateDoc, query, where, orderBy, serverTimestamp } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { Quiz, QuizAttempt, Grade } from '../types/models';
 import { calculateGradeFromPercentage, getGradeDescription, getGradeColor } from '../utils/gradeCalculator';
@@ -80,13 +80,16 @@ export const FirebaseQuizDisplay: React.FC<FirebaseQuizDisplayProps> = ({ quizId
       
       const attemptNumber = attempts.length + 1;
       
-      const newAttempt: Omit<QuizAttempt, 'id'> = {
+      const newAttempt: any = {
         user_id: user.uid,
         quiz_id: quizId,
         started_at: new Date().toISOString(),
         answers: {},
         time_spent: 0,
-        attempt_number: attemptNumber
+        attempt_number: attemptNumber,
+        created_at: serverTimestamp(),
+        updated_at: serverTimestamp(),
+        created_by: user.uid
       };
       
       const docRef = await addDoc(collection(db, 'quiz_attempts'), newAttempt);
@@ -140,7 +143,7 @@ export const FirebaseQuizDisplay: React.FC<FirebaseQuizDisplayProps> = ({ quizId
         setGradeAdded({grade: gradeValue, description: `Zaktualizowano ocenę w dzienniku - Próba ${currentAttemptNumber}`});
       } else {
         // Dodaj nową ocenę
-        const newGrade: Omit<Grade, 'id'> = {
+        const newGrade: any = {
           user_id: user?.uid || '',
           course_id: quiz.course_id,
           value: gradeValue,

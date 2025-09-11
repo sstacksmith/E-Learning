@@ -536,7 +536,7 @@ export default function TeacherCourses() {
                 </div>
                 {searchTerm && (
                   <p className="text-sm text-gray-600 mt-2">
-                    Znaleziono {filteredCourses.length} kursów dla "{searchTerm}"
+                    Znaleziono {filteredCourses.length} kursów dla &quot;{searchTerm}&quot;
                   </p>
                 )}
               </div>

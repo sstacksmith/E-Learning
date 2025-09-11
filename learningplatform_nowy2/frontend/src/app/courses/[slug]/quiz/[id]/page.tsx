@@ -417,7 +417,7 @@ export default function QuizTaking() {
               disabled={quizSubmitted}
             />
             <div className="text-sm text-blue-600 italic">
-              Odpowiedź została zapisana. Użyj przycisku "Następne" aby przejść dalej.
+              Odpowiedź została zapisana. Użyj przycisku &quot;Następne&quot; aby przejść dalej.
             </div>
           </div>
         ) : (
@@ -449,7 +449,7 @@ export default function QuizTaking() {
             ))}
             {selectedAnswers[question.id] && (
               <div className="text-sm text-blue-600 italic mt-2">
-                Odpowiedź została wybrana. Użyj przycisku "Następne" aby przejść dalej.
+                Odpowiedź została wybrana. Użyj przycisku &quot;Następne&quot; aby przejść dalej.
               </div>
             )}
           </div>

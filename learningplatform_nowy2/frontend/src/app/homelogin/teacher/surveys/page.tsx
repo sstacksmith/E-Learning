@@ -235,19 +235,19 @@ export default function TeacherSurveysPage() {
     setShowSurveyEditor(true);
   };
 
-  const handleSaveSurvey = async (surveyData: Omit<Survey, 'id' | 'created_at'>) => {
+  const handleSaveSurvey = async (survey: Omit<Survey, 'id' | 'created_at'>) => {
     try {
       if (editingSurvey) {
         // Edytuj istniejącą ankietę
         await updateDoc(doc(db, 'surveyTemplates', editingSurvey.id), {
-          ...surveyData,
+          ...survey,
           updated_at: serverTimestamp()
         });
         console.log('Ankieta zaktualizowana');
       } else {
         // Utwórz nową ankietę
         await addDoc(collection(db, 'surveyTemplates'), {
-          ...surveyData,
+          ...survey,
           created_by: user?.uid,
           created_at: serverTimestamp()
         });
@@ -293,7 +293,9 @@ export default function TeacherSurveysPage() {
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-4">
         <SurveyEditor
           survey={editingSurvey || undefined}
-          onSave={handleSaveSurvey}
+          onSave={(survey) => {
+            handleSaveSurvey({...survey, created_by: user?.uid || ''});
+          }}
           onCancel={() => {
             setShowSurveyEditor(false);
             setEditingSurvey(null);
