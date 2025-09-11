@@ -33,8 +33,10 @@ function CourseDetail() {
   const [error, setError] = useState<string | null>(null);
   const [isAssigned, setIsAssigned] = useState(false);
   const [showSection, setShowSection] = useState<Record<string, boolean>>({});
+  const [showSubsection, setShowSubsection] = useState<Record<string, boolean>>({});
   const [sections, setSections] = useState<Section[]>([]);
   const [sectionContents, setSectionContents] = useState<Record<string, Content[]>>({});
+  const [sectionSubsections, setSectionSubsections] = useState<Record<string, any[]>>({});
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [loadingQuizzes, setLoadingQuizzes] = useState(true);
   const [quizError, setQuizError] = useState<string | null>(null);
@@ -125,7 +127,9 @@ function CourseDetail() {
       
       const coursesCollection = collection(db, "courses");
       const q = query(coursesCollection, where("slug", "==", slug));
+      console.log('[DEBUG] Querying courses with slug:', slug);
       const querySnapshot = await getDocs(q);
+      console.log('[DEBUG] Query returned', querySnapshot.docs.length, 'documents');
       
       if (querySnapshot.empty) {
         console.log('[DEBUG] No course found with slug:', slug);
@@ -134,16 +138,55 @@ function CourseDetail() {
         return;
       }
       
-      const courseDoc = querySnapshot.docs[0];
+      // Sprawdź wszystkie znalezione kursy
+      console.log('[DEBUG] Found courses:');
+      querySnapshot.docs.forEach((doc, index) => {
+        console.log(`[DEBUG] Course ${index}:`, {
+          id: doc.id,
+          title: doc.data().title,
+          slug: doc.data().slug,
+          assignedUsers: doc.data().assignedUsers
+        });
+      });
+      
+      // Znajdź kurs z przypisanymi użytkownikami (nowy kurs) lub weź pierwszy
+      let courseDoc = querySnapshot.docs[0]; // fallback
+      for (const doc of querySnapshot.docs) {
+        const courseData = doc.data();
+        if (courseData.assignedUsers && courseData.assignedUsers.length > 0) {
+          console.log('[DEBUG] Found course with assigned users:', doc.id);
+          courseDoc = doc;
+          break;
+        }
+      }
+      
+      console.log('[DEBUG] Selected course:', {
+        id: courseDoc.id,
+        title: courseDoc.data().title,
+        assignedUsers: courseDoc.data().assignedUsers
+      });
       const courseData = courseDoc.data() as DocumentData;
       console.log('[DEBUG] Course data from Firestore:', courseData);
+      console.log('[DEBUG] Course ID from Firestore:', courseDoc.id);
+      console.log('[DEBUG] Course slug from Firestore:', courseData.slug);
+      console.log('[DEBUG] Course assignedUsers from Firestore:', courseData.assignedUsers);
+      console.log('[DEBUG] Course assignedUsers type:', typeof courseData.assignedUsers);
+      console.log('[DEBUG] Course assignedUsers isArray:', Array.isArray(courseData.assignedUsers));
+      console.log('[DEBUG] Course assignedUsers length:', courseData.assignedUsers?.length);
+      console.log('[DEBUG] Course sections from Firestore:', courseData.sections);
+      console.log('[DEBUG] Course sections type:', typeof courseData.sections);
+      console.log('[DEBUG] Course sections isArray:', Array.isArray(courseData.sections));
+      console.log('[DEBUG] Course sections length:', courseData.sections?.length);
+      console.log('[DEBUG] Course all fields:', Object.keys(courseData));
+      console.log('[DEBUG] Course bannerUrl:', courseData.bannerUrl);
+      console.log('[DEBUG] Course thumbnail:', courseData.thumbnail);
       
       const mappedCourse: Course = {
         id: courseDoc.id,
         title: courseData.title || 'Kurs bez tytułu',
         slug: courseData.slug || slug,
         description: courseData.description || 'Brak opisu kursu',
-        thumbnail: courseData.thumbnail || '/puzzleicon.png',
+        thumbnail: courseData.bannerUrl || courseData.thumbnail || '/puzzleicon.png',
         level: courseData.level || 'Podstawowy',
         subject: courseData.subject || '',
         year_of_study: courseData.year_of_study || 1,
@@ -153,6 +196,7 @@ function CourseDetail() {
         teacherEmail: courseData.teacherEmail || '',
         instructor_name: courseData.instructor_name,
         assignedUsers: courseData.assignedUsers || [],
+        assignedClasses: courseData.assignedClasses || [],
         sections: courseData.sections || [],
         pdfUrls: courseData.pdfUrls || [],
         links: courseData.links || [],
@@ -162,28 +206,44 @@ function CourseDetail() {
       };
       
       console.log('[DEBUG] Mapped course:', mappedCourse);
+      console.log('[DEBUG] Final thumbnail value:', mappedCourse.thumbnail);
       setCourse(mappedCourse);
       setSections(courseData.sections || []);
       
       // Debug logging for sections
       console.log('[DEBUG] Raw sections from courseData:', courseData.sections);
       console.log('[DEBUG] Sections state after setSections:', courseData.sections || []);
+      console.log('[DEBUG] Course has sections field:', 'sections' in courseData);
+      console.log('[DEBUG] Course has lessons field:', 'lessons' in courseData);
+      console.log('[DEBUG] Course has materials field:', 'materials' in courseData);
+      console.log('[DEBUG] Course lessons:', courseData.lessons);
+      console.log('[DEBUG] Course materials:', courseData.materials);
       
       // Pobierz zawartość sekcji - obsłuż obie struktury: starą (contents) i nową (subsections)
       if (courseData.sections && courseData.sections.length > 0) {
         const contents: Record<string, Content[]> = {};
+        const subsections: Record<string, any[]> = {};
         for (const section of courseData.sections) {
           console.log('[DEBUG] Processing section:', section);
           console.log('[DEBUG] Section has contents:', !!section.contents);
           console.log('[DEBUG] Section has subsections:', !!section.subsections);
+          console.log('[DEBUG] Section subsections length:', section.subsections?.length);
+          console.log('[DEBUG] Section contents length:', section.contents?.length);
           
           // Obsłuż nową strukturę (subsections)
           if (section.subsections && section.subsections.length > 0) {
             console.log('[DEBUG] Using NEW structure (subsections) for section:', section.id);
+            // Zapisz podsekcje osobno
+            subsections[section.id] = section.subsections;
             // Zbierz wszystkie materiały z podsekcji
             const allMaterials: Content[] = [];
-            section.subsections.forEach((subsection: any) => {
+            section.subsections.forEach((subsection: any, index: number) => {
+              console.log(`[DEBUG] Processing subsection ${index}:`, subsection);
+              console.log(`[DEBUG] Subsection ${index} has materials:`, !!subsection.materials);
+              console.log(`[DEBUG] Subsection ${index} materials length:`, subsection.materials?.length);
+              
               if (subsection.materials && subsection.materials.length > 0) {
+                console.log(`[DEBUG] Adding materials from subsection ${index}`);
                 subsection.materials.forEach((material: any) => {
                   allMaterials.push({
                     id: material.id,
@@ -198,6 +258,21 @@ function CourseDetail() {
                     created_by: material.createdBy || material.created_by || ""
                   });
                 });
+              } else {
+                // Dodaj podsekcję bez materiałów jako pusty element
+                console.log(`[DEBUG] Adding empty subsection ${index}:`, subsection.name);
+                allMaterials.push({
+                  id: subsection.id || `subsection-${index}`,
+                  name: subsection.name || `Podsekcja ${index + 1}`,
+                  type: "text",
+                  text: "Ta podsekcja nie ma jeszcze materiałów",
+                  fileUrl: undefined,
+                  link: undefined,
+                  order: subsection.order || index,
+                  created_at: subsection.createdAt || new Date().toISOString(),
+                  updated_at: subsection.updatedAt || new Date().toISOString(),
+                  created_by: subsection.createdBy || ""
+                });
               }
             });
             contents[section.id] = allMaterials;
@@ -209,9 +284,16 @@ function CourseDetail() {
             contents[section.id] = section.contents;
             console.log('[DEBUG] Section contents for', section.id, ':', section.contents);
           }
+          // Sekcja bez zawartości - dodaj pustą tablicę
+          else {
+            console.log('[DEBUG] Section has no content, adding empty array for:', section.id);
+            contents[section.id] = [];
+          }
         }
         setSectionContents(contents);
+        setSectionSubsections(subsections);
         console.log('[DEBUG] Final sectionContents:', contents);
+        console.log('[DEBUG] Final sectionSubsections:', subsections);
       } else {
         console.log('[DEBUG] No sections found in courseData');
       }
@@ -219,9 +301,40 @@ function CourseDetail() {
       // Sprawdź czy użytkownik jest przypisany do kursu
       if (user) {
         const assignedUsers = courseData.assignedUsers || [];
-        const isUserAssigned = assignedUsers.includes(user.uid) || assignedUsers.includes(user.email);
+        console.log('🔍 DEBUGGING COURSE ACCESS:');
+        console.log('👤 Current user:', { uid: user.uid, email: user.email, role: user.role });
+        console.log('📚 Course assignedUsers:', assignedUsers);
+        console.log('📚 Course assignedUsers type:', typeof assignedUsers);
+        console.log('📚 Course assignedUsers length:', assignedUsers.length);
+        console.log('📚 Course assignedUsers isArray:', Array.isArray(assignedUsers));
+        console.log('📚 Course has assignedUsers field:', 'assignedUsers' in courseData);
+        console.log('📚 Course all fields:', Object.keys(courseData));
+        console.log('🔍 Checking access:');
+        console.log('  - Is admin?', user.role === 'admin');
+        console.log('  - UID in assignedUsers?', assignedUsers.includes(user.uid));
+        console.log('  - Email in assignedUsers?', assignedUsers.includes(user.email));
+        console.log('  - Exact email match?', assignedUsers.some((u: any) => u === user.email));
+        console.log('  - Exact UID match?', assignedUsers.some((u: any) => u === user.uid));
+        
+        // Sprawdź czy kurs jest aktywny
+        const isCourseActive = courseData.is_active !== false;
+        console.log('📚 Course is_active:', courseData.is_active);
+        console.log('📚 Course isCourseActive:', isCourseActive);
+        
+        // Superadmin ma dostęp do wszystkich kursów
+        const isUserAssigned = (user.role === 'admin' || 
+                              assignedUsers.includes(user.uid) || 
+                              assignedUsers.includes(user.email)) && isCourseActive;
+        
+        console.log('✅ Final access result:', isUserAssigned);
         setIsAssigned(isUserAssigned);
-        console.log('[DEBUG] User assignment check:', { userUid: user.uid, userEmail: user.email, assignedUsers, isUserAssigned });
+        
+        if (!isUserAssigned) {
+          console.error('❌ USER DOES NOT HAVE ACCESS TO COURSE!');
+          console.error('❌ User UID:', user.uid);
+          console.error('❌ User email:', user.email);
+          console.error('❌ Assigned users:', assignedUsers);
+        }
       }
       
       setLoading(false);
@@ -485,7 +598,7 @@ function CourseDetail() {
   useEffect(() => {
     console.log('[DEBUG] Sections state changed:', sections);
     console.log('[DEBUG] Section contents state:', sectionContents);
-    console.log('[DEBUG] Materials count:', sections.filter(s => s.type === 'material').length);
+    console.log('[DEBUG] Materials count:', sections.filter(s => s.type === 'material' || s.type === 'aktywnosc').length);
     console.log('[DEBUG] Tasks count:', sections.filter(s => s.type === 'assignment').length);
     console.log('[DEBUG] Exams count:', sections.filter(s => s.type === 'form').length);
   }, [sections, sectionContents]);
@@ -689,7 +802,7 @@ function CourseDetail() {
 
   // Calculate course statistics
   const totalQuizzes = quizzes.length;
-  const totalMaterials = sections.filter(s => s.type === 'material').length;
+  const totalMaterials = sections.filter(s => s.type === 'material' || s.type === 'aktywnosc').length;
   const totalTasks = sections.filter(s => s.type === 'assignment').length;
   const totalExams = sections.filter(s => s.type === 'form').length;
   
@@ -1176,12 +1289,85 @@ function CourseDetail() {
             {sections.length > 0 ? (
               <div className="space-y-6">
                 {sections
-                  .filter(section => section.type === 'material')
+                  .filter(section => section.type === 'material' || section.type === 'aktywnosc')
                   .map(section => (
-                    <div key={section.id} className="bg-gray-50 rounded-xl p-6">
-                      <h4 className="text-lg font-semibold text-gray-800 mb-4">{section.name}</h4>
-                      <div className="space-y-3">
-                                                {sectionContents[section.id]?.map((item: Content) => (
+                    <div key={section.id} className="bg-gray-50 rounded-xl border border-gray-200">
+                      {/* Nagłówek sekcji z przyciskiem zwijania */}
+                      <div 
+                        className="flex items-center justify-between px-6 py-4 cursor-pointer hover:bg-gray-100 rounded-t-xl"
+                        onClick={() => setShowSection(prev => ({...prev, [section.id]: !prev[section.id]}))}
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className="text-[#4067EC]">
+                            {showSection[section.id] ? <FaChevronUp /> : <FaChevronDown />}
+                          </span>
+                          <h4 className="text-lg font-semibold text-gray-800">{section.name}</h4>
+                        </div>
+                        <span className="text-sm text-gray-500">
+                          {sectionContents[section.id]?.length || 0} materiałów
+                        </span>
+                      </div>
+                      
+                      {/* Zawartość sekcji */}
+                      {showSection[section.id] && (
+                        <div className="px-6 pb-6 space-y-3">
+                        {/* Renderuj podsekcje jeśli istnieją */}
+                        {sectionSubsections[section.id] && sectionSubsections[section.id].length > 0 ? (
+                          sectionSubsections[section.id].map((subsection: any, index: number) => (
+                            <div key={subsection.id || index} className="bg-white rounded-lg border border-gray-200">
+                              {/* Nagłówek podsekcji z przyciskiem zwijania */}
+                              <div 
+                                className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-50 rounded-t-lg"
+                                onClick={() => setShowSubsection(prev => ({...prev, [subsection.id]: !prev[subsection.id]}))}
+                              >
+                                <div className="flex items-center gap-3">
+                                  <span className="text-[#4067EC]">
+                                    {showSubsection[subsection.id] ? <FaChevronUp /> : <FaChevronDown />}
+                                  </span>
+                                  <h5 className="font-semibold text-gray-800">{subsection.name}</h5>
+                                </div>
+                                <span className="text-sm text-gray-500">
+                                  {subsection.materials?.length || 0} materiałów
+                                </span>
+                              </div>
+                              
+                              {/* Zawartość podsekcji */}
+                              {showSubsection[subsection.id] && (
+                                <div className="px-4 pb-4">
+                                  {subsection.materials && subsection.materials.length > 0 ? (
+                                    subsection.materials.map((material: any) => (
+                                      <div key={material.id} className="bg-gray-50 rounded-lg p-4 mt-2">
+                                        <div className="flex items-center gap-3 mb-2">
+                                          {material.type === 'video' && <span className="text-2xl text-[#4067EC]">🎥</span>}
+                                          {material.type === 'text' && <span className="text-2xl text-[#4067EC]">📝</span>}
+                                          <span className="font-medium">{material.title || material.name}</span>
+                                        </div>
+                                        {material.description && (
+                                          <p className="text-sm text-gray-600 mb-2">{material.description}</p>
+                                        )}
+                                        {material.youtubeUrl && (
+                                          <div className="mt-2">
+                                            <YouTubePlayer youtubeUrl={material.youtubeUrl} />
+                                          </div>
+                                        )}
+                                        {material.content && (
+                                          <div className="text-sm text-gray-700 mt-2">
+                                            {material.content}
+                                          </div>
+                                        )}
+                                      </div>
+                                    ))
+                                  ) : (
+                                    <div className="text-center py-4 text-gray-500">
+                                      <p className="text-sm">Ta podsekcja nie ma jeszcze materiałów</p>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          ))
+                        ) : sectionContents[section.id] && sectionContents[section.id].length > 0 ? (
+                          sectionContents[section.id].map((item: Content) => (
                           <div key={item.id} className="bg-white rounded-lg border border-gray-200 overflow-hidden">
                             
                             {/* Header z ikoną i tytułem */}
@@ -1233,8 +1419,17 @@ function CourseDetail() {
                               </div>
                             )}
                           </div>
-                        ))}
-                      </div>
+                        ))
+                        ) : (
+                          <div className="text-center py-4 text-gray-500">
+                            <p className="text-sm">Ta sekcja nie ma jeszcze materiałów</p>
+                            <p className="text-xs text-gray-400 mt-1">
+                              ID sekcji: {section.id}
+                            </p>
+                          </div>
+                        )}
+                        </div>
+                      )}
                     </div>
                   ))}
               </div>

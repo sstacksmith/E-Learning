@@ -21,4 +21,11 @@ urlpatterns = [
     path('api/set-teacher-role-api/', views.set_teacher_role, name='set-teacher-role'),
     path('api/set-admin-role-api/', views.set_admin_role, name='set-admin-role'),
     path('api/set-student-role-api/', views.set_student_role, name='set-student-role'),
+    
+    # 🆕 NOWE ENDPOINTS DLA ZARZĄDZANIA KLASAMI
+    path('classes/create/', views.create_class, name='create-class'),
+    path('classes/list/', views.get_classes, name='get-classes'),
+    path('classes/assign-course/', views.assign_course_to_class, name='assign-course-to-class'),
+    path('classes/add-student/', views.add_student_to_class, name='add-student-to-class'),
+    path('classes/remove-student/', views.remove_student_from_class, name='remove-student-from-class'),
 ]

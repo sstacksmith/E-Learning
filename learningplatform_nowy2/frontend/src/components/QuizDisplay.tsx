@@ -2,18 +2,21 @@
 
 import { useState, useEffect } from 'react';
 import { MathEditor } from './MathEditor';
+import MathView from './MathView';
 import useApi from '../hooks/useApi';
 
 interface Answer {
   id: string;
   content: string;
-  type: 'text' | 'math';
+  mathContent?: string;
+  type: 'text' | 'math' | 'mixed';
 }
 
 interface Question {
   id: string;
   content: string;
-  type: 'text' | 'math';
+  mathContent?: string;
+  type: 'text' | 'math' | 'mixed' | 'open';
   answers: Answer[];
 }
 
@@ -119,14 +122,16 @@ export const QuizDisplay: React.FC<QuizDisplayProps> = ({ quizId }) => {
               Question {currentQuestionIndex + 1} of {quiz.questions.length}
             </h3>
             
-            {currentQuestion.type === 'math' ? (
-              <MathEditor
-                initialValue={currentQuestion.content}
-                readOnly={true}
-              />
-            ) : (
-              <p className="mb-4">{currentQuestion.content}</p>
-            )}
+            <div className="mb-4">
+              {currentQuestion.content && (
+                <p className="mb-2">{currentQuestion.content}</p>
+              )}
+              {currentQuestion.mathContent && (
+                <div className="p-3 border rounded bg-gray-50">
+                  <MathView content={currentQuestion.mathContent} />
+                </div>
+              )}
+            </div>
 
             <div className="space-y-2">
               {currentQuestion.answers.map((answer) => (
@@ -138,14 +143,16 @@ export const QuizDisplay: React.FC<QuizDisplayProps> = ({ quizId }) => {
                     onChange={() => handleAnswerSelect(currentQuestion.id, answer.id)}
                     className="form-radio"
                   />
-                  {answer.type === 'math' ? (
-                    <MathEditor
-                      initialValue={answer.content}
-                      readOnly={true}
-                    />
-                  ) : (
-                    <span>{answer.content}</span>
-                  )}
+                  <div className="flex-1">
+                    {answer.content && (
+                      <span className="block mb-1">{answer.content}</span>
+                    )}
+                    {answer.mathContent && (
+                      <div className="p-2 border rounded bg-gray-50">
+                        <MathView content={answer.mathContent} />
+                      </div>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>

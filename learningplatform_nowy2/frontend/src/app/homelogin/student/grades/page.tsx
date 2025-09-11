@@ -8,12 +8,16 @@ import { ArrowLeft } from 'lucide-react';
 
 interface Grade {
   id: string;
-  subject: string;
-  grade: string;
-  description: string;
-  date: string;
-  teacherId: string;
-  gradeType?: string;
+  user_id: string;
+  course_id: string;
+  value: number;
+  comment?: string;
+  graded_by: string;
+  graded_at: string;
+  quiz_id?: string;
+  quiz_title?: string;
+  subject?: string;
+  grade_type?: string;
 }
 
 interface GroupedGrades {
@@ -25,7 +29,7 @@ function GradesPageContent() {
   const [grades, setGrades] = useState<Grade[]>([]);
   const [loading, setLoading] = useState(true);
   const [displayName, setDisplayName] = useState<string>('');
-  const [toast, setToast] = useState<{grade: string, description: string, date: string, gradeType?: string} | null>(null);
+  const [toast, setToast] = useState<{grade: number, description: string, date: string, gradeType?: string} | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -44,7 +48,7 @@ function GradesPageContent() {
     if (!user) return;
     const fetchGrades = async () => {
       setLoading(true);
-      const gradesQuery = query(collection(db, 'grades'), where('studentId', '==', user.uid));
+      const gradesQuery = query(collection(db, 'grades'), where('user_id', '==', user.uid));
       const gradesSnapshot = await getDocs(gradesQuery);
       const gradesList = gradesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Grade));
       setGrades(gradesList);
@@ -55,37 +59,35 @@ function GradesPageContent() {
 
   // Grupowanie ocen po przedmiocie i sortowanie po dacie rosnąco
   const groupedGrades: GroupedGrades = grades.reduce((acc, grade) => {
-    if (!acc[grade.subject]) acc[grade.subject] = [];
-    acc[grade.subject].push(grade);
+    const subject = grade.subject || 'Inne';
+    if (!acc[subject]) acc[subject] = [];
+    acc[subject].push(grade);
     return acc;
   }, {} as GroupedGrades);
   // Sortuj oceny w każdym przedmiocie po dacie rosnąco
   Object.keys(groupedGrades).forEach(subject => {
     groupedGrades[subject].sort((a, b) => {
       // Jeśli data nie istnieje, traktuj jako najstarszą
-      if (!a.date) return -1;
-      if (!b.date) return 1;
-      return new Date(a.date).getTime() - new Date(b.date).getTime();
+      if (!a.graded_at) return -1;
+      if (!b.graded_at) return 1;
+      return new Date(a.graded_at).getTime() - new Date(b.graded_at).getTime();
     });
   });
 
   // Funkcja do określania koloru badge na podstawie oceny
-  function getGradeColor(grade: string) {
-    if (grade === '5' || grade === '6') return 'bg-green-400 text-white';
-    if (grade === '4') return 'bg-lime-400 text-white';
-    if (grade === '3') return 'bg-yellow-300 text-gray-800';
-    if (grade === '2') return 'bg-orange-400 text-white';
-    if (grade === '1') return 'bg-red-500 text-white';
-    if (grade === '+') return 'bg-blue-200 text-gray-800';
-    if (grade === '-') return 'bg-gray-300 text-gray-800';
-    // inne przypadki, np. opisowe
-    return 'bg-gray-200 text-gray-800';
+  function getGradeColor(grade: number) {
+    if (grade === 5) return 'bg-green-500 text-white';
+    if (grade === 4) return 'bg-blue-500 text-white';
+    if (grade === 3) return 'bg-yellow-500 text-white';
+    if (grade === 2) return 'bg-orange-500 text-white';
+    if (grade === 1) return 'bg-red-500 text-white';
+    return 'bg-gray-500 text-white';
   }
 
   // Funkcja do liczenia średniej ocen (tylko liczbowych)
   function calculateAverage(grades: Grade[]): string {
     const numericGrades = grades
-      .map(g => parseFloat(g.grade.replace(',', '.')))
+      .map(g => g.value)
       .filter(n => !isNaN(n));
     if (numericGrades.length === 0) return '-';
     const avg = numericGrades.reduce((a, b) => a + b, 0) / numericGrades.length;
@@ -155,28 +157,28 @@ function GradesPageContent() {
                       key={grade.id} 
                       className="bg-gray-50 rounded-lg p-4 border border-gray-200 hover:border-[#4067EC] transition-colors cursor-pointer"
                       onClick={() => setToast({
-                        grade: grade.grade,
-                        description: grade.description,
-                        date: grade.date,
-                        gradeType: grade.gradeType
+                        grade: grade.value,
+                        description: grade.comment || 'Brak opisu',
+                        date: grade.graded_at,
+                        gradeType: grade.grade_type
                       })}
                     >
                       <div className="flex items-center justify-between mb-3">
-                        <span className={`px-3 py-1 rounded-full text-sm font-semibold ${getGradeColor(grade.grade)}`}>
-                          {grade.grade}
+                        <span className={`px-3 py-1 rounded-full text-sm font-semibold ${getGradeColor(grade.value)}`}>
+                          {grade.value}
                         </span>
                         <span className="text-xs text-gray-500">
-                          {grade.date ? new Date(grade.date).toLocaleDateString('pl-PL') : 'Brak daty'}
+                          {grade.graded_at ? new Date(grade.graded_at).toLocaleDateString('pl-PL') : 'Brak daty'}
                         </span>
                       </div>
                       
                       <h4 className="font-medium text-gray-800 mb-2 line-clamp-2">
-                        {grade.description}
+                        {grade.comment || 'Brak opisu'}
                       </h4>
                       
-                      {grade.gradeType && (
+                      {grade.grade_type && (
                         <span className="text-xs text-gray-500 bg-gray-200 px-2 py-1 rounded">
-                          {grade.gradeType}
+                          {grade.grade_type}
                         </span>
                       )}
                     </div>

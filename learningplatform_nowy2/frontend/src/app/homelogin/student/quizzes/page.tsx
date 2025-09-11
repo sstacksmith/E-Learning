@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/config/firebase';
-import { QuizDisplay } from '@/components/QuizDisplay';
+import { FirebaseQuizDisplay } from '@/components/FirebaseQuizDisplay';
 import Providers from '@/components/Providers';
 import { ArrowLeft } from 'lucide-react';
 
@@ -19,9 +19,21 @@ interface Quiz {
   max_attempts: number;
 }
 
+interface QuizAttempt {
+  id: string;
+  user_id: string;
+  quiz_id: string;
+  started_at: string;
+  completed_at?: string;
+  score?: number;
+  answers: Record<string, string>;
+  time_spent?: number;
+}
+
 function StudentQuizzesPageContent() {
   const { user } = useAuth();
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
+  const [quizAttempts, setQuizAttempts] = useState<Record<string, QuizAttempt[]>>({});
   const [loading, setLoading] = useState(true);
   const [selectedQuiz, setSelectedQuiz] = useState<Quiz | null>(null);
 
@@ -40,10 +52,19 @@ function StudentQuizzesPageContent() {
         const coursesSnapshot = await getDocs(coursesCollection);
         const userCourses = coursesSnapshot.docs
           .map(doc => ({ id: doc.id, ...doc.data() }))
-          .filter((course: any) => 
-            course.assignedUsers && 
-            (course.assignedUsers.includes(user.uid) || course.assignedUsers.includes(user.email))
-          );
+          .filter((course: any) => {
+            // Sprawdź czy kurs jest przypisany bezpośrednio do użytkownika
+            const isDirectlyAssigned = course.assignedUsers && 
+              (course.assignedUsers.includes(user.uid) || course.assignedUsers.includes(user.email));
+            
+            // Sprawdź czy użytkownik jest w klasie, która ma przypisane kursy
+            const isInAssignedClass = course.assignedClasses && course.assignedClasses.length > 0 &&
+              user.classes && user.classes.some((classId: string) => 
+                course.assignedClasses.includes(classId)
+              );
+            
+            return isDirectlyAssigned || isInAssignedClass;
+          });
 
         // Filtruj quizy tylko do kursów ucznia
         const availableQuizzes = quizzesSnapshot.docs
@@ -53,6 +74,27 @@ function StudentQuizzesPageContent() {
           );
 
         setQuizzes(availableQuizzes);
+
+        // Pobierz próby użytkownika dla wszystkich quizów
+        const attemptsMap: Record<string, QuizAttempt[]> = {};
+        
+        for (const quiz of availableQuizzes) {
+          const attemptsQuery = query(
+            collection(db, 'quiz_attempts'),
+            where('quiz_id', '==', quiz.id),
+            where('user_id', '==', user.uid)
+          );
+          
+          const attemptsSnapshot = await getDocs(attemptsQuery);
+          const attempts = attemptsSnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          })) as QuizAttempt[];
+          
+          attemptsMap[quiz.id] = attempts;
+        }
+        
+        setQuizAttempts(attemptsMap);
       } catch (error) {
         console.error('Error fetching quizzes:', error);
       } finally {
@@ -84,7 +126,7 @@ function StudentQuizzesPageContent() {
           >
             ← Powrót do listy quizów
           </button>
-          <QuizDisplay quizId={selectedQuiz.id} />
+          <FirebaseQuizDisplay quizId={selectedQuiz.id} onBack={() => setSelectedQuiz(null)} />
         </div>
       </div>
     );
@@ -124,24 +166,70 @@ function StudentQuizzesPageContent() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-            {quizzes.map((quiz) => (
-              <div key={quiz.id} className="bg-[#F8F9FB] rounded-xl p-4 md:p-6 border border-gray-200 hover:border-[#4067EC] transition-colors">
-                <div className="mb-4">
-                  <h3 className="text-lg md:text-xl font-semibold text-gray-800 mb-2">{quiz.title}</h3>
-                  <p className="text-gray-600 text-sm mb-3">{quiz.description}</p>
-                  <div className="flex flex-wrap gap-2">
-                    <span className="px-2 py-1 bg-[#4067EC] text-white text-xs rounded-full">{quiz.subject}</span>
-                    <span className="px-2 py-1 bg-gray-200 text-gray-700 text-xs rounded-full">{quiz.course_title}</span>
+            {quizzes.map((quiz) => {
+              const attempts = quizAttempts[quiz.id] || [];
+              const completedAttempts = attempts.filter(attempt => attempt.completed_at);
+              const canStartNewAttempt = completedAttempts.length < quiz.max_attempts;
+              const bestScore = completedAttempts.length > 0 
+                ? Math.max(...completedAttempts.map(attempt => attempt.score || 0))
+                : null;
+
+              return (
+                <div key={quiz.id} className="bg-[#F8F9FB] rounded-xl p-4 md:p-6 border border-gray-200 hover:border-[#4067EC] transition-colors">
+                  <div className="mb-4">
+                    <h3 className="text-lg md:text-xl font-semibold text-gray-800 mb-2">{quiz.title}</h3>
+                    <p className="text-gray-600 text-sm mb-3">{quiz.description}</p>
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      <span className="px-2 py-1 bg-[#4067EC] text-white text-xs rounded-full">{quiz.subject}</span>
+                      <span className="px-2 py-1 bg-gray-200 text-gray-700 text-xs rounded-full">{quiz.course_title}</span>
+                    </div>
+                    
+                    {/* Informacje o próbach */}
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-600">Próby:</span>
+                        <span className="font-medium">
+                          {completedAttempts.length}/{quiz.max_attempts}
+                        </span>
+                      </div>
+                      
+                      {bestScore !== null && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-600">Najlepszy wynik:</span>
+                          <span className={`font-medium px-2 py-1 rounded text-xs ${
+                            bestScore >= 50 
+                              ? 'bg-green-100 text-green-800' 
+                              : 'bg-red-100 text-red-800'
+                          }`}>
+                            {bestScore}%
+                          </span>
+                        </div>
+                      )}
+                      
+                      {!canStartNewAttempt && (
+                        <div className="text-center">
+                          <span className="text-orange-600 text-xs font-medium">
+                            ⚠️ Limit prób przekroczony
+                          </span>
+                        </div>
+                      )}
+                    </div>
                   </div>
+                  
+                  <button
+                    onClick={() => setSelectedQuiz(quiz)}
+                    disabled={!canStartNewAttempt}
+                    className={`w-full py-2 px-4 rounded-lg font-medium transition-colors ${
+                      canStartNewAttempt
+                        ? 'bg-[#4067EC] text-white hover:bg-[#3050b3]'
+                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    }`}
+                  >
+                    {canStartNewAttempt ? 'Rozpocznij quiz' : 'Limit prób przekroczony'}
+                  </button>
                 </div>
-                <button
-                  onClick={() => setSelectedQuiz(quiz)}
-                  className="w-full bg-[#4067EC] text-white py-2 px-4 rounded-lg font-medium hover:bg-[#3050b3] transition-colors"
-                >
-                  Rozpocznij quiz
-                </button>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
         </div>

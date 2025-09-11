@@ -29,6 +29,9 @@ function renderContentIcon(item: any, isExpanded?: boolean) {
   if (item.type === 'activity') {
     return <span className="text-xl">🎯</span>;
   }
+  if (item.type === 'quiz') {
+    return <span className="text-xl">❓</span>;
+  }
   if (item.fileUrl || item.file) {
     return <FaFilePdf className="text-xl text-red-600" />;
   }
@@ -72,7 +75,12 @@ function StudentCourseDetailContent() {
         // Sprawdź czy uczeń ma dostęp do kursu
         const assignedUsers = courseData.assignedUsers || [];
         console.log('Assigned users array:', assignedUsers);
-        const hasAccess = assignedUsers.includes(user?.email) || assignedUsers.includes(user?.uid);
+        console.log('Current user role:', user?.role);
+        
+        // Superadmin ma dostęp do wszystkich kursów
+        const hasAccess = user?.role === 'admin' || 
+                         assignedUsers.includes(user?.email) || 
+                         assignedUsers.includes(user?.uid);
         console.log('Has access to course:', hasAccess);
         
         if (!hasAccess) {
@@ -440,6 +448,27 @@ function StudentCourseDetailContent() {
                                                 <FaFilePdf className="text-sm" />
                                                 Pobierz plik
                                               </a>
+                                            </div>
+                                          )}
+
+                                          {/* Quiz Display */}
+                                          {material.type === 'quiz' && material.quizId && (
+                                            <div className="px-3 pb-3">
+                                              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                                <div className="flex items-center gap-2 mb-2">
+                                                  <span className="text-blue-600">❓</span>
+                                                  <h6 className="font-medium text-blue-900">Quiz dostępny</h6>
+                                                </div>
+                                                <p className="text-sm text-blue-700 mb-3">
+                                                  Kliknij poniżej, aby rozpocząć quiz.
+                                                </p>
+                                                <button
+                                                  onClick={() => window.open(`/courses/${course?.slug}/quiz/${material.quizId}`, '_blank')}
+                                                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                                                >
+                                                  Rozpocznij quiz
+                                                </button>
+                                              </div>
                                             </div>
                                           )}
 

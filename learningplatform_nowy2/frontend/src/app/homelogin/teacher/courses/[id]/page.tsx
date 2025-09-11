@@ -12,6 +12,7 @@ import VideoPlayer from '@/components/VideoPlayer';
 import YouTubePlayer from '@/components/YouTubePlayer';
 import dynamic from 'next/dynamic';
 import { ArrowLeft } from 'lucide-react';
+import { QuizAssignmentModal } from '@/components/QuizAssignmentModal';
 // Dynamiczny import MDXEditor
 const MDXEditor = dynamic(() => import('@mdxeditor/editor').then(mod => mod.MDXEditor), { ssr: false });
 import {
@@ -92,7 +93,7 @@ interface Material {
   id: string | number;
   title: string;
   description?: string;
-  type: "text" | "file" | "task" | "exam" | "activity" | "video";
+  type: "text" | "file" | "task" | "exam" | "activity" | "video" | "quiz";
   subsectionId: string | number;
   order: number;
   deadline?: string;
@@ -102,6 +103,7 @@ interface Material {
   content?: string;
   questions?: Question[];
   submissions?: Submission[];
+  quizId?: string; // ID quizu przypisanego do lekcji
   createdAt: string;
   updatedAt: string;
   createdBy: string;
@@ -135,6 +137,7 @@ interface Student {
   displayName: string;
   email: string;
   role?: string;
+  classes?: string[]; // 🆕 NOWE - ID klas do których należy uczeń
 }
 
 interface Quiz {
@@ -174,6 +177,7 @@ function TeacherCourseDetailContent() {
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [loadingQuizzes, setLoadingQuizzes] = useState(true);
   const [quizError, setQuizError] = useState<string | null>(null);
+  const [showQuizAssignmentModal, setShowQuizAssignmentModal] = useState(false);
 
   // Nowe zmienne dla zarządzania uczniami
   const [studentSearchTerm, setStudentSearchTerm] = useState<string>("");
@@ -198,18 +202,21 @@ function TeacherCourseDetailContent() {
   // Nowe stany dla podsekcji i materiałów
   const [showSubsection, setShowSubsection] = useState<{[id:number]: boolean}>({});
   const [addingSubsection, setAddingSubsection] = useState<number | null>(null);
+  const [editingSubsection, setEditingSubsection] = useState<number | null>(null);
   const [newSubsection, setNewSubsection] = useState<{name: string, description: string}>({name: '', description: ''});
+  const [editSubsection, setEditSubsection] = useState<{name: string, description: string}>({name: '', description: ''});
   const [addingMaterial, setAddingMaterial] = useState<number | null>(null);
   const [newMaterial, setNewMaterial] = useState<{
     title: string;
     description: string;
-    type: "text" | "file" | "task" | "exam" | "activity" | "video";
+    type: "text" | "file" | "task" | "exam" | "activity" | "video" | "quiz";
     deadline?: string;
     content?: string;
     file?: File | null;
     video?: File | null;
     youtubeUrl?: string;
     videoSource?: "upload" | "youtube";
+    quizId?: string;
   }>({
     title: '',
     description: '',
@@ -219,20 +226,86 @@ function TeacherCourseDetailContent() {
     file: null,
     video: null,
     youtubeUrl: '',
-    videoSource: 'upload'
+    videoSource: 'upload',
+    quizId: ''
   });
   const [editingContentId, setEditingContentId] = useState<number | null>(null);
   const [editContent, setEditContent] = useState<SectionContent | null>(null);
+  
+  // Stan do zarządzania quizami
+  const [availableQuizzes, setAvailableQuizzes] = useState<any[]>([]);
+  const [showQuizSelector, setShowQuizSelector] = useState(false);
+
+  // Funkcja do pobierania dostępnych quizów
+  const fetchAvailableQuizzes = async () => {
+    try {
+      const { collection, getDocs, query, where } = await import('firebase/firestore');
+      const quizzesCollection = collection(db, 'quizzes');
+      const quizzesSnapshot = await getDocs(quizzesCollection);
+      
+      const quizzes = quizzesSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      
+      setAvailableQuizzes(quizzes);
+    } catch (error) {
+      console.error('Error fetching quizzes:', error);
+    }
+  };
+
+  // Funkcja do przypisywania quizu do lekcji
+  const handleAssignQuizToLesson = (quizId: string, quizTitle: string) => {
+    setNewMaterial(prev => ({
+      ...prev,
+      quizId: quizId,
+      title: quizTitle,
+      type: 'quiz'
+    }));
+    setShowQuizSelector(false);
+  };
 
   // Fetch students from Firestore
   useEffect(() => {
     const fetchStudents = async () => {
-      const usersCollection = collection(db, "users");
-      const usersSnapshot = await getDocs(usersCollection);
-      const studentsList = usersSnapshot.docs
-        .map(doc => ({ uid: doc.id, ...doc.data() } as Student))
-        .filter(user => user && user.role === "student");
-      setStudents(studentsList);
+      try {
+        const usersCollection = collection(db, "users");
+        const usersSnapshot = await getDocs(usersCollection);
+        
+        // Pobierz wszystkie klasy, żeby sprawdzić do których należy uczeń
+        const classesCollection = collection(db, "classes");
+        const classesSnapshot = await getDocs(classesCollection);
+        const classesData = classesSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        
+        // Mapuj uczniów i dodaj informacje o klasach
+        const studentsList = usersSnapshot.docs
+          .map(doc => {
+            const userData = doc.data();
+            if (userData.role === "student") {
+              // Znajdź klasy do których należy uczeń
+              const userClasses = classesData
+                .filter(cls => cls.students && cls.students.includes(doc.id))
+                .map(cls => cls.id);
+              
+              return {
+                uid: doc.id,
+                ...userData,
+                classes: userClasses
+              } as Student;
+            }
+            return null;
+          })
+          .filter(Boolean) as Student[];
+        
+        setStudents(studentsList);
+        console.log('Fetched students with classes:', studentsList);
+      } catch (error) {
+        console.error('Error fetching students:', error);
+        setStudents([]);
+      }
     };
     fetchStudents();
   }, [setStudents]);
@@ -321,40 +394,107 @@ function TeacherCourseDetailContent() {
     fetchAssigned();
   }, [courseId, setAssignedUsers]);
 
-  // Fetch quizzes for this course
+  // 🆕 NOWE - Automatyczna synchronizacja uczniów z klas przypisanych do kursu
   useEffect(() => {
-    const fetchQuizzes = async () => {
-      if (!courseId) return;
+    const syncClassStudents = async () => {
+      if (!courseId || !course?.assignedClasses?.length) return;
       
       try {
-        setLoadingQuizzes(true);
-        setQuizError(null);
+        console.log('Synchronizacja uczniów z klas dla kursu:', courseId);
+        console.log('Przypisane klasy:', course.assignedClasses);
         
-        console.log('Fetching quizzes for course:', courseId);
-        const quizzesCollection = collection(db, 'quizzes');
-        const quizzesQuery = query(
-          quizzesCollection,
-          where('course_id', '==', courseId)
-        );
+        // Pobierz wszystkich uczniów z przypisanych klas
+        const studentsFromClasses = new Set<string>();
         
-        const quizzesSnapshot = await getDocs(quizzesQuery);
-        const quizzesList = quizzesSnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        })) as Quiz[];
+        for (const classId of course.assignedClasses) {
+          const classRef = doc(db, 'classes', classId);
+          const classDoc = await getDoc(classRef);
+          
+          if (classDoc.exists()) {
+            const classData = classDoc.data();
+            const classStudents = classData.students || [];
+            classStudents.forEach((studentId: string) => {
+              studentsFromClasses.add(studentId);
+            });
+            console.log(`Klasa ${classId} ma ${classStudents.length} uczniów`);
+          }
+        }
         
-        console.log('Found quizzes for course:', quizzesList);
-        setQuizzes(quizzesList);
+        // Pobierz aktualnych przypisanych uczniów
+        const courseRef = doc(db, 'courses', String(courseId));
+        const courseDoc = await getDoc(courseRef);
+        
+        if (courseDoc.exists()) {
+          const courseData = courseDoc.data();
+          const currentAssignedUsers = new Set(courseData.assignedUsers || []);
+          
+          // Dodaj uczniów z klas do kursu jeśli nie są już przypisani
+          let newStudentsAdded = 0;
+          studentsFromClasses.forEach(studentId => {
+            if (!currentAssignedUsers.has(studentId)) {
+              currentAssignedUsers.add(studentId);
+              newStudentsAdded++;
+            }
+          });
+          
+          // Zaktualizuj kurs jeśli dodano nowych uczniów
+          if (newStudentsAdded > 0) {
+            await updateDoc(courseRef, {
+              assignedUsers: Array.from(currentAssignedUsers),
+              updated_at: new Date().toISOString()
+            });
+            
+            console.log(`Dodano ${newStudentsAdded} uczniów z klas do kursu`);
+            
+            // Odśwież listę przypisanych uczniów
+            window.location.reload(); // Proste odświeżenie - może być optymalizowane
+          }
+        }
       } catch (error) {
-        console.error('Error fetching quizzes:', error);
-        setQuizError('Nie udało się załadować quizów');
-      } finally {
-        setLoadingQuizzes(false);
+        console.error('Błąd synchronizacji uczniów z klas:', error);
       }
     };
     
-    fetchQuizzes();
+    // Uruchom synchronizację po załadowaniu kursu
+    if (course && !loading) {
+      syncClassStudents();
+    }
+  }, [course, courseId, loading]);
+
+  // Fetch quizzes for this course
+  const fetchQuizzes = useCallback(async () => {
+    if (!courseId) return;
+    
+    try {
+      setLoadingQuizzes(true);
+      setQuizError(null);
+      
+      console.log('Fetching quizzes for course:', courseId);
+      const quizzesCollection = collection(db, 'quizzes');
+      const quizzesQuery = query(
+        quizzesCollection,
+        where('course_id', '==', courseId)
+      );
+      
+      const quizzesSnapshot = await getDocs(quizzesQuery);
+      const quizzesList = quizzesSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Quiz[];
+      
+      console.log('Found quizzes for course:', quizzesList);
+      setQuizzes(quizzesList);
+    } catch (error) {
+      console.error('Error fetching quizzes:', error);
+      setQuizError('Nie udało się załadować quizów');
+    } finally {
+      setLoadingQuizzes(false);
+    }
   }, [courseId]);
+
+  useEffect(() => {
+    fetchQuizzes();
+  }, [fetchQuizzes]);
 
   // Filtrowanie dostępnych uczniów (nie przypisanych do kursu + wyszukiwanie)
   const filteredAvailableStudents = students.filter(student => {
@@ -363,12 +503,18 @@ function TeacherCourseDetailContent() {
       assigned.uid === student.uid || assigned.email === student.email
     );
     
+    // 🆕 NOWE - Sprawdź czy uczeń nie jest w klasie przypisanej do kursu
+    const isNotInAssignedClass = !course?.assignedClasses?.some(classId => {
+      // Sprawdź czy uczeń jest w tej klasie
+      return classId && student.classes && student.classes.includes(classId);
+    });
+    
     // Sprawdź czy pasuje do wyszukiwania
     const matchesSearch = !studentSearchTerm || 
       student.displayName?.toLowerCase().includes(studentSearchTerm.toLowerCase()) ||
       student.email?.toLowerCase().includes(studentSearchTerm.toLowerCase());
     
-    return isNotAssigned && matchesSearch;
+    return isNotAssigned && isNotInAssignedClass && matchesSearch;
   });
 
   // Funkcje do zarządzania wyborem uczniów
@@ -1197,6 +1343,73 @@ function TeacherCourseDetailContent() {
     }
   };
 
+  // Funkcja do otwierania edycji podsekcji
+  const openEditSubsection = (subsection: Subsection) => {
+    setEditSubsection({
+      name: subsection.name,
+      description: subsection.description || ''
+    });
+    setEditingSubsection(subsection.id as number);
+  };
+
+  // Funkcja do anulowania edycji podsekcji
+  const cancelEditSubsection = () => {
+    setEditingSubsection(null);
+    setEditSubsection({name: '', description: ''});
+  };
+
+  // Nowa funkcja do edycji podsekcji
+  const handleEditSubsection = async (sectionId: number, subsectionId: number, newName: string, newDescription: string) => {
+    if (!newName.trim()) return;
+    
+    const newSections = sections.map(section =>
+      section.id === sectionId
+        ? {
+            ...section,
+            subsections: (section.subsections || []).map(sub => 
+              sub.id === subsectionId
+                ? {
+                    ...sub,
+                    name: newName.trim(),
+                    description: newDescription.trim() || undefined,
+                    updatedAt: new Date().toISOString()
+                  }
+                : sub
+            )
+          }
+        : section
+    );
+
+    setSections(newSections);
+    setEditingSubsection(null);
+    setEditSubsection({name: '', description: ''});
+
+    // Funkcja do usuwania undefined wartości
+    const cleanData = (obj: any): any => {
+      if (obj === null || obj === undefined) return null;
+      if (Array.isArray(obj)) {
+        return obj.map(cleanData).filter(item => item !== null && item !== undefined);
+      }
+      if (typeof obj === 'object') {
+        const cleaned: any = {};
+        for (const [key, value] of Object.entries(obj)) {
+          if (value !== undefined) {
+            cleaned[key] = cleanData(value);
+          }
+        }
+        return cleaned;
+      }
+      return obj;
+    };
+
+    if (courseId) {
+      const courseRef = doc(db, "courses", String(courseId));
+      const cleanedSections = cleanData(newSections);
+      await updateDoc(courseRef, { sections: cleanedSections });
+      await refreshCourseData();
+    }
+  };
+
   // Nowe funkcje dla materiałów
   const handleAddMaterial = async (subsectionId: number) => {
     // Walidacja formularza
@@ -1254,6 +1467,7 @@ function TeacherCourseDetailContent() {
       youtubeUrl: newMaterial.youtubeUrl?.trim() || undefined,
       content: newMaterial.content || undefined,
       questions: newMaterial.type === 'exam' ? [] : undefined,
+      quizId: newMaterial.type === 'quiz' ? newMaterial.quizId : undefined,
       submissions: [],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -1288,7 +1502,8 @@ function TeacherCourseDetailContent() {
           file: null,
           video: null,
           youtubeUrl: '',
-          videoSource: 'upload'
+          videoSource: 'upload',
+          quizId: ''
         });
     setAddingMaterial(null);
 
@@ -1878,6 +2093,48 @@ function TeacherCourseDetailContent() {
                   </div>
                 )}
 
+                {/* Formularz edycji podsekcji */}
+                {editingSubsection && (
+                  <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200 mb-4">
+                    <h4 className="font-semibold text-yellow-800 mb-3">Edytuj podsekcję</h4>
+                    <div className="space-y-3">
+                      <input
+                        type="text"
+                        placeholder="Nazwa podsekcji"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                        value={editSubsection.name}
+                        onChange={e => setEditSubsection(prev => ({...prev, name: e.target.value}))}
+                      />
+                      <textarea
+                        placeholder="Opis podsekcji (opcjonalny)"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                        rows={3}
+                        value={editSubsection.description}
+                        onChange={e => setEditSubsection(prev => ({...prev, description: e.target.value}))}
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            const section = sections.find(s => s.subsections?.some(sub => sub.id === editingSubsection));
+                            if (section) {
+                              handleEditSubsection(Number(section.id), editingSubsection, editSubsection.name, editSubsection.description);
+                            }
+                          }}
+                          className="bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700"
+                        >
+                          Zapisz
+                        </button>
+                        <button
+                          onClick={cancelEditSubsection}
+                          className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600"
+                        >
+                          Anuluj
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Lista podsekcji */}
                 <div className="space-y-4 mb-4">
                   {(!section.subsections || section.subsections.length === 0) ? (
@@ -1916,6 +2173,16 @@ function TeacherCourseDetailContent() {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
+                                openEditSubsection(subsection);
+                              }}
+                              className="text-green-600 hover:text-green-800"
+                              title="Edytuj podsekcję"
+                            >
+                              ✏️
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 handleDeleteSubsection(Number(section.id), Number(subsection.id));
                               }}
                               className="text-red-500 hover:text-red-700"
@@ -1934,14 +2201,15 @@ function TeacherCourseDetailContent() {
                               <div className="bg-blue-50 p-4 rounded-lg border border-blue-200 mb-4">
                                 <h5 className="font-semibold text-blue-800 mb-3">Dodaj materiał</h5>
                                 <div className="space-y-3">
-                                  <div className="grid grid-cols-2 md:grid-cols-6 gap-2">
+                                  <div className="grid grid-cols-2 md:grid-cols-7 gap-2">
                                     {[
                                       { type: 'text', label: 'Tekst', icon: '📄' },
                                       { type: 'file', label: 'Plik', icon: '📎' },
                                       { type: 'video', label: 'Video', icon: '🎥' },
                                       { type: 'task', label: 'Zadanie', icon: '📝' },
                                       { type: 'exam', label: 'Egzamin', icon: '🎓' },
-                                      { type: 'activity', label: 'Aktywność', icon: '🎯' }
+                                      { type: 'activity', label: 'Aktywność', icon: '🎯' },
+                                      { type: 'quiz', label: 'Quiz', icon: '❓' }
                                     ].map(({ type, label, icon }) => (
                                       <button
                                         key={type}
@@ -2126,6 +2394,52 @@ function TeacherCourseDetailContent() {
                                     />
                                   )}
 
+                                  {newMaterial.type === 'quiz' && (
+                                    <div className="space-y-3">
+                                      <div className="flex items-center justify-between">
+                                        <label className="block text-sm font-medium text-gray-700">
+                                          Wybierz quiz
+                                        </label>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            fetchAvailableQuizzes();
+                                            setShowQuizSelector(true);
+                                          }}
+                                          className="text-blue-600 hover:text-blue-800 text-sm"
+                                        >
+                                          Odśwież listę quizów
+                                        </button>
+                                      </div>
+                                      
+                                      {newMaterial.quizId ? (
+                                        <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                                          <p className="text-sm text-green-800">
+                                            ✅ Quiz wybrany: {newMaterial.title}
+                                          </p>
+                                          <button
+                                            type="button"
+                                            onClick={() => setNewMaterial(prev => ({...prev, quizId: '', title: ''}))}
+                                            className="text-red-600 hover:text-red-800 text-sm mt-1"
+                                          >
+                                            Usuń wybór
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            fetchAvailableQuizzes();
+                                            setShowQuizSelector(true);
+                                          }}
+                                          className="w-full p-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-gray-400 text-gray-600 hover:text-gray-800"
+                                        >
+                                          Kliknij, aby wybrać quiz
+                                        </button>
+                                      )}
+                                    </div>
+                                  )}
+
                                   <div className="flex gap-2">
                                     <button
                                       onClick={() => handleAddMaterial(Number(subsection.id))}
@@ -2173,6 +2487,7 @@ function TeacherCourseDetailContent() {
                                         {material.type === 'task' && '📝'}
                                         {material.type === 'exam' && '🎓'}
                                         {material.type === 'activity' && '🎯'}
+                                        {material.type === 'quiz' && '❓'}
                                       </div>
                                       <div className="flex-1">
                                         <h5 className="font-medium text-gray-800">{material.title}</h5>
@@ -2223,6 +2538,35 @@ function TeacherCourseDetailContent() {
                                           title={material.title}
                                           className="w-full h-64"
                                         />
+                                      </div>
+                                    )}
+
+                                    {/* Quiz Display */}
+                                    {material.type === 'quiz' && material.quizId && (
+                                      <div className="px-3 pb-3">
+                                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                          <div className="flex items-center gap-2 mb-2">
+                                            <span className="text-blue-600">❓</span>
+                                            <h6 className="font-medium text-blue-900">Quiz przypisany</h6>
+                                          </div>
+                                          <p className="text-sm text-blue-700 mb-3">
+                                            Ten materiał zawiera quiz. Studenci będą mogli go rozwiązać po kliknięciu.
+                                          </p>
+                                          <div className="flex gap-2">
+                                            <button
+                                              onClick={() => window.open(`/courses/${course?.slug}/quiz/${material.quizId}`, '_blank')}
+                                              className="text-sm bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 transition"
+                                            >
+                                              Podgląd quizu
+                                            </button>
+                                            <button
+                                              onClick={() => window.open(`/homelogin/teacher/quizzes`, '_blank')}
+                                              className="text-sm bg-gray-600 text-white px-3 py-1 rounded hover:bg-gray-700 transition"
+                                            >
+                                              Edytuj quiz
+                                            </button>
+                                          </div>
+                                        </div>
                                       </div>
                                     )}
                                   </div>
@@ -2384,7 +2728,13 @@ function TeacherCourseDetailContent() {
             </div>
           )}
           
-          <div className="mt-6 text-center">
+          <div className="mt-6 flex justify-center gap-4">
+            <button
+              onClick={() => setShowQuizAssignmentModal(true)}
+              className="inline-flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-green-700 transition"
+            >
+              <FaPlus /> Przypisz quizy
+            </button>
             <button
               onClick={() => window.open(`/homelogin/teacher/quizzes`, '_blank')}
               className="inline-flex items-center gap-2 bg-[#4067EC] text-white px-4 py-2 rounded-lg font-semibold hover:bg-[#3155d4] transition"
@@ -2395,6 +2745,71 @@ function TeacherCourseDetailContent() {
         </div>
         </div>
       </div>
+
+      {/* Quiz Selector Modal */}
+      {showQuizSelector && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+            <div className="flex items-center justify-between p-6 border-b">
+              <h3 className="text-lg font-semibold text-gray-900">Wybierz quiz do przypisania</h3>
+              <button
+                onClick={() => setShowQuizSelector(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-6 max-h-[60vh] overflow-y-auto">
+              {availableQuizzes.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-gray-500">Brak dostępnych quizów</p>
+                  <button
+                    onClick={() => window.open(`/homelogin/teacher/quizzes`, '_blank')}
+                    className="mt-4 text-blue-600 hover:text-blue-800"
+                  >
+                    Utwórz nowy quiz
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {availableQuizzes.map((quiz) => (
+                    <div
+                      key={quiz.id}
+                      className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 cursor-pointer transition-colors"
+                      onClick={() => handleAssignQuizToLesson(quiz.id, quiz.title)}
+                    >
+                      <h4 className="font-semibold text-gray-900 mb-2">{quiz.title}</h4>
+                      <p className="text-gray-600 text-sm mb-3">{quiz.description}</p>
+                      <div className="space-y-1 text-sm text-gray-500">
+                        <div>Pytania: {quiz.questions?.length || 0}</div>
+                        <div>Maksymalne próby: {quiz.max_attempts || 1}</div>
+                        <div>Utworzono: {new Date(quiz.created_at).toLocaleDateString('pl-PL')}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end gap-3 p-6 border-t">
+              <button
+                onClick={() => setShowQuizSelector(false)}
+                className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300"
+              >
+                Anuluj
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quiz Assignment Modal */}
+      <QuizAssignmentModal
+        isOpen={showQuizAssignmentModal}
+        onClose={() => setShowQuizAssignmentModal(false)}
+        courseId={courseId}
+        courseTitle={course?.title || ''}
+        onQuizAssigned={fetchQuizzes}
+      />
     </div>
   );
 }

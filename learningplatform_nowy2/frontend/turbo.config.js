@@ -20,7 +20,7 @@ module.exports = {
     },
   },
   
-  // SVG loader configuration
+  // SVG loader configuration for Next.js 15
   rules: {
     "*.svg": {
       loaders: ["@svgr/webpack"],

@@ -106,9 +106,9 @@ export default function AnkietyPage() {
     setResponses(initialResponses);
   }, []);
 
-  // Pobieranie nauczycieli
+  // Pobieranie nauczycieli i dostępnych ankiet
   useEffect(() => {
-    const fetchTeachers = async () => {
+    const fetchTeachersAndSurveys = async () => {
       try {
         console.log('Pobieranie nauczycieli z Firebase...');
         const teachersQuery = query(collection(db, 'users'), where('role', '==', 'teacher'));
@@ -123,14 +123,37 @@ export default function AnkietyPage() {
         })));
         
         setTeachers(teachersList);
+
+        // 🆕 NOWE - Pobierz dostępne ankiety
+        console.log('Pobieranie dostępnych ankiet...');
+        const surveysQuery = query(
+          collection(db, 'surveyTemplates'),
+          where('isActive', '==', true)
+        );
+        const surveysSnapshot = await getDocs(surveysQuery);
+        const availableSurveys = surveysSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+
+        console.log(`Znaleziono ${availableSurveys.length} dostępnych ankiet`);
+        
+        // Filtruj nauczycieli tylko do tych, którzy mają aktywne ankiety
+        const teachersWithSurveys = teachersList.filter(teacher => 
+          availableSurveys.some(survey => survey.created_by === teacher.uid)
+        );
+        
+        console.log(`Nauczyciele z aktywnymi ankietami: ${teachersWithSurveys.length}`);
+        setTeachers(teachersWithSurveys);
+        
       } catch (error) {
-        console.error('Błąd podczas pobierania nauczycieli:', error);
+        console.error('Błąd podczas pobierania nauczycieli i ankiet:', error);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchTeachers();
+    fetchTeachersAndSurveys();
   }, []);
 
   // Pobieranie średnich ocen nauczycieli
@@ -246,6 +269,19 @@ export default function AnkietyPage() {
         return;
       }
 
+      // 🆕 NOWE - Pobierz szablon ankiety dla tego nauczyciela
+      const surveysQuery = query(
+        collection(db, 'surveyTemplates'),
+        where('created_by', '==', selectedTeacher),
+        where('isActive', '==', true)
+      );
+      const surveysSnapshot = await getDocs(surveysQuery);
+      
+      let surveyTemplate = null;
+      if (!surveysSnapshot.empty) {
+        surveyTemplate = { id: surveysSnapshot.docs[0].id, ...surveysSnapshot.docs[0].data() };
+      }
+
       // Przygotowanie danych do zapisu
       const surveyData = {
         teacherId: selectedTeacher,
@@ -257,7 +293,9 @@ export default function AnkietyPage() {
         submittedAt: serverTimestamp(),
         isAnonymous: true, // Zapewnienie anonimowości
         totalScore: Object.values(responses).reduce((sum, score) => sum + score, 0),
-        averageScore: Object.values(responses).reduce((sum, score) => sum + score, 0) / Object.keys(responses).length
+        averageScore: Object.values(responses).reduce((sum, score) => sum + score, 0) / Object.keys(responses).length,
+        surveyTemplateId: surveyTemplate?.id || null, // 🆕 NOWE - ID szablonu ankiety
+        surveyTitle: surveyTemplate?.title || 'Ankieta nauczyciela' // 🆕 NOWE - Tytuł ankiety
       };
 
       // Logowanie danych przed zapisem

@@ -7,6 +7,9 @@ export interface User extends FirebaseDocument {
   role: 'student' | 'teacher' | 'admin';
   isActive: boolean;
   lastLogin: string | null;
+  classes?: string[]; // 🆕 NOWE - ID klas do których należy uczeń
+  primaryTutorId?: string; // 🆕 NOWE - ID głównego tutora
+  assignedTutors?: string[]; // 🆕 NOWE - ID przypisanych tutorów
   metadata: Record<string, unknown>;
 }
 
@@ -23,7 +26,8 @@ export interface Course extends FirebaseDocument {
   is_active: boolean;
   teacherEmail: string;
   instructor_name?: string;
-  assignedUsers: string[];
+  assignedUsers: string[]; // 🚨 ZACHOWUJĘ - kompatybilność wsteczna
+  assignedClasses: string[]; // 🆕 NOWE - ID klas przypisanych do kursu
   sections: Section[];
   pdfUrls: string[];
   links: string[];
@@ -96,6 +100,7 @@ export interface QuizAttempt extends FirebaseDocument {
   score?: number;
   answers: Record<string, string>;
   time_spent?: number;
+  attempt_number?: number; // 🆕 NOWE - numer próby (1, 2, 3, itd.)
 }
 
 export interface Grade extends FirebaseDocument {
@@ -105,6 +110,10 @@ export interface Grade extends FirebaseDocument {
   comment?: string;
   graded_by: string;
   graded_at: string;
+  quiz_id?: string; // 🆕 NOWE - ID quizu z którego pochodzi ocena
+  quiz_title?: string; // 🆕 NOWE - tytuł quizu
+  subject?: string; // 🆕 NOWE - przedmiot
+  grade_type?: string; // 🆕 NOWE - typ oceny (np. "Quiz", "Sprawdzian")
 }
 
 export interface Event extends FirebaseDocument {
@@ -156,5 +165,26 @@ export interface UserStats extends FirebaseDocument {
   current_streak: number;
   best_streak: number;
   last_activity: string;
+  metadata?: Record<string, unknown>;
+}
+
+// 🆕 NOWY INTERFEJS DLA KLAS
+export interface Class extends FirebaseDocument {
+  name: string;
+  description?: string;
+  grade_level: number; // np. 1, 2, 3 dla podstawówki
+  subject?: string; // opcjonalnie dla klas przedmiotowych
+  teacher_id: string; // ID nauczyciela prowadzącego
+  teacher_email: string;
+  students: string[]; // Array z ID studentów
+  assignedCourses?: string[]; // 🆕 NOWE - ID kursów przypisanych do klasy
+  max_students?: number;
+  is_active: boolean;
+  academic_year: string; // np. "2024/2025"
+  schedule?: {
+    day: string;
+    time: string;
+    duration: number;
+  }[];
   metadata?: Record<string, unknown>;
 }

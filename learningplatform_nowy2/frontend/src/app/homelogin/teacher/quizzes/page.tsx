@@ -87,6 +87,7 @@ export default function QuizManagementPage() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
   const [selectedQuiz, setSelectedQuiz] = useState<Quiz | null>(null);
+  const [editingQuestionIndex, setEditingQuestionIndex] = useState<number | null>(null);
   
   const { user, loading } = useAuth();
   const router = useRouter();
@@ -336,6 +337,22 @@ export default function QuizManagementPage() {
     }));
   };
 
+  const handleEditQuestion = (questionIndex: number, updatedQuestion: Question) => {
+    setNewQuiz((prev) => ({
+      ...prev,
+      questions: prev.questions.map((q, index) => 
+        index === questionIndex ? updatedQuestion : q
+      ),
+    }));
+  };
+
+  const handleRemoveQuestion = (questionIndex: number) => {
+    setNewQuiz((prev) => ({
+      ...prev,
+      questions: prev.questions.filter((_, index) => index !== questionIndex),
+    }));
+  };
+
   const filteredCourses = courses.filter(course => 
     course.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     course.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -350,6 +367,7 @@ export default function QuizManagementPage() {
     setIsCreating(false);
     setIsEditing(false);
     setEditingQuiz(null);
+    setEditingQuestionIndex(null);
     setNewQuiz({
       title: '',
       description: '',
@@ -565,20 +583,31 @@ export default function QuizManagementPage() {
               ) : (
                 <div className="space-y-4">
                   {newQuiz.questions.map((question, index) => (
-                    <div key={question.id} className="border border-gray-200 rounded-lg p-4">
+                    <div key={`question-${index}`} className="border border-gray-200 rounded-lg p-4">
                       <div className="flex items-center justify-between mb-2">
                         <h4 className="font-medium">Pytanie {index + 1}</h4>
-                        <button
-                          onClick={() => {
-                            setNewQuiz(prev => ({
-                              ...prev,
-                              questions: prev.questions.filter((_, i) => i !== index)
-                            }));
-                          }}
-                          className="text-red-500 hover:text-red-700"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <div className="flex space-x-2">
+                          <button
+                            onClick={() => {
+                              console.log('Edytuj pytanie kliknięte, index:', index);
+                              console.log('Pytanie do edycji:', newQuiz.questions[index]);
+                              // Set the question to edit mode
+                              setEditingQuestionIndex(index);
+                              console.log('editingQuestionIndex ustawiony na:', index);
+                            }}
+                            className="text-blue-500 hover:text-blue-700"
+                            title="Edytuj pytanie"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleRemoveQuestion(index)}
+                            className="text-red-500 hover:text-red-700"
+                            title="Usuń pytanie"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                       <p className="text-gray-600 mb-2">{question.content}</p>
                       <div className="text-sm text-gray-500">
@@ -592,9 +621,37 @@ export default function QuizManagementPage() {
               )}
               
               <div className="mt-4">
+                {console.log('Rendering QuizQuestionEditor, editingQuestionIndex:', editingQuestionIndex)}
+                {console.log('Initial question:', editingQuestionIndex !== null ? newQuiz.questions[editingQuestionIndex] : undefined)}
                 <QuizQuestionEditor
-                  onSave={(question) => handleAddQuestion(question)}
+                  initialQuestion={editingQuestionIndex !== null ? newQuiz.questions[editingQuestionIndex] : undefined}
+                  onSave={(question) => {
+                    console.log('QuizQuestionEditor onSave called with:', question);
+                    if (editingQuestionIndex !== null) {
+                      console.log('Editing question at index:', editingQuestionIndex);
+                      handleEditQuestion(editingQuestionIndex, question);
+                      setEditingQuestionIndex(null);
+                    } else {
+                      console.log('Adding new question');
+                      handleAddQuestion(question);
+                    }
+                  }}
                 />
+                {editingQuestionIndex !== null && (
+                  <div className="mt-2 text-center">
+                    <div className="bg-blue-100 border border-blue-300 rounded-lg p-3 mb-2">
+                      <p className="text-blue-800 font-medium">
+                        ✏️ Edytujesz pytanie {editingQuestionIndex + 1}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setEditingQuestionIndex(null)}
+                      className="text-sm text-gray-500 hover:text-gray-700"
+                    >
+                      Anuluj edycję
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>

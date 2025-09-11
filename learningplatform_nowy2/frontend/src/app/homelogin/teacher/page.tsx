@@ -4,6 +4,8 @@ import { useAuth } from '@/context/AuthContext';
 import { useRouter } from "next/navigation";
 import { db } from '@/config/firebase';
 import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
+import ClassManagement from '@/components/ClassManagement';
+import TutorManagement from '@/components/TutorManagement';
 import {
   BookOpen,
   Users,
@@ -13,7 +15,8 @@ import {
   MessageSquare,
   Award,
   TrendingUp,
-  Clock
+  Clock,
+  UserPlus
 } from 'lucide-react';
 
 interface StatCard {
@@ -27,7 +30,7 @@ interface StatCard {
 
 interface RecentActivity {
   id: string;
-  type: 'course' | 'student' | 'grade' | 'quiz' | 'assignment';
+  type: 'course' | 'student' | 'grade' | 'quiz' | 'assignment' | 'survey';
   title: string;
   description: string;
   timestamp: string;
@@ -52,6 +55,8 @@ export default function TeacherDashboard() {
   const { user } = useAuth();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [showClassManagement, setShowClassManagement] = useState(false);
+  const [showTutorManagement, setShowTutorManagement] = useState(false);
   const [stats, setStats] = useState({
     courses: 0,
     students: 0,
@@ -421,6 +426,47 @@ export default function TeacherDashboard() {
         }
       }
       
+      // 🆕 NOWE - Pobierz ankiety nauczyciela
+      console.log('Fetching teacher surveys...');
+      try {
+        const surveysQuery = query(
+          collection(db, 'teacherSurveys'),
+          where('teacherId', '==', user.uid)
+        );
+        const surveysSnapshot = await getDocs(surveysQuery);
+        
+        console.log(`Found ${surveysSnapshot.docs.length} surveys for teacher`);
+        
+        surveysSnapshot.docs.forEach(doc => {
+          const survey = doc.data();
+          console.log('Survey result:', survey);
+          
+          let timestamp = 'Nieznana data';
+          try {
+            if (survey.submittedAt && survey.submittedAt.toDate) {
+              timestamp = survey.submittedAt.toDate().toLocaleString('pl-PL');
+            } else if (survey.submittedAt) {
+              timestamp = new Date(survey.submittedAt).toLocaleString('pl-PL');
+            }
+          } catch (error) {
+            console.error('Error parsing survey date:', error);
+          }
+          
+          activities.push({
+            id: `survey-${doc.id}`,
+            type: 'survey',
+            title: 'Nowa ankieta',
+            description: `Uczeń wypełnił ankietę oceniającą - średnia ocena: ${survey.averageScore?.toFixed(1) || 'N/A'}/10`,
+            timestamp: timestamp,
+            icon: Award
+          });
+          
+          console.log('Added survey activity');
+        });
+      } catch (error) {
+        console.error('Error fetching teacher surveys:', error);
+      }
+      
       console.log(`Total activities before sorting: ${activities.length}`);
       
       // Sortuj aktywności po czasie (najnowsze pierwsze)
@@ -595,6 +641,31 @@ export default function TeacherDashboard() {
                   <div className="text-sm text-gray-600">Komunikuj się</div>
                 </div>
               </button>
+
+              <button
+                onClick={() => setShowClassManagement(true)}
+                className="w-full flex items-center gap-3 p-3 text-left rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+              >
+                <Users className="h-5 w-5 text-indigo-600" />
+                <div>
+                  <div className="font-medium text-gray-900">Zarządzaj Klasami</div>
+                  <div className="text-sm text-gray-600">Twórz klasy i dodawaj uczniów</div>
+                </div>
+              </button>
+
+              {/* Admin Only - Tutor Management */}
+              {isAdmin && (
+                <button
+                  onClick={() => setShowTutorManagement(true)}
+                  className="w-full flex items-center gap-3 p-3 text-left rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+                >
+                  <UserPlus className="h-5 w-5 text-teal-600" />
+                  <div>
+                    <div className="font-medium text-gray-900">Zarządzaj Tutorami</div>
+                    <div className="text-sm text-gray-600">Przypisz tutorów do studentów</div>
+                  </div>
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -643,6 +714,16 @@ export default function TeacherDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Modal zarządzania klasami */}
+      {showClassManagement && (
+        <ClassManagement onClose={() => setShowClassManagement(false)} />
+      )}
+
+      {/* Modal zarządzania tutorami */}
+      {showTutorManagement && (
+        <TutorManagement onClose={() => setShowTutorManagement(false)} />
+      )}
     </div>
   );
 } 

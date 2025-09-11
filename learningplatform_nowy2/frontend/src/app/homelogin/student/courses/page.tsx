@@ -42,10 +42,19 @@ function StudentCoursesContent() {
         
         const userCourses = coursesSnapshot.docs
           .map(doc => ({ id: doc.id, ...doc.data() }))
-          .filter((course: any) => 
-            course.assignedUsers && 
-            (course.assignedUsers.includes(user.uid) || course.assignedUsers.includes(user.email))
-          )
+          .filter((course: any) => {
+            // Sprawdź czy kurs jest przypisany bezpośrednio do użytkownika
+            const isDirectlyAssigned = course.assignedUsers && 
+              (course.assignedUsers.includes(user.uid) || course.assignedUsers.includes(user.email));
+            
+            // 🆕 NOWE - Sprawdź czy użytkownik jest w klasie, która ma przypisane kursy
+            const isInAssignedClass = course.assignedClasses && course.assignedClasses.length > 0 &&
+              user.classes && user.classes.some((classId: string) => 
+                course.assignedClasses.includes(classId)
+              );
+            
+            return isDirectlyAssigned || isInAssignedClass;
+          })
           .map((course: any) => ({
             id: course.id,
             title: course.title || 'Brak tytułu',

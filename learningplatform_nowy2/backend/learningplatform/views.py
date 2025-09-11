@@ -480,10 +480,8 @@ def assign_course(request):
     course_id = request.data.get('course_id')
     firebase_uid = request.data.get('firebase_uid')
     email = request.data.get('email')
-    print(f"assign_course: course_id={course_id}, firebase_uid={firebase_uid}, email={email}")
-    
-    if not email:
-        return Response({'success': False, 'error': 'Brak email ucznia!'}, status=400)
+    class_id = request.data.get('class_id')  # 🆕 NOWE - ID klasy
+    print(f"assign_course: course_id={course_id}, firebase_uid={firebase_uid}, email={email}, class_id={class_id}")
     
     try:
         # Pracuj bezpośrednio z Firestore
@@ -497,11 +495,32 @@ def assign_course(request):
         # Pobierz aktualne dane kursu
         current_data = course_doc.to_dict()
         assigned_users = current_data.get('assignedUsers', [])
+        assigned_classes = current_data.get('assignedClasses', [])  # 🆕 NOWE
         
-        # Dodaj użytkownika jeśli nie istnieje
-        user_identifier = firebase_uid if firebase_uid else email
-        if user_identifier not in assigned_users:
-            assigned_users.append(user_identifier)
+        # 🆕 LOGIKA PRZYPISYWANIA DO KLASY
+        if class_id:
+            # Sprawdź czy klasa istnieje
+            class_ref = db.collection('classes').document(str(class_id))
+            if not class_ref.get().exists:
+                return Response({'success': False, 'error': 'Klasa nie została znaleziona!'}, status=404)
+            
+            # Dodaj klasę do kursu jeśli nie istnieje
+            if class_id not in assigned_classes:
+                assigned_classes.append(class_id)
+                course_ref.update({
+                    'assignedClasses': assigned_classes,
+                    'updated_at': timezone.now().isoformat()
+                })
+                logger.info(f"Class {class_id} assigned to course {course_id}")
+            
+            # Pobierz wszystkich studentów z klasy i dodaj ich do kursu
+            class_data = class_ref.get().to_dict()
+            class_students = class_data.get('students', [])
+            
+            # Dodaj studentów z klasy do kursu
+            for student_id in class_students:
+                if student_id not in assigned_users:
+                    assigned_users.append(student_id)
             
             # Zaktualizuj kurs w Firestore
             course_ref.update({
@@ -509,20 +528,44 @@ def assign_course(request):
                 'updated_at': timezone.now().isoformat()
             })
             
-            print(f"User {user_identifier} assigned to course {course_id} in Firestore")
-            logger.info(f"User {user_identifier} assigned to course {course_id}")
+            logger.info(f"Course {course_id} assigned to class {class_id} with {len(class_students)} students")
             
             return Response({
                 'success': True, 
-                'message': 'Uczeń został przypisany do kursu!',
-                'assigned_users': assigned_users
+                'message': f'Kurs został przypisany do klasy! Dodano {len(class_students)} studentów.',
+                'assigned_users': assigned_users,
+                'assigned_classes': assigned_classes
             })
+        
+        # 🚨 ZACHOWUJĘ ORYGINALNĄ LOGIKĘ DLA POJEDYNCZYCH UŻYTKOWNIKÓW
+        elif email:
+            # Dodaj użytkownika jeśli nie istnieje
+            user_identifier = firebase_uid if firebase_uid else email
+            if user_identifier not in assigned_users:
+                assigned_users.append(user_identifier)
+                
+                # Zaktualizuj kurs w Firestore
+                course_ref.update({
+                    'assignedUsers': assigned_users,
+                    'updated_at': timezone.now().isoformat()
+                })
+                
+                print(f"User {user_identifier} assigned to course {course_id} in Firestore")
+                logger.info(f"User {user_identifier} assigned to course {course_id}")
+                
+                return Response({
+                    'success': True, 
+                    'message': 'Uczeń został przypisany do kursu!',
+                    'assigned_users': assigned_users
+                })
+            else:
+                return Response({
+                    'success': True, 
+                    'message': 'Uczeń jest już przypisany do tego kursu!',
+                    'assigned_users': assigned_users
+                })
         else:
-            return Response({
-                'success': True, 
-                'message': 'Uczeń jest już przypisany do tego kursu!',
-                'assigned_users': assigned_users
-            })
+            return Response({'success': False, 'error': 'Musisz podać email ucznia lub ID klasy!'}, status=400)
             
     except Exception as e:
         print(f"Error in assign_course: {e}")
@@ -969,3 +1012,257 @@ class DeleteUserView(APIView):
             print(f"❌ Error deleting user: {e}")
             return Response({'error': f'Błąd podczas usuwania użytkownika: {str(e)}'}, 
                           status=status.HTTP_500_INTERNAL_SERVER_ERROR) 
+
+# 🆕 NOWE API ENDPOINTS DLA ZARZĄDZANIA KLASAMI
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def create_class(request):
+    """
+    Tworzy nową klasę w Firebase
+    """
+    if not (request.user.is_teacher or request.user.is_superuser):
+        return Response({'error': 'Brak uprawnień do tworzenia klas'}, status=403)
+    
+    try:
+        class_data = request.data
+        db = firestore.client()
+        
+        # Walidacja danych
+        required_fields = ['name', 'grade_level', 'academic_year']
+        for field in required_fields:
+            if not class_data.get(field):
+                return Response({'error': f'Pole {field} jest wymagane'}, status=400)
+        
+        # Przygotuj dane klasy
+        new_class = {
+            'name': class_data['name'],
+            'description': class_data.get('description', ''),
+            'grade_level': int(class_data['grade_level']),
+            'subject': class_data.get('subject', ''),
+            'teacher_id': request.user.firebase_uid or str(request.user.id),
+            'teacher_email': request.user.email,
+            'students': class_data.get('students', []),
+            'max_students': class_data.get('max_students', 30),
+            'is_active': True,
+            'academic_year': class_data['academic_year'],
+            'schedule': class_data.get('schedule', []),
+            'created_at': timezone.now(),
+            'updated_at': timezone.now(),
+            'metadata': class_data.get('metadata', {})
+        }
+        
+        # Zapisz w Firebase
+        class_ref = db.collection('classes').document()
+        class_ref.set(new_class)
+        
+        logger.info(f"Class created: {class_ref.id} by {request.user.email}")
+        
+        return Response({
+            'success': True,
+            'class_id': class_ref.id,
+            'message': 'Klasa została utworzona pomyślnie'
+        })
+        
+    except Exception as e:
+        logger.error(f"Error creating class: {e}")
+        return Response({'error': f'Błąd podczas tworzenia klasy: {str(e)}'}, status=500)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_classes(request):
+    """
+    Pobiera listę klas z Firebase
+    """
+    try:
+        db = firestore.client()
+        user_id = request.user.firebase_uid or str(request.user.id)
+        
+        # Pobierz klasy w zależności od roli użytkownika
+        if request.user.is_superuser:
+            # Admin widzi wszystkie klasy
+            classes_ref = db.collection('classes').where('is_active', '==', True)
+        elif request.user.is_teacher:
+            # Nauczyciel widzi swoje klasy
+            classes_ref = db.collection('classes').where('teacher_id', '==', user_id).where('is_active', '==', True)
+        else:
+            # Student widzi klasy do których jest przypisany
+            classes_ref = db.collection('classes').where('students', 'array_contains', user_id).where('is_active', '==', True)
+        
+        classes = []
+        for doc in classes_ref.stream():
+            class_data = doc.to_dict()
+            class_data['id'] = doc.id
+            classes.append(class_data)
+        
+        return Response({
+            'success': True,
+            'classes': classes
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting classes: {e}")
+        return Response({'error': f'Błąd podczas pobierania klas: {str(e)}'}, status=500)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def assign_course_to_class(request):
+    """
+    Przypisuje kurs do klasy w Firebase i automatycznie dodaje wszystkich studentów z klasy
+    """
+    if not (request.user.is_teacher or request.user.is_superuser):
+        return Response({'error': 'Brak uprawnień do przypisywania kursów'}, status=403)
+    
+    try:
+        course_id = request.data.get('course_id')
+        class_id = request.data.get('class_id')
+        
+        if not course_id or not class_id:
+            return Response({'error': 'Brak course_id lub class_id'}, status=400)
+        
+        db = firestore.client()
+        
+        # Sprawdź czy kurs istnieje
+        course_ref = db.collection('courses').document(str(course_id))
+        course_doc = course_ref.get()
+        if not course_doc.exists:
+            return Response({'error': 'Kurs nie został znaleziony'}, status=404)
+        
+        # Sprawdź czy klasa istnieje
+        class_ref = db.collection('classes').document(str(class_id))
+        class_doc = class_ref.get()
+        if not class_doc.exists:
+            return Response({'error': 'Klasa nie została znaleziona'}, status=404)
+        
+        # Pobierz aktualne dane kursu i klasy
+        course_data = course_doc.to_dict()
+        class_data = class_doc.to_dict()
+        
+        assigned_users = course_data.get('assignedUsers', [])
+        assigned_classes = course_data.get('assignedClasses', [])
+        class_students = class_data.get('students', [])
+        
+        # Dodaj klasę do kursu jeśli nie istnieje
+        if class_id not in assigned_classes:
+            assigned_classes.append(class_id)
+        
+        # Dodaj wszystkich studentów z klasy do kursu
+        students_added = 0
+        for student_id in class_students:
+            if student_id not in assigned_users:
+                assigned_users.append(student_id)
+                students_added += 1
+        
+        # Zaktualizuj kurs w Firestore
+        course_ref.update({
+            'assignedClasses': assigned_classes,
+            'assignedUsers': assigned_users,
+            'updated_at': timezone.now().isoformat()
+        })
+        
+        # Zaktualizuj klasę - dodaj kurs do assignedCourses (jeśli istnieje)
+        class_ref.update({
+            'assignedCourses': firestore.ArrayUnion([course_id]),
+            'updated_at': timezone.now()
+        })
+        
+        logger.info(f"Course {course_id} assigned to class {class_id} with {students_added} new students by {request.user.email}")
+        
+        return Response({
+            'success': True,
+            'message': f'Kurs został przypisany do klasy pomyślnie! Dodano {students_added} studentów.',
+            'students_added': students_added,
+            'total_students': len(class_students)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error assigning course to class: {e}")
+        return Response({'error': f'Błąd podczas przypisywania kursu: {str(e)}'}, status=500)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def add_student_to_class(request):
+    """
+    Dodaje studenta do klasy w Firebase
+    """
+    if not (request.user.is_teacher or request.user.is_superuser):
+        return Response({'error': 'Brak uprawnień do zarządzania klasą'}, status=403)
+    
+    try:
+        class_id = request.data.get('class_id')
+        student_email = request.data.get('student_email')
+        
+        if not class_id or not student_email:
+            return Response({'error': 'Brak class_id lub student_email'}, status=400)
+        
+        db = firestore.client()
+        
+        # Znajdź studenta po email
+        users_ref = db.collection('users').where('email', '==', student_email).limit(1)
+        user_docs = list(users_ref.stream())
+        
+        if not user_docs:
+            return Response({'error': 'Student o podanym email nie został znaleziony'}, status=404)
+        
+        student_id = user_docs[0].id
+        
+        # Sprawdź czy klasa istnieje
+        class_ref = db.collection('classes').document(str(class_id))
+        if not class_ref.get().exists:
+            return Response({'error': 'Klasa nie została znaleziona'}, status=404)
+        
+        # Dodaj studenta do klasy
+        class_ref.update({
+            'students': firestore.ArrayUnion([student_id]),
+            'updated_at': timezone.now()
+        })
+        
+        logger.info(f"Student {student_email} added to class {class_id} by {request.user.email}")
+        
+        return Response({
+            'success': True,
+            'message': 'Student został dodany do klasy pomyślnie'
+        })
+        
+    except Exception as e:
+        logger.error(f"Error adding student to class: {e}")
+        return Response({'error': f'Błąd podczas dodawania studenta: {str(e)}'}, status=500)
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def remove_student_from_class(request):
+    """
+    Usuwa studenta z klasy w Firebase
+    """
+    if not (request.user.is_teacher or request.user.is_superuser):
+        return Response({'error': 'Brak uprawnień do zarządzania klasą'}, status=403)
+    
+    try:
+        class_id = request.data.get('class_id')
+        student_id = request.data.get('student_id')
+        
+        if not class_id or not student_id:
+            return Response({'error': 'Brak class_id lub student_id'}, status=400)
+        
+        db = firestore.client()
+        
+        # Sprawdź czy klasa istnieje
+        class_ref = db.collection('classes').document(str(class_id))
+        if not class_ref.get().exists:
+            return Response({'error': 'Klasa nie została znaleziona'}, status=404)
+        
+        # Usuń studenta z klasy
+        class_ref.update({
+            'students': firestore.ArrayRemove([student_id]),
+            'updated_at': timezone.now()
+        })
+        
+        logger.info(f"Student {student_id} removed from class {class_id} by {request.user.email}")
+        
+        return Response({
+            'success': True,
+            'message': 'Student został usunięty z klasy pomyślnie'
+        })
+        
+    except Exception as e:
+        logger.error(f"Error removing student from class: {e}")
+        return Response({'error': f'Błąd podczas usuwania studenta: {str(e)}'}, status=500) 

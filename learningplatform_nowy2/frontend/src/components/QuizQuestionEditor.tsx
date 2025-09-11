@@ -1,6 +1,21 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { MathEditor } from './MathEditor';
+import MathView from './MathView';
+
+// Funkcja pomocnicza do generowania UUID
+const generateUUID = (): string => {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  // Fallback dla starszych przeglądarek
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+};
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 interface MixedContent {
@@ -36,7 +51,7 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
 }) => {
   const [question, setQuestion] = useState<QuestionData>(
     initialQuestion || {
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       content: '',
       type: 'text',
       answers: [],
@@ -50,6 +65,16 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
   const [isOpenQuestion, setIsOpenQuestion] = useState(question.type === 'open');
   const [showMathEditor, setShowMathEditor] = useState(false);
 
+  // Update question when initialQuestion changes
+  useEffect(() => {
+    if (initialQuestion) {
+      console.log('QuizQuestionEditor: initialQuestion changed, updating question state:', initialQuestion);
+      setQuestion(initialQuestion);
+      setIsMathMode(initialQuestion.type === 'math');
+      setIsOpenQuestion(initialQuestion.type === 'open');
+    }
+  }, [initialQuestion]);
+
   const handleAddAnswer = () => {
     console.log('Adding answer, current question type:', question.type);
     if (isOpenQuestion) {
@@ -58,7 +83,7 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
           ...prev,
           answers: [
             {
-              id: crypto.randomUUID(),
+              id: generateUUID(),
               content: '',
               isCorrect: true,
               type: 'mixed' as const,
@@ -75,7 +100,7 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
           answers: [
             ...prev.answers,
             {
-              id: crypto.randomUUID(),
+              id: generateUUID(),
               content: '',
               isCorrect: false,
               type: 'mixed' as const,
@@ -165,7 +190,7 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                     ...prev,
                     type: 'open' as const,
                     answers: [{
-                      id: crypto.randomUUID(),
+                      id: generateUUID(),
                       content: '',
                       isCorrect: true,
                       type: 'mixed' as const
@@ -205,6 +230,14 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
             rows={3}
             placeholder="Wpisz treść pytania..."
           />
+          {question.content && (
+            <div className="p-3 border rounded bg-gray-50">
+              <label className="block text-sm font-medium mb-2">Podgląd treści pytania:</label>
+              <div className="p-2 bg-white border rounded">
+                <p className="whitespace-pre-wrap">{question.content}</p>
+              </div>
+            </div>
+          )}
           <div className="flex items-center space-x-2">
             <button
               onClick={() => setShowMathEditor(!showMathEditor)}
@@ -224,16 +257,19 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                 Wyrażenie matematyczne
               </label>
               <div className="border rounded p-2 bg-white">
-                <textarea
-                  value={question.mathContent || ''}
-                  onChange={(e) => handleQuestionChange(e.target.value, true)}
-                  placeholder="Wpisz wyrażenie matematyczne w formacie LaTeX..."
-                  className="w-full p-2 border rounded"
-                  rows={2}
+                <MathEditor
+                  initialValue={question.mathContent || ''}
+                  onChange={(value) => handleQuestionChange(value, true)}
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  Możesz używać składni LaTeX dla wyrażeń matematycznych
+                  Użyj edytora matematycznego powyżej do tworzenia wyrażeń
                 </p>
+                {question.mathContent && (
+                  <div className="mt-2 p-2 bg-gray-100 rounded">
+                    <label className="block text-sm font-medium mb-1">Podgląd wyrażenia:</label>
+                    <MathView content={question.mathContent} />
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -253,7 +289,7 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
         </div>
         
         {question.answers.map((answer, index) => (
-          <div key={answer.id} className="space-y-2">
+          <div key={`answer-${index}`} className="space-y-2">
             <div className="flex items-center space-x-2">
               {!isOpenQuestion && (
                 <div className="w-8 text-center font-medium">
@@ -272,6 +308,14 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                     className="w-full p-2 border rounded"
                     placeholder={isOpenQuestion ? "Wpisz poprawną odpowiedź" : `Odpowiedź ${String.fromCharCode(65 + index)}`}
                   />
+                  {answer.content && (
+                    <div className="p-2 border rounded bg-gray-50">
+                      <label className="block text-sm font-medium mb-1">Podgląd odpowiedzi:</label>
+                      <div className="p-2 bg-white border rounded">
+                        <p className="whitespace-pre-wrap">{answer.content}</p>
+                      </div>
+                    </div>
+                  )}
                   <div className="flex items-center space-x-2">
                     <button
                       onClick={() => {
@@ -295,16 +339,21 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                     <label className="block text-sm font-medium mb-2">
                       Wyrażenie matematyczne dla odpowiedzi {String.fromCharCode(65 + index)}
                     </label>
-                    <textarea
-                      value={answer.mathContent || ''}
-                      onChange={(e) => handleAnswerChange(answer.id, e.target.value, true)}
-                      placeholder="Wpisz wyrażenie matematyczne w formacie LaTeX..."
-                      className="w-full p-2 border rounded"
-                      rows={2}
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      Możesz używać składni LaTeX dla wyrażeń matematycznych
-                    </p>
+                    <div className="border rounded p-2 bg-white">
+                      <MathEditor
+                        initialValue={answer.mathContent || ''}
+                        onChange={(value) => handleAnswerChange(answer.id, value, true)}
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        Użyj edytora matematycznego powyżej do tworzenia wyrażeń
+                      </p>
+                      {answer.mathContent && (
+                        <div className="mt-2 p-2 bg-gray-100 rounded">
+                          <label className="block text-sm font-medium mb-1">Podgląd wyrażenia:</label>
+                          <MathView content={answer.mathContent} />
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>

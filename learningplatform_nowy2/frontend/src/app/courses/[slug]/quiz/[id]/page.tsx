@@ -1,6 +1,19 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+
+// Funkcja pomocnicza do generowania UUID
+const generateUUID = (): string => {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  // Fallback dla starszych przeglądarek
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+};
 import { useRouter, useParams } from 'next/navigation';
 import { db } from '@/config/firebase';
 import { doc, getDoc, collection, addDoc, serverTimestamp, query, where, getDocs, DocumentData } from 'firebase/firestore';
@@ -194,10 +207,10 @@ export default function QuizTaking() {
       
       const questions = data.questions?.map((q: DocumentData, index: number) => ({
         ...q,
-        id: q.id || `question_${index}_${crypto.randomUUID()}`,
+        id: q.id || `question_${index}_${generateUUID()}`,
         answers: q.answers?.map((a: DocumentData, answerIndex: number) => ({
           ...a,
-          id: a.id || `answer_${index}_${answerIndex}_${crypto.randomUUID()}`
+          id: a.id || `answer_${index}_${answerIndex}_${generateUUID()}`
         })) || []
       })) || [];
 

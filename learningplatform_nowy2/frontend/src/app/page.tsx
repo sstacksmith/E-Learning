@@ -5,11 +5,13 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import Providers from "@/components/Providers";
+import ClassManagement from "@/components/ClassManagement";
 
 function HomeContent() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<string>("home");
-  const { isAuthenticated, loading } = useAuth();
+  const [showClassManagement, setShowClassManagement] = useState(false);
+  const { isAuthenticated, loading, user } = useAuth();
 
   if (loading) return null;
 
@@ -240,12 +242,17 @@ function HomeContent() {
               <p className="text-slate-400 text-sm">
                 © {new Date().getFullYear()} COGITO. Wszelkie prawa zastrzeżone.
               </p>
-            </div>
-          </div>
-        </footer>
-      </div>
-    );
-  }
+                      </div>
+        </div>
+      </footer>
+
+      {/* 🆕 NOWE - Modal zarządzania klasami */}
+      {showClassManagement && (
+        <ClassManagement onClose={() => setShowClassManagement(false)} />
+      )}
+    </div>
+  );
+}
 
   const navLinks = [
     { label: "Strona główna", href: "/", key: "home" },
@@ -254,6 +261,8 @@ function HomeContent() {
     { label: "Wsparcie", href: "/support", key: "support" },
     { label: "Kontakt", href: "/contact", key: "contact" },
   ];
+
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex flex-col">
@@ -270,7 +279,12 @@ function HomeContent() {
                 key={link.key}
                 onClick={() => {
                   setActiveTab(link.key);
-                  router.push(link.href);
+                  if (link.key === 'classes') {
+                    // 🆕 NOWE - Otwórz modal zarządzania klasami
+                    setShowClassManagement(true);
+                  } else {
+                    router.push(link.href);
+                  }
                 }}
                 className={`text-sm sm:text-base font-medium px-3 sm:px-4 py-2 rounded-xl transition-all duration-200 whitespace-nowrap ${activeTab === link.key ? "bg-blue-100 text-blue-600 shadow-sm" : "text-slate-700 hover:bg-blue-50 hover:text-blue-600"}`}
               >
@@ -496,6 +510,11 @@ function HomeContent() {
           </div>
         </div>
       </footer>
+
+      {/* 🆕 NOWE - Modal zarządzania klasami */}
+      {showClassManagement && (
+        <ClassManagement onClose={() => setShowClassManagement(false)} />
+      )}
     </div>
   );
 }

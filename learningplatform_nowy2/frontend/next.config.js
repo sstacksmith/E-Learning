@@ -1,28 +1,33 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Disable ESLint during build to bypass linting errors
+  // Enable ESLint during build for better code quality
   eslint: {
-    ignoreDuringBuilds: true,
+    ignoreDuringBuilds: false,
   },
-  // Disable image optimization to avoid build issues
+  // Enable image optimization for better performance
   images: {
-    unoptimized: true
+    unoptimized: false,
+    domains: [
+      'images.unsplash.com',
+      'firebasestorage.googleapis.com'
+    ],
   },
-  // Disable static generation
+  // Enable static generation
   trailingSlash: false,
   
   // 🚀 SPEED OPTIMIZATIONS FOR DEVELOPMENT
   // Turbopack configuration (now stable)
-  turbopack: {
-    rules: {
-      '*.svg': {
-        loaders: ['@svgr/webpack'],
-        as: '*.js',
+  experimental: {
+    // Enable Turbopack for faster development
+    turbo: {
+      rules: {
+        '*.svg': {
+          loaders: ['@svgr/webpack'],
+          as: '*.js',
+        },
       },
     },
-  },
-  // Optimize package imports
-  experimental: {
+    // Optimize package imports
     optimizePackageImports: ['react-icons', 'lucide-react'],
   },
   

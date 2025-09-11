@@ -14,6 +14,7 @@ import { collection, query, where, getDocs, deleteDoc, doc } from 'firebase/fire
 interface Answer {
   id: string;
   content: string;
+  mathContent?: string;
   isCorrect: boolean;
   type: 'text' | 'math' | 'mixed';
 }
@@ -21,6 +22,7 @@ interface Answer {
 interface Question {
   id: string;
   content: string;
+  mathContent?: string;
   type: 'text' | 'math' | 'mixed' | 'open';
   answers: Answer[];
   explanation?: string;
@@ -189,11 +191,16 @@ const QuizPreview: React.FC<QuizPreviewProps> = ({ quiz, onClose, onDelete }) =>
                     <h4 className="font-medium text-gray-900">
                       Pytanie {qIndex + 1}:
                     </h4>
-                    {question.type === 'math' ? (
-                      <MathView content={question.content || ''} />
-                    ) : (
-                      <p className="text-gray-800">{question.content || 'Brak treści pytania'}</p>
-                    )}
+                    <div>
+                      {question.content && (
+                        <p className="text-gray-800 mb-2">{question.content}</p>
+                      )}
+                      {question.mathContent && (
+                        <div className="p-3 border rounded bg-gray-50">
+                          <MathView content={question.mathContent} />
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   <div className="ml-4">
@@ -209,11 +216,16 @@ const QuizPreview: React.FC<QuizPreviewProps> = ({ quiz, onClose, onDelete }) =>
                     ) : (
                       <div>
                         {selectedAnswer ? (
-                          selectedAnswer.type === 'math' ? (
-                            <MathView content={selectedAnswer.content || ''} />
-                          ) : (
-                            <p className="text-gray-800">{selectedAnswer.content || 'Brak treści odpowiedzi'}</p>
-                          )
+                          <div>
+                            {selectedAnswer.content && (
+                              <p className="text-gray-800 mb-1">{selectedAnswer.content}</p>
+                            )}
+                            {selectedAnswer.mathContent && (
+                              <div className="p-2 border rounded bg-gray-50">
+                                <MathView content={selectedAnswer.mathContent} />
+                              </div>
+                            )}
+                          </div>
                         ) : (
                           <p className="text-gray-500 italic">Nie wybrano odpowiedzi</p>
                         )}
@@ -233,13 +245,23 @@ const QuizPreview: React.FC<QuizPreviewProps> = ({ quiz, onClose, onDelete }) =>
                           )
                         ) : (
                           <div>
-                            {question.answers.find(a => a.isCorrect)?.type === 'math' ? (
-                              <MathView content={question.answers.find(a => a.isCorrect)?.content || ''} />
-                            ) : (
-                              <p className="text-gray-800">
-                                {question.answers.find(a => a.isCorrect)?.content || 'Brak treści odpowiedzi'}
-                              </p>
-                            )}
+                            {(() => {
+                              const correctAnswer = question.answers.find(a => a.isCorrect);
+                              return correctAnswer ? (
+                                <div>
+                                  {correctAnswer.content && (
+                                    <p className="text-gray-800 mb-1">{correctAnswer.content}</p>
+                                  )}
+                                  {correctAnswer.mathContent && (
+                                    <div className="p-2 border rounded bg-gray-50">
+                                      <MathView content={correctAnswer.mathContent} />
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <p className="text-gray-800">Brak treści odpowiedzi</p>
+                              );
+                            })()}
                           </div>
                         )}
                       </div>
@@ -496,11 +518,16 @@ const QuizPreview: React.FC<QuizPreviewProps> = ({ quiz, onClose, onDelete }) =>
                       <h3 className="font-semibold text-lg mb-2">
                         Pytanie {qIndex + 1}:
                       </h3>
-                      {question.type === 'math' ? (
-                        <MathView content={question.content || ''} />
-                      ) : (
-                        <p className="text-gray-800">{question.content || 'Brak treści pytania'}</p>
-                      )}
+                      <div>
+                        {question.content && (
+                          <p className="text-gray-800 mb-2">{question.content}</p>
+                        )}
+                        {question.mathContent && (
+                          <div className="p-3 border rounded bg-gray-50">
+                            <MathView content={question.mathContent} />
+                          </div>
+                        )}
+                      </div>
                     </div>
 
                     <div className="space-y-3">
@@ -514,11 +541,16 @@ const QuizPreview: React.FC<QuizPreviewProps> = ({ quiz, onClose, onDelete }) =>
                               : 'bg-white border-gray-200'
                           }`}
                         >
-                          {answer.type === 'math' ? (
-                            <MathView content={answer.content || ''} />
-                          ) : (
-                            <p className="text-gray-800">{answer.content || 'Brak treści odpowiedzi'}</p>
-                          )}
+                          <div>
+                            {answer.content && (
+                              <p className="text-gray-800 mb-1">{answer.content}</p>
+                            )}
+                            {answer.mathContent && (
+                              <div className="p-2 border rounded bg-gray-50">
+                                <MathView content={answer.mathContent} />
+                              </div>
+                            )}
+                          </div>
                           {answer.isCorrect && (
                             <span className="text-green-600 text-sm mt-1 flex items-center">
                               <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">

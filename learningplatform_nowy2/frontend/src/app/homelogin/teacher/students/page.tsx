@@ -132,7 +132,14 @@ export default function StudentsPage() {
       
       console.log('🔍 fetchStudents - Kursy nauczyciela:', teacherCourses.length);
       
+      // Debug: pokaż szczegóły kursów nauczyciela
+      teacherCourses.forEach(courseDoc => {
+        const courseData = courseDoc.data();
+        console.log(`📚 Kurs nauczyciela: "${courseData.title}", assignedUsers:`, courseData.assignedUsers);
+      });
+      
       if (teacherCourses.length === 0) {
+        console.log('⚠️ Brak kursów dla nauczyciela');
         setStudents([]);
         setLoading(false);
         return;
@@ -152,43 +159,61 @@ export default function StudentsPage() {
         const assignedUsers = courseData.assignedUsers || [];
         
         // Dla każdego przypisanego użytkownika w kursie
+        console.log(`🔍 Przetwarzam kurs "${courseTitle}" z assignedUsers:`, assignedUsers);
         for (const userId of assignedUsers) {
           // Sprawdź czy to email czy uid
           const isEmail = userId.includes('@');
+          console.log(`🔍 Sprawdzam userId: "${userId}", isEmail: ${isEmail}`);
+          
           const userDoc = usersSnapshot.docs.find(doc => {
             const userData = doc.data();
-            return isEmail ? userData.email === userId : userData.uid === userId;
+            return isEmail ? userData.email === userId : doc.id === userId;
           });
           
           if (userDoc) {
             const userData = userDoc.data();
+            console.log(`✅ Znaleziono użytkownika: ${userData.email || userData.displayName}, rola: ${userData.role}`);
             if (userData.role === 'student') {
-              allStudentIds.add(userData.uid);
+              allStudentIds.add(userDoc.id);
               // Dodaj tylko ten konkretny kurs do mapy ucznia
-              const existing = courseStudentMap.get(userData.uid) || [];
+              const existing = courseStudentMap.get(userDoc.id) || [];
               if (!existing.includes(courseTitle)) {
-                courseStudentMap.set(userData.uid, [...existing, courseTitle]);
+                courseStudentMap.set(userDoc.id, [...existing, courseTitle]);
               }
+              console.log(`🎓 Dodano ucznia ${userData.email || userData.displayName} do kursu ${courseTitle}`);
             }
+          } else {
+            console.log(`❌ Nie znaleziono użytkownika dla userId: ${userId}`);
           }
         }
       }
       
       // 3. Dodaj uczniów bezpośrednio przypisanych do nauczyciela (assignedToTeacher)
+      console.log(`🔍 Sprawdzam uczniów bezpośrednio przypisanych do nauczyciela ${user.uid}`);
       usersSnapshot.docs.forEach(doc => {
         const userData = doc.data();
         if (userData.role === 'student' && userData.assignedToTeacher === user.uid) {
-          allStudentIds.add(userData.uid);
+          console.log(`🎓 Znaleziono bezpośrednio przypisanego ucznia: ${userData.email || userData.displayName}`);
+          allStudentIds.add(doc.id);
           // Sprawdź czy uczeń już ma jakieś kursy
-          const existing = courseStudentMap.get(userData.uid) || [];
+          const existing = courseStudentMap.get(doc.id) || [];
           if (!existing.includes('Przypisany bezpośrednio')) {
-            courseStudentMap.set(userData.uid, [...existing, 'Przypisany bezpośrednio']);
+            courseStudentMap.set(doc.id, [...existing, 'Przypisany bezpośrednio']);
           }
         }
       });
       
-      console.log('Found students:', allStudentIds.size);
-      console.log('Course-Student mapping:', Object.fromEntries(courseStudentMap));
+      console.log('🔍 Found students:', allStudentIds.size);
+      console.log('🔍 All student IDs:', Array.from(allStudentIds));
+      console.log('🔍 Course-Student mapping:', Object.fromEntries(courseStudentMap));
+      
+      // Debug: sprawdź wszystkich użytkowników z rolą student
+      const allStudents = usersSnapshot.docs.filter(doc => doc.data().role === 'student');
+      console.log('🔍 All students in database:', allStudents.length);
+      allStudents.forEach(doc => {
+        const data = doc.data();
+        console.log(`🎓 Student: ${data.email || data.displayName}, ID: ${doc.id}, assignedToTeacher: ${data.assignedToTeacher}`);
+      });
       
       // 3. Pobierz dane uczniów i oblicz statystyki
       const studentsData: Student[] = [];
@@ -200,12 +225,11 @@ export default function StudentsPage() {
           continue;
         }
         
-        const usersRef = collection(db, 'users');
-        const studentQuery = query(usersRef, where('uid', '==', studentId));
-        const studentSnapshot = await getDocs(studentQuery);
+        // Znajdź dokument ucznia w już pobranych danych
+        const studentDoc = usersSnapshot.docs.find(doc => doc.id === studentId);
         
-        if (!studentSnapshot.empty) {
-          const studentData = studentSnapshot.docs[0].data();
+        if (studentDoc) {
+          const studentData = studentDoc.data();
           const studentCourses = courseStudentMap.get(studentId) || [];
           
           // Oblicz średnią ocen

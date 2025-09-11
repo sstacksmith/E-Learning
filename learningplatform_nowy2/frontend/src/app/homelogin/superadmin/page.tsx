@@ -283,6 +283,7 @@ function SuperAdminDashboardContent() {
       
       // Ustaw custom claims w Firebase Auth (ważne dla uprawnień)
       try {
+        console.log('Setting custom claims for user:', userData.uid);
         const response = await fetch('/api/set-teacher-role-api', {
           method: 'POST',
           headers: {
@@ -291,15 +292,22 @@ function SuperAdminDashboardContent() {
           body: JSON.stringify({ uid: userData.uid })
         });
         
-        if (!response.ok) {
-          console.error('Failed to set Firebase Auth custom claims');
+        if (response.ok) {
+          console.log('✅ Custom claims set successfully for teacher');
+          
+          // Poinformuj użytkownika, że powinien się wylogować i zalogować ponownie
+          setSuccess(`Nauczyciel ${email} został ustawiony! Użytkownik powinien się wylogować i zalogować ponownie, aby uzyskać pełne uprawnienia.`);
+        } else {
+          const errorData = await response.json();
+          console.error('❌ Failed to set Firebase Auth custom claims:', errorData);
+          setError('Nie udało się ustawić uprawnień Firebase Auth: ' + (errorData.error || 'Unknown error'));
         }
       } catch (authError) {
-        console.error('Error setting Firebase Auth custom claims:', authError);
+        console.error('❌ Error setting Firebase Auth custom claims:', authError);
+        setError('Błąd podczas ustawiania uprawnień Firebase Auth: ' + (authError instanceof Error ? authError.message : 'Unknown error'));
       }
       
-      setSuccess(`Successfully set ${email} as teacher`);
-      setTimeout(() => setSuccess(''), 3000);
+      setTimeout(() => setSuccess(''), 5000);
       fetchUsers(); // Refresh the list
     } catch (err) {
       console.error('Error setting teacher role:', err);
