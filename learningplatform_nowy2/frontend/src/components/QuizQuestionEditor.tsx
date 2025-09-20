@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { MathEditor } from './MathEditor';
 import MathView from './MathView';
+import { CheckCircle } from 'lucide-react';
 
 // Funkcja pomocnicza do generowania UUID
 const generateUUID = (): string => {
@@ -43,11 +44,13 @@ interface QuestionData {
 interface QuizQuestionEditorProps {
   initialQuestion?: QuestionData;
   onSave: (question: QuestionData) => void;
+  isEditing?: boolean;
 }
 
 export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
   initialQuestion,
   onSave,
+  isEditing = false,
 }) => {
   const [question, setQuestion] = useState<QuestionData>(
     initialQuestion || {
@@ -64,6 +67,7 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
   const [isMathMode, setIsMathMode] = useState(question.type === 'math');
   const [isOpenQuestion, setIsOpenQuestion] = useState(question.type === 'open');
   const [showMathEditor, setShowMathEditor] = useState(false);
+  const [showSuccessMessage, setShowSuccessMessage] = useState(false);
 
   // Update question when initialQuestion changes
   useEffect(() => {
@@ -170,6 +174,61 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
       console.log('Updated question after removing answer:', updated);
       return updated;
     });
+  };
+
+  const validateQuestion = (): string | null => {
+    if (!question.content.trim()) {
+      return 'Treść pytania nie może być pusta';
+    }
+    
+    if (question.answers.length < 2) {
+      return 'Pytanie musi mieć minimum 2 odpowiedzi';
+    }
+    
+    const hasCorrectAnswer = question.answers.some(answer => answer.isCorrect);
+    if (!hasCorrectAnswer) {
+      return 'Musi być zaznaczona minimum 1 poprawna odpowiedź';
+    }
+    
+    return null;
+  };
+
+  const resetForm = () => {
+    const newQuestion = {
+      id: generateUUID(),
+      content: '',
+      type: 'text' as const,
+      answers: [],
+    };
+    setQuestion(newQuestion);
+    setIsOpenQuestion(false);
+    setShowMathEditor(false);
+  };
+
+  const handleSaveQuestion = () => {
+    const validationError = validateQuestion();
+    if (validationError) {
+      alert(validationError);
+      return;
+    }
+
+    console.log('Saving question:', question);
+    console.log('Question type:', question.type);
+    console.log('Question content:', question.content);
+    console.log('Question answers:', question.answers);
+    
+    onSave(question);
+    
+    // Pokaż lokalny pop-up sukcesu
+    setShowSuccessMessage(true);
+    setTimeout(() => setShowSuccessMessage(false), 3000);
+    
+    // Wyczyść formularz po zapisaniu tylko jeśli nie edytujemy
+    if (!isEditing) {
+      setTimeout(() => {
+        resetForm();
+      }, 1000); // Opóźnienie 1 sekunda, żeby użytkownik zobaczył pop-up
+    }
   };
 
   return (
@@ -400,18 +459,24 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
         )}
       </div>
 
-      <button
-        onClick={() => {
-          console.log('Saving question:', question);
-          console.log('Question type:', question.type);
-          console.log('Question content:', question.content);
-          console.log('Question answers:', question.answers);
-          onSave(question);
-        }}
-        className="w-full px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
-      >
-        Zapisz pytanie
-      </button>
+      <div className="relative">
+        <button
+          onClick={handleSaveQuestion}
+          className="w-full px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition-colors"
+        >
+          Zapisz pytanie
+        </button>
+        
+        {/* Lokalny pop-up sukcesu */}
+        {showSuccessMessage && (
+          <div className="absolute -top-16 left-1/2 transform -translate-x-1/2 z-50">
+            <div className="bg-green-50 border-2 border-green-200 text-green-700 px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 animate-pulse">
+              <CheckCircle className="w-5 h-5" />
+              <span className="font-medium">Pytanie zostało dodane poprawnie!</span>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }; 

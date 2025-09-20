@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import { db } from '@/config/firebase';
 import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
 import QuizPreview from '@/components/QuizPreview';
-import { ArrowLeft, Eye, Save, Plus, Trash2, Settings, Edit, Eye as ViewIcon } from 'lucide-react';
+import { ArrowLeft, Eye, Save, Plus, Trash2, Settings, Edit, Eye as ViewIcon, AlertTriangle, CheckCircle, Info, BookOpen, Zap, Sparkles, Search } from 'lucide-react';
 import { ErrorDisplay } from '@/components/ErrorDisplay';
 
 interface Answer {
@@ -75,6 +75,7 @@ export default function QuizManagementPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [editingQuiz, setEditingQuiz] = useState<Quiz | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [quizSearchTerm, setQuizSearchTerm] = useState('');
   const [newQuiz, setNewQuiz] = useState<NewQuiz>({
     title: '',
     description: '',
@@ -88,6 +89,7 @@ export default function QuizManagementPage() {
   const searchRef = useRef<HTMLDivElement>(null);
   const [selectedQuiz, setSelectedQuiz] = useState<Quiz | null>(null);
   const [editingQuestionIndex, setEditingQuestionIndex] = useState<number | null>(null);
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
   
   const { user, loading } = useAuth();
   const router = useRouter();
@@ -330,6 +332,23 @@ export default function QuizManagementPage() {
     }
   };
 
+  const validateQuestion = (question: Question): string | null => {
+    if (!question.content.trim()) {
+      return 'Treść pytania nie może być pusta';
+    }
+    
+    if (question.answers.length < 2) {
+      return 'Pytanie musi mieć minimum 2 odpowiedzi';
+    }
+    
+    const hasCorrectAnswer = question.answers.some(answer => answer.isCorrect);
+    if (!hasCorrectAnswer) {
+      return 'Musi być zaznaczona minimum 1 poprawna odpowiedź';
+    }
+    
+    return null;
+  };
+
   const handleAddQuestion = (question: Question) => {
     setNewQuiz((prev) => ({
       ...prev,
@@ -359,6 +378,13 @@ export default function QuizManagementPage() {
     course.subject?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const filteredQuizzes = quizzes.filter(quiz => 
+    quiz.title?.toLowerCase().includes(quizSearchTerm.toLowerCase()) ||
+    quiz.description?.toLowerCase().includes(quizSearchTerm.toLowerCase()) ||
+    quiz.subject?.toLowerCase().includes(quizSearchTerm.toLowerCase()) ||
+    quiz.course_title?.toLowerCase().includes(quizSearchTerm.toLowerCase())
+  );
+
   const handleQuizDeleted = () => {
     fetchQuizzes();
   };
@@ -368,6 +394,7 @@ export default function QuizManagementPage() {
     setIsEditing(false);
     setEditingQuiz(null);
     setEditingQuestionIndex(null);
+    setShowExitConfirm(false);
     setNewQuiz({
       title: '',
       description: '',
@@ -377,6 +404,23 @@ export default function QuizManagementPage() {
       max_attempts: 1,
       time_limit: 30,
     });
+  };
+
+  const handleBackClick = () => {
+    if (isCreating || isEditing) {
+      setShowExitConfirm(true);
+    } else {
+      router.push('/homelogin/teacher');
+    }
+  };
+
+  const confirmExit = () => {
+    resetForm();
+    setShowExitConfirm(false);
+  };
+
+  const cancelExit = () => {
+    setShowExitConfirm(false);
   };
 
   if (loading) {
@@ -396,71 +440,85 @@ export default function QuizManagementPage() {
     <div className="w-full h-full bg-gray-50">
       <div className="w-full h-full p-6 flex flex-col">
         {/* Main Page Header */}
-        <div className="flex items-center justify-between mb-8 flex-shrink-0">
-          <div className="flex items-center space-x-4">
-            <button
-              onClick={() => router.back()}
-              className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-900 transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5" />
-              <span>Powrót</span>
-            </button>
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">
-                {isCreating ? 'Utwórz Nowy Quiz' : isEditing ? 'Edytuj Quiz' : 'Zarządzanie Quizami'}
-              </h1>
-              <p className="text-gray-600 mt-1">
-                {isCreating ? 'Stwórz nowy quiz dla swoich uczniów' : 
-                 isEditing ? 'Edytuj istniejący quiz' : 
-                 'Zarządzaj quizami w swoich kursach'}
-              </p>
+        <div className="relative overflow-hidden mb-8 flex-shrink-0">
+          <div className="absolute inset-0 bg-gradient-to-r from-blue-50 via-purple-50 to-pink-50 opacity-50"></div>
+          <div className="relative bg-white rounded-xl shadow-sm border border-gray-200 p-8">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-4">
+                <button
+                  onClick={handleBackClick}
+                  className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-all duration-300"
+                >
+                  <ArrowLeft className="w-5 h-5" />
+                  <span>Powrót do strony głównej</span>
+                </button>
+                <div>
+                  <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                    {isCreating ? 'Utwórz Nowy Quiz' : isEditing ? 'Edytuj Quiz' : 'Zarządzanie Quizami'}
+                  </h1>
+                  <p className="text-gray-600 text-lg">
+                    {isCreating ? 'Stwórz nowy quiz dla swoich uczniów' : 
+                     isEditing ? 'Edytuj istniejący quiz' : 
+                     'Zarządzaj quizami w swoich kursach'}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="text-right">
+                  <div className="text-2xl font-bold text-blue-600">{quizzes.length}</div>
+                  <div className="text-sm text-gray-500">Quizy</div>
+                </div>
+                <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center animate-pulse">
+                  <BookOpen className="h-8 w-8 text-white" />
+                </div>
+              </div>
             </div>
           </div>
-          <div className="flex space-x-3">
-            {!isCreating && !isEditing && (
+        </div>
+        <div className="flex space-x-3">
+          {!isCreating && !isEditing && (
+            <button
+              onClick={() => setIsCreating(true)}
+              className="group px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-300 font-medium shadow-lg hover:shadow-xl hover:scale-105 flex items-center space-x-2"
+            >
+              <Plus className="w-5 h-5 group-hover:animate-bounce" />
+              <span>Utwórz Quiz</span>
+            </button>
+          )}
+          {isCreating && (
+            <>
               <button
-                onClick={() => setIsCreating(true)}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
+                onClick={resetForm}
+                className="px-4 py-2 bg-gradient-to-r from-gray-500 to-gray-600 text-white rounded-xl hover:from-gray-600 hover:to-gray-700 transition-all duration-300 font-medium shadow-lg hover:shadow-xl hover:scale-105"
               >
-                <Plus className="w-4 h-4" />
-                <span>Utwórz Quiz</span>
+                Anuluj
               </button>
-            )}
-            {isCreating && (
-              <>
-                <button
-                  onClick={resetForm}
-                  className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
-                >
-                  Anuluj
-                </button>
-                <button
-                  onClick={handleCreateQuiz}
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2"
-                >
-                  <Save className="w-4 h-4" />
-                  <span>Utwórz</span>
-                </button>
-              </>
-            )}
-            {isEditing && (
-              <>
-                <button
-                  onClick={resetForm}
-                  className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
-                >
-                  Anuluj
-                </button>
-                <button
-                  onClick={handleUpdateQuiz}
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2"
-                >
-                  <Save className="w-4 h-4" />
-                  <span>Zapisz Zmiany</span>
-                </button>
-              </>
-            )}
-          </div>
+              <button
+                onClick={handleCreateQuiz}
+                className="px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-xl hover:from-green-700 hover:to-green-800 transition-all duration-300 font-medium shadow-lg hover:shadow-xl hover:scale-105 flex items-center space-x-2"
+              >
+                <Zap className="w-5 h-5" />
+                <span>Utwórz</span>
+              </button>
+            </>
+          )}
+          {isEditing && (
+            <>
+              <button
+                onClick={resetForm}
+                className="px-4 py-2 bg-gradient-to-r from-gray-500 to-gray-600 text-white rounded-xl hover:from-gray-600 hover:to-gray-700 transition-all duration-300 font-medium shadow-lg hover:shadow-xl hover:scale-105"
+              >
+                Anuluj
+              </button>
+              <button
+                onClick={handleUpdateQuiz}
+                className="px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-xl hover:from-green-700 hover:to-green-800 transition-all duration-300 font-medium shadow-lg hover:shadow-xl hover:scale-105 flex items-center space-x-2"
+              >
+                <Save className="w-5 h-5" />
+                <span>Zapisz Zmiany</span>
+              </button>
+            </>
+          )}
         </div>
 
         {error && (
@@ -473,18 +531,25 @@ export default function QuizManagementPage() {
           />
         )}
 
+
         {/* Quiz Form */}
         {(isCreating || isEditing) && (
           <div className="bg-white rounded-lg shadow-sm border p-6 mb-6 flex-shrink-0">
             <div className="flex items-center space-x-3 mb-6">
-              <Settings className="w-5 h-5 text-gray-600" />
-              <h2 className="text-xl font-semibold text-gray-900">Ustawienia Quizu</h2>
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                <Settings className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">Ustawienia Quizu</h2>
+                <p className="text-sm text-gray-600">Podstawowe informacje o quizie</p>
+              </div>
             </div>
             
             {/* Tytuł i opis quizu */}
             <div className="grid grid-cols-1 gap-6 mb-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+              <div className="group">
+                <label className="block text-sm font-semibold text-blue-700 mb-2 flex items-center gap-2">
+                  <BookOpen className="w-4 h-4" />
                   Tytuł quizu *
                 </label>
                 <input
@@ -493,13 +558,14 @@ export default function QuizManagementPage() {
                   onChange={(e) =>
                     setNewQuiz((prev) => ({ ...prev, title: e.target.value }))
                   }
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full p-4 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition-all duration-300 text-lg font-medium"
                   placeholder="Wprowadź tytuł quizu..."
                   required
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+              <div className="group">
+                <label className="block text-sm font-semibold text-green-700 mb-2 flex items-center gap-2">
+                  <Info className="w-4 h-4" />
                   Opis quizu
                 </label>
                 <textarea
@@ -507,7 +573,7 @@ export default function QuizManagementPage() {
                   onChange={(e) =>
                     setNewQuiz((prev) => ({ ...prev, description: e.target.value }))
                   }
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full p-4 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-green-100 focus:border-green-500 transition-all duration-300"
                   placeholder="Wprowadź opis quizu (opcjonalnie)..."
                   rows={3}
                 />
@@ -515,9 +581,10 @@ export default function QuizManagementPage() {
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Kurs
+              <div className="group">
+                <label className="block text-sm font-semibold text-purple-700 mb-2 flex items-center gap-2">
+                  <BookOpen className="w-4 h-4" />
+                  Kurs *
                 </label>
                 <div className="relative" ref={searchRef}>
                   <input
@@ -529,26 +596,26 @@ export default function QuizManagementPage() {
                       setIsSearchOpen(true);
                     }}
                     onFocus={() => setIsSearchOpen(true)}
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full p-4 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-purple-100 focus:border-purple-500 transition-all duration-300"
                   />
                   {isSearchOpen && (
-                    <div className="absolute left-0 right-0 mt-2 max-h-96 overflow-y-auto border rounded-lg bg-white shadow-lg z-10">
+                    <div className="absolute left-0 right-0 mt-2 max-h-96 overflow-y-auto border-2 border-purple-200 rounded-xl bg-white shadow-xl z-10">
                       {filteredCourses.length === 0 ? (
-                        <div className="p-3 text-gray-500 text-center">
+                        <div className="p-4 text-gray-500 text-center">
                           Nie znaleziono kursów
                         </div>
                       ) : (
                         filteredCourses.map((course) => (
                           <div
                             key={course.id}
-                            className="p-3 hover:bg-gray-100 cursor-pointer border-b border-gray-100 last:border-b-0"
+                            className="p-4 hover:bg-purple-50 cursor-pointer border-b border-gray-100 last:border-b-0 transition-colors"
                             onClick={() => {
                               setNewQuiz((prev) => ({ ...prev, course_id: course.id }));
                               setSearchTerm(course.title);
                               setIsSearchOpen(false);
                             }}
                           >
-                            <div className="font-medium text-gray-900">{course.title}</div>
+                            <div className="font-semibold text-gray-900">{course.title}</div>
                             <div className="text-sm text-gray-600">{course.subject}</div>
                           </div>
                         ))
@@ -557,8 +624,9 @@ export default function QuizManagementPage() {
                   )}
                 </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+              <div className="group">
+                <label className="block text-sm font-semibold text-orange-700 mb-2 flex items-center gap-2">
+                  <Sparkles className="w-4 h-4" />
                   Przedmiot
                 </label>
                 <input
@@ -567,17 +635,37 @@ export default function QuizManagementPage() {
                   onChange={(e) =>
                     setNewQuiz((prev) => ({ ...prev, subject: e.target.value }))
                   }
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full p-4 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-orange-100 focus:border-orange-500 transition-all duration-300"
                   placeholder="Wprowadź przedmiot"
                 />
               </div>
             </div>
 
-            <div className="mt-6">
-              <h3 className="text-lg font-medium mb-4">Pytania ({newQuiz.questions.length})</h3>
+            <div className="mt-8">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-blue-600 rounded-full flex items-center justify-center">
+                  <Plus className="w-4 h-4 text-white" />
+                </div>
+                <h3 className="text-xl font-semibold text-gray-900">Pytania ({newQuiz.questions.length})</h3>
+              </div>
+              
+              {/* Informacja o zielonym tle */}
+              <div className="mb-6 p-4 bg-gradient-to-r from-green-50 to-blue-50 border-2 border-green-200 rounded-xl">
+                <div className="flex items-center gap-3">
+                  <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+                    <CheckCircle className="w-4 h-4 text-white" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-green-800 text-lg">Zielone tło oznacza odpowiedź uznawaną za poprawną</p>
+                    <p className="text-green-700 text-sm mt-1">Pamiętaj: minimum 2 odpowiedzi i 1 poprawna odpowiedź</p>
+                  </div>
+                </div>
+              </div>
+
               {newQuiz.questions.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <p>Nie ma jeszcze żadnych pytań</p>
+                <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-xl border-2 border-dashed border-gray-300">
+                  <BookOpen className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-lg font-medium">Nie ma jeszcze żadnych pytań</p>
                   <p className="text-sm mt-2">Użyj edytora pytań poniżej, aby dodać pierwsze pytanie</p>
                 </div>
               ) : (
@@ -628,6 +716,7 @@ export default function QuizManagementPage() {
                 })()}
                 <QuizQuestionEditor
                   initialQuestion={editingQuestionIndex !== null ? newQuiz.questions[editingQuestionIndex] : undefined}
+                  isEditing={editingQuestionIndex !== null}
                   onSave={(question) => {
                     console.log('QuizQuestionEditor onSave called with:', question);
                     if (editingQuestionIndex !== null) {
@@ -666,8 +755,20 @@ export default function QuizManagementPage() {
             <div className="flex items-center justify-between mb-6 flex-shrink-0">
               <h2 className="text-xl font-semibold text-gray-900">Twoje Quizy</h2>
               <div className="text-sm text-gray-500">
-                {quizzes.length} quiz{quizzes.length !== 1 ? 'y' : ''}
+                {filteredQuizzes.length} quiz{filteredQuizzes.length !== 1 ? 'y' : ''}
               </div>
+            </div>
+
+            {/* Wyszukiwarka quizów */}
+            <div className="relative mb-6 flex-shrink-0">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <input
+                type="text"
+                placeholder="Wyszukaj quiz po tytule, opisie, przedmiocie lub kursie..."
+                value={quizSearchTerm}
+                onChange={(e) => setQuizSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-gray-700 bg-white hover:border-gray-300"
+              />
             </div>
 
             {isLoading ? (
@@ -686,9 +787,28 @@ export default function QuizManagementPage() {
                   Utwórz Pierwszy Quiz
                 </button>
               </div>
+            ) : filteredQuizzes.length === 0 ? (
+              <div className="text-center py-8 text-gray-500 flex-1 flex flex-col items-center justify-center">
+                <Search className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                <p className="text-lg font-medium mb-2">Nie znaleziono quizów</p>
+                <p className="mb-4">
+                  {quizSearchTerm ? 
+                    `Brak wyników dla "${quizSearchTerm}"` : 
+                    'Nie masz jeszcze żadnych quizów'
+                  }
+                </p>
+                {!quizSearchTerm && (
+                  <button
+                    onClick={() => setIsCreating(true)}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    Utwórz Pierwszy Quiz
+                  </button>
+                )}
+              </div>
             ) : (
               <div className="space-y-4 flex-1 overflow-y-auto w-full">
-                {quizzes.map((quiz) => (
+                {filteredQuizzes.map((quiz) => (
                   <div key={quiz.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
@@ -753,6 +873,47 @@ export default function QuizManagementPage() {
           onClose={() => setSelectedQuiz(null)}
           onDelete={handleQuizDeleted}
         />
+      )}
+
+      {/* Exit Confirmation Modal */}
+      {showExitConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl p-8 max-w-md mx-4">
+            <div className="flex items-center gap-4 mb-6">
+              <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-600 rounded-full flex items-center justify-center">
+                <AlertTriangle className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h3 className="text-xl font-semibold text-gray-900">Czy na pewno chcesz wyjść?</h3>
+                <p className="text-gray-600">Dane zostaną utracone</p>
+              </div>
+            </div>
+            
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-6">
+              <p className="text-orange-800 font-medium">
+                ⚠️ Zapisz swoją pracę przed wyjściem!
+              </p>
+              <p className="text-orange-700 text-sm mt-1">
+                Wszystkie niezapisane zmiany zostaną utracone.
+              </p>
+            </div>
+            
+            <div className="flex gap-3">
+              <button
+                onClick={cancelExit}
+                className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+              >
+                Anuluj
+              </button>
+              <button
+                onClick={confirmExit}
+                className="flex-1 px-4 py-3 bg-gradient-to-r from-red-600 to-red-700 text-white rounded-lg hover:from-red-700 hover:to-red-800 transition-all duration-300 font-medium shadow-lg hover:shadow-xl"
+              >
+                Tak, wyjdź
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

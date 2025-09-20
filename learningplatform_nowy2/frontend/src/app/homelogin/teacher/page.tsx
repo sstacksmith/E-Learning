@@ -547,11 +547,11 @@ export default function TeacherDashboard() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h2 className="text-2xl font-bold mb-4 text-gray-900">
+      <div className="text-center max-w-4xl mx-auto">
+        <h2 className="text-3xl font-bold mb-4 text-gray-900">
           Witaj z powrotem, {(user as any)?.displayName || user?.email || 'Nauczycielu'}!
         </h2>
-        <p className="text-gray-600 mb-6">
+        <p className="text-lg text-gray-600 mb-8">
           {isAdmin ? 'Przegląd aktywności w systemie edukacyjnym' : 'Przegląd Twoich kursów i aktywności uczniów'}
         </p>
       </div>
@@ -705,11 +705,6 @@ export default function TeacherDashboard() {
                 )}
               </div>
               
-              <div className="mt-6 pt-4 border-t border-gray-200">
-                <button className="w-full text-center text-sm text-blue-600 hover:text-blue-800 font-medium">
-                  Zobacz wszystkie aktywności
-                </button>
-              </div>
             </div>
           </div>
         </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { User, Mail, Phone, Calendar, Award, BookOpen, Users, Lock, Eye, EyeOff, RefreshCw } from 'lucide-react';
+import { User, Mail, Phone, Calendar, Award, BookOpen, Users, Lock, Eye, EyeOff, RefreshCw, Star, TrendingUp, Activity, Target, Zap } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { auth, db } from '@/config/firebase';
 import { updateProfile, updatePassword, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
@@ -76,6 +76,20 @@ export default function TeacherProfilePage() {
       description: 'Za wysokie oceny od uczniów',
       date: '05.01.2024',
       icon: '⭐'
+    },
+    {
+      id: '3',
+      title: 'Innowator',
+      description: 'Za wprowadzenie nowych metod nauczania',
+      date: '15.12.2023',
+      icon: '💡'
+    },
+    {
+      id: '4',
+      title: 'Przyjaciel Uczniów',
+      description: 'Za najlepsze oceny od studentów',
+      date: '01.12.2023',
+      icon: '❤️'
     }
   ]);
 
@@ -278,14 +292,30 @@ export default function TeacherProfilePage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h2 className="text-2xl font-bold text-gray-900">Mój Profil</h2>
-        <p className="text-gray-600">Zarządzaj swoimi danymi i ustawieniami</p>
+      <div className="relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-r from-blue-50 via-purple-50 to-pink-50 opacity-50"></div>
+        <div className="relative bg-white rounded-xl shadow-sm border border-gray-200 p-8">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-3xl font-bold text-gray-900 mb-2">Mój Profil</h2>
+              <p className="text-gray-600 text-lg">Zarządzaj swoimi danymi i ustawieniami</p>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="text-right">
+                <div className="text-2xl font-bold text-blue-600">{profileData.activeCourses}</div>
+                <div className="text-sm text-gray-500">Aktywne kursy</div>
+              </div>
+              <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center animate-pulse">
+                <User className="h-8 w-8 text-white" />
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Message Display */}
       {message && (
-        <div className={`p-4 rounded-lg ${
+        <div className={`p-4 rounded-lg shadow-sm ${
           message.type === 'success' 
             ? 'bg-green-50 border border-green-200 text-green-700' 
             : 'bg-red-50 border border-red-200 text-red-700'
@@ -320,29 +350,39 @@ export default function TeacherProfilePage() {
       {activeTab === 'profile' && (
         <div className="grid lg:grid-cols-2 gap-6">
           {/* Profile Info */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-lg transition-all duration-300">
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center">
-                <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mr-4">
-                  <User className="h-10 w-10 text-blue-600" />
+                <div className="relative">
+                  <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center mr-4 hover:animate-pulse transition-all duration-300">
+                    <User className="h-10 w-10 text-blue-600" />
+                  </div>
+                  <div className="absolute -top-1 -right-1 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+                    <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+                  </div>
                 </div>
                 <div>
-                  <h3 className="text-xl font-semibold text-gray-900">{profileData.displayName}</h3>
-                  <p className="text-gray-600">Nauczyciel</p>
+                  <h3 className="text-xl font-semibold text-gray-900 hover:text-blue-600 transition-colors">{profileData.displayName}</h3>
+                  <div className="flex items-center gap-2">
+                    <p className="text-gray-600">Nauczyciel</p>
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                    <span className="text-xs text-green-600 font-medium">Online</span>
+                  </div>
                 </div>
               </div>
               {!isEditing ? (
                 <button 
                   onClick={handleEdit}
-                  className="text-sm bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                  className="group text-sm bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-300 font-medium shadow-lg hover:shadow-xl hover:scale-105 flex items-center gap-2"
                 >
+                  <User className="h-4 w-4 group-hover:animate-bounce" />
                   Edytuj Profil
                 </button>
               ) : (
-                <div className="flex gap-2">
+                <div className="flex gap-3">
                   <button 
                     onClick={handleCancel}
-                    className="text-sm bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-colors"
+                    className="text-sm bg-gradient-to-r from-gray-500 to-gray-600 text-white px-4 py-2 rounded-xl hover:from-gray-600 hover:to-gray-700 transition-all duration-300 font-medium shadow-lg hover:shadow-xl hover:scale-105"
                   >
                     Anuluj
                   </button>
@@ -350,57 +390,73 @@ export default function TeacherProfilePage() {
               )}
             </div>
 
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+            <div className="space-y-6">
+              <div className="group">
+                <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                  <User className="h-4 w-4 text-blue-500" />
                   Imię i Nazwisko
                 </label>
-                <div className="flex items-center">
-                  <User className="h-4 w-4 text-gray-400 mr-3" />
+                <div className="relative">
                   <input
                     type="text"
                     value={isEditing ? editableProfile.displayName : profileData.displayName}
                     onChange={(e) => isEditing && setEditableProfile(prev => ({ ...prev, displayName: e.target.value }))}
-                    className={`flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                      isEditing ? 'bg-white' : 'bg-gray-50'
+                    className={`w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition-all duration-300 ${
+                      isEditing ? 'bg-white hover:border-blue-300' : 'bg-gray-50'
                     }`}
                     readOnly={!isEditing}
                   />
+                  {isEditing && (
+                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                    </div>
+                  )}
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+              <div className="group">
+                <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                  <Mail className="h-4 w-4 text-green-500" />
                   Email
                 </label>
-                <div className="flex items-center">
-                  <Mail className="h-4 w-4 text-gray-400 mr-3" />
+                <div className="relative">
                   <input
                     type="email"
                     value={profileData.email}
-                    className="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50"
+                    className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-4 focus:ring-green-100 focus:border-green-500 transition-all duration-300 bg-gray-50"
                     readOnly
                   />
-                  <span className="text-xs text-gray-500 ml-2">(Email nie może być zmieniony)</span>
+                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                  </div>
                 </div>
+                <span className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                  <Lock className="h-3 w-3" />
+                  Email nie może być zmieniony
+                </span>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+              <div className="group">
+                <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                  <Phone className="h-4 w-4 text-purple-500" />
                   Telefon
                 </label>
-                <div className="flex items-center">
-                  <Phone className="h-4 w-4 text-gray-400 mr-3" />
+                <div className="relative">
                   <input
                     type="tel"
                     value={isEditing ? editableProfile.phone : profileData.phone}
                     onChange={(e) => isEditing && setEditableProfile(prev => ({ ...prev, phone: e.target.value }))}
-                    className={`flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                      isEditing ? 'bg-white' : 'bg-gray-50'
+                    className={`w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-4 focus:ring-purple-100 focus:border-purple-500 transition-all duration-300 ${
+                      isEditing ? 'bg-white hover:border-purple-300' : 'bg-gray-50'
                     }`}
                     readOnly={!isEditing}
                     placeholder="+48 XXX XXX XXX"
                   />
+                  {isEditing && (
+                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -410,28 +466,58 @@ export default function TeacherProfilePage() {
                 <button 
                   onClick={handleSave}
                   disabled={isSaving}
-                  className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full bg-gradient-to-r from-green-600 to-green-700 text-white py-3 px-4 rounded-xl hover:from-green-700 hover:to-green-800 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-lg hover:shadow-xl hover:scale-105 flex items-center justify-center gap-2"
                 >
-                  {isSaving ? 'Zapisywanie...' : 'Zapisz zmiany'}
+                  {isSaving ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      Zapisywanie...
+                    </>
+                  ) : (
+                    <>
+                      <Zap className="h-4 w-4" />
+                      Zapisz zmiany
+                    </>
+                  )}
                 </button>
               </div>
             )}
           </div>
 
           {/* Recent Achievements */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Ostatnie Osiągnięcia</h3>
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-semibold text-gray-900">Ostatnie Osiągnięcia</h3>
+              <div className="flex items-center gap-2 text-sm text-gray-500">
+                <Award className="h-4 w-4" />
+                <span>{achievements.length} osiągnięć</span>
+              </div>
+            </div>
             <div className="space-y-4">
-              {achievements.map((achievement) => (
-                <div key={achievement.id} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
-                  <div className="text-2xl">{achievement.icon}</div>
+              {achievements.map((achievement, index) => (
+                <div key={achievement.id} className="group flex items-start gap-4 p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl hover:from-blue-50 hover:to-purple-50 transition-all duration-300 hover:shadow-md hover:scale-[1.02] border border-gray-200 hover:border-blue-300">
+                  <div className="text-3xl group-hover:animate-bounce">{achievement.icon}</div>
                   <div className="flex-1">
-                    <h4 className="font-medium text-gray-900">{achievement.title}</h4>
-                    <p className="text-sm text-gray-600">{achievement.description}</p>
-                    <p className="text-xs text-gray-500 mt-1">{achievement.date}</p>
+                    <div className="flex items-center gap-2 mb-1">
+                      <h4 className="font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">{achievement.title}</h4>
+                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                    </div>
+                    <p className="text-sm text-gray-600 mb-2">{achievement.description}</p>
+                    <div className="flex items-center gap-2">
+                      <Calendar className="h-3 w-3 text-gray-400" />
+                      <p className="text-xs text-gray-500">{achievement.date}</p>
+                      <div className="ml-auto">
+                        <div className="w-8 h-1 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full"></div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               ))}
+            </div>
+            <div className="mt-6 pt-4 border-t border-gray-200">
+              <button className="w-full text-center text-sm text-blue-600 hover:text-blue-800 font-medium hover:bg-blue-50 py-2 rounded-lg transition-colors">
+                Zobacz wszystkie osiągnięcia →
+              </button>
             </div>
           </div>
         </div>
@@ -439,7 +525,7 @@ export default function TeacherProfilePage() {
 
       {activeTab === 'password' && (
         <div className="max-w-md">
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <div className="flex items-center mb-6">
               <Lock className="h-8 w-8 text-blue-600 mr-3" />
               <div>
@@ -519,7 +605,7 @@ export default function TeacherProfilePage() {
               <button
                 onClick={handlePasswordChange}
                 disabled={isChangingPassword || !passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmPassword}
-                className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mt-6"
+                className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mt-6 font-medium"
               >
                 {isChangingPassword ? 'Zmienianie hasła...' : 'Zmień hasło'}
               </button>
@@ -535,7 +621,7 @@ export default function TeacherProfilePage() {
             <button
               onClick={loadTeacherStats}
               disabled={loadingStats}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 font-medium"
             >
               <RefreshCw className={`h-4 w-4 ${loadingStats ? 'animate-spin' : ''}`} />
               Odśwież
@@ -543,28 +629,52 @@ export default function TeacherProfilePage() {
           </div>
           
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="bg-white rounded-lg border border-gray-200 p-6 text-center">
-              <BookOpen className="h-8 w-8 text-blue-600 mx-auto mb-3" />
-              <div className="text-2xl font-bold text-gray-900 mb-1">{profileData.activeCourses}</div>
-              <div className="text-sm text-gray-600">Aktywne Kursy</div>
+            <div className="group bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl shadow-sm border border-blue-200 p-6 text-center hover:shadow-lg transition-all duration-300 hover:scale-105">
+              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:animate-bounce">
+                <BookOpen className="h-6 w-6 text-white" />
+              </div>
+              <div className="text-3xl font-bold text-blue-600 mb-2">{profileData.activeCourses}</div>
+              <div className="text-sm text-blue-700 font-medium">Aktywne Kursy</div>
+              <div className="flex items-center justify-center mt-2">
+                <TrendingUp className="h-4 w-4 text-green-500 mr-1" />
+                <span className="text-xs text-green-600">+2 w tym miesiącu</span>
+              </div>
             </div>
 
-            <div className="bg-white rounded-lg border border-gray-200 p-6 text-center">
-              <Users className="h-8 w-8 text-green-600 mx-auto mb-3" />
-              <div className="text-2xl font-bold text-gray-900 mb-1">{profileData.totalStudents}</div>
-              <div className="text-sm text-gray-600">Uczniów</div>
+            <div className="group bg-gradient-to-br from-green-50 to-green-100 rounded-xl shadow-sm border border-green-200 p-6 text-center hover:shadow-lg transition-all duration-300 hover:scale-105">
+              <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:animate-bounce">
+                <Users className="h-6 w-6 text-white" />
+              </div>
+              <div className="text-3xl font-bold text-green-600 mb-2">{profileData.totalStudents}</div>
+              <div className="text-sm text-green-700 font-medium">Uczniów</div>
+              <div className="flex items-center justify-center mt-2">
+                <Activity className="h-4 w-4 text-green-500 mr-1" />
+                <span className="text-xs text-green-600">Aktywni uczniowie</span>
+              </div>
             </div>
 
-            <div className="bg-white rounded-lg border border-gray-200 p-6 text-center">
-              <Calendar className="h-8 w-8 text-purple-600 mx-auto mb-3" />
-              <div className="text-2xl font-bold text-gray-900 mb-1">{profileData.totalLessons}</div>
-              <div className="text-sm text-gray-600">Przeprowadzonych Lekcji</div>
+            <div className="group bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl shadow-sm border border-purple-200 p-6 text-center hover:shadow-lg transition-all duration-300 hover:scale-105">
+              <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:animate-bounce">
+                <Calendar className="h-6 w-6 text-white" />
+              </div>
+              <div className="text-3xl font-bold text-purple-600 mb-2">{profileData.totalLessons}</div>
+              <div className="text-sm text-purple-700 font-medium">Przeprowadzonych Lekcji</div>
+              <div className="flex items-center justify-center mt-2">
+                <Target className="h-4 w-4 text-purple-500 mr-1" />
+                <span className="text-xs text-purple-600">Cel: 150 lekcji</span>
+              </div>
             </div>
 
-            <div className="bg-white rounded-lg border border-gray-200 p-6 text-center">
-              <Award className="h-8 w-8 text-yellow-600 mx-auto mb-3" />
-              <div className="text-2xl font-bold text-gray-900 mb-1">{profileData.averageRating}</div>
-              <div className="text-sm text-gray-600">Średnia Ocen Uczniów</div>
+            <div className="group bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-xl shadow-sm border border-yellow-200 p-6 text-center hover:shadow-lg transition-all duration-300 hover:scale-105">
+              <div className="w-12 h-12 bg-gradient-to-br from-yellow-500 to-yellow-600 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:animate-bounce">
+                <Star className="h-6 w-6 text-white" />
+              </div>
+              <div className="text-3xl font-bold text-yellow-600 mb-2">{profileData.averageRating}</div>
+              <div className="text-sm text-yellow-700 font-medium">Średnia Ocen Uczniów</div>
+              <div className="flex items-center justify-center mt-2">
+                <Zap className="h-4 w-4 text-yellow-500 mr-1" />
+                <span className="text-xs text-yellow-600">Wysoka ocena!</span>
+              </div>
             </div>
           </div>
         </div>

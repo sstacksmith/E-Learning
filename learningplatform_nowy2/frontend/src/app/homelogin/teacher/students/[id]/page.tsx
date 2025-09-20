@@ -18,7 +18,18 @@ import {
   Edit,
   Save,
   X,
-  Plus
+  Plus,
+  BarChart3,
+  GraduationCap,
+  Shield,
+  LogOut,
+  Award,
+  TrendingUp,
+  Activity,
+  Target,
+  Zap,
+  CheckCircle,
+  Info
 } from 'lucide-react';
 
 interface StudentProfile {
@@ -71,6 +82,43 @@ export default function StudentProfilePage() {
   const [addingNote, setAddingNote] = useState(false);
 
   const studentId = params?.id as string;
+
+  // Mock achievements data
+  const [achievements] = useState([
+    {
+      id: 1,
+      title: 'Pierwszy krok',
+      description: 'Ukończyłeś swój pierwszy kurs',
+      icon: '🎯',
+      date: '2024-01-15',
+      progress: 100
+    },
+    {
+      id: 2,
+      title: 'Matematyczny geniusz',
+      description: 'Osiągnąłeś 100% w quizie z matematyki',
+      icon: '🧮',
+      date: '2024-02-20',
+      progress: 100
+    },
+    {
+      id: 3,
+      title: 'Aktywny uczeń',
+      description: 'Logowałeś się codziennie przez tydzień',
+      icon: '📚',
+      date: '2024-03-10',
+      progress: 100
+    }
+  ]);
+
+  // Mock stats data
+  const [stats] = useState({
+    totalCourses: 5,
+    completedCourses: 3,
+    averageGrade: 4.2,
+    totalHours: 45,
+    streak: 7
+  });
 
   useEffect(() => {
     if (studentId && user) {
@@ -295,19 +343,19 @@ export default function StudentProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 w-full">
+    <div className="min-h-screen bg-gray-50 w-full">
       {/* Header z przyciskiem powrotu */}
-      <div className="bg-white/80 backdrop-blur-lg border-b border-white/20 px-4 sm:px-6 lg:px-8 py-4">
+      <div className="bg-white border-b border-gray-200 px-4 sm:px-6 lg:px-8 py-4">
         <div className="flex items-center justify-between">
           <button
             onClick={() => window.location.href = '/homelogin'}
-            className="flex items-center gap-2 px-4 py-2 bg-white/60 backdrop-blur-sm text-gray-700 rounded-lg hover:bg-white hover:shadow-lg transition-all duration-200 ease-in-out border border-white/20"
+            className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-all duration-200"
           >
             <ArrowLeft className="w-4 h-4" />
             Powrót do strony głównej
           </button>
 
-          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">
             Profil ucznia
           </h1>
 
@@ -316,284 +364,285 @@ export default function StudentProfilePage() {
       </div>
 
       <div className="p-6">
-        <div className="max-w-7xl mx-auto space-y-6">
-          {/* Header */}
-          <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-lg p-6 border border-white/20">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
-                  <span className="text-blue-600 font-bold text-xl">
-                    {student.name.split(' ').map(n => n[0]).join('').toUpperCase()}
-                  </span>
+        <div className="max-w-6xl mx-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            {/* Left Section - Profile and Navigation */}
+            <div className="lg:col-span-1">
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                {/* User Profile */}
+                <div className="text-center mb-6">
+                  <div className="w-20 h-20 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <span className="text-2xl">🧩</span>
+                  </div>
+                  <h2 className="text-xl font-bold text-gray-900 mb-1">{student.name}</h2>
+                  <p className="text-gray-600">{student.email}</p>
+                  <div className="mt-4">
+                    <div className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-medium">
+                      Status: Aktywny
+                    </div>
+                  </div>
                 </div>
+
+                {/* Quick Stats */}
+                <div className="space-y-3">
+                  <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
+                    <div className="flex items-center gap-2">
+                      <BookOpen className="w-4 h-4 text-blue-600" />
+                      <span className="text-sm font-medium text-blue-800">Kursy</span>
+                    </div>
+                    <div className="text-lg font-bold text-blue-900">{stats.totalCourses}</div>
+                  </div>
+                  
+                  <div className="bg-green-50 rounded-lg p-3 border border-green-200">
+                    <div className="flex items-center gap-2">
+                      <Star className="w-4 h-4 text-green-600" />
+                      <span className="text-sm font-medium text-green-800">Średnia</span>
+                    </div>
+                    <div className="text-lg font-bold text-green-900">{stats.averageGrade}</div>
+                  </div>
+                  
+                  <div className="bg-purple-50 rounded-lg p-3 border border-purple-200">
+                    <div className="flex items-center gap-2">
+                      <Activity className="w-4 h-4 text-purple-600" />
+                      <span className="text-sm font-medium text-purple-800">Aktywność</span>
+                    </div>
+                    <div className="text-lg font-bold text-purple-900">{stats.streak} dni</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Section - Personal Information */}
+            <div className="lg:col-span-3">
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <h2 className="text-2xl font-bold text-gray-900 mb-6">Informacje osobiste</h2>
                 
-                <div>
-                  <h2 className="text-2xl font-bold text-gray-900">{student.name}</h2>
-                  <p className="text-gray-600">{student.class}</p>
-                </div>
-              </div>
-              
-              <div className="flex items-center gap-4">
-                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
-                  <span className="text-blue-600 font-bold text-xl">
-                    {student.name.split(' ').map(n => n[0]).join('').toUpperCase()}
-                  </span>
-                </div>
-                
-                <div>
-                  <h1 className="text-2xl font-bold text-gray-900">{student.name}</h1>
-                  <p className="text-gray-600">{student.class}</p>
-                </div>
-              </div>
-            </div>
-            
-            <div className="flex gap-3">
-              <div className="bg-red-100 text-red-700 px-4 py-2 rounded-lg">
-                <span className="font-semibold">Średnia: {student.averageGrade.toFixed(1)}</span>
-              </div>
-            </div>
-          </div>
-        </div>
+                {/* Information Cards Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+                  {/* Imię i nazwisko */}
+                  <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
+                        <User className="w-4 h-4 text-white" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-700">Imię i nazwisko</p>
+                        <p className="text-lg font-semibold text-gray-900">{student.name}</p>
+                      </div>
+                    </div>
+                  </div>
 
-        {/* Main Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Row 1 */}
-          
-          {/* Informacje podstawowe */}
-          <div className="bg-white rounded-2xl shadow-lg p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-gray-900">Informacje podstawowe</h2>
-              {!isEditing ? (
-                <button
-                  onClick={() => setIsEditing(true)}
-                  className="p-2 text-gray-600 hover:text-blue-600 transition-colors"
-                >
-                  <Edit className="h-4 w-4" />
-                </button>
-              ) : (
-                <div className="flex gap-2">
-                  <button
-                    onClick={handleSaveProfile}
-                    className="p-2 text-green-600 hover:text-green-700 transition-colors"
-                  >
-                    <Save className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={() => {
-                      setIsEditing(false);
-                      setEditData(student);
-                    }}
-                    className="p-2 text-red-600 hover:text-red-700 transition-colors"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-              )}
-            </div>
-            
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <Mail className="h-4 w-4 text-gray-400" />
-                <span className="text-sm text-gray-600">{student.email}</span>
-              </div>
-              
-              {isEditing ? (
-                <>
-                  <div className="flex items-center gap-3">
-                    <Phone className="h-4 w-4 text-gray-400" />
-                    <input
-                      type="text"
-                      value={editData.phone || ''}
-                      onChange={(e) => setEditData({ ...editData, phone: e.target.value })}
-                      placeholder="Numer telefonu"
-                      className="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
+                  {/* Email */}
+                  <div className="bg-green-50 rounded-lg p-4 border border-green-200">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
+                        <Mail className="w-4 h-4 text-white" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-700">Email</p>
+                        <p className="text-lg font-semibold text-gray-900">{student.email}</p>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <MapPin className="h-4 w-4 text-gray-400" />
-                    <input
-                      type="text"
-                      value={editData.address || ''}
-                      onChange={(e) => setEditData({ ...editData, address: e.target.value })}
-                      placeholder="Adres"
-                      className="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Calendar className="h-4 w-4 text-gray-400" />
-                    <input
-                      type="date"
-                      value={editData.dateOfBirth || ''}
-                      onChange={(e) => setEditData({ ...editData, dateOfBirth: e.target.value })}
-                      className="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="flex items-center gap-3">
-                    <Phone className="h-4 w-4 text-gray-400" />
-                    <span className="text-sm text-gray-600">
-                      {student.phone || 'Nie podano'}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <MapPin className="h-4 w-4 text-gray-400" />
-                    <span className="text-sm text-gray-600">
-                      {student.address || 'Nie podano'}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Calendar className="h-4 w-4 text-gray-400" />
-                    <span className="text-sm text-gray-600">
-                      {student.dateOfBirth || 'Nie podano'}
-                    </span>
-                  </div>
-                </>
-              )}
-              
-              <div className="flex items-center gap-3">
-                <Clock className="h-4 w-4 text-gray-400" />
-                <span className="text-sm text-gray-600">Ostatnia aktywność: {student.lastActivity}</span>
-              </div>
-            </div>
-          </div>
 
-          {/* Kontakt z rodzicem */}
-          <div className="bg-white rounded-2xl shadow-lg p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Kontakt z rodzicem</h2>
-            {student.parentName ? (
-              <div className="space-y-3 mb-4">
-                <div className="flex items-center gap-3">
-                  <User className="h-4 w-4 text-gray-400" />
-                  <span className="text-sm font-medium text-gray-900">{student.parentName}</span>
+                  {/* Klasa/Grupa */}
+                  <div className="bg-purple-50 rounded-lg p-4 border border-purple-200">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center">
+                        <GraduationCap className="w-4 h-4 text-white" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-700">Klasa/Grupa</p>
+                        <p className="text-lg font-semibold text-gray-900">{student.class || '-'}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Telefon */}
+                  <div className="bg-orange-50 rounded-lg p-4 border border-orange-200">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center">
+                        <Phone className="w-4 h-4 text-white" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-700">Telefon</p>
+                        <p className="text-lg font-semibold text-gray-900">{student.phone || 'Nie podano'}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Lokalizacja */}
+                  <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
+                        <MapPin className="w-4 h-4 text-white" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-700">Lokalizacja</p>
+                        <p className="text-lg font-semibold text-gray-900">{student.address || 'Nie podano'}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Status konta */}
+                  <div className="bg-green-50 rounded-lg p-4 border border-green-200">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
+                        <div className="w-2 h-2 bg-white rounded-full"></div>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-700">Status konta</p>
+                        <p className="text-lg font-semibold text-gray-900">Aktywne</p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div className="text-xs text-gray-500">{student.parentRole}</div>
-                {student.parentPhone && (
-                  <div className="flex items-center gap-3">
-                    <Phone className="h-4 w-4 text-gray-400" />
-                    <span className="text-sm text-gray-600">{student.parentPhone}</span>
+
+                {/* Osiągnięcia */}
+                <div className="mb-8">
+                  <div className="flex items-center gap-3 mb-4">
+                    <Award className="w-6 h-6 text-yellow-500" />
+                    <h3 className="text-xl font-semibold text-gray-900">Ostatnie osiągnięcia ({achievements.length})</h3>
                   </div>
-                )}
-                {student.parentEmail && (
-                  <div className="flex items-center gap-3">
-                    <Mail className="h-4 w-4 text-gray-400" />
-                    <span className="text-sm text-gray-600">{student.parentEmail}</span>
+                  
+                  <div className="space-y-4">
+                    {achievements.map((achievement) => (
+                      <div key={achievement.id} className="group flex items-start gap-4 p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl hover:from-blue-50 hover:to-purple-50 transition-all duration-300 hover:shadow-md hover:scale-[1.02] border border-gray-200 hover:border-blue-300">
+                        <div className="text-3xl group-hover:animate-bounce">{achievement.icon}</div>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <h4 className="font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">{achievement.title}</h4>
+                            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                          </div>
+                          <p className="text-gray-600 text-sm mb-2">{achievement.description}</p>
+                          <div className="flex items-center gap-2 text-xs text-gray-500">
+                            <Calendar className="w-3 h-3" />
+                            <span>{new Date(achievement.date).toLocaleDateString('pl-PL')}</span>
+                          </div>
+                          <div className="mt-2 w-8 h-1 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full"></div>
+                        </div>
+                      </div>
+                    ))}
+                    
+                    <button className="w-full text-center py-3 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors font-medium">
+                      Zobacz wszystkie osiągnięcia
+                    </button>
                   </div>
-                )}
+                </div>
+
+                {/* Statystyki nauczyciela */}
+                <div className="mb-8">
+                  <h3 className="text-xl font-semibold text-gray-900 mb-4">Statystyki ucznia</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="group bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl shadow-sm border border-blue-200 p-6 text-center hover:shadow-lg transition-all duration-300 hover:scale-105">
+                      <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:animate-bounce">
+                        <BookOpen className="w-6 h-6 text-white" />
+                      </div>
+                      <div className="text-3xl font-bold text-blue-600 mb-1">{stats.totalCourses}</div>
+                      <div className="text-sm text-gray-600 mb-1">Kursy</div>
+                      <div className="flex items-center justify-center gap-1 text-xs text-blue-600">
+                        <TrendingUp className="w-3 h-3" />
+                        <span>Aktywne</span>
+                      </div>
+                    </div>
+
+                    <div className="group bg-gradient-to-br from-green-50 to-green-100 rounded-xl shadow-sm border border-green-200 p-6 text-center hover:shadow-lg transition-all duration-300 hover:scale-105">
+                      <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:animate-bounce">
+                        <CheckCircle className="w-6 h-6 text-white" />
+                      </div>
+                      <div className="text-3xl font-bold text-green-600 mb-1">{stats.completedCourses}</div>
+                      <div className="text-sm text-gray-600 mb-1">Ukończone</div>
+                      <div className="flex items-center justify-center gap-1 text-xs text-green-600">
+                        <Activity className="w-3 h-3" />
+                        <span>Postęp</span>
+                      </div>
+                    </div>
+
+                    <div className="group bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl shadow-sm border border-purple-200 p-6 text-center hover:shadow-lg transition-all duration-300 hover:scale-105">
+                      <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:animate-bounce">
+                        <Star className="w-6 h-6 text-white" />
+                      </div>
+                      <div className="text-3xl font-bold text-purple-600 mb-1">{stats.averageGrade}</div>
+                      <div className="text-sm text-gray-600 mb-1">Średnia</div>
+                      <div className="flex items-center justify-center gap-1 text-xs text-purple-600">
+                        <Target className="w-3 h-3" />
+                        <span>Oceny</span>
+                      </div>
+                    </div>
+
+                    <div className="group bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-xl shadow-sm border border-yellow-200 p-6 text-center hover:shadow-lg transition-all duration-300 hover:scale-105">
+                      <div className="w-12 h-12 bg-gradient-to-br from-yellow-500 to-yellow-600 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:animate-bounce">
+                        <Zap className="w-6 h-6 text-white" />
+                      </div>
+                      <div className="text-3xl font-bold text-yellow-600 mb-1">{stats.streak}</div>
+                      <div className="text-sm text-gray-600 mb-1">Dni z rzędu</div>
+                      <div className="flex items-center justify-center gap-1 text-xs text-yellow-600">
+                        <Activity className="w-3 h-3" />
+                        <span>Streak</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
-            ) : (
-              <div className="text-center py-8 text-gray-500">
-                <p>Brak przypisanego rodzica</p>
-              </div>
-            )}
-          </div>
-
-          {/* Osiągnięcia */}
-          <div className="bg-white rounded-2xl shadow-lg p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Osiągnięcia</h2>
-            <div className="text-center py-8 text-gray-500">
-              <p>Funkcjonalność osiągnięć zostanie dodana wkrótce</p>
-            </div>
-          </div>
-
-          {/* Row 2 */}
-          
-          {/* Ostatnie oceny */}
-          <div className="bg-white rounded-2xl shadow-lg p-6 lg:col-span-2">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Ostatnie oceny</h2>
-            <div className="space-y-3">
-              {grades.map((grade, index) => (
-                <div key={index} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-b-0">
-                  <div>
-                    <span className="font-medium text-gray-900">{grade.subject}</span>
-                    <span className="text-sm text-gray-500 ml-2">{grade.date}</span>
-                  </div>
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white font-semibold ${getGradeColor(grade.grade)}`}>
-                    {grade.grade}
-                  </div>
-                </div>
-              ))}
-              {grades.length === 0 && (
-                <div className="text-center py-8 text-gray-500">
-                  <p>Brak ocen</p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Przypisane kursy */}
-          <div className="bg-white rounded-2xl shadow-lg p-6 lg:col-span-2">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Przypisane kursy</h2>
-            <div className="flex flex-wrap gap-2">
-              {student.courses.map((course, index) => (
-                <span key={index} className="inline-flex items-center px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-full">
-                  <BookOpen className="h-3 w-3 mr-2" />
-                  {course}
-                </span>
-              ))}
-              {student.courses.length === 0 && (
-                <div className="text-center py-8 text-gray-500">
-                  <p>Brak przypisanych kursów</p>
-                </div>
-              )}
             </div>
           </div>
 
           {/* Notatki nauczycieli */}
-          <div className="bg-white rounded-2xl shadow-lg p-6 lg:col-span-3">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Notatki nauczycieli</h2>
-            
-            {/* Dodawanie nowej notatki */}
-            <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-              <div className="flex gap-3">
-                <textarea
-                  value={newNote}
-                  onChange={(e) => setNewNote(e.target.value)}
-                  placeholder="Dodaj notatkę o uczniu..."
-                  className="flex-1 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                  rows={3}
-                />
-                <button
-                  onClick={handleAddNote}
-                  disabled={!newNote.trim() || addingNote}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-                >
-                  {addingNote ? (
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  ) : (
-                    <Plus className="h-4 w-4" />
-                  )}
-                  Dodaj
-                </button>
-              </div>
-            </div>
-
-            {/* Lista notatek */}
-            <div className="space-y-4">
-              {teacherNotes.map((note) => (
-                <div key={note.id} className="p-4 border border-gray-200 rounded-lg">
-                  <div className="flex items-start justify-between mb-2">
-                    <div>
-                      <span className="font-medium text-gray-900">{note.teacherName}</span>
-                      <span className="text-sm text-gray-500 ml-2">
-                        {note.createdAt?.toDate?.() ? 
-                          note.createdAt.toDate().toLocaleDateString('pl-PL') : 
-                          'Data nieznana'
-                        }
-                      </span>
-                    </div>
-                    <span className="text-xs text-gray-400">{note.teacherEmail}</span>
-                  </div>
-                  <p className="text-gray-700">{note.note}</p>
-                </div>
-              ))}
+          <div className="mt-6">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              <h2 className="text-xl font-semibold text-gray-900 mb-6">Notatki nauczycieli</h2>
               
-              {teacherNotes.length === 0 && (
-                <div className="text-center py-8 text-gray-500">
-                  <p>Brak notatek nauczycieli</p>
+              {/* Dodawanie nowej notatki */}
+              <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+                <div className="flex gap-3">
+                  <textarea
+                    value={newNote}
+                    onChange={(e) => setNewNote(e.target.value)}
+                    placeholder="Dodaj notatkę o uczniu..."
+                    className="flex-1 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                    rows={3}
+                  />
+                  <button
+                    onClick={handleAddNote}
+                    disabled={!newNote.trim() || addingNote}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                  >
+                    {addingNote ? (
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    ) : (
+                      <Plus className="h-4 w-4" />
+                    )}
+                    Dodaj
+                  </button>
                 </div>
-              )}
+              </div>
+
+              {/* Lista notatek */}
+              <div className="space-y-4">
+                {teacherNotes.map((note) => (
+                  <div key={note.id} className="p-4 border border-gray-200 rounded-lg">
+                    <div className="flex items-start justify-between mb-2">
+                      <div>
+                        <span className="font-medium text-gray-900">{note.teacherName}</span>
+                        <span className="text-sm text-gray-500 ml-2">
+                          {note.createdAt?.toDate?.() ? 
+                            note.createdAt.toDate().toLocaleDateString('pl-PL') : 
+                            'Data nieznana'
+                          }
+                        </span>
+                      </div>
+                      <span className="text-xs text-gray-400">{note.teacherEmail}</span>
+                    </div>
+                    <p className="text-gray-700">{note.note}</p>
+                  </div>
+                ))}
+                
+                {teacherNotes.length === 0 && (
+                  <div className="text-center py-8 text-gray-500">
+                    <p>Brak notatek nauczycieli</p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
