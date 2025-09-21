@@ -96,14 +96,23 @@ function LoginPageContent() {
     }
     
     try {
+      console.log('🔄 Rozpoczynam logowanie...');
       const userCredential = await loginWithApproval(email, password);
       
-      // Pobierz dane użytkownika z Firestore
-      const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
+      console.log('✅ Logowanie Firebase zakończone, pobieram dane użytkownika...');
+      // Pobierz dane użytkownika z Firestore z timeoutem
+      const userDocPromise = getDoc(doc(db, 'users', userCredential.user.uid));
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Timeout pobierania danych użytkownika')), 5000)
+      );
+      
+      const userDoc = await Promise.race([userDocPromise, timeoutPromise]) as any;
+      
       if (userDoc.exists()) {
         const userData = userDoc.data();
         const userRole = userData.role;
         
+        console.log(`🎯 Przekierowuję użytkownika z rolą: ${userRole}`);
         // Przekieruj bezpośrednio na właściwy panel na podstawie roli
         if (userRole === 'teacher') {
           router.push('/homelogin/teacher');
@@ -116,10 +125,12 @@ function LoginPageContent() {
           router.push('/homelogin');
         }
       } else {
+        console.log('⚠️ Dokument użytkownika nie istnieje, przekierowuję na domyślną stronę');
         // Fallback - jeśli nie można pobrać roli
         router.push('/homelogin');
       }
     } catch (err: unknown) {
+      console.error('❌ Błąd podczas logowania:', err);
       setFirebaseError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setIsSubmitting(false);
