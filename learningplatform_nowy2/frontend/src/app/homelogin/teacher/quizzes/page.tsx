@@ -9,6 +9,7 @@ import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, s
 import QuizPreview from '@/components/QuizPreview';
 import { ArrowLeft, Eye, Save, Plus, Trash2, Settings, Edit, Eye as ViewIcon, AlertTriangle, CheckCircle, Info, BookOpen, Zap, Sparkles, Search } from 'lucide-react';
 import { ErrorDisplay } from '@/components/ErrorDisplay';
+import { AIQuizGenerator } from '@/components/AIQuizGenerator';
 
 interface Answer {
   id: string;
@@ -90,6 +91,7 @@ export default function QuizManagementPage() {
   const [selectedQuiz, setSelectedQuiz] = useState<Quiz | null>(null);
   const [editingQuestionIndex, setEditingQuestionIndex] = useState<number | null>(null);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
+  const [showAIGenerator, setShowAIGenerator] = useState(false);
   
   const { user, loading } = useAuth();
   const router = useRouter();
@@ -246,6 +248,23 @@ export default function QuizManagementPage() {
       console.error('Error creating quiz:', error);
       setError('Nie udało się utworzyć quizu. Spróbuj ponownie.');
     }
+  };
+
+  const handleAIGeneratedQuiz = (generatedQuiz: any) => {
+    // Konwertuj wygenerowany quiz na format używany w aplikacji
+    const convertedQuiz = {
+      title: generatedQuiz.title,
+      description: generatedQuiz.description,
+      subject: generatedQuiz.subject,
+      course_id: newQuiz.course_id,
+      questions: generatedQuiz.questions,
+      max_attempts: newQuiz.max_attempts,
+      time_limit: generatedQuiz.estimatedTime || newQuiz.time_limit,
+    };
+
+    setNewQuiz(convertedQuiz);
+    setIsCreating(true);
+    setShowAIGenerator(false);
   };
 
   const handleEditQuiz = (quiz: Quiz) => {
@@ -477,13 +496,22 @@ export default function QuizManagementPage() {
         </div>
         <div className="flex space-x-3">
           {!isCreating && !isEditing && (
-            <button
-              onClick={() => setIsCreating(true)}
-              className="group px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-300 font-medium shadow-lg hover:shadow-xl hover:scale-105 flex items-center space-x-2"
-            >
-              <Plus className="w-5 h-5 group-hover:animate-bounce" />
-              <span>Utwórz Quiz</span>
-            </button>
+            <>
+              <button
+                onClick={() => setIsCreating(true)}
+                className="group px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-300 font-medium shadow-lg hover:shadow-xl hover:scale-105 flex items-center space-x-2"
+              >
+                <Plus className="w-5 h-5 group-hover:animate-bounce" />
+                <span>Utwórz Quiz</span>
+              </button>
+              <button
+                onClick={() => setShowAIGenerator(true)}
+                className="group px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl hover:from-purple-700 hover:to-pink-700 transition-all duration-300 font-medium shadow-lg hover:shadow-xl hover:scale-105 flex items-center space-x-2"
+              >
+                <Sparkles className="w-5 h-5 group-hover:animate-pulse" />
+                <span>Generator AI</span>
+              </button>
+            </>
           )}
           {isCreating && (
             <>
@@ -914,6 +942,14 @@ export default function QuizManagementPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* AI Quiz Generator Modal */}
+      {showAIGenerator && (
+        <AIQuizGenerator
+          onQuizGenerated={handleAIGeneratedQuiz}
+          onClose={() => setShowAIGenerator(false)}
+        />
       )}
     </div>
   );

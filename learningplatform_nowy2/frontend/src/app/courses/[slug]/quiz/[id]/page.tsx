@@ -22,6 +22,7 @@ import MathView from '@/components/MathView';
 import QuizAnswerInput from '@/components/QuizAnswerInput';
 import { Quiz, Question } from '@/types';
 import { QuizNotFound } from '@/components/QuizNotFound';
+import { calculateGradeFromPercentage, getGradeDescription, getGradeColor } from '@/utils/gradeCalculator';
 
 interface QuizAnswer {
   content: string;
@@ -41,6 +42,8 @@ export default function QuizTaking() {
   const [openAnswers, setOpenAnswers] = useState<Record<string, { content: string; type: 'text' | 'math' }>>({});
   const [quizSubmitted, setQuizSubmitted] = useState(false);
   const [score, setScore] = useState(0);
+  const [grade, setGrade] = useState(0);
+  const [gradeDescription, setGradeDescription] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [attemptsCount, setAttemptsCount] = useState(0);
@@ -123,6 +126,14 @@ export default function QuizTaking() {
       const finalScore = Math.round((correctAnswers / totalQuestions) * 100);
       console.log('Final score calculated:', { correctAnswers, totalQuestions, finalScore });
       setScore(finalScore);
+      
+      // Oblicz ocenę na podstawie procentów
+      const calculatedGrade = calculateGradeFromPercentage(finalScore);
+      const calculatedGradeDescription = getGradeDescription(calculatedGrade);
+      
+      // Ustaw wartości w stanie
+      setGrade(calculatedGrade);
+      setGradeDescription(calculatedGradeDescription);
       
       // Save quiz results to Firestore
       const quizResult = {
@@ -355,54 +366,130 @@ export default function QuizTaking() {
     return <div className="p-4 text-red-500">Błąd: Nie znaleziono pytania</div>;
   }
 
+  // Funkcja do sprawdzania czy odpowiedź jest poprawna
+  const isAnswerCorrect = (question: Question): boolean => {
+    if (question.type === 'open' || !question.answers?.length) {
+      const userAnswer = openAnswers[question.id]?.content?.trim().toLowerCase() || '';
+      const correctAnswer = question.answers[0]?.content?.trim().toLowerCase();
+      return userAnswer === correctAnswer;
+    } else {
+      const selectedAnswerId = selectedAnswers[question.id];
+      const correctAnswer = question.answers.find(answer => answer.is_correct === true);
+      return selectedAnswerId === correctAnswer?.id;
+    }
+  };
+
+  // Funkcja do renderowania pytania z wynikami
+  const renderQuestionWithResults = (question: Question) => {
+    if (!question) {
+      return <div className="p-4 text-red-500">Błąd: Nieprawidłowe pytanie</div>;
+    }
+
+    const isCorrect = isAnswerCorrect(question);
+
+    return (
+      <div className="bg-white rounded-xl border-2 p-6 shadow-sm">
+        {/* Header pytania z wynikiem */}
+        <div className="flex items-start justify-between mb-4">
+          <div className="flex-1">
+            <div className="text-lg font-semibold text-gray-900 mb-2">
+              {question.content || 'Brak treści pytania'}
+            </div>
+          </div>
+          <div className={`px-3 py-1 rounded-full text-sm font-medium ${
+            isCorrect 
+              ? 'bg-green-100 text-green-800 border border-green-200' 
+              : 'bg-red-100 text-red-800 border border-red-200'
+          }`}>
+            {isCorrect ? '✓ Poprawne' : '✗ Błędne'}
+          </div>
+        </div>
+
+        {/* Odpowiedzi */}
+        <div className="space-y-3">
+          {(question.type === 'open' || !question.answers?.length) ? (
+            // Pytania otwarte
+            <div className="space-y-4">
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <div className="text-sm font-medium text-gray-700 mb-2">Twoja odpowiedź:</div>
+                <div className="text-gray-900">
+                  {openAnswers[question.id]?.type === 'math' ? (
+                    <MathView content={openAnswers[question.id]?.content || ''} />
+                  ) : (
+                    <p className="italic">{openAnswers[question.id]?.content || 'Brak odpowiedzi'}</p>
+                  )}
+                </div>
+              </div>
+              
+              <div className={`p-4 rounded-lg border-2 ${
+                isCorrect ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'
+              }`}>
+                <div className="text-sm font-medium text-gray-700 mb-2">Poprawna odpowiedź:</div>
+                <div className="text-gray-900">
+                  {question.answers[0]?.type === 'math' ? (
+                    <MathView content={question.answers[0].content} />
+                  ) : (
+                    <p className="font-medium">{question.answers[0]?.content}</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : (
+            // Pytania wielokrotnego wyboru
+            (question.answers || []).map((answer, index) => {
+              const isSelected = selectedAnswers[question.id] === answer.id;
+              const isCorrectAnswer = answer.is_correct === true;
+              
+              let answerStyle = 'bg-gray-50 border-gray-200 text-gray-700';
+              let icon = '';
+              
+              if (isCorrectAnswer) {
+                answerStyle = 'bg-green-50 border-green-300 text-green-800';
+                icon = '✓';
+              } else if (isSelected && !isCorrectAnswer) {
+                answerStyle = 'bg-red-50 border-red-300 text-red-800';
+                icon = '✗';
+              }
+              
+              return (
+                <div
+                  key={answer.id}
+                  className={`p-4 rounded-lg border-2 transition-all duration-200 ${answerStyle}`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                      isCorrectAnswer ? 'bg-green-500 text-white' : 
+                      isSelected ? 'bg-red-500 text-white' : 'bg-gray-300 text-gray-600'
+                    }`}>
+                      {String.fromCharCode(65 + index)}
+                    </div>
+                    <div className="flex-1">
+                      <span className="font-medium">{answer.content || 'Brak treści odpowiedzi'}</span>
+                    </div>
+                    {icon && (
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold ${
+                        isCorrectAnswer ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
+                      }`}>
+                        {icon}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+    );
+  };
+
   const renderQuestion = (question: Question) => {
     if (!question) {
       return <div className="p-4 text-red-500">Błąd: Nieprawidłowe pytanie</div>;
     }
 
     if (quizSubmitted) {
-      return (
-        <div className="space-y-4">
-          <div className="font-medium">
-            {question.content || 'Brak treści pytania'}
-          </div>
-          <div className="pl-4">
-            {(question.type === 'open' || !question.answers?.length) ? (
-              <div className="space-y-2">
-                <div>Twoja odpowiedź:</div>
-                <div className="pl-4">
-                  {openAnswers[question.id]?.type === 'math' ? (
-                    <MathView content={openAnswers[question.id]?.content || ''} />
-                  ) : (
-                    <p>{openAnswers[question.id]?.content || ''}</p>
-                  )}
-                </div>
-                <div className="mt-2">Poprawna odpowiedź:</div>
-                <div className="pl-4 text-green-600">
-                  {question.answers[0]?.type === 'math' ? (
-                    <MathView content={question.answers[0].content} />
-                  ) : (
-                    <p>{question.answers[0]?.content}</p>
-                  )}
-                </div>
-              </div>
-            ) : (
-              (question.answers || []).map((answer, index) => (
-                <div
-                  key={answer.id}
-                  className={`p-3 mb-2 rounded ${
-                    answer.is_correct ? 'bg-green-100' : 
-                    selectedAnswers[question.id] === answer.id ? 'bg-red-100' : ''
-                  }`}
-                >
-                  <span className="font-medium">{String.fromCharCode(65 + index)})</span>{' '}
-                  {answer.content || 'Brak treści odpowiedzi'}
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      );
+      return renderQuestionWithResults(question);
     }
 
     return (
@@ -462,31 +549,141 @@ export default function QuizTaking() {
     return (
       <div className="max-w-4xl mx-auto p-6">
         <h1 className="text-2xl font-bold mb-6">{quiz.title} - Wyniki</h1>
-        <div className="mb-6">
-          <div className="text-xl mb-2">
-            Twój wynik: {score.toFixed(1)}%
-          </div>
-          <div className="h-4 bg-gray-200 rounded-full">
-            <div
-              className="h-4 bg-green-500 rounded-full"
-              style={{ width: `${score}%` }}
-            />
-          </div>
-        </div>
-        <div className="space-y-8">
-          {quiz.questions.map((question, index) => (
-            <div key={`question-${index}`} className="border-b pb-6">
-              <div className="font-semibold mb-2">Pytanie {index + 1}</div>
-              {renderQuestion(question)}
+        
+        {/* Wyniki quizu */}
+        <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-8 mb-8">
+          <div className="text-center mb-8">
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">Gratulacje! Quiz ukończony</h2>
+            
+            {/* Procent i pasek postępu */}
+            <div className="mb-6">
+              <div className="text-4xl font-bold text-blue-600 mb-2">
+                {score.toFixed(1)}%
+              </div>
+              <div className="h-6 bg-gray-200 rounded-full overflow-hidden">
+                <div
+                  className="h-6 bg-gradient-to-r from-blue-500 to-green-500 rounded-full transition-all duration-1000 ease-out"
+                  style={{ width: `${score}%` }}
+                />
+              </div>
             </div>
-          ))}
+            
+            {/* Ocena */}
+            <div className="flex items-center justify-center gap-4 mb-6">
+              <div className={`w-20 h-20 rounded-full flex items-center justify-center text-3xl font-bold text-white shadow-lg ${getGradeColor(grade)}`}>
+                {grade}
+              </div>
+              <div className="text-left">
+                <div className="text-2xl font-bold text-gray-900">{gradeDescription}</div>
+                <div className="text-gray-600">Ocena: {grade}/5</div>
+              </div>
+            </div>
+            
+            {/* Statystyki */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+              <div className="bg-blue-50 p-4 rounded-lg">
+                <div className="text-2xl font-bold text-blue-600">{score.toFixed(1)}%</div>
+                <div className="text-sm text-blue-800">Wynik procentowy</div>
+              </div>
+              <div className="bg-green-50 p-4 rounded-lg">
+                <div className="text-2xl font-bold text-green-600">{grade}</div>
+                <div className="text-sm text-green-800">Ocena</div>
+              </div>
+              <div className="bg-purple-50 p-4 rounded-lg">
+                <div className="text-2xl font-bold text-purple-600">{quiz.questions.length}</div>
+                <div className="text-sm text-purple-800">Liczba pytań</div>
+              </div>
+            </div>
+          </div>
         </div>
-        <button
-          onClick={() => router.back()}
-          className="mt-6 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-        >
-          Wróć do kursu
-        </button>
+        
+        {/* Podgląd pytań z wynikami */}
+        <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-8">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-600 rounded-lg flex items-center justify-center">
+              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div>
+              <h3 className="text-xl font-bold text-gray-900">Podgląd odpowiedzi</h3>
+              <p className="text-gray-600">Sprawdź swoje odpowiedzi i poprawne rozwiązania</p>
+            </div>
+          </div>
+          
+          {/* Statystyki odpowiedzi */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+            {(() => {
+              const correctCount = quiz.questions.filter(q => isAnswerCorrect(q)).length;
+              const incorrectCount = quiz.questions.length - correctCount;
+              
+              return (
+                <>
+                  <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+                        <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                      <span className="font-semibold text-green-800">Poprawne</span>
+                    </div>
+                    <div className="text-2xl font-bold text-green-600">{correctCount}</div>
+                  </div>
+                  
+                  <div className="bg-red-50 p-4 rounded-lg border border-red-200">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-6 h-6 bg-red-500 rounded-full flex items-center justify-center">
+                        <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                      <span className="font-semibold text-red-800">Błędne</span>
+                    </div>
+                    <div className="text-2xl font-bold text-red-600">{incorrectCount}</div>
+                  </div>
+                  
+                  <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
+                        <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                      <span className="font-semibold text-blue-800">Łącznie</span>
+                    </div>
+                    <div className="text-2xl font-bold text-blue-600">{quiz.questions.length}</div>
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+          
+          <div className="space-y-6">
+            {quiz.questions.map((question, index) => (
+              <div key={`question-${index}`}>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                    {index + 1}
+                  </div>
+                  <h4 className="text-lg font-semibold text-gray-900">Pytanie {index + 1}</h4>
+                </div>
+                {renderQuestion(question)}
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="text-center">
+          <button
+            onClick={() => router.back()}
+            className="px-8 py-4 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-300 font-medium shadow-lg hover:shadow-xl hover:scale-105 flex items-center gap-2 mx-auto"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            Wróć do kursu
+          </button>
+        </div>
       </div>
     );
   }

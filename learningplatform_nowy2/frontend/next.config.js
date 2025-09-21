@@ -7,9 +7,19 @@ const nextConfig = {
   // Enable image optimization for better performance
   images: {
     unoptimized: false,
-    domains: [
-      'images.unsplash.com',
-      'firebasestorage.googleapis.com'
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'images.unsplash.com',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'firebasestorage.googleapis.com',
+        port: '',
+        pathname: '/**',
+      }
     ],
   },
   // Enable static generation
@@ -17,17 +27,17 @@ const nextConfig = {
   
   // 🚀 SPEED OPTIMIZATIONS FOR DEVELOPMENT
   // Turbopack configuration (now stable)
-  experimental: {
-    // Enable Turbopack for faster development
-    turbo: {
-      rules: {
-        '*.svg': {
-          loaders: ['@svgr/webpack'],
-          as: '*.js',
-        },
+  turbopack: {
+    rules: {
+      '*.svg': {
+        loaders: ['@svgr/webpack'],
+        as: '*.js',
       },
     },
-    // Optimize package imports
+  },
+  
+  // Optimize package imports
+  experimental: {
     optimizePackageImports: ['react-icons', 'lucide-react'],
   },
   
@@ -46,6 +56,12 @@ const nextConfig = {
       };
     }
     
+    // Optimize bundle size
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      '@': require('path').resolve(__dirname, 'src'),
+    };
+    
     return config;
   },
   
@@ -55,10 +71,9 @@ const nextConfig = {
     removeConsole: process.env.NODE_ENV === 'production',
   },
   
-  // 🔥 CACHE BUSTING FOR DEVELOPMENT
+  // Generate stable build ID for better caching
   generateBuildId: async () => {
-    // Generate unique build ID to bust cache
-    return `build-${Date.now()}`;
+    return 'stable-build-id';
   },
   
   // Headers to prevent caching in development
@@ -86,6 +101,21 @@ const nextConfig = {
     }
     return [];
   },
+  
+  // Allow cross-origin requests in development
+  allowedDevOrigins: ['192.168.1.112'],
+  
+  // Performance optimizations
+  swcMinify: true,
+  
+  // Enable static optimization
+  output: 'standalone',
+  
+  // Optimize fonts
+  optimizeFonts: true,
+  
+  // Enable compression
+  compress: true,
 }
 
 module.exports = nextConfig
