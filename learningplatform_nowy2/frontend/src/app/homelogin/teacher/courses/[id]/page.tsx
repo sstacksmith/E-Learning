@@ -13,6 +13,7 @@ import YouTubePlayer from '@/components/YouTubePlayer';
 import dynamic from 'next/dynamic';
 import { ArrowLeft } from 'lucide-react';
 import { QuizAssignmentModal } from '@/components/QuizAssignmentModal';
+import { ReorderableSection } from '@/components/ReorderableSection';
 // Dynamiczny import MDXEditor
 const MDXEditor = dynamic(() => import('@mdxeditor/editor').then(mod => mod.MDXEditor), { ssr: false });
 import {
@@ -235,6 +236,12 @@ function TeacherCourseDetailContent() {
   // Stan do zarządzania quizami
   const [availableQuizzes, setAvailableQuizzes] = useState<any[]>([]);
   const [showQuizSelector, setShowQuizSelector] = useState(false);
+
+  // Stan do trybu uporządkowania
+  const [isReorderMode, setIsReorderMode] = useState(false);
+  const [reorderedSections, setReorderedSections] = useState<Section[]>([]);
+  const [isSavingOrder, setIsSavingOrder] = useState(false);
+  const [draggedElement, setDraggedElement] = useState<string | null>(null);
 
   // Funkcja do pobierania dostępnych quizów
   const fetchAvailableQuizzes = async () => {
@@ -1618,6 +1625,148 @@ function TeacherCourseDetailContent() {
   if (error) return <div className="p-8 text-red-500">{error}</div>;
   if (!course) return <div className="p-8">Nie znaleziono kursu.</div>;
 
+  // Funkcje do zarządzania trybem uporządkowania
+  const handleStartReorder = () => {
+    setIsReorderMode(true);
+    setReorderedSections([...sections]);
+  };
+
+  const handleCancelReorder = () => {
+    setIsReorderMode(false);
+    setReorderedSections([]);
+  };
+
+  const handleSaveOrder = async () => {
+    setIsSavingOrder(true);
+    try {
+      // Zapisz nową kolejność do Firestore
+      if (courseId) {
+        const courseRef = doc(db, "courses", String(courseId));
+        
+        // Aktualizuj kolejność sekcji i podsekcji
+        const updatedSections = reorderedSections.map((section, sectionIndex) => ({
+          ...section,
+          order: sectionIndex,
+          subsections: section.subsections?.map((subsection, subsectionIndex) => ({
+            ...subsection,
+            order: subsectionIndex
+          })) || []
+        }));
+
+        await updateDoc(courseRef, { 
+          sections: updatedSections,
+          updated_at: new Date().toISOString()
+        });
+        
+        // Odśwież dane kursu
+        await refreshCourseData();
+        
+        setSuccess('Kolejność sekcji została zapisana!');
+        setIsReorderMode(false);
+        setReorderedSections([]);
+        
+        // Ukryj komunikat sukcesu po 3 sekundach
+        setTimeout(() => setSuccess(null), 3000);
+      }
+    } catch (error) {
+      console.error('Error saving sections order:', error);
+      setError('Błąd podczas zapisywania kolejności sekcji');
+    } finally {
+      setIsSavingOrder(false);
+    }
+  };
+
+  const handleSectionReorder = (fromIndex: number, toIndex: number) => {
+    const newSections = [...reorderedSections];
+    const [movedSection] = newSections.splice(fromIndex, 1);
+    newSections.splice(toIndex, 0, movedSection);
+    setReorderedSections(newSections);
+  };
+
+  const handleSubsectionReorder = (sectionId: number, fromIndex: number, toIndex: number) => {
+    console.log('handleSubsectionReorder called:', { sectionId, fromIndex, toIndex });
+    console.log('Current reorderedSections:', reorderedSections.map(s => ({ id: s.id, title: s.title, subsections: s.subsections?.map(sub => sub.name) })));
+    
+    const newSections = reorderedSections.map(section => {
+      if (section.id === sectionId && section.subsections) {
+        const newSubsections = [...section.subsections];
+        console.log('Before reorder:', newSubsections.map(s => s.name));
+        
+        // Usuń element z pozycji fromIndex
+        const [movedSubsection] = newSubsections.splice(fromIndex, 1);
+        console.log('Moved subsection:', movedSubsection.name);
+        
+        // Wstaw element na pozycję toIndex
+        newSubsections.splice(toIndex, 0, movedSubsection);
+        console.log('After reorder:', newSubsections.map(s => s.name));
+        
+        return { ...section, subsections: newSubsections };
+      }
+      return section;
+    });
+    
+    console.log('Setting new reorderedSections:', newSections.map(s => ({ id: s.id, title: s.title, subsections: s.subsections?.map(sub => sub.name) })));
+    setReorderedSections(newSections);
+    
+    // Pokaż powiadomienie o pomyślnym przeniesieniu
+    const section = newSections.find(s => s.id === sectionId);
+    if (section && section.subsections) {
+      const subsection = section.subsections[toIndex];
+      if (subsection) {
+        setSuccess(`Pomyślnie przeniesiono "${subsection.name}" w sekcji "${section.title || section.name || 'Nieznana sekcja'}"`);
+        setTimeout(() => setSuccess(null), 4000);
+      }
+    }
+  };
+
+  const handleSubsectionMoveToSection = (fromSectionId: number, fromSubsectionIndex: number, toSectionId: number, toSubsectionIndex: number) => {
+    const newSections = [...reorderedSections];
+    
+    // Znajdź sekcję źródłową i usuń podsekcję
+    const fromSectionIndex = newSections.findIndex(s => s.id === fromSectionId);
+    if (fromSectionIndex === -1 || !newSections[fromSectionIndex].subsections) return;
+    
+    const fromSection = newSections[fromSectionIndex];
+    const [movedSubsection] = fromSection.subsections!.splice(fromSubsectionIndex, 1);
+    
+    // Znajdź sekcję docelową i dodaj podsekcję
+    const toSectionIndex = newSections.findIndex(s => s.id === toSectionId);
+    if (toSectionIndex === -1) return;
+    
+    const toSection = newSections[toSectionIndex];
+    if (!toSection.subsections) {
+      toSection.subsections = [];
+    }
+    
+    // Jeśli przenosimy do tej samej sekcji, dostosuj indeks
+    let adjustedIndex = toSubsectionIndex;
+    if (fromSectionId === toSectionId && fromSubsectionIndex < toSubsectionIndex) {
+      adjustedIndex = toSubsectionIndex - 1;
+    }
+    
+    // Ogranicz indeks do maksymalnej długości tablicy
+    const maxIndex = toSection.subsections.length;
+    const safeIndex = Math.min(adjustedIndex, maxIndex);
+    
+    toSection.subsections.splice(safeIndex, 0, movedSubsection);
+    
+    setReorderedSections(newSections);
+    
+    // Pokaż powiadomienie o pomyślnym przeniesieniu
+    const fromSectionName = fromSection.title || fromSection.name || 'Nieznana sekcja';
+    const toSectionName = toSection.title || toSection.name || 'Nieznana sekcja';
+    const subsectionName = movedSubsection.name || 'Nieznana podsekcja';
+    
+    if (fromSectionId === toSectionId) {
+      setSuccess(`Pomyślnie przeniesiono "${subsectionName}" w sekcji "${toSectionName}"`);
+    } else {
+      setSuccess(`Pomyślnie przeniesiono "${subsectionName}" z "${fromSectionName}" do "${toSectionName}"`);
+    }
+    
+    // Ukryj komunikat sukcesu po 4 sekundach
+    setTimeout(() => setSuccess(null), 4000);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 w-full">
       {/* Header z przyciskiem powrotu */}
@@ -1866,11 +2015,11 @@ function TeacherCourseDetailContent() {
 
           {/* Komunikaty */}
           {success && (
-            <div className="mt-3 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg flex items-center gap-2">
+            <div className="mt-3 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg flex items-center gap-2 shadow-lg animate-pulse">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
-              {success}
+              <span className="font-medium">{success}</span>
             </div>
           )}
           {error && (
@@ -1884,8 +2033,47 @@ function TeacherCourseDetailContent() {
         </div>
       </div>
 
-      {/* DODAJ SEKCJĘ */}
-      <div className="w-full mb-4 flex justify-end">
+      {/* DODAJ SEKCJĘ I UPORZĄDKUJ */}
+      <div className="w-full mb-4 flex justify-end gap-3">
+        {!isReorderMode ? (
+          <button
+            onClick={handleStartReorder}
+            className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors shadow-sm font-semibold"
+            title="Uporządkuj kolejność sekcji i podsekcji"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+            </svg>
+            Uporządkuj
+          </button>
+        ) : (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleSaveOrder}
+              disabled={isSavingOrder}
+              className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors shadow-sm disabled:opacity-50 font-semibold"
+            >
+              {isSavingOrder ? (
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+              ) : (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              )}
+              Zapisz kolejność
+            </button>
+            <button
+              onClick={handleCancelReorder}
+              className="flex items-center gap-2 px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors shadow-sm font-semibold"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+              Anuluj
+            </button>
+          </div>
+        )}
+        
         {!addingSection ? (
           <button onClick={() => setAddingSection(true)} className="flex items-center gap-2 bg-[#4067EC] text-white px-4 py-2 rounded-lg font-semibold shadow hover:bg-[#3155d4] transition">
             <FaPlus /> Dodaj sekcję
@@ -1955,9 +2143,55 @@ function TeacherCourseDetailContent() {
         )}
       </div>
 
-      {/* SEKCJE (Accordion) */}
+      {/* SEKCJE */}
       <div className="w-full space-y-4">
-        {sections.map((section) => (
+        {isReorderMode ? (
+          // Tryb uporządkowania z drag & drop
+          reorderedSections.map((section, index) => (
+            <ReorderableSection
+              key={section.id}
+              section={section}
+              index={index}
+              isReorderMode={isReorderMode}
+              onSectionReorder={handleSectionReorder}
+              onSubsectionReorder={handleSubsectionReorder}
+              onSubsectionMoveToSection={handleSubsectionMoveToSection}
+              draggedElement={draggedElement}
+              setDraggedElement={setDraggedElement}
+              renderSectionContent={(section) => (
+                <div className="space-y-3">
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <div className="flex items-center gap-2 text-blue-800 text-sm font-medium">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      Tryb uporządkowania
+                    </div>
+                    <p className="text-blue-700 text-sm mt-1">
+                      • <span className="font-semibold">Sekcje:</span> Przeciągnij aby zmienić kolejność<br/>
+                      • <span className="font-semibold">Podsekcje w sekcji:</span> Przeciągnij aby zmienić kolejność<br/>
+                      • <span className="font-semibold">Przenoszenie podsekcji:</span> Przeciągnij podsekcję do konkretnego miejsca w innej sekcji<br/>
+                      • <span className="text-purple-600">Fioletowe podświetlenie</span> = można upuścić podsekcję na koniec sekcji<br/>
+                      • <span className="text-green-600">Zielone podświetlenie</span> = można upuścić podsekcję w konkretnym miejscu
+                    </p>
+                  </div>
+                  {section.subsections && section.subsections.length > 0 && (
+                    <div className="text-gray-600 text-sm">
+                      Podsekcje w tej sekcji: {section.subsections.length}
+                    </div>
+                  )}
+                </div>
+              )}
+              renderSubsectionContent={(subsection, sectionId) => (
+                <div className="text-gray-500 text-sm">
+                  Podsekcja: {subsection.name}
+                </div>
+              )}
+            />
+          ))
+        ) : (
+          // Normalny tryb (stare renderowanie)
+          sections.map((section) => (
           <div key={section.id} className="bg-white rounded-lg border border-gray-200">
             <div 
               className="w-full flex items-center justify-between px-6 py-4 text-xl font-bold text-[#4067EC] hover:bg-gray-50 rounded-t-lg cursor-pointer"
@@ -2673,7 +2907,8 @@ function TeacherCourseDetailContent() {
               </div>
             )}
           </div>
-        ))}
+          ))
+        )}
       </div>
 
 
