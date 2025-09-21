@@ -4,7 +4,6 @@ import { useAuth } from '@/context/AuthContext';
 import { useRouter } from "next/navigation";
 import { db } from '@/config/firebase';
 import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
-import ClassManagement from '@/components/ClassManagement';
 import TutorManagement from '@/components/TutorManagement';
 import {
   BookOpen,
@@ -55,7 +54,6 @@ export default function TeacherDashboard() {
   const { user } = useAuth();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
-  const [showClassManagement, setShowClassManagement] = useState(false);
   const [showTutorManagement, setShowTutorManagement] = useState(false);
   const [stats, setStats] = useState({
     courses: 0,
@@ -642,16 +640,6 @@ export default function TeacherDashboard() {
                 </div>
               </button>
 
-              <button
-                onClick={() => setShowClassManagement(true)}
-                className="w-full flex items-center gap-3 p-3 text-left rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
-              >
-                <Users className="h-5 w-5 text-indigo-600" />
-                <div>
-                  <div className="font-medium text-gray-900">Zarządzaj Klasami</div>
-                  <div className="text-sm text-gray-600">Twórz klasy i dodawaj uczniów</div>
-                </div>
-              </button>
 
               {/* Admin Only - Tutor Management */}
               {isAdmin && (
@@ -710,10 +698,6 @@ export default function TeacherDashboard() {
         </div>
       </div>
 
-      {/* Modal zarządzania klasami */}
-      {showClassManagement && (
-        <ClassManagement onClose={() => setShowClassManagement(false)} />
-      )}
 
       {/* Modal zarządzania tutorami */}
       {showTutorManagement && (

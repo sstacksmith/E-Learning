@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { Search, Filter, Plus, Edit, Trash2, UserPlus, ArrowLeft } from 'lucide-react';
+import { Search, Filter, Plus, Edit, Trash2, UserPlus, ArrowLeft, ArrowUpDown, ArrowUp, ArrowDown, Calendar, User, Award, BookOpen } from 'lucide-react';
 import { db } from '@/config/firebase';
 import { collection, getDocs, addDoc, updateDoc, doc, Timestamp } from 'firebase/firestore';
 
@@ -77,6 +77,24 @@ export default function TeacherGradesPage() {
 
   const [teacherSubjects, setTeacherSubjects] = useState<string[]>([]);
   const [teacherCoursesMap, setTeacherCoursesMap] = useState<Map<string, string>>(new Map()); // Map: courseName -> courseId
+  
+  // Sorting state
+  const [sortBy, setSortBy] = useState<'date' | 'type' | 'student' | 'grade' | 'course'>('date');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  
+  // Filtering state
+  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [filters, setFilters] = useState({
+    dateFrom: '',
+    dateTo: '',
+    type: '',
+    student: '',
+    grade: '',
+    course: ''
+  });
+  const [selectedFilterStudents, setSelectedFilterStudents] = useState<string[]>([]);
+  const [filterStudentSearchTerm, setFilterStudentSearchTerm] = useState('');
+  const [showFilterStudentDropdown, setShowFilterStudentDropdown] = useState(false);
   
   // Statyczna lista wszystkich przedmiotów (będzie filtrowana)
   const ALL_SUBJECTS = [
@@ -481,6 +499,96 @@ export default function TeacherGradesPage() {
     setTimeout(() => setShowStudentDropdown(false), 100);
   };
 
+  const handleSort = (column: 'date' | 'type' | 'student' | 'grade' | 'course') => {
+    if (sortBy === column) {
+      // Toggle sort order if same column
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      // Set new column and default to ascending
+      setSortBy(column);
+      setSortOrder('asc');
+    }
+  };
+
+  const handleFilterChange = (key: string, value: string) => {
+    setFilters(prev => ({ ...prev, [key]: value }));
+  };
+
+  const clearFilters = () => {
+    setFilters({
+      dateFrom: '',
+      dateTo: '',
+      type: '',
+      student: '',
+      grade: '',
+      course: ''
+    });
+    setSelectedFilterStudents([]);
+    setFilterStudentSearchTerm('');
+  };
+
+  const handleFilterStudentToggle = (studentId: string) => {
+    setSelectedFilterStudents(prev => {
+      if (prev.includes(studentId)) {
+        return prev.filter(id => id !== studentId);
+      } else {
+        return [...prev, studentId];
+      }
+    });
+    setTimeout(() => setShowFilterStudentDropdown(false), 100);
+  };
+
+  const handleSelectAllFilterStudents = () => {
+    if (selectedFilterStudents.length === filteredStudents.length) {
+      setSelectedFilterStudents([]);
+    } else {
+      setSelectedFilterStudents(filteredStudents.map(s => s.uid));
+    }
+    setTimeout(() => setShowFilterStudentDropdown(false), 100);
+  };
+
+  const getActiveFiltersCount = () => {
+    const filterCount = Object.values(filters).filter(value => value !== '').length;
+    const studentFilterCount = selectedFilterStudents.length > 0 ? 1 : 0;
+    return filterCount + studentFilterCount;
+  };
+
+  // Function to get grade color based on value
+  const getGradeColor = (grade: string) => {
+    const numericGrade = parseFloat(grade);
+    
+    if (isNaN(numericGrade)) {
+      // Handle text grades
+      const gradeLower = grade.toLowerCase();
+      if (gradeLower.includes('bdb') || gradeLower.includes('bardzo dobry')) {
+        return 'bg-green-100 text-green-800 border-green-200';
+      } else if (gradeLower.includes('db') || gradeLower.includes('dobry')) {
+        return 'bg-blue-100 text-blue-800 border-blue-200';
+      } else if (gradeLower.includes('dst') || gradeLower.includes('dostateczny')) {
+        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      } else if (gradeLower.includes('dop') || gradeLower.includes('dopuszczający')) {
+        return 'bg-orange-100 text-orange-800 border-orange-200';
+      } else if (gradeLower.includes('ndst') || gradeLower.includes('niedostateczny')) {
+        return 'bg-red-100 text-red-800 border-red-200';
+      } else {
+        return 'bg-gray-100 text-gray-800 border-gray-200';
+      }
+    } else {
+      // Handle numeric grades
+      if (numericGrade >= 5) {
+        return 'bg-green-100 text-green-800 border-green-200';
+      } else if (numericGrade >= 4) {
+        return 'bg-blue-100 text-blue-800 border-blue-200';
+      } else if (numericGrade >= 3) {
+        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      } else if (numericGrade >= 2) {
+        return 'bg-orange-100 text-orange-800 border-orange-200';
+      } else {
+        return 'bg-red-100 text-red-800 border-red-200';
+      }
+    }
+  };
+
   const handleUpdateGrade = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !editingGrade) return;
@@ -541,12 +649,14 @@ export default function TeacherGradesPage() {
       const target = event.target as Element;
       if (!target.closest('.student-dropdown-container')) {
         setShowStudentDropdown(false);
+        setShowFilterStudentDropdown(false);
       }
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setShowStudentDropdown(false);
+        setShowFilterStudentDropdown(false);
       }
     };
 
@@ -558,11 +668,56 @@ export default function TeacherGradesPage() {
     };
   }, []);
 
-  const filteredGrades = grades.filter(grade => {
+  // Sort grades function
+  const sortGrades = (grades: Grade[]) => {
+    return [...grades].sort((a, b) => {
+      let comparison = 0;
+      
+      switch (sortBy) {
+        case 'date':
+          comparison = new Date(a.date).getTime() - new Date(b.date).getTime();
+          break;
+        case 'type':
+          comparison = a.type.localeCompare(b.type);
+          break;
+        case 'student':
+          comparison = a.studentName.localeCompare(b.studentName);
+          break;
+        case 'grade':
+          // Convert grades to numbers for proper sorting (handle both numeric and text grades)
+          const gradeA = parseFloat(a.grade) || 0;
+          const gradeB = parseFloat(b.grade) || 0;
+          comparison = gradeA - gradeB;
+          break;
+        case 'course':
+          comparison = (a.course || '').localeCompare(b.course || '');
+          break;
+        default:
+          comparison = 0;
+      }
+      
+      return sortOrder === 'asc' ? comparison : -comparison;
+    });
+  };
+
+  const filteredGrades = sortGrades(grades.filter(grade => {
     const matchesSearch = grade.studentName.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCourse = selectedCourse === 'Wszystkie kursy' || grade.course === selectedCourse;
-    return matchesSearch && matchesCourse;
-  });
+    
+    // Advanced filters
+    const matchesDateFrom = !filters.dateFrom || new Date(grade.date) >= new Date(filters.dateFrom);
+    const matchesDateTo = !filters.dateTo || new Date(grade.date) <= new Date(filters.dateTo);
+    const matchesType = !filters.type || grade.type.toLowerCase().includes(filters.type.toLowerCase());
+    const matchesStudent = selectedFilterStudents.length === 0 || selectedFilterStudents.some(studentId => {
+      const student = students.find(s => s.uid === studentId);
+      return student && grade.studentName.toLowerCase().includes((student.displayName || student.email || '').toLowerCase());
+    });
+    const matchesGrade = !filters.grade || grade.grade.toLowerCase().includes(filters.grade.toLowerCase());
+    const matchesCourseFilter = !filters.course || (grade.course && grade.course.toLowerCase().includes(filters.course.toLowerCase()));
+    
+    return matchesSearch && matchesCourse && matchesDateFrom && matchesDateTo && 
+           matchesType && matchesStudent && matchesGrade && matchesCourseFilter;
+  }));
 
   // Filtruj uczniów na podstawie wyszukiwania
   const filteredStudents = students.filter(student => {
@@ -676,10 +831,157 @@ export default function TeacherGradesPage() {
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
         </div>
-        <button className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+        <button 
+          onClick={() => setShowFilterModal(true)}
+          className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors relative"
+        >
           <Filter className="h-4 w-4" />
           Filtruj
+          {getActiveFiltersCount() > 0 && (
+            <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+              {getActiveFiltersCount()}
+            </span>
+          )}
         </button>
+      </div>
+
+      {/* Sorting Options */}
+      <div className="bg-white rounded-lg border border-gray-200 p-4">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-gray-900">Sortowanie</h3>
+          <div className="text-sm text-gray-500">
+            Sortuj według: <span className="font-medium text-blue-600">
+              {sortBy === 'date' && 'Data'}
+              {sortBy === 'type' && 'Typ'}
+              {sortBy === 'student' && 'Uczeń'}
+              {sortBy === 'grade' && 'Ocena'}
+              {sortBy === 'course' && 'Kurs'}
+            </span>
+            <span className="ml-2">
+              {sortOrder === 'asc' ? '↑' : '↓'}
+            </span>
+          </div>
+        </div>
+        
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+          <button
+            onClick={() => handleSort('date')}
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all ${
+              sortBy === 'date' 
+                ? 'bg-blue-50 border-blue-300 text-blue-700' 
+                : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100'
+            }`}
+          >
+            <Calendar className="h-4 w-4" />
+            <span className="text-sm font-medium">Data</span>
+            {sortBy === 'date' && (
+              sortOrder === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+            )}
+          </button>
+          
+          <button
+            onClick={() => handleSort('type')}
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all ${
+              sortBy === 'type' 
+                ? 'bg-blue-50 border-blue-300 text-blue-700' 
+                : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100'
+            }`}
+          >
+            <BookOpen className="h-4 w-4" />
+            <span className="text-sm font-medium">Typ</span>
+            {sortBy === 'type' && (
+              sortOrder === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+            )}
+          </button>
+          
+          <button
+            onClick={() => handleSort('student')}
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all ${
+              sortBy === 'student' 
+                ? 'bg-blue-50 border-blue-300 text-blue-700' 
+                : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100'
+            }`}
+          >
+            <User className="h-4 w-4" />
+            <span className="text-sm font-medium">Uczeń</span>
+            {sortBy === 'student' && (
+              sortOrder === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+            )}
+          </button>
+          
+          <button
+            onClick={() => handleSort('grade')}
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all ${
+              sortBy === 'grade' 
+                ? 'bg-blue-50 border-blue-300 text-blue-700' 
+                : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100'
+            }`}
+          >
+            <Award className="h-4 w-4" />
+            <span className="text-sm font-medium">Ocena</span>
+            {sortBy === 'grade' && (
+              sortOrder === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+            )}
+          </button>
+          
+          <button
+            onClick={() => handleSort('course')}
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all ${
+              sortBy === 'course' 
+                ? 'bg-blue-50 border-blue-300 text-blue-700' 
+                : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100'
+            }`}
+          >
+            <BookOpen className="h-4 w-4" />
+            <span className="text-sm font-medium">Kurs</span>
+            {sortBy === 'course' && (
+              sortOrder === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* Grade Color Legend */}
+      <div className="bg-white rounded-lg border border-gray-200 p-4">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Legenda kolorów ocen</h3>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-bold border bg-green-100 text-green-800 border-green-200">
+              5
+            </span>
+            <span className="text-sm text-gray-600">Bardzo dobry</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-bold border bg-blue-100 text-blue-800 border-blue-200">
+              4
+            </span>
+            <span className="text-sm text-gray-600">Dobry</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-bold border bg-yellow-100 text-yellow-800 border-yellow-200">
+              3
+            </span>
+            <span className="text-sm text-gray-600">Dostateczny</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-bold border bg-orange-100 text-orange-800 border-orange-200">
+              2
+            </span>
+            <span className="text-sm text-gray-600">Dopuszczający</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-bold border bg-red-100 text-red-800 border-red-200">
+              1
+            </span>
+            <span className="text-sm text-gray-600">Niedostateczny</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-bold border bg-gray-100 text-gray-800 border-gray-200">
+              BDB
+            </span>
+            <span className="text-sm text-gray-600">Tekstowe</span>
+          </div>
+        </div>
       </div>
 
       {/* Course Header */}
@@ -713,17 +1015,53 @@ export default function TeacherGradesPage() {
           <table className="min-w-full divide-y divide-gray-200 table-fixed">
             <thead className="bg-gray-50">
               <tr>
-                <th className="w-1/5 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Uczeń
+                <th 
+                  className="w-1/5 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+                  onClick={() => handleSort('student')}
+                >
+                  <div className="flex items-center gap-1">
+                    <User className="h-3 w-3" />
+                    Uczeń
+                    {sortBy === 'student' && (
+                      sortOrder === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                    )}
+                  </div>
                 </th>
-                <th className="w-20 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Data
+                <th 
+                  className="w-20 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+                  onClick={() => handleSort('date')}
+                >
+                  <div className="flex items-center gap-1">
+                    <Calendar className="h-3 w-3" />
+                    Data
+                    {sortBy === 'date' && (
+                      sortOrder === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                    )}
+                  </div>
                 </th>
-                <th className="w-20 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Typ
+                <th 
+                  className="w-20 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+                  onClick={() => handleSort('type')}
+                >
+                  <div className="flex items-center gap-1">
+                    <BookOpen className="h-3 w-3" />
+                    Typ
+                    {sortBy === 'type' && (
+                      sortOrder === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                    )}
+                  </div>
                 </th>
-                <th className="w-16 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Ocena
+                <th 
+                  className="w-16 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+                  onClick={() => handleSort('grade')}
+                >
+                  <div className="flex items-center gap-1">
+                    <Award className="h-3 w-3" />
+                    Ocena
+                    {sortBy === 'grade' && (
+                      sortOrder === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                    )}
+                  </div>
                 </th>
                 <th className="w-2/5 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Uwagi
@@ -746,7 +1084,7 @@ export default function TeacherGradesPage() {
                     <div className="text-xs text-gray-900">{grade.type}</div>
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-bold border ${getGradeColor(grade.grade)}`}>
                       {grade.grade}
                     </span>
                   </td>
@@ -1172,6 +1510,263 @@ export default function TeacherGradesPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Filter Modal */}
+      {showFilterModal && (
+        <div className="fixed inset-0 bg-gray-900/20 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto transform transition-all duration-300 ease-out scale-100">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                  <Filter className="h-5 w-5 text-blue-600" />
+                </div>
+                <h3 className="text-xl font-bold text-gray-900">Filtry Ocen</h3>
+              </div>
+              <button 
+                onClick={() => setShowFilterModal(false)}
+                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors group"
+              >
+                <span className="text-gray-500 group-hover:text-gray-700 text-lg font-medium">×</span>
+              </button>
+            </div>
+            
+            <div className="space-y-6">
+              {/* Date Range */}
+              <div>
+                <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                  <Calendar className="h-5 w-5" />
+                  Zakres dat
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Od daty
+                    </label>
+                    <input
+                      type="date"
+                      value={filters.dateFrom}
+                      onChange={(e) => handleFilterChange('dateFrom', e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Do daty
+                    </label>
+                    <input
+                      type="date"
+                      value={filters.dateTo}
+                      onChange={(e) => handleFilterChange('dateTo', e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Type Filter */}
+              <div>
+                <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                  <BookOpen className="h-5 w-5" />
+                  Typ oceny
+                </h4>
+                <select
+                  value={filters.type}
+                  onChange={(e) => handleFilterChange('type', e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Wszystkie typy</option>
+                  {GRADE_TYPES.map(type => (
+                    <option key={type.value} value={type.value}>{type.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Student Filter */}
+              <div>
+                <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                  <User className="h-5 w-5" />
+                  Uczniowie <span className="text-xs text-gray-500">(wybierz jednego lub więcej)</span>
+                </h4>
+                <div className="relative student-dropdown-container">
+                  <input
+                    type="text"
+                    value={filterStudentSearchTerm}
+                    onChange={(e) => setFilterStudentSearchTerm(e.target.value)}
+                    onFocus={() => setShowFilterStudentDropdown(true)}
+                    placeholder="Wyszukaj uczniów po nazwie, emailu..."
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  
+                  {showFilterStudentDropdown && (
+                    <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                      <div className="p-2 border-b border-gray-200">
+                        <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                          <input
+                            type="checkbox"
+                            checked={selectedFilterStudents.length === filteredStudents.length && filteredStudents.length > 0}
+                            onChange={handleSelectAllFilterStudents}
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          Zaznacz wszystkich ({filteredStudents.length})
+                        </label>
+                      </div>
+                      
+                      {filteredStudents.length === 0 ? (
+                        <div className="p-3 text-center text-gray-500">
+                          Brak uczniów spełniających kryteria wyszukiwania
+                        </div>
+                      ) : (
+                        <div className="max-h-48 overflow-y-auto">
+                          {filteredStudents.map(student => (
+                            <label
+                              key={student.uid}
+                              className="flex items-center gap-3 p-2 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={selectedFilterStudents.includes(student.uid)}
+                                onChange={() => handleFilterStudentToggle(student.uid)}
+                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                              />
+                              <div className="flex-1 min-w-0">
+                                <div className="text-sm font-medium text-gray-900 truncate">
+                                  {student.displayName || 'Brak nazwy'}
+                                </div>
+                                <div className="text-xs text-gray-500 truncate">
+                                  {student.email}
+                                </div>
+                              </div>
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {selectedFilterStudents.length > 0 && (
+                    <div className="mt-2">
+                      <div className="text-xs text-gray-600 mb-1">
+                        Wybrani uczniowie ({selectedFilterStudents.length}):
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {selectedFilterStudents.map(studentId => {
+                          const student = students.find(s => s.uid === studentId);
+                          return student ? (
+                            <span
+                              key={studentId}
+                              className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full"
+                            >
+                              {student.displayName || student.email}
+                              <button
+                                type="button"
+                                onClick={() => handleFilterStudentToggle(studentId)}
+                                className="ml-1 text-blue-600 hover:text-blue-800"
+                              >
+                                ×
+                              </button>
+                            </span>
+                          ) : null;
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Grade Filter */}
+              <div>
+                <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                  <Award className="h-5 w-5" />
+                  Ocena
+                </h4>
+                <input
+                  type="text"
+                  value={filters.grade}
+                  onChange={(e) => handleFilterChange('grade', e.target.value)}
+                  placeholder="Wpisz ocenę (np. 5, 4+, bdb)..."
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* Course Filter */}
+              <div>
+                <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                  <BookOpen className="h-5 w-5" />
+                  Kurs
+                </h4>
+                <input
+                  type="text"
+                  value={filters.course}
+                  onChange={(e) => handleFilterChange('course', e.target.value)}
+                  placeholder="Wpisz nazwę kursu..."
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* Active Filters Summary */}
+              {getActiveFiltersCount() > 0 && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <h5 className="text-sm font-medium text-blue-900 mb-2">Aktywne filtry:</h5>
+                  <div className="flex flex-wrap gap-2">
+                    {filters.dateFrom && (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                        Od: {filters.dateFrom}
+                        <button onClick={() => handleFilterChange('dateFrom', '')} className="text-blue-600 hover:text-blue-800">×</button>
+                      </span>
+                    )}
+                    {filters.dateTo && (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                        Do: {filters.dateTo}
+                        <button onClick={() => handleFilterChange('dateTo', '')} className="text-blue-600 hover:text-blue-800">×</button>
+                      </span>
+                    )}
+                    {filters.type && (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                        Typ: {filters.type}
+                        <button onClick={() => handleFilterChange('type', '')} className="text-blue-600 hover:text-blue-800">×</button>
+                      </span>
+                    )}
+                    {selectedFilterStudents.length > 0 && (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                        Uczniowie: {selectedFilterStudents.length}
+                        <button onClick={() => setSelectedFilterStudents([])} className="text-blue-600 hover:text-blue-800">×</button>
+                      </span>
+                    )}
+                    {filters.grade && (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                        Ocena: {filters.grade}
+                        <button onClick={() => handleFilterChange('grade', '')} className="text-blue-600 hover:text-blue-800">×</button>
+                      </span>
+                    )}
+                    {filters.course && (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                        Kurs: {filters.course}
+                        <button onClick={() => handleFilterChange('course', '')} className="text-blue-600 hover:text-blue-800">×</button>
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={() => setShowFilterModal(false)}
+                  className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Zastosuj Filtry
+                </button>
+                <button
+                  onClick={clearFilters}
+                  className="flex-1 bg-gray-200 text-gray-800 py-2 px-4 rounded-lg hover:bg-gray-300 transition-colors"
+                >
+                  Wyczyść Wszystkie
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

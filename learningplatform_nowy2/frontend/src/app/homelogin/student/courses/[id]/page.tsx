@@ -5,9 +5,11 @@ import { useAuth } from "@/context/AuthContext";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/config/firebase";
 import Providers from '@/components/Providers';
-import { FaChevronDown, FaChevronUp, FaFilePdf, FaFileAlt, FaLink, FaImage, FaClipboardList, FaGraduationCap, FaUsers, FaQuestionCircle, FaInfoCircle, FaFolder, FaFolderOpen, FaFileCode, FaExternalLinkAlt, FaFile, FaYoutube } from "react-icons/fa";
+import { FaChevronDown, FaChevronUp, FaFilePdf, FaFileAlt, FaLink, FaImage, FaClipboardList, FaGraduationCap, FaUsers, FaQuestionCircle, FaInfoCircle, FaFolder, FaFolderOpen, FaFileCode, FaExternalLinkAlt, FaFile, FaYoutube, FaUpload, FaPaperPlane } from "react-icons/fa";
 import VideoPlayer from '@/components/VideoPlayer';
 import YouTubePlayer from '@/components/YouTubePlayer';
+import { MathEditor } from '@/components/MathEditor';
+import MathView from '@/components/MathView';
 
 // Function to render appropriate icon for content type
 function renderContentIcon(item: any, isExpanded?: boolean) {
@@ -20,7 +22,7 @@ function renderContentIcon(item: any, isExpanded?: boolean) {
   if (item.type === 'file') {
     return <FaFilePdf className="text-xl text-red-600" />;
   }
-  if (item.type === 'task') {
+  if (item.type === 'task' || item.type === 'assignment') {
     return <span className="text-xl">📝</span>;
   }
   if (item.type === 'exam') {
@@ -54,6 +56,72 @@ function StudentCourseDetailContent() {
   const [error, setError] = useState<string | null>(null);
   const [showSection, setShowSection] = useState<{[id:number]: boolean}>({});
   const [showSubsection, setShowSubsection] = useState<{[sectionId:number]: {[contentId:number]: boolean}}>({});
+  
+  // State for task responses
+  const [showTaskResponse, setShowTaskResponse] = useState<{[materialId: string]: boolean}>({});
+  const [taskResponse, setTaskResponse] = useState<{
+    text: string;
+    mathContent: string;
+    file: File | null;
+    fileName: string;
+  }>({
+    text: '',
+    mathContent: '',
+    file: null,
+    fileName: ''
+  });
+  const [submittingResponse, setSubmittingResponse] = useState(false);
+
+  // Functions for task responses
+  const handleShowTaskResponse = (materialId: string) => {
+    setShowTaskResponse(prev => ({
+      ...prev,
+      [materialId]: !prev[materialId]
+    }));
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null;
+    setTaskResponse(prev => ({
+      ...prev,
+      file,
+      fileName: file ? file.name : ''
+    }));
+  };
+
+  const handleSubmitTaskResponse = async (materialId: string) => {
+    if (!user || !course) return;
+    
+    setSubmittingResponse(true);
+    try {
+      // Here you would save the response to Firebase
+      // For now, just show success message
+      console.log('Submitting task response:', {
+        materialId,
+        userId: user.uid,
+        response: taskResponse
+      });
+      
+      // Reset form
+      setTaskResponse({
+        text: '',
+        mathContent: '',
+        file: null,
+        fileName: ''
+      });
+      setShowTaskResponse(prev => ({
+        ...prev,
+        [materialId]: false
+      }));
+      
+      alert('Odpowiedź została wysłana!');
+    } catch (error) {
+      console.error('Error submitting task response:', error);
+      alert('Wystąpił błąd podczas wysyłania odpowiedzi.');
+    } finally {
+      setSubmittingResponse(false);
+    }
+  };
 
   useEffect(() => {
     const fetchCourse = async () => {
@@ -378,10 +446,16 @@ function StudentCourseDetailContent() {
                                       <div className="text-gray-400 italic text-sm">Brak materiałów w tej podsekcji.</div>
                                     ) : (
                                       subsection.materials.map((material: any) => {
-                                        console.log('Rendering material for student:', material);
+                                        console.log('=== MATERIAL DEBUG ===');
+                                        console.log('Full material object:', material);
                                         console.log('Material type:', material.type);
-                                        console.log('Material videoUrl:', material.videoUrl);
-                                        console.log('Material youtubeUrl:', material.youtubeUrl);
+                                        console.log('Material title:', material.title);
+                                        console.log('Material deadline:', material.deadline);
+                                        console.log('Is task?', material.type === 'task');
+                                        console.log('Is assignment?', material.type === 'assignment');
+                                        console.log('Has deadline?', !!material.deadline);
+                                        console.log('Should show response form?', (material.type === 'task' || material.type === 'assignment' || material.deadline));
+                                        console.log('======================');
                                         return (
                                         <div key={material.id} className="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">
                                           {/* Header */}
@@ -468,6 +542,131 @@ function StudentCourseDetailContent() {
                                                 >
                                                   Rozpocznij quiz
                                                 </button>
+                                              </div>
+                                            </div>
+                                          )}
+
+                                          {/* Task Response Form - TEMPORARY: Show for all materials to test */}
+                                          {true && (
+                                            <div className="px-3 pb-3">
+                                              <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                                                <div className="flex items-center gap-2 mb-3">
+                                                  <span className="text-orange-600">📝</span>
+                                                  <h6 className="font-medium text-orange-900">Zadanie do wykonania</h6>
+                                                </div>
+                                                <p className="text-sm text-orange-700 mb-4">
+                                                  Wykonaj zadanie używając jednej z opcji poniżej.
+                                                </p>
+                                                
+                                                {!showTaskResponse[material.id] ? (
+                                                  <button
+                                                    onClick={() => handleShowTaskResponse(material.id)}
+                                                    className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors flex items-center gap-2"
+                                                  >
+                                                    <FaPaperPlane className="text-sm" />
+                                                    Odpowiedz na zadanie
+                                                  </button>
+                                                ) : (
+                                                  <div className="space-y-4">
+                                                    <div className="bg-white border border-orange-200 rounded-lg p-4">
+                                                      <h6 className="font-medium text-gray-900 mb-3">Wybierz sposób odpowiedzi:</h6>
+                                                      
+                                                      {/* Text Response */}
+                                                      <div className="mb-4">
+                                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                                          Odpowiedź tekstowa
+                                                        </label>
+                                                        <textarea
+                                                          value={taskResponse.text}
+                                                          onChange={(e) => setTaskResponse(prev => ({...prev, text: e.target.value}))}
+                                                          placeholder="Wpisz swoją odpowiedź..."
+                                                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                                          rows={4}
+                                                        />
+                                                      </div>
+
+                                                      {/* Math Response */}
+                                                      <div className="mb-4">
+                                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                                          Odpowiedź matematyczna
+                                                        </label>
+                                                        <div className="border border-gray-300 rounded-lg p-3 bg-white">
+                                                          <MathEditor
+                                                            initialValue={taskResponse.mathContent}
+                                                            onChange={(value) => setTaskResponse(prev => ({...prev, mathContent: value}))}
+                                                          />
+                                                          <p className="text-xs text-gray-500 mt-2">
+                                                            Użyj edytora matematycznego do tworzenia wyrażeń
+                                                          </p>
+                                                          {taskResponse.mathContent && (
+                                                            <div className="mt-3 p-3 bg-gray-50 rounded-lg border">
+                                                              <label className="block text-sm font-medium text-gray-700 mb-2">Podgląd:</label>
+                                                              <MathView content={taskResponse.mathContent} />
+                                                            </div>
+                                                          )}
+                                                        </div>
+                                                      </div>
+
+                                                      {/* File Upload */}
+                                                      <div className="mb-4">
+                                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                                          Załącz plik
+                                                        </label>
+                                                        <div className="flex items-center gap-3">
+                                                          <input
+                                                            type="file"
+                                                            onChange={handleFileChange}
+                                                            className="hidden"
+                                                            id={`file-upload-${material.id}`}
+                                                            accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.gif"
+                                                          />
+                                                          <label
+                                                            htmlFor={`file-upload-${material.id}`}
+                                                            className="flex items-center gap-2 bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors cursor-pointer"
+                                                          >
+                                                            <FaUpload className="text-sm" />
+                                                            Wybierz plik
+                                                          </label>
+                                                          {taskResponse.fileName && (
+                                                            <span className="text-sm text-gray-600">
+                                                              {taskResponse.fileName}
+                                                            </span>
+                                                          )}
+                                                        </div>
+                                                        <p className="text-xs text-gray-500 mt-1">
+                                                          Dozwolone: PDF, DOC, DOCX, TXT, JPG, PNG, GIF (max 10MB)
+                                                        </p>
+                                                      </div>
+
+                                                      {/* Action Buttons */}
+                                                      <div className="flex gap-3">
+                                                        <button
+                                                          onClick={() => handleSubmitTaskResponse(material.id)}
+                                                          disabled={submittingResponse || (!taskResponse.text && !taskResponse.mathContent && !taskResponse.file)}
+                                                          className="flex-1 bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                                        >
+                                                          {submittingResponse ? (
+                                                            <>
+                                                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                                              Wysyłanie...
+                                                            </>
+                                                          ) : (
+                                                            <>
+                                                              <FaPaperPlane className="text-sm" />
+                                                              Wyślij odpowiedź
+                                                            </>
+                                                          )}
+                                                        </button>
+                                                        <button
+                                                          onClick={() => handleShowTaskResponse(material.id)}
+                                                          className="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300 transition-colors"
+                                                        >
+                                                          Anuluj
+                                                        </button>
+                                                      </div>
+                                                    </div>
+                                                  </div>
+                                                )}
                                               </div>
                                             </div>
                                           )}

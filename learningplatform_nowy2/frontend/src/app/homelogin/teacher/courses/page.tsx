@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { db } from '../../../../config/firebase';
 import Link from "next/link";
 import { useAuth } from '@/context/AuthContext';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, BookOpen, Users, FileText, Calendar, Edit, Trash2, Plus, RefreshCw, Settings } from 'lucide-react';
 
 interface Course {
   id: string;
@@ -411,249 +411,197 @@ export default function TeacherCourses() {
   }, [courses, searchTerm, filterCourses]);
 
   return (
-    <div className="w-full h-full bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
-      {/* Header z przyciskiem powrotu */}
-      <div className="bg-white/80 backdrop-blur-lg border-b border-white/20 px-4 sm:px-6 lg:px-8 py-4">
+    <div className="min-h-screen bg-blue-50">
+      {/* Header */}
+      <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/30 p-8 mb-8 shadow-xl">
         <div className="flex items-center justify-between">
-          <button
-            onClick={() => window.location.href = '/homelogin'}
-            className="flex items-center gap-2 px-4 py-2 bg-white/60 backdrop-blur-sm text-gray-700 rounded-lg hover:bg-white hover:shadow-lg transition-all duration-200 ease-in-out border border-white/20"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Powrót do strony głównej
-          </button>
-
-          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-            {isAdmin ? 'Wszystkie kursy' : 'Moje kursy'}
-          </h1>
-
-          <div className="w-20"></div>
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg">
+              <BookOpen className="h-8 w-8 text-white" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                {isAdmin ? 'Wszystkie kursy' : 'Moje kursy'}
+              </h1>
+              <p className="text-gray-600 mt-1">Zarządzaj swoimi kursami i materiałami dydaktycznymi</p>
+            </div>
+          </div>
+          
+          <div className="flex gap-2">
+            {/* Add Course Button - only for teachers */}
+            {!isAdmin && (
+              <>
+                <button
+                  onClick={() => setShowCreateCourse(true)}
+                  className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-300 font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center gap-2"
+                >
+                  <Plus className="h-5 w-5" />
+                  Dodaj kurs
+                </button>
+                
+                <button
+                  onClick={handleFixPermissions}
+                  disabled={fixingPermissions}
+                  className="bg-orange-600 text-white px-4 py-3 rounded-xl hover:bg-orange-700 transition-all duration-300 font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center gap-2 disabled:opacity-50"
+                >
+                  <Settings className="h-5 w-5" />
+                  {fixingPermissions ? 'Naprawiam...' : 'Napraw uprawnienia'}
+                </button>
+              </>
+            )}
+            
+            <button
+              onClick={() => {
+                clearCache();
+                setLoading(true);
+                setError(null);
+                fetchCourses(1, false, 0);
+              }}
+              className="bg-gray-600 text-white px-4 py-3 rounded-xl hover:bg-gray-700 transition-all duration-300 font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center gap-2"
+            >
+              <RefreshCw className="h-5 w-5" />
+              Odśwież
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className="px-4 sm:px-6 lg:px-8 py-6 lg:py-8 h-full">
-        <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-lg p-3 sm:p-4 lg:p-6 border border-white/20 h-full flex flex-col">
+      <div className="px-6">
+        <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/30 p-6 shadow-lg">
           
-          {/* Header */}
-          <div className="mb-6 flex justify-between items-center flex-shrink-0">
-            <div>
-              <h2 className="text-2xl sm:text-3xl font-bold text-[#4067EC] mb-1">
-                {isAdmin ? 'Wszystkie kursy' : 'Moje kursy'}
-              </h2>
-              <p className="text-gray-600 text-sm sm:text-base mt-1">
-                {isAdmin ? 'Zarządzaj wszystkimi kursami w systemie' : 'Zarządzaj swoimi kursami, materiałami dydaktycznymi i usuń niepotrzebne kursy'}
-              </p>
-              {searchTerm ? (
-                <p className="text-sm text-[#4067EC] mt-2">
-                  Wyświetlanie {filteredCourses.length} z {courses.length} kursów
-                </p>
-              ) : (
-                <p className="text-sm text-gray-500 mt-2">
-                  Łącznie {courses.length} kursów
-                </p>
+          {/* Stats and Search */}
+          <div className="mb-6 flex flex-col lg:flex-row gap-4 items-center justify-between">
+            <div className="flex items-center gap-6">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-blue-600">{courses.length}</div>
+                <div className="text-sm text-gray-600">Łącznie kursów</div>
+              </div>
+              {searchTerm && (
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-green-600">{filteredCourses.length}</div>
+                  <div className="text-sm text-gray-600">Znalezionych</div>
+                </div>
               )}
             </div>
-                          <div className="flex gap-2">
-              {/* Add Course Button - only for teachers */}
-              {!isAdmin && (
-                <>
-                  <button
-                    onClick={() => setShowCreateCourse(true)}
-                    className="bg-green-600 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-green-700 transition-colors flex items-center space-x-2"
-                  >
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                    </svg>
-                    <span>Dodaj kurs</span>
-                  </button>
-                  
-                  <button
-                    onClick={handleFixPermissions}
-                    disabled={fixingPermissions}
-                    className="bg-orange-600 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-orange-700 transition-colors flex items-center space-x-2 disabled:opacity-50"
-                  >
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <span>{fixingPermissions ? 'Naprawiam...' : 'Napraw uprawnienia'}</span>
-                  </button>
-                </>
-              )}
-              
-              <button
-                onClick={() => {
-                  // Wyczyść cache i odśwież z wymuszeniem świeżych danych
-                  clearCache();
-                  setLoading(true);
-                  setError(null);
-                  fetchCourses(1, false, 0);
-                }}
-                className="bg-[#4067EC] text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-[#3155d4] transition-colors flex items-center space-x-2"
-              >
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            
+            {/* Search */}
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
-                <span>Odśwież</span>
-              </button>
+              </div>
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Wyszukaj kursy po tytule, opisie, przedmiocie..."
+                className="block w-full pl-10 pr-3 py-3 border-2 border-gray-200 rounded-xl leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200"
+              />
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm('')}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                >
+                  <svg className="h-5 w-5 text-gray-400 hover:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
             </div>
           </div>
 
           {loading ? (
-            <div className="text-center py-8 flex-1 flex items-center justify-center">
-              <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-[#4067EC] border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]" />
-                              <p className="mt-3 text-gray-600">Ładowanie kursów...</p>
-                <p className="text-sm text-gray-500 mt-1">To może potrwać kilka sekund</p>
+            <div className="text-center py-12">
+              <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent"></div>
+              <p className="mt-3 text-gray-600">Ładowanie kursów...</p>
+              <p className="text-sm text-gray-500 mt-1">To może potrwać kilka sekund</p>
             </div>
           ) : error ? (
-            <div className="bg-red-50 border border-red-200 text-red-800 p-3 rounded-lg mb-4 flex-shrink-0">{error}</div>
+            <div className="bg-red-50 border border-red-200 text-red-800 p-4 rounded-lg mb-6">{error}</div>
           ) : (
             <>
-              {/* Wyszukiwarka kursów */}
-              <div className="mb-6 flex-shrink-0">
-                <div className="relative max-w-md">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
-                  </div>
-                  <input
-                    type="text"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder="Wyszukaj kursy po tytule, opisie, przedmiocie..."
-                    className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-2 focus:ring-[#4067EC] focus:border-[#4067EC] transition-all duration-200"
-                  />
-                  {searchTerm && (
-                    <button
-                      onClick={() => setSearchTerm('')}
-                      className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                    >
-                      <svg className="h-5 w-5 text-gray-400 hover:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  )}
-                </div>
-                {searchTerm && (
-                  <p className="text-sm text-gray-600 mt-2">
-                    Znaleziono {filteredCourses.length} kursów dla &quot;{searchTerm}&quot;
-                  </p>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 mb-6 flex-1 w-full">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-16 mb-20">
                 {filteredCourses.map((course) => (
-                  <div key={`${course.id}-${course.updated_at || course.created_at}`} className="bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-lg transition-all duration-200 overflow-hidden flex flex-col h-full min-h-[350px]">
-                    {/* Course Header - Fixed height */}
-                    <div className="bg-gradient-to-r from-[#4067EC] to-[#7aa2f7] p-3 text-white h-28 flex flex-col justify-between">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          course.is_active 
-                            ? 'bg-green-500/20 text-green-100' 
-                            : 'bg-red-500/20 text-red-100'
-                        }`}>
-                          {course.is_active ? 'Aktywny' : 'Nieaktywny'}
-                        </span>
-                        <span className="text-xs text-white/80">Rok {course.year_of_study}</span>
+                  <div key={`${course.id}-${course.updated_at || course.created_at}`} className="bg-white/90 backdrop-blur-sm rounded-2xl border border-white/30 p-6 hover:shadow-xl hover:shadow-blue-500/10 transition-all duration-300 transform hover:-translate-y-1 group h-[420px] flex flex-col">
+                    {/* Course Header */}
+                    <div className="flex items-center justify-between mb-6">
+                      <div className="w-16 h-16 bg-blue-500 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300">
+                        <BookOpen className="h-8 w-8 text-white" />
                       </div>
-                      
-                      <div className="flex-1 flex flex-col justify-center">
-                        <Link href={`/homelogin/teacher/courses/${course.id}`} className="block">
-                          <h3 className="text-lg font-bold text-white mb-1 hover:text-white/90 transition-colors line-clamp-1">
-                            {course.title}
-                          </h3>
-                        </Link>
-                        
-                        <p className="text-white/90 text-sm line-clamp-2">{course.description}</p>
+                      <div className="flex gap-1">
+                        {canDeleteCourse(course) && (
+                          <button
+                            onClick={() => handleDeleteCourse(course.id.toString())}
+                            disabled={deletingCourse === course.id.toString()}
+                            className="p-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-colors disabled:opacity-50"
+                          >
+                            {deletingCourse === course.id.toString() ? (
+                              <div className="w-4 h-4 border-2 border-red-600 border-t-transparent rounded-full animate-spin"></div>
+                            ) : (
+                              <Trash2 className="h-4 w-4" />
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Course Info */}
+                    <div className="mb-6 flex-1 min-h-0">
+                      <h3 className="text-xl font-bold text-gray-900 mb-3 group-hover:text-blue-600 transition-colors">
+                        {course.title}
+                      </h3>
+                      <p className="text-sm text-gray-600 font-medium mb-3">Rok {course.year_of_study} • {course.subject}</p>
+                      <div className="h-20 overflow-hidden">
+                        <p className="text-sm text-gray-500 line-clamp-4">{course.description}</p>
                       </div>
                     </div>
                     
-                    {/* Course Content */}
-                    <div className="p-3 flex-1 flex flex-col">
-                      {/* Subject Badge */}
-                      <div className="flex items-center justify-between mb-3">
-                        <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-sm font-semibold border border-blue-200">
-                          {course.subject}
+                    {/* Course Stats */}
+                    <div className="space-y-5 mb-8 flex-shrink-0">
+                      <div className="flex justify-between items-center p-5 bg-gray-50 rounded-xl">
+                        <span className="text-sm text-gray-600 font-medium">Sekcje</span>
+                        <span className="text-xl font-bold text-blue-600">{course.sections?.length || 0}</span>
+                      </div>
+                      
+                      <div className="flex justify-between items-center p-5 bg-gray-50 rounded-xl">
+                        <span className="text-sm text-gray-600 font-medium">Uczniowie</span>
+                        <span className="text-xl font-bold text-green-600">{course.assignedUsers?.length || 0}</span>
+                      </div>
+                      
+                      <div className="flex justify-between items-center p-5 bg-gray-50 rounded-xl">
+                        <span className="text-sm text-gray-600 font-medium">Status</span>
+                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                          course.is_active 
+                            ? 'bg-green-100 text-green-800' 
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          {course.is_active ? 'Aktywny' : 'Nieaktywny'}
                         </span>
-                        <span className="text-xs text-gray-500 font-medium">
-                          {course.pdfUrls?.length || 0} PDF • {course.links?.length || 0} Linków
-                        </span>
                       </div>
-                      
-                      {/* Course Stats */}
-                      <div className="grid grid-cols-2 gap-2 mb-3">
-                        <div className="text-center p-2 bg-gray-50 rounded-lg border border-gray-100">
-                          <div className="text-xl font-bold text-[#4067EC]">
-                            {course.sections?.length || 0}
-                          </div>
-                          <div className="text-xs text-gray-600 font-medium">Sekcji</div>
-                        </div>
-                        <div className="text-center p-2 bg-gray-50 rounded-lg border border-gray-100">
-                          <div className="text-xl font-bold text-green-600">
-                            {course.assignedUsers?.length || 0}
-                          </div>
-                          <div className="text-xs text-gray-600 font-medium">Uczniów</div>
-                        </div>
+                    </div>
+                    
+                    {/* Admin Info */}
+                    {isAdmin && course.created_by && (
+                      <div className="text-xs text-gray-500 mb-4 p-2 bg-gray-50 rounded">
+                        Nauczyciel: {course.created_by}
                       </div>
-                      
-                      {/* Admin Info */}
-                      {isAdmin && course.created_by && (
-                        <div className="text-xs text-gray-500 mb-3 p-2 bg-gray-50 rounded">
-                          Nauczyciel: {course.created_by}
-                        </div>
-                      )}
-                      
-                      {/* Action Buttons - Fixed at bottom */}
-                      <div className="mt-auto">
-                        <div className="flex gap-2">
-                          <button 
-                            onClick={() => window.location.href = `/homelogin/teacher/courses/${course.id}`}
-                            className="flex-1 bg-[#4067EC] text-white text-center py-3 px-3 rounded-lg text-sm font-semibold hover:bg-[#3155d4] transition-colors shadow-sm hover:shadow-md min-h-[44px] flex items-center justify-center !important"
-                            style={{
-                              backgroundColor: '#4067EC !important',
-                              color: 'white !important',
-                              padding: '16px !important',
-                              minHeight: '48px !important',
-                              display: 'flex !important',
-                              alignItems: 'center !important',
-                              justifyContent: 'center !important',
-                              width: '100% !important',
-                              height: 'auto !important',
-                              overflow: 'visible !important',
-                              border: 'none !important',
-                              cursor: 'pointer !important'
-                            }}
-                          >
-                            <span className="text-white font-semibold" style={{color: 'white !important', fontWeight: '600 !important', fontSize: '14px !important'}}>Zarządzaj</span>
-                          </button>
-                          <Link 
-                            href={`/courses/${course.slug}`}
-                            className="flex-1 border-2 border-[#4067EC] text-[#4067EC] text-center py-3 px-3 rounded-lg text-sm font-semibold hover:bg-[#F1F4FE] transition-colors shadow-sm hover:shadow-md min-h-[44px] flex items-center justify-center"
-                          >
-                            Podgląd
-                          </Link>
-                        </div>
-                        
-                        {/* Delete button for teachers and admins */}
-                        {canDeleteCourse(course) && (
-                          <div className="mt-2">
-                            <button
-                              onClick={() => handleDeleteCourse(course.id.toString())}
-                              disabled={deletingCourse === course.id.toString()}
-                              className="w-full bg-red-500 text-white px-3 py-3 rounded-lg text-sm font-semibold hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md min-h-[44px] flex items-center justify-center"
-                              title={isAdmin ? "Usuń kurs (Admin)" : "Usuń swój kurs"}
-                            >
-                              {deletingCourse === course.id.toString() ? (
-                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto"></div>
-                              ) : (
-                                <svg className="w-4 h-4 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                </svg>
-                              )}
-                            </button>
-                          </div>
-                        )}
-                      </div>
+                    )}
+                    
+                    {/* Action Buttons */}
+                    <div className="flex gap-3 mt-auto flex-shrink-0 h-16">
+                      <button 
+                        onClick={() => window.location.href = `/homelogin/teacher/courses/${course.id}`}
+                        className="flex-1 bg-blue-600 text-white py-4 px-4 rounded-xl hover:bg-blue-700 transition-all duration-300 font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+                      >
+                        Zarządzaj
+                      </button>
+                      <Link 
+                        href={`/courses/${course.slug}`}
+                        className="w-16 bg-green-50 text-green-600 rounded-xl hover:bg-green-100 transition-all duration-300 border border-green-200 hover:border-green-300 font-medium flex items-center justify-center"
+                      >
+                        <FileText className="h-5 w-5" />
+                      </Link>
                     </div>
                   </div>
                 ))}
@@ -687,28 +635,53 @@ export default function TeacherCourses() {
           )}
 
           {/* Info about course management */}
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 sm:p-4 mt-6 flex-shrink-0">
-                          <h2 className="text-lg sm:text-xl font-bold text-blue-800 mb-3">Zarządzanie kursami</h2>
-              <p className="text-blue-700 mb-3 text-sm sm:text-base">
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/30 p-6 mt-6 shadow-lg">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Zarządzanie kursami</h2>
+            <p className="text-gray-700 mb-4">
               {isAdmin 
                 ? 'Tutaj widzisz wszystkie kursy w systemie. Możesz zarządzać zawartością każdego kursu, dodawać lekcje, materiały i zadania, a także usuwać kursy.'
                 : 'Tutaj widzisz kursy, które zostały Ci przypisane przez administratora lub które sam utworzyłeś. Możesz zarządzać zawartością każdego kursu, dodawać lekcje, materiały i zadania, a także usuwać swoje kursy.'
               }
             </p>
-                        <div className="bg-blue-100 border border-blue-300 rounded-lg p-3">
-              <h3 className="font-semibold text-blue-800 mb-1">Co możesz robić:</h3>
-              <ul className="text-blue-700 text-sm space-y-0.5">
-                <li>• Dodawać i edytować lekcje</li>
-                <li>• Uploadować materiały dydaktyczne</li>
-                <li>• Tworzyć zadania i quizy</li>
-                <li>• Przeglądać postępy studentów</li>
-                <li>• Zarządzać ocenami</li>
-                {!isAdmin && <li>• Usuwać swoje kursy</li>}
-                {isAdmin && <li>• Usuwać dowolne kursy</li>}
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
+              <h3 className="font-semibold text-gray-900 mb-3">Co możesz robić:</h3>
+              <ul className="text-gray-700 text-sm space-y-2">
+                <li className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                  Dodawać i edytować lekcje
+                </li>
+                <li className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                  Uploadować materiały dydaktyczne
+                </li>
+                <li className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                  Tworzyć zadania i quizy
+                </li>
+                <li className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+                  Przeglądać postępy studentów
+                </li>
+                <li className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                  Zarządzać ocenami
+                </li>
+                {!isAdmin && (
+                  <li className="flex items-center gap-2">
+                    <div className="w-2 h-2 bg-gray-500 rounded-full"></div>
+                    Usuwać swoje kursy
+                  </li>
+                )}
+                {isAdmin && (
+                  <li className="flex items-center gap-2">
+                    <div className="w-2 h-2 bg-gray-500 rounded-full"></div>
+                    Usuwać dowolne kursy
+                  </li>
+                )}
               </ul>
             </div>
             {success && (
-              <div className="bg-green-50 border border-green-200 text-green-800 px-4 py-2 rounded-lg mt-3 flex items-center justify-between">
+              <div className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg mt-4 flex items-center justify-between">
                 <div className="flex items-center">
                   <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -731,9 +704,9 @@ export default function TeacherCourses() {
       
       {/* Create Course Modal */}
       {showCreateCourse && (
-        <div className="fixed inset-0 bg-transparent backdrop-blur-xl flex items-center justify-center z-50 p-4">
-          <div className="bg-white/20 backdrop-blur-2xl rounded-2xl shadow-2xl border border-white/30 max-w-lg w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-8">
+        <div className="fixed inset-0 bg-gray-900/20 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 max-w-lg w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
@@ -758,7 +731,7 @@ export default function TeacherCourses() {
                     type="text"
                     value={newCourse.title}
                     onChange={(e) => setNewCourse(prev => ({ ...prev, title: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#4067EC] focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     placeholder="Wprowadź tytuł kursu"
                     required
                   />
@@ -771,7 +744,7 @@ export default function TeacherCourses() {
                   <textarea
                     value={newCourse.description}
                     onChange={(e) => setNewCourse(prev => ({ ...prev, description: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#4067EC] focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     placeholder="Wprowadź opis kursu"
                     rows={3}
                     required
@@ -786,7 +759,7 @@ export default function TeacherCourses() {
                     type="text"
                     value={newCourse.subject}
                     onChange={(e) => setNewCourse(prev => ({ ...prev, subject: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#4067EC] focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     placeholder="np. Matematyka, Historia, Fizyka"
                     required
                   />
@@ -799,7 +772,7 @@ export default function TeacherCourses() {
                   <select
                     value={newCourse.year_of_study}
                     onChange={(e) => setNewCourse(prev => ({ ...prev, year_of_study: parseInt(e.target.value) }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#4067EC] focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   >
                     <option value={1}>Rok 1</option>
                     <option value={2}>Rok 2</option>
@@ -816,7 +789,7 @@ export default function TeacherCourses() {
                     type="text"
                     value={newCourse.instructor_name}
                     onChange={(e) => setNewCourse(prev => ({ ...prev, instructor_name: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#4067EC] focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     placeholder="np. Dr. Anna Kowalska"
                     required
                   />
@@ -830,7 +803,7 @@ export default function TeacherCourses() {
                     type="text"
                     value={newCourse.category_name}
                     onChange={(e) => setNewCourse(prev => ({ ...prev, category_name: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#4067EC] focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     placeholder="np. Nauki ścisłe, Humanistyczne, Języki"
                     required
                   />
@@ -840,7 +813,7 @@ export default function TeacherCourses() {
                   <button
                     type="submit"
                     disabled={creatingCourse}
-                    className="flex-1 bg-[#4067EC] text-white py-2 px-4 rounded-lg font-medium hover:bg-[#3155d4] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {creatingCourse ? (
                       <div className="flex items-center justify-center">

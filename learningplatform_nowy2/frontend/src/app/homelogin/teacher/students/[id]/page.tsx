@@ -390,7 +390,7 @@ export default function StudentProfilePage() {
                       <BookOpen className="w-4 h-4 text-blue-600" />
                       <span className="text-sm font-medium text-blue-800">Kursy</span>
                     </div>
-                    <div className="text-lg font-bold text-blue-900">{stats.totalCourses}</div>
+                    <div className="text-lg font-bold text-blue-900">{student.courses.length}</div>
                   </div>
                   
                   <div className="bg-green-50 rounded-lg p-3 border border-green-200">
@@ -398,7 +398,7 @@ export default function StudentProfilePage() {
                       <Star className="w-4 h-4 text-green-600" />
                       <span className="text-sm font-medium text-green-800">Średnia</span>
                     </div>
-                    <div className="text-lg font-bold text-green-900">{stats.averageGrade}</div>
+                    <div className="text-lg font-bold text-green-900">{student.averageGrade.toFixed(1)}</div>
                   </div>
                   
                   <div className="bg-purple-50 rounded-lg p-3 border border-purple-200">
@@ -407,6 +407,38 @@ export default function StudentProfilePage() {
                       <span className="text-sm font-medium text-purple-800">Aktywność</span>
                     </div>
                     <div className="text-lg font-bold text-purple-900">{stats.streak} dni</div>
+                  </div>
+                </div>
+
+                {/* Lista kursów */}
+                <div className="mt-6">
+                  <div className="flex items-center gap-2 mb-4">
+                    <BookOpen className="w-5 h-5 text-blue-600" />
+                    <h3 className="text-lg font-semibold text-gray-900">Kursy ucznia</h3>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    {student.courses.length > 0 ? (
+                      student.courses.map((course, index) => (
+                        <div key={index} className="group flex items-center gap-3 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200 hover:from-blue-100 hover:to-indigo-100 transition-all duration-300 hover:shadow-md">
+                          <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
+                            <BookOpen className="w-4 h-4 text-white" />
+                          </div>
+                          <div className="flex-1">
+                            <p className="font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
+                              {course}
+                            </p>
+                            <p className="text-xs text-gray-500">Aktywny kurs</p>
+                          </div>
+                          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-center py-6 text-gray-500">
+                        <BookOpen className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                        <p className="text-sm">Brak przypisanych kursów</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

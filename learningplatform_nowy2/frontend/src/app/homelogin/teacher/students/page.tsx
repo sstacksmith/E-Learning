@@ -418,44 +418,81 @@ export default function StudentsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 w-full">
-      {/* Header z przyciskiem powrotu */}
-      <div className="bg-white/80 backdrop-blur-lg border-b border-white/20 px-4 sm:px-6 lg:px-8 py-4">
-        <div className="flex items-center justify-between">
-          <button
-            onClick={() => window.location.href = '/homelogin'}
-            className="flex items-center gap-2 px-4 py-2 bg-white/60 backdrop-blur-sm text-gray-700 rounded-lg hover:bg-white hover:shadow-lg transition-all duration-200 ease-in-out border border-white/20"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Powrót do strony głównej
-          </button>
+    <div className="min-h-screen bg-blue-50 w-full">
+      {/* Enhanced Header */}
+      <div className="bg-white/90 backdrop-blur-xl border-b border-white/30 shadow-sm">
+        <div className="px-4 sm:px-6 lg:px-8 py-6">
+          <div className="flex items-center justify-between">
+            <button
+              onClick={() => window.location.href = '/homelogin'}
+              className="flex items-center gap-3 px-5 py-3 bg-white/70 backdrop-blur-sm text-gray-700 rounded-xl hover:bg-white hover:shadow-lg transition-all duration-300 ease-in-out border border-white/30 hover:border-blue-200 group"
+            >
+              <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
+              <span className="font-medium">Powrót do dashboard</span>
+            </button>
 
-          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-            Lista Uczniów
-          </h1>
-
-          <div className="w-20"></div>
-        </div>
-      </div>
-
-      <div className="px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
-        <div className="space-y-6">
-          {/* Header */}
-          <div className="flex justify-between items-center">
-            <div>
-              <h2 className="text-2xl font-bold text-gray-900">Lista Uczniów</h2>
-              <p className="text-gray-600">Przegląd wszystkich uczniów w Twoich kursach</p>
+            <div className="text-center">
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-blue-600">
+                Lista Uczniów
+              </h1>
+              <p className="text-gray-600 mt-1 font-medium">Zarządzaj swoimi uczniami</p>
             </div>
-        <div className="flex gap-3">
-          <button 
-            onClick={() => setShowAssignModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <UserPlus className="h-4 w-4" />
-            Przypisz Ucznia
-          </button>
+
+            <button 
+              onClick={() => setShowAssignModal(true)}
+              className="flex items-center gap-3 px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 font-semibold"
+            >
+              <UserPlus className="h-5 w-5" />
+              <span>Przypisz Ucznia</span>
+            </button>
+          </div>
         </div>
       </div>
+
+      <div className="px-4 sm:px-6 lg:px-8 py-8">
+        <div className="space-y-8">
+          {/* Stats Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-white/30 shadow-sm hover:shadow-md transition-all duration-300">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
+                  <Users className="h-6 w-6 text-blue-600" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-gray-900">{students.length}</p>
+                  <p className="text-sm text-gray-600 font-medium">Przypisanych uczniów</p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-white/30 shadow-sm hover:shadow-md transition-all duration-300">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
+                  <Star className="h-6 w-6 text-green-600" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {students.length > 0 ? (students.reduce((acc, s) => acc + s.averageGrade, 0) / students.length).toFixed(1) : '0.0'}
+                  </p>
+                  <p className="text-sm text-gray-600 font-medium">Średnia ocen</p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-white/30 shadow-sm hover:shadow-md transition-all duration-300">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
+                  <BookOpen className="h-6 w-6 text-purple-600" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {new Set(students.flatMap(s => s.courses)).size}
+                  </p>
+                  <p className="text-sm text-gray-600 font-medium">Aktywnych kursów</p>
+                </div>
+              </div>
+            </div>
+          </div>
 
             {/* Assign Student Modal */}
       {showAssignModal && (
@@ -617,105 +654,116 @@ export default function StudentsPage() {
         </div>
       )}
 
-      {/* Search */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-        <input
-          type="text"
-          placeholder="Szukaj ucznia..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-        />
-      </div>
-
-      {/* Error Display */}
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-          {error}
-        </div>
-      )}
-
-      {/* Students Grid */}
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredStudents.map((student) => (
-          <div key={student.id} className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition-shadow">
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                <span className="text-blue-600 font-semibold text-lg">
-                  {student.name.split(' ').map(n => n[0]).join('')}
-                </span>
-              </div>
-              <div className="flex items-center text-yellow-500">
-                <Star className="h-4 w-4 fill-current" />
-                <span className={`ml-1 text-sm font-medium ${getGradeColor(student.averageGrade)}`}>
-                  {student.averageGrade.toFixed(1)}
-                </span>
-              </div>
-            </div>
-
-            <div className="mb-4">
-              <h3 className="text-lg font-semibold text-gray-900 mb-1">{student.name}</h3>
-              <p className="text-sm text-gray-600">{student.class}</p>
-            </div>
-
-            <div className="space-y-3 mb-4">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Średnia ocen</span>
-                <span className={`text-sm font-medium ${getGradeColor(student.averageGrade)}`}>
-                  {student.averageGrade.toFixed(1)}
-                </span>
-              </div>
-
-            </div>
-
-            <div className="mb-4">
-              <div className="text-sm text-gray-600 mb-2">Kursy</div>
-              <div className="flex flex-wrap gap-1">
-                {student.courses.map((course, index) => (
-                  <span key={index} className="inline-flex items-center px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">
-                    <BookOpen className="h-3 w-3 mr-1" />
-                    {course}
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            <div className="text-xs text-gray-500 mb-4">
-              Ostatnia aktywność: {student.lastActivity}
-            </div>
-
-            <div className="flex gap-2">
-              <button 
-                onClick={() => router.push(`/homelogin/teacher/students/${student.id}`)}
-                className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
-              >
-                Zobacz Profil
-              </button>
-              <button 
-                onClick={() => handleUnassignStudent(student.id)}
-                className="flex-1 bg-red-100 text-red-700 py-2 px-4 rounded-lg hover:bg-red-200 transition-colors text-sm font-medium"
-              >
-                Odłącz
-              </button>
+          {/* Enhanced Search */}
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-white/30 shadow-sm">
+            <div className="relative">
+              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+              <input
+                type="text"
+                placeholder="Wyszukaj ucznia po imieniu lub nazwisku..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-12 pr-4 py-4 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-300 text-gray-700 bg-white hover:border-gray-300 font-medium"
+              />
             </div>
           </div>
-        ))}
-      </div>
 
-      {filteredStudents.length === 0 && (
-        <div className="text-center py-12 text-gray-500">
-          <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-          <p className="text-lg font-medium mb-2">Brak przypisanych uczniów</p>
-          <p className="text-sm mb-4">Nie masz jeszcze przypisanych uczniów do swoich kursów.</p>
-          <button 
-            onClick={() => setShowAssignModal(true)}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            Przypisz pierwszego ucznia
-          </button>
-        </div>
-      )}
+          {/* Error Display */}
+          {error && (
+            <div className="bg-red-50 border-2 border-red-200 text-red-700 px-6 py-4 rounded-xl flex items-center gap-3">
+              <div className="w-6 h-6 bg-red-100 rounded-full flex items-center justify-center">
+                <span className="text-red-600 text-sm">!</span>
+              </div>
+              <span className="font-medium">{error}</span>
+            </div>
+          )}
+
+          {/* Enhanced Students Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {filteredStudents.map((student) => (
+              <div key={student.id} className="bg-white/90 backdrop-blur-sm rounded-2xl border border-white/30 p-6 hover:shadow-xl hover:shadow-blue-500/10 transition-all duration-300 transform hover:-translate-y-1 group">
+                {/* Student Avatar & Grade */}
+                <div className="flex items-center justify-between mb-6">
+                  <div className="w-16 h-16 bg-blue-500 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300">
+                    <span className="text-white font-bold text-xl">
+                      {student.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 bg-yellow-50 px-3 py-2 rounded-xl border border-yellow-200">
+                    <Star className="h-4 w-4 text-yellow-500 fill-current" />
+                    <span className={`text-sm font-bold ${getGradeColor(student.averageGrade)}`}>
+                      {student.averageGrade.toFixed(1)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Student Info */}
+                <div className="mb-6">
+                  <h3 className="text-xl font-bold text-gray-900 mb-2 group-hover:text-blue-600 transition-colors">
+                    {student.name}
+                  </h3>
+                  <p className="text-sm text-gray-600 font-medium">{student.class}</p>
+                </div>
+
+                {/* Stats */}
+                <div className="space-y-3 mb-6">
+                  <div className="flex justify-between items-center p-3 bg-gray-50 rounded-xl">
+                    <span className="text-sm text-gray-600 font-medium">Średnia ocen</span>
+                    <span className={`text-lg font-bold ${getGradeColor(student.averageGrade)}`}>
+                      {student.averageGrade.toFixed(1)}
+                    </span>
+                  </div>
+                  
+                  <div className="flex justify-between items-center p-3 bg-gray-50 rounded-xl">
+                    <span className="text-sm text-gray-600 font-medium">Ostatnia aktywność</span>
+                    <span className="text-sm text-gray-500 font-medium">{student.lastActivity}</span>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex gap-3">
+                  <button 
+                    onClick={() => router.push(`/homelogin/teacher/students/${student.id}`)}
+                    className="flex-1 bg-blue-600 text-white py-3 px-4 rounded-xl hover:bg-blue-700 transition-all duration-300 font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+                  >
+                    Zobacz Profil
+                  </button>
+                  <button 
+                    onClick={() => handleUnassignStudent(student.id)}
+                    className="px-4 py-3 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-all duration-300 border border-red-200 hover:border-red-300 font-medium"
+                  >
+                    Odłącz
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Empty State */}
+          {filteredStudents.length === 0 && (
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/30 shadow-sm p-12 text-center">
+              <div className="w-20 h-20 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                <Users className="h-10 w-10 text-blue-600" />
+              </div>
+              <h3 className="text-2xl font-bold text-gray-900 mb-3">
+                {searchTerm ? 'Nie znaleziono uczniów' : 'Brak przypisanych uczniów'}
+              </h3>
+              <p className="text-gray-600 mb-8 max-w-md mx-auto">
+                {searchTerm 
+                  ? 'Spróbuj zmienić kryteria wyszukiwania lub wyczyść filtr.'
+                  : 'Nie masz jeszcze przypisanych uczniów do swoich kursów. Zacznij od przypisania pierwszego ucznia.'
+                }
+              </p>
+              {!searchTerm && (
+                <button 
+                  onClick={() => setShowAssignModal(true)}
+                  className="bg-blue-600 text-white px-8 py-4 rounded-xl hover:bg-blue-700 transition-all duration-300 font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+                >
+                  Przypisz pierwszego ucznia
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

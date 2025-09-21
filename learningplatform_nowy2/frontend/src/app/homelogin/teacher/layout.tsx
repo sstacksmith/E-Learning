@@ -16,7 +16,9 @@ import {
   LogOut,
   Menu,
   X,
-  Bot
+  Bot,
+  School,
+  Clock
 } from 'lucide-react';
 
 export default function TeacherLayout({ children }: { children: React.ReactNode }) {
@@ -62,6 +64,20 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
       icon: Users, 
       href: '/homelogin/teacher/students',
       active: pathname === '/homelogin/teacher/students'
+    },
+    { 
+      id: 'classes', 
+      label: 'Zarządzanie klasami', 
+      icon: School, 
+      href: '/homelogin/teacher/classes',
+      active: pathname === '/homelogin/teacher/classes'
+    },
+    { 
+      id: 'schedule', 
+      label: 'Plan lekcji', 
+      icon: Clock, 
+      href: '/homelogin/teacher/schedule',
+      active: pathname === '/homelogin/teacher/schedule'
     },
     { 
       id: 'grades', 

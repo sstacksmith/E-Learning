@@ -14,6 +14,8 @@ import dynamic from 'next/dynamic';
 import { ArrowLeft } from 'lucide-react';
 import { QuizAssignmentModal } from '@/components/QuizAssignmentModal';
 import { ReorderableSection } from '@/components/ReorderableSection';
+import { MathEditor } from '@/components/MathEditor';
+import MathView from '@/components/MathView';
 // Dynamiczny import MDXEditor
 const MDXEditor = dynamic(() => import('@mdxeditor/editor').then(mod => mod.MDXEditor), { ssr: false });
 import {
@@ -67,7 +69,7 @@ interface Section {
   id: string | number;
   title: string;
   name?: string;
-  type?: "material" | "assignment" | "form";
+  type?: "material" | "assignment" | "form" | "exam" | "aktywnosc";
   description?: string;
   order?: number;
   deadline?: string;
@@ -94,10 +96,11 @@ interface Material {
   id: string | number;
   title: string;
   description?: string;
-  type: "text" | "file" | "task" | "exam" | "activity" | "video" | "quiz";
+  type: "text" | "file" | "task" | "exam" | "activity" | "video" | "quiz" | "math";
   subsectionId: string | number;
   order: number;
   deadline?: string;
+  mathContent?: string;
   fileUrl?: string;
   videoUrl?: string;
   youtubeUrl?: string;
@@ -210,7 +213,7 @@ function TeacherCourseDetailContent() {
   const [newMaterial, setNewMaterial] = useState<{
     title: string;
     description: string;
-    type: "text" | "file" | "task" | "exam" | "activity" | "video" | "quiz";
+    type: "text" | "file" | "task" | "exam" | "activity" | "video" | "quiz" | "math";
     deadline?: string;
     content?: string;
     file?: File | null;
@@ -218,6 +221,7 @@ function TeacherCourseDetailContent() {
     youtubeUrl?: string;
     videoSource?: "upload" | "youtube";
     quizId?: string;
+    mathContent?: string;
   }>({
     title: '',
     description: '',
@@ -2248,10 +2252,11 @@ function TeacherCourseDetailContent() {
                       <select 
                         className="border rounded px-3 py-2" 
                         value={editSection?.type || ''} 
-                        onChange={e => setEditSection(prev => prev ? {...prev, type: e.target.value as "material" | "assignment" | "form"} : null)}
+                        onChange={e => setEditSection(prev => prev ? {...prev, type: e.target.value as "material" | "assignment" | "exam" | "aktywnosc"} : null)}
                       >
                         <option value="material">Materiał</option>
                         <option value="assignment">Zadanie</option>
+                        <option value="exam">Egzamin</option>
                         <option value="aktywnosc">Aktywność</option>
                       </select>
                       <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded font-semibold">
@@ -2435,7 +2440,7 @@ function TeacherCourseDetailContent() {
                               <div className="bg-blue-50 p-4 rounded-lg border border-blue-200 mb-4">
                                 <h5 className="font-semibold text-blue-800 mb-3">Dodaj materiał</h5>
                                 <div className="space-y-3">
-                                  <div className="grid grid-cols-2 md:grid-cols-7 gap-2">
+                                  <div className="grid grid-cols-2 md:grid-cols-8 gap-2">
                                     {[
                                       { type: 'text', label: 'Tekst', icon: '📄' },
                                       { type: 'file', label: 'Plik', icon: '📎' },
@@ -2443,7 +2448,8 @@ function TeacherCourseDetailContent() {
                                       { type: 'task', label: 'Zadanie', icon: '📝' },
                                       { type: 'exam', label: 'Egzamin', icon: '🎓' },
                                       { type: 'activity', label: 'Aktywność', icon: '🎯' },
-                                      { type: 'quiz', label: 'Quiz', icon: '❓' }
+                                      { type: 'quiz', label: 'Quiz', icon: '❓' },
+                                      { type: 'math', label: 'Matematyka', icon: '🧮' }
                                     ].map(({ type, label, icon }) => (
                                       <button
                                         key={type}
@@ -2476,6 +2482,29 @@ function TeacherCourseDetailContent() {
                                     value={newMaterial.description}
                                     onChange={e => setNewMaterial(prev => ({...prev, description: e.target.value}))}
                                   />
+
+                                  {newMaterial.type === 'math' && (
+                                    <div className="space-y-3">
+                                      <label className="block text-sm font-medium text-gray-700">
+                                        Wyrażenie matematyczne
+                                      </label>
+                                      <div className="border border-gray-300 rounded-lg p-3 bg-white">
+                                        <MathEditor
+                                          initialValue={newMaterial.mathContent || ''}
+                                          onChange={(value) => setNewMaterial(prev => ({...prev, mathContent: value}))}
+                                        />
+                                        <p className="text-xs text-gray-500 mt-2">
+                                          Użyj edytora matematycznego powyżej do tworzenia wyrażeń
+                                        </p>
+                                        {newMaterial.mathContent && (
+                                          <div className="mt-3 p-3 bg-gray-50 rounded-lg border">
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">Podgląd wyrażenia:</label>
+                                            <MathView content={newMaterial.mathContent} />
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
 
                                   {(newMaterial.type === 'task' || newMaterial.type === 'exam') && (
                                     <input
@@ -2722,6 +2751,7 @@ function TeacherCourseDetailContent() {
                                         {material.type === 'exam' && '🎓'}
                                         {material.type === 'activity' && '🎯'}
                                         {material.type === 'quiz' && '❓'}
+                                        {material.type === 'math' && '🧮'}
                                       </div>
                                       <div className="flex-1">
                                         <h5 className="font-medium text-gray-800">{material.title}</h5>
@@ -2799,6 +2829,21 @@ function TeacherCourseDetailContent() {
                                             >
                                               Edytuj quiz
                                             </button>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {/* Math Display */}
+                                    {material.type === 'math' && material.mathContent && (
+                                      <div className="px-3 pb-3">
+                                        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                                          <div className="flex items-center gap-2 mb-3">
+                                            <span className="text-green-600">🧮</span>
+                                            <h6 className="font-medium text-green-900">Wyrażenie matematyczne</h6>
+                                          </div>
+                                          <div className="bg-white border border-green-200 rounded-lg p-3">
+                                            <MathView content={material.mathContent} />
                                           </div>
                                         </div>
                                       </div>
