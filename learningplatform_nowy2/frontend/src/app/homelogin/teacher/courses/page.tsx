@@ -41,6 +41,11 @@ export default function TeacherCourses() {
   const [success, setSuccess] = useState<string | null>(null);
   const [deletingCourse, setDeletingCourse] = useState<string | null>(null);
   
+  // States for editing course title
+  const [editingCourseId, setEditingCourseId] = useState<string | null>(null);
+  const [newTitle, setNewTitle] = useState('');
+  const [isUpdatingTitle, setIsUpdatingTitle] = useState(false);
+  
   // States for creating new course
   const [showCreateCourse, setShowCreateCourse] = useState(false);
   const [newCourse, setNewCourse] = useState({
@@ -275,6 +280,48 @@ export default function TeacherCourses() {
       setDeletingCourse(null);
     }
   }, [setDeletingCourse, setSuccess, clearCache, fetchCourses, pagination.page, setError, courses, isAdmin]);
+
+  // Funkcja do aktualizacji nazwy kursu
+  const handleUpdateCourseTitle = useCallback(async (courseId: string) => {
+    if (!newTitle.trim()) {
+      setError('Nazwa kursu nie może być pusta');
+      return;
+    }
+
+    setIsUpdatingTitle(true);
+    try {
+      const { updateDoc, doc, serverTimestamp } = await import('firebase/firestore');
+      const courseRef = doc(db, 'courses', courseId);
+      
+      await updateDoc(courseRef, {
+        title: newTitle.trim(),
+        updated_at: serverTimestamp()
+      });
+      
+      setSuccess('Nazwa kursu została zaktualizowana');
+      setEditingCourseId(null);
+      setNewTitle('');
+      clearCache();
+      fetchCourses(pagination.page, false);
+    } catch (error) {
+      console.error('Error updating course title:', error);
+      setError('Błąd podczas aktualizacji nazwy kursu');
+    } finally {
+      setIsUpdatingTitle(false);
+    }
+  }, [newTitle, clearCache, fetchCourses, pagination.page, setError, setSuccess]);
+
+  // Funkcja do rozpoczęcia edycji nazwy kursu
+  const handleStartEditTitle = useCallback((course: Course) => {
+    setEditingCourseId(course.id);
+    setNewTitle(course.title);
+  }, []);
+
+  // Funkcja do anulowania edycji nazwy kursu
+  const handleCancelEditTitle = useCallback(() => {
+    setEditingCourseId(null);
+    setNewTitle('');
+  }, []);
 
   // Function to fix permissions for current user
   const handleFixPermissions = useCallback(async () => {
@@ -531,17 +578,27 @@ export default function TeacherCourses() {
                       </div>
                       <div className="flex gap-1">
                         {canDeleteCourse(course) && (
-                          <button
-                            onClick={() => handleDeleteCourse(course.id.toString())}
-                            disabled={deletingCourse === course.id.toString()}
-                            className="p-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-colors disabled:opacity-50"
-                          >
-                            {deletingCourse === course.id.toString() ? (
-                              <div className="w-4 h-4 border-2 border-red-600 border-t-transparent rounded-full animate-spin"></div>
-                            ) : (
-                              <Trash2 className="h-4 w-4" />
-                            )}
-                          </button>
+                          <>
+                            <button
+                              onClick={() => handleStartEditTitle(course)}
+                              className="p-2 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 transition-colors"
+                              title="Edytuj nazwę kursu"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteCourse(course.id.toString())}
+                              disabled={deletingCourse === course.id.toString()}
+                              className="p-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-colors disabled:opacity-50"
+                              title="Usuń kurs"
+                            >
+                              {deletingCourse === course.id.toString() ? (
+                                <div className="w-4 h-4 border-2 border-red-600 border-t-transparent rounded-full animate-spin"></div>
+                              ) : (
+                                <Trash2 className="h-4 w-4" />
+                              )}
+                            </button>
+                          </>
                         )}
                       </div>
                     </div>
@@ -834,6 +891,55 @@ export default function TeacherCourses() {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal do edycji nazwy kursu */}
+      {editingCourseId && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md mx-4">
+            <h3 className="text-xl font-bold text-gray-900 mb-4">Edytuj nazwę kursu</h3>
+            
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Nowa nazwa kursu *
+              </label>
+              <input
+                type="text"
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200"
+                placeholder="Wprowadź nową nazwę kursu"
+                maxLength={100}
+                autoFocus
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => handleUpdateCourseTitle(editingCourseId)}
+                disabled={isUpdatingTitle || !newTitle.trim()}
+                className="flex-1 bg-blue-600 text-white py-3 px-4 rounded-xl font-semibold hover:bg-blue-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isUpdatingTitle ? (
+                  <div className="flex items-center justify-center">
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                    Zapisywanie...
+                  </div>
+                ) : (
+                  'Zapisz zmiany'
+                )}
+              </button>
+              
+              <button
+                onClick={handleCancelEditTitle}
+                disabled={isUpdatingTitle}
+                className="flex-1 bg-gray-200 text-gray-700 py-3 px-4 rounded-xl font-semibold hover:bg-gray-300 transition-all duration-300 disabled:opacity-50"
+              >
+                Anuluj
+              </button>
             </div>
           </div>
         </div>
