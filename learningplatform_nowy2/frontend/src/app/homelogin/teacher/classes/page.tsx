@@ -226,8 +226,23 @@ export default function ClassesPage() {
         subject: formData.subject,
         max_students: formData.max_students,
         academic_year: formData.academic_year,
+        schedule: formData.schedule, // ✅ Dodano zapisywanie planu zajęć
         updated_at: new Date()
       });
+
+      // Synchronizuj plan zajęć z kalendarzem po edycji
+      try {
+        const updatedClassData = {
+          ...selectedClass,
+          ...formData,
+          id: selectedClass.id
+        };
+        await syncClassScheduleToCalendar(updatedClassData, selectedClass.students || []);
+        console.log('✅ Plan zajęć zsynchronizowany z kalendarzem po edycji');
+      } catch (syncError) {
+        console.error('❌ Błąd synchronizacji planu zajęć po edycji:', syncError);
+        // Nie przerywamy procesu edycji klasy, tylko logujemy błąd
+      }
 
       setSuccess('Klasa została zaktualizowana pomyślnie!');
       setShowEditModal(false);
@@ -528,7 +543,7 @@ export default function ClassesPage() {
       subject: cls.subject,
       max_students: cls.max_students,
       academic_year: cls.academic_year,
-      schedule: []
+      schedule: cls.schedule || [] // ✅ Ładuj istniejący plan zajęć
     });
     setShowEditModal(true);
   };
