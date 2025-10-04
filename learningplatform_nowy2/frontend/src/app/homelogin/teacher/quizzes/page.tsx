@@ -251,8 +251,8 @@ export default function QuizManagementPage() {
           type: a.type || 'text',
           mathContent: a.mathContent || '',
         })),
-        created_at: serverTimestamp(),
-        updated_at: serverTimestamp(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
         created_by: user?.email || '',
       }));
 
