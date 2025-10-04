@@ -91,20 +91,23 @@ export default function AnkietyPage() {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [teacherAverages, setTeacherAverages] = useState<TeacherAverage[]>([]);
   const [selectedTeacher, setSelectedTeacher] = useState<string>('');
-  const [responses, setResponses] = useState<{ [key: string]: number }>({});
+  const [responses, setResponses] = useState<{ [key: string]: number | string }>({});
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [submittedSurveys, setSubmittedSurveys] = useState<string[]>([]);
+  const [currentSurveyTemplate, setCurrentSurveyTemplate] = useState<any>(null);
+  const [availableSurveys, setAvailableSurveys] = useState<any[]>([]);
 
-  // Inicjalizacja odpowiedzi
+  // Inicjalizacja odpowiedzi - używamy pytań z szablonu ankiety
   useEffect(() => {
+    const questionsToUse = currentSurveyTemplate?.questions || surveyQuestions;
     const initialResponses: { [key: string]: number } = {};
-    surveyQuestions.forEach(q => {
+    questionsToUse.forEach((q: any) => {
       initialResponses[q.id] = 5; // Domyślnie 5
     });
     setResponses(initialResponses);
-  }, []);
+  }, [currentSurveyTemplate]);
 
   // Pobieranie nauczycieli i dostępnych ankiet
   useEffect(() => {
@@ -131,16 +134,17 @@ export default function AnkietyPage() {
           where('isActive', '==', true)
         );
         const surveysSnapshot = await getDocs(surveysQuery);
-        const availableSurveys = surveysSnapshot.docs.map(doc => ({
+        const availableSurveysData = surveysSnapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data()
         } as any));
 
-        console.log(`Znaleziono ${availableSurveys.length} dostępnych ankiet`);
+        console.log(`Znaleziono ${availableSurveysData.length} dostępnych ankiet`);
+        setAvailableSurveys(availableSurveysData);
         
         // Filtruj nauczycieli tylko do tych, którzy mają aktywne ankiety
         const teachersWithSurveys = teachersList.filter(teacher => 
-          availableSurveys.some(survey => survey.created_by === teacher.uid)
+          availableSurveysData.some(survey => survey.created_by === teacher.uid)
         );
         
         console.log(`Nauczyciele z aktywnymi ankietami: ${teachersWithSurveys.length}`);
@@ -240,7 +244,19 @@ export default function AnkietyPage() {
     checkSubmittedSurveys();
   }, [user]);
 
-  const handleSliderChange = (questionId: string, value: number) => {
+  // Ładowanie szablonu ankiety dla wybranego nauczyciela
+  const loadSurveyTemplate = (teacherId: string) => {
+    const surveyTemplate = availableSurveys.find(survey => survey.created_by === teacherId);
+    if (surveyTemplate) {
+      console.log('Ładowanie szablonu ankiety:', surveyTemplate);
+      setCurrentSurveyTemplate(surveyTemplate);
+    } else {
+      console.log('Brak szablonu ankiety dla nauczyciela, używam domyślnego');
+      setCurrentSurveyTemplate(null);
+    }
+  };
+
+  const handleSliderChange = (questionId: string, value: number | string) => {
     setResponses(prev => ({
       ...prev,
       [questionId]: value
@@ -253,11 +269,25 @@ export default function AnkietyPage() {
       return;
     }
 
-    // Walidacja odpowiedzi
-    const allQuestionsAnswered = surveyQuestions.every(q => responses[q.id] && responses[q.id] >= 1 && responses[q.id] <= 10);
+    // Walidacja odpowiedzi - używamy pytań z szablonu ankiety
+    const questionsToUse = currentSurveyTemplate?.questions || surveyQuestions;
+    const allQuestionsAnswered = questionsToUse.every((q: any) => {
+      if (!q.required) return true; // Pytania opcjonalne są zawsze OK
+      
+      const response = responses[q.id];
+      if (q.type === 'text') {
+        return response && typeof response === 'string' && response.trim().length > 0;
+      } else if (q.type === 'multiple_choice') {
+        return response && typeof response === 'number' && response >= 1;
+      } else {
+        // Domyślny typ rating
+        return response && typeof response === 'number' && response >= 1 && response <= 10;
+      }
+    });
+    
     if (!allQuestionsAnswered) {
-      console.error('Nie wszystkie pytania zostały odpowiedziane');
-      alert('Proszę odpowiedzieć na wszystkie pytania (skala 1-10)');
+      console.error('Nie wszystkie wymagane pytania zostały odpowiedziane');
+      alert('Proszę odpowiedzieć na wszystkie wymagane pytania');
       return;
     }
 
@@ -292,8 +322,14 @@ export default function AnkietyPage() {
         responses: responses,
         submittedAt: serverTimestamp(),
         isAnonymous: true, // Zapewnienie anonimowości
-        totalScore: Object.values(responses).reduce((sum, score) => sum + score, 0),
-        averageScore: Object.values(responses).reduce((sum, score) => sum + score, 0) / Object.keys(responses).length,
+        totalScore: Object.values(responses).reduce((sum: number, score) => {
+          if (typeof score === 'number') return sum + score;
+          return sum;
+        }, 0),
+        averageScore: (() => {
+          const numericResponses = Object.values(responses).filter(score => typeof score === 'number');
+          return numericResponses.length > 0 ? numericResponses.reduce((sum, score) => sum + score, 0) / numericResponses.length : 0;
+        })(),
         surveyTemplateId: surveyTemplate?.id || null, // 🆕 NOWE - ID szablonu ankiety
         surveyTitle: surveyTemplate?.title || 'Ankieta nauczyciela' // 🆕 NOWE - Tytuł ankiety
       };
@@ -424,7 +460,14 @@ export default function AnkietyPage() {
                 <select
                   className="w-full border border-gray-300 rounded-lg px-3 sm:px-4 py-2 sm:py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base"
                   value={selectedTeacher}
-                  onChange={(e) => setSelectedTeacher(e.target.value)}
+                  onChange={(e) => {
+                    setSelectedTeacher(e.target.value);
+                    if (e.target.value) {
+                      loadSurveyTemplate(e.target.value);
+                    } else {
+                      setCurrentSurveyTemplate(null);
+                    }
+                  }}
                 >
                   <option value="">-- Wybierz nauczyciela --</option>
                   {teachers.map(teacher => (
@@ -442,38 +485,112 @@ export default function AnkietyPage() {
 
               {selectedTeacher && !submittedSurveys.includes(selectedTeacher) && (
                 <div className="space-y-4 sm:space-y-6">
-                  {surveyQuestions.map((question, index) => (
+                  {/* Wyświetl tytuł i opis ankiety jeśli dostępne */}
+                  {currentSurveyTemplate && (
+                    <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                      <h3 className="text-lg font-semibold text-blue-800 mb-2">
+                        {currentSurveyTemplate.title || 'Ankieta nauczyciela'}
+                      </h3>
+                      {currentSurveyTemplate.description && (
+                        <p className="text-sm text-blue-700">
+                          {currentSurveyTemplate.description}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  
+                  {(currentSurveyTemplate?.questions || surveyQuestions).map((question: any, index: number) => (
                     <div key={question.id} className="border border-gray-200 rounded-lg p-3 sm:p-4">
                       <div className="mb-3 sm:mb-4">
                         <h3 className="text-xs sm:text-sm font-semibold text-gray-800 mb-1">
-                          Pytanie {index + 1}: {question.category}
+                          Pytanie {index + 1}: {question.category || 'Ogólne'}
                         </h3>
                         <p className="text-xs sm:text-sm text-gray-600">{question.question}</p>
+                        {question.required && (
+                          <span className="text-xs text-red-500 font-medium">* Wymagane</span>
+                        )}
                       </div>
                       
                       <div className="space-y-2 sm:space-y-3">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs text-gray-500">1</span>
-                          <span className="text-xs sm:text-sm font-medium text-gray-700">
-                            Ocena: {responses[question.id] || 5}
-                          </span>
-                          <span className="text-xs text-gray-500">10</span>
-                        </div>
-                        
-                        <input
-                          type="range"
-                          min="1"
-                          max="10"
-                          value={responses[question.id] || 5}
-                          onChange={(e) => handleSliderChange(question.id, parseInt(e.target.value))}
-                          className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
-                        />
-                        
-                        <div className="flex justify-between text-xs text-gray-500">
-                          <span>Bardzo źle</span>
-                          <span>Średnio</span>
-                          <span>Bardzo dobrze</span>
-                        </div>
+                        {question.type === 'rating' || !question.type ? (
+                          // Domyślny typ - rating (skala 1-10)
+                          <>
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs text-gray-500">1</span>
+                              <span className="text-xs sm:text-sm font-medium text-gray-700">
+                                Ocena: {responses[question.id] || 5}
+                              </span>
+                              <span className="text-xs text-gray-500">10</span>
+                            </div>
+                            
+                            <input
+                              type="range"
+                              min="1"
+                              max="10"
+                              value={responses[question.id] || 5}
+                              onChange={(e) => handleSliderChange(question.id, parseInt(e.target.value))}
+                              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+                            />
+                            
+                            <div className="flex justify-between text-xs text-gray-500">
+                              <span>Bardzo źle</span>
+                              <span>Średnio</span>
+                              <span>Bardzo dobrze</span>
+                            </div>
+                          </>
+                        ) : question.type === 'multiple_choice' && question.options ? (
+                          // Typ multiple choice
+                          <div className="space-y-2">
+                            {question.options.map((option: string, optionIndex: number) => (
+                              <label key={optionIndex} className="flex items-center space-x-2 cursor-pointer">
+                                <input
+                                  type="radio"
+                                  name={question.id}
+                                  value={optionIndex + 1}
+                                  checked={responses[question.id] === optionIndex + 1}
+                                  onChange={(e) => handleSliderChange(question.id, parseInt(e.target.value))}
+                                  className="w-4 h-4 text-blue-600"
+                                />
+                                <span className="text-sm text-gray-700">{option}</span>
+                              </label>
+                            ))}
+                          </div>
+                        ) : question.type === 'text' ? (
+                          // Typ tekstowy
+                          <textarea
+                            value={responses[question.id] || ''}
+                            onChange={(e) => handleSliderChange(question.id, e.target.value)}
+                            placeholder="Wpisz swoją odpowiedź..."
+                            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                            rows={3}
+                          />
+                        ) : (
+                          // Fallback do rating
+                          <>
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs text-gray-500">1</span>
+                              <span className="text-xs sm:text-sm font-medium text-gray-700">
+                                Ocena: {responses[question.id] || 5}
+                              </span>
+                              <span className="text-xs text-gray-500">10</span>
+                            </div>
+                            
+                            <input
+                              type="range"
+                              min="1"
+                              max="10"
+                              value={responses[question.id] || 5}
+                              onChange={(e) => handleSliderChange(question.id, parseInt(e.target.value))}
+                              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+                            />
+                            
+                            <div className="flex justify-between text-xs text-gray-500">
+                              <span>Bardzo źle</span>
+                              <span>Średnio</span>
+                              <span>Bardzo dobrze</span>
+                            </div>
+                          </>
+                        )}
                       </div>
                     </div>
                   ))}

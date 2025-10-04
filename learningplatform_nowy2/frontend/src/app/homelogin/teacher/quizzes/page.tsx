@@ -7,25 +7,47 @@ import { useRouter } from 'next/navigation';
 import { db } from '@/config/firebase';
 import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
 import QuizPreview from '@/components/QuizPreview';
-import { ArrowLeft, Eye, Save, Plus, Trash2, Settings, Edit, Eye as ViewIcon, AlertTriangle, CheckCircle, Info, BookOpen, Zap, Sparkles, Search } from 'lucide-react';
+import { ArrowLeft, Eye, Save, Plus, Trash2, Settings, Edit, Eye as ViewIcon, AlertTriangle, CheckCircle, Info, BookOpen, Zap, Sparkles, Search, Clock, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { ErrorDisplay } from '@/components/ErrorDisplay';
 import { AIQuizGenerator } from '@/components/AIQuizGenerator';
+import { Quiz, Question, Answer } from '@/types/models';
 
-interface Answer {
-  id: string;
-  content: string;
-  isCorrect: boolean;
-  type: 'text' | 'math' | 'mixed';
+// Lokalne typy rozszerzające globalne
+interface LocalAnswer extends Omit<Answer, 'created_at' | 'updated_at' | 'created_by'> {
+  mathContent?: string;
+  isCorrect: boolean; // Alias dla is_correct
 }
 
-interface Question {
-  id: string;
-  content: string;
-  type: 'text' | 'math' | 'mixed' | 'open';
-  answers: Answer[];
+interface LocalQuestion extends Omit<Question, 'created_at' | 'updated_at' | 'created_by' | 'answers'> {
+  mathContent?: string;
   explanation?: string;
-  points?: number;
+  answers: LocalAnswer[];
 }
+
+interface LocalQuiz extends Omit<Quiz, 'updated_at' | 'created_by' | 'questions'> {
+  questions: LocalQuestion[];
+}
+
+// Funkcje konwersji typów
+const convertAnswerToLocal = (answer: Answer): LocalAnswer => ({
+  ...answer,
+  isCorrect: answer.is_correct,
+  mathContent: (answer as any).mathContent
+});
+
+const convertQuestionToLocal = (question: Question): LocalQuestion => ({
+  ...question,
+  answers: question.answers.map(convertAnswerToLocal),
+  mathContent: (question as any).mathContent,
+  explanation: (question as any).explanation
+});
+
+const convertQuizToLocal = (quiz: Quiz): LocalQuiz => ({
+  ...quiz,
+  questions: quiz.questions.map(convertQuestionToLocal)
+});
+
+// Używamy typów z @/types/models
 
 interface Course {
   id: string;
@@ -43,38 +65,26 @@ interface Course {
   instructor_name?: string;
 }
 
-interface Quiz {
-  id: string;
-  title: string;
-  description: string;
-  subject: string;
-  course_id: string;
-  course_title: string;
-  questions: Question[];
-  created_at: string;
-  created_by: string;
-  max_attempts: number;
-  time_limit?: number;
-}
+// Quiz interface jest importowany z @/types/models
 
 interface NewQuiz {
   title: string;
   description: string;
   subject: string;
   course_id: string | null;
-  questions: Question[];
+  questions: LocalQuestion[];
   max_attempts: number;
   time_limit: number;
 }
 
 export default function QuizManagementPage() {
-  const [quizzes, setQuizzes] = useState<Quiz[]>([]);
+  const [quizzes, setQuizzes] = useState<LocalQuiz[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  const [editingQuiz, setEditingQuiz] = useState<Quiz | null>(null);
+  const [editingQuiz, setEditingQuiz] = useState<LocalQuiz | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [quizSearchTerm, setQuizSearchTerm] = useState('');
   const [newQuiz, setNewQuiz] = useState<NewQuiz>({
@@ -88,10 +98,12 @@ export default function QuizManagementPage() {
   });
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
-  const [selectedQuiz, setSelectedQuiz] = useState<Quiz | null>(null);
+  const [selectedQuiz, setSelectedQuiz] = useState<LocalQuiz | null>(null);
   const [editingQuestionIndex, setEditingQuestionIndex] = useState<number | null>(null);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
   const [showAIGenerator, setShowAIGenerator] = useState(false);
+  const [sortBy, setSortBy] = useState<'title' | 'created_at' | 'course_title' | 'subject' | 'questions_count'>('created_at');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   
   const { user, loading } = useAuth();
   const router = useRouter();
@@ -145,7 +157,7 @@ export default function QuizManagementPage() {
       })) as Quiz[];
       
       console.log('Fetched quizzes:', quizzesList);
-      setQuizzes(quizzesList);
+      setQuizzes(quizzesList.map(convertQuizToLocal));
     } catch (error) {
       console.error('Error fetching quizzes:', error);
       setError('Failed to load quizzes. Please try again later.');
@@ -211,6 +223,8 @@ export default function QuizManagementPage() {
       return;
     }
 
+    let quizData: any = null;
+    
     try {
       console.log('Creating new quiz:', newQuiz);
       setError(null);
@@ -221,8 +235,34 @@ export default function QuizManagementPage() {
       }
 
       const quizzesCollection = collection(db, 'quizzes');
-      const quizData = {
-        ...newQuiz,
+      // Konwertuj LocalQuestion[] na Question[] dla bazy danych
+      const convertedQuestions = newQuiz.questions.map(q => ({
+        id: q.id || '',
+        content: q.content || '',
+        type: q.type || 'text',
+        points: q.points || 1,
+        order: q.order || 0,
+        mathContent: q.mathContent || '',
+        explanation: q.explanation || '',
+        answers: q.answers.map(a => ({
+          id: a.id || '',
+          content: a.content || '',
+          is_correct: a.isCorrect || false,
+          type: a.type || 'text',
+          mathContent: a.mathContent || '',
+        })),
+        created_at: serverTimestamp(),
+        updated_at: serverTimestamp(),
+        created_by: user?.email || '',
+      }));
+
+      quizData = {
+        title: newQuiz.title,
+        description: newQuiz.description,
+        subject: newQuiz.subject,
+        max_attempts: newQuiz.max_attempts,
+        time_limit: newQuiz.time_limit,
+        questions: convertedQuestions,
         created_by: user?.email,
         created_at: serverTimestamp(),
         course_title: selectedCourse.title,
@@ -246,7 +286,8 @@ export default function QuizManagementPage() {
       fetchQuizzes();
     } catch (error) {
       console.error('Error creating quiz:', error);
-      setError('Nie udało się utworzyć quizu. Spróbuj ponownie.');
+      console.error('Quiz data that failed:', quizData);
+      setError(`Nie udało się utworzyć quizu: ${error instanceof Error ? error.message : 'Nieznany błąd'}`);
     }
   };
 
@@ -257,17 +298,34 @@ export default function QuizManagementPage() {
       description: generatedQuiz.description,
       subject: generatedQuiz.subject,
       course_id: newQuiz.course_id,
-      questions: generatedQuiz.questions,
+      questions: generatedQuiz.questions.map((q: any, qIndex: number) => ({
+        id: q.id || `q${qIndex + 1}`,
+        content: q.content || '',
+        type: q.type || 'text',
+        points: q.points || 1,
+        order: q.order || qIndex,
+        mathContent: q.mathContent || '',
+        explanation: q.explanation || '',
+        answers: q.answers.map((a: any, aIndex: number) => ({
+          id: a.id || `q${qIndex + 1}_a${aIndex + 1}`,
+          content: a.content || '',
+          is_correct: a.is_correct !== undefined ? a.is_correct : (a.isCorrect !== undefined ? a.isCorrect : false),
+          type: a.type || 'text',
+          mathContent: a.mathContent || '',
+          isCorrect: a.is_correct !== undefined ? a.is_correct : (a.isCorrect !== undefined ? a.isCorrect : false), // Alias dla kompatybilności
+        }))
+      })),
       max_attempts: newQuiz.max_attempts,
       time_limit: generatedQuiz.estimatedTime || newQuiz.time_limit,
     };
 
+    console.log('Converted AI quiz:', convertedQuiz);
     setNewQuiz(convertedQuiz);
     setIsCreating(true);
     setShowAIGenerator(false);
   };
 
-  const handleEditQuiz = (quiz: Quiz) => {
+  const handleEditQuiz = (quiz: LocalQuiz) => {
     setEditingQuiz(quiz);
     setNewQuiz({
       title: quiz.title,
@@ -293,6 +351,8 @@ export default function QuizManagementPage() {
       return;
     }
 
+    let quizData: any = null;
+    
     try {
       console.log('Updating quiz:', editingQuiz.id, newQuiz);
       setError(null);
@@ -303,8 +363,35 @@ export default function QuizManagementPage() {
       }
 
       const quizRef = doc(db, 'quizzes', editingQuiz.id);
-      const quizData = {
-        ...newQuiz,
+      
+      // Konwertuj LocalQuestion[] na Question[] dla bazy danych
+      const convertedQuestions = newQuiz.questions.map(q => ({
+        id: q.id || '',
+        content: q.content || '',
+        type: q.type || 'text',
+        points: q.points || 1,
+        order: q.order || 0,
+        mathContent: q.mathContent || '',
+        explanation: q.explanation || '',
+        answers: q.answers.map(a => ({
+          id: a.id || '',
+          content: a.content || '',
+          is_correct: a.isCorrect || false,
+          type: a.type || 'text',
+          mathContent: a.mathContent || '',
+        })),
+        created_at: serverTimestamp(),
+        updated_at: serverTimestamp(),
+        created_by: user?.email || '',
+      }));
+
+      quizData = {
+        title: newQuiz.title,
+        description: newQuiz.description,
+        subject: newQuiz.subject,
+        max_attempts: newQuiz.max_attempts,
+        time_limit: newQuiz.time_limit,
+        questions: convertedQuestions,
         updated_at: serverTimestamp(),
         course_title: selectedCourse.title,
         course_id: selectedCourse.id
@@ -328,7 +415,9 @@ export default function QuizManagementPage() {
       fetchQuizzes();
     } catch (error) {
       console.error('Error updating quiz:', error);
-      setError('Nie udało się zaktualizować quizu. Spróbuj ponownie.');
+      console.error('Quiz data that failed:', quizData);
+      console.error('Editing quiz ID:', editingQuiz.id);
+      setError(`Nie udało się zaktualizować quizu: ${error instanceof Error ? error.message : 'Nieznany błąd'}`);
     }
   };
 
@@ -360,7 +449,7 @@ export default function QuizManagementPage() {
       return 'Pytanie musi mieć minimum 2 odpowiedzi';
     }
     
-    const hasCorrectAnswer = question.answers.some(answer => answer.isCorrect);
+    const hasCorrectAnswer = question.answers.some(answer => answer.is_correct);
     if (!hasCorrectAnswer) {
       return 'Musi być zaznaczona minimum 1 poprawna odpowiedź';
     }
@@ -368,14 +457,14 @@ export default function QuizManagementPage() {
     return null;
   };
 
-  const handleAddQuestion = (question: Question) => {
+  const handleAddQuestion = (question: any) => {
     setNewQuiz((prev) => ({
       ...prev,
       questions: [...prev.questions, question],
     }));
   };
 
-  const handleEditQuestion = (questionIndex: number, updatedQuestion: Question) => {
+  const handleEditQuestion = (questionIndex: number, updatedQuestion: any) => {
     setNewQuiz((prev) => ({
       ...prev,
       questions: prev.questions.map((q, index) => 
@@ -403,6 +492,50 @@ export default function QuizManagementPage() {
     quiz.subject?.toLowerCase().includes(quizSearchTerm.toLowerCase()) ||
     quiz.course_title?.toLowerCase().includes(quizSearchTerm.toLowerCase())
   );
+
+  // Funkcja sortowania quizów
+  const sortQuizzes = (quizzes: LocalQuiz[]) => {
+    return [...quizzes].sort((a, b) => {
+      let aValue: any;
+      let bValue: any;
+
+      switch (sortBy) {
+        case 'title':
+          aValue = a.title?.toLowerCase() || '';
+          bValue = b.title?.toLowerCase() || '';
+          break;
+        case 'created_at':
+          aValue = a.created_at ? (typeof a.created_at === 'string' ? new Date(a.created_at).getTime() : a.created_at.toDate().getTime()) : 0;
+          bValue = b.created_at ? (typeof b.created_at === 'string' ? new Date(b.created_at).getTime() : b.created_at.toDate().getTime()) : 0;
+          break;
+        case 'course_title':
+          aValue = a.course_title?.toLowerCase() || '';
+          bValue = b.course_title?.toLowerCase() || '';
+          break;
+        case 'subject':
+          aValue = a.subject?.toLowerCase() || '';
+          bValue = b.subject?.toLowerCase() || '';
+          break;
+        case 'questions_count':
+          aValue = a.questions?.length || 0;
+          bValue = b.questions?.length || 0;
+          break;
+        default:
+          aValue = a.title?.toLowerCase() || '';
+          bValue = b.title?.toLowerCase() || '';
+      }
+
+      if (aValue < bValue) {
+        return sortOrder === 'asc' ? -1 : 1;
+      }
+      if (aValue > bValue) {
+        return sortOrder === 'asc' ? 1 : -1;
+      }
+      return 0;
+    });
+  };
+
+  const sortedAndFilteredQuizzes = sortQuizzes(filteredQuizzes);
 
   const handleQuizDeleted = () => {
     fetchQuizzes();
@@ -669,6 +802,53 @@ export default function QuizManagementPage() {
               </div>
             </div>
 
+            {/* Ustawienia quizu */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+              <div className="group">
+                <label className="block text-sm font-semibold text-blue-700 mb-2 flex items-center gap-2">
+                  <Settings className="w-4 h-4" />
+                  Maksymalna liczba prób *
+                </label>
+                <select
+                  value={newQuiz.max_attempts}
+                  onChange={(e) =>
+                    setNewQuiz((prev) => ({ ...prev, max_attempts: parseInt(e.target.value) }))
+                  }
+                  className="w-full p-4 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition-all duration-300"
+                >
+                  <option value={1}>1 próba</option>
+                  <option value={2}>2 próby</option>
+                  <option value={3}>3 próby</option>
+                  <option value={5}>5 prób</option>
+                  <option value={10}>10 prób</option>
+                </select>
+                <p className="text-sm text-gray-500 mt-2">
+                  Liczba prób, które uczeń może wykonać dla tego quizu
+                </p>
+              </div>
+              
+              <div className="group">
+                <label className="block text-sm font-semibold text-green-700 mb-2 flex items-center gap-2">
+                  <Clock className="w-4 h-4" />
+                  Limit czasu (minuty)
+                </label>
+                <input
+                  type="number"
+                  min="5"
+                  max="180"
+                  value={newQuiz.time_limit}
+                  onChange={(e) =>
+                    setNewQuiz((prev) => ({ ...prev, time_limit: parseInt(e.target.value) || 30 }))
+                  }
+                  className="w-full p-4 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-green-100 focus:border-green-500 transition-all duration-300"
+                  placeholder="30"
+                />
+                <p className="text-sm text-gray-500 mt-2">
+                  Maksymalny czas na rozwiązanie quizu (5-180 minut)
+                </p>
+              </div>
+            </div>
+
             <div className="mt-8">
               <div className="flex items-center gap-3 mb-6">
                 <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-blue-600 rounded-full flex items-center justify-center">
@@ -783,7 +963,7 @@ export default function QuizManagementPage() {
             <div className="flex items-center justify-between mb-6 flex-shrink-0">
               <h2 className="text-xl font-semibold text-gray-900">Twoje Quizy</h2>
               <div className="text-sm text-gray-500">
-                {filteredQuizzes.length} quiz{filteredQuizzes.length !== 1 ? 'y' : ''}
+                {sortedAndFilteredQuizzes.length} quiz{sortedAndFilteredQuizzes.length !== 1 ? 'y' : ''}
               </div>
             </div>
 
@@ -797,6 +977,42 @@ export default function QuizManagementPage() {
                 onChange={(e) => setQuizSearchTerm(e.target.value)}
                 className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-gray-700 bg-white hover:border-gray-300"
               />
+            </div>
+
+            {/* Kontrolki sortowania */}
+            <div className="flex flex-wrap items-center gap-4 mb-6 flex-shrink-0">
+              <div className="flex items-center gap-2">
+                <ArrowUpDown className="w-4 h-4 text-gray-500" />
+                <span className="text-sm font-medium text-gray-700">Sortuj według:</span>
+              </div>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+              >
+                <option value="created_at">Data utworzenia</option>
+                <option value="title">Tytuł</option>
+                <option value="course_title">Kurs</option>
+                <option value="subject">Przedmiot</option>
+                <option value="questions_count">Liczba pytań</option>
+              </select>
+              <button
+                onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                className="flex items-center gap-1 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors text-sm"
+                title={`Sortuj ${sortOrder === 'asc' ? 'malejąco' : 'rosnąco'}`}
+              >
+                {sortOrder === 'asc' ? (
+                  <>
+                    <ArrowUp className="w-4 h-4" />
+                    <span>Rosnąco</span>
+                  </>
+                ) : (
+                  <>
+                    <ArrowDown className="w-4 h-4" />
+                    <span>Malejąco</span>
+                  </>
+                )}
+              </button>
             </div>
 
             {isLoading ? (
@@ -815,7 +1031,7 @@ export default function QuizManagementPage() {
                   Utwórz Pierwszy Quiz
                 </button>
               </div>
-            ) : filteredQuizzes.length === 0 ? (
+            ) : sortedAndFilteredQuizzes.length === 0 ? (
               <div className="text-center py-8 text-gray-500 flex-1 flex flex-col items-center justify-center">
                 <Search className="h-12 w-12 mx-auto mb-4 text-gray-300" />
                 <p className="text-lg font-medium mb-2">Nie znaleziono quizów</p>
@@ -836,7 +1052,7 @@ export default function QuizManagementPage() {
               </div>
             ) : (
               <div className="space-y-4 flex-1 overflow-y-auto w-full">
-                {filteredQuizzes.map((quiz) => (
+                {sortedAndFilteredQuizzes.map((quiz) => (
                   <div key={quiz.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
@@ -864,7 +1080,7 @@ export default function QuizManagementPage() {
                       </div>
                       <div className="flex space-x-2 ml-4">
                         <button
-                          onClick={() => setSelectedQuiz(quiz)}
+                          onClick={() => setSelectedQuiz(quiz as any)}
                           className="p-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
                           title="Podgląd"
                         >

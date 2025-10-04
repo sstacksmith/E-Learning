@@ -16,7 +16,7 @@ const generateUUID = (): string => {
 };
 import { useRouter, useParams } from 'next/navigation';
 import { db } from '@/config/firebase';
-import { doc, getDoc, collection, addDoc, serverTimestamp, query, where, getDocs, DocumentData } from 'firebase/firestore';
+import { doc, getDoc, collection, addDoc, updateDoc, serverTimestamp, query, where, getDocs, DocumentData } from 'firebase/firestore';
 import { useAuth } from '@/context/AuthContext';
 import MathView from '@/components/MathView';
 import QuizAnswerInput from '@/components/QuizAnswerInput';
@@ -170,6 +170,70 @@ export default function QuizTaking() {
       const attemptDoc = await addDoc(collection(db, 'quiz_attempts'), attemptData);
       console.log('Quiz attempt saved with ID:', attemptDoc.id);
       
+      // 🆕 AUTOMATYCZNE WYSTAWIANIE OCENY DO DZIENNIKA
+      try {
+        // Pobierz ID nauczyciela z kursu
+        const courseDoc = await getDocs(query(collection(db, 'courses'), where('id', '==', quiz.course_id || slug)));
+        if (!courseDoc.empty) {
+          const courseData = courseDoc.docs[0].data();
+          const teacherId = courseData.created_by || courseData.teacherEmail || user.uid;
+          
+          // Sprawdź czy już istnieje ocena z tego quizu
+          const existingGradesQuery = query(
+            collection(db, 'grades'),
+            where('user_id', '==', user.uid),
+            where('quiz_id', '==', quiz.id)
+          );
+          
+          const existingGradesSnapshot = await getDocs(existingGradesQuery);
+          
+          // Określ numer próby dla opisu
+          const currentAttemptNumber = attemptsCount + 1;
+          
+          // Jeśli już istnieje ocena z tego quizu, zaktualizuj ją
+          if (!existingGradesSnapshot.empty) {
+            // Zaktualizuj istniejącą ocenę
+            for (const gradeDoc of existingGradesSnapshot.docs) {
+              await updateDoc(doc(db, 'grades', gradeDoc.id), {
+                value: calculatedGrade,
+                comment: `Quiz: ${quiz.title} - ${finalScore}% (${calculatedGradeDescription}) - Próba ${currentAttemptNumber}`,
+                graded_at: new Date().toISOString(),
+                quiz_title: quiz.title,
+                subject: quiz.subject || 'Quiz',
+                grade_type: 'Quiz'
+              });
+            }
+            console.log(`✅ Zaktualizowano ocenę ${calculatedGrade} (${calculatedGradeDescription}) w dzienniku za quiz "${quiz.title}" - Próba ${currentAttemptNumber}`);
+          } else {
+            // Dodaj nową ocenę
+            const newGrade = {
+              user_id: user.uid,
+              course_id: quiz.course_id || slug,
+              value: calculatedGrade,
+              comment: `Quiz: ${quiz.title} - ${finalScore}% (${calculatedGradeDescription}) - Próba ${currentAttemptNumber}`,
+              graded_by: teacherId,
+              graded_at: new Date().toISOString(),
+              quiz_id: quiz.id,
+              quiz_title: quiz.title,
+              subject: quiz.subject || 'Quiz',
+              grade_type: 'Quiz',
+              studentEmail: user.email,
+              studentName: (user as any).displayName || user.email,
+              teacherEmail: courseData.teacherEmail || courseData.created_by_email,
+              createdAt: serverTimestamp()
+            };
+            
+            await addDoc(collection(db, 'grades'), newGrade);
+            console.log(`✅ Dodano ocenę ${calculatedGrade} (${calculatedGradeDescription}) do dziennika za quiz "${quiz.title}" - Próba ${currentAttemptNumber}`);
+          }
+        } else {
+          console.warn('⚠️ Nie znaleziono kursu dla quizu:', quiz.course_id || slug);
+        }
+      } catch (gradeError) {
+        console.error('❌ Błąd podczas dodawania oceny do dziennika:', gradeError);
+        // Nie przerywamy procesu - quiz został zapisany, tylko ocena się nie dodała
+      }
+      
       // Mark quiz as submitted
       setQuizSubmitted(true);
       console.log('Quiz submission completed successfully!');
@@ -233,6 +297,7 @@ export default function QuizTaking() {
         description: data.description,
         subject: data.subject,
         course_id: data.course_id,
+        course_title: data.course_title || '',
         questions,
         max_attempts: data.max_attempts || 1,
         created_at: data.created_at || new Date().toISOString(),
@@ -580,7 +645,7 @@ export default function QuizTaking() {
             </div>
             
             {/* Statystyki */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-center">
               <div className="bg-blue-50 p-4 rounded-lg">
                 <div className="text-2xl font-bold text-blue-600">{score.toFixed(1)}%</div>
                 <div className="text-sm text-blue-800">Wynik procentowy</div>
@@ -592,6 +657,10 @@ export default function QuizTaking() {
               <div className="bg-purple-50 p-4 rounded-lg">
                 <div className="text-2xl font-bold text-purple-600">{quiz.questions.length}</div>
                 <div className="text-sm text-purple-800">Liczba pytań</div>
+              </div>
+              <div className="bg-orange-50 p-4 rounded-lg">
+                <div className="text-2xl font-bold text-orange-600">{attemptsCount}/{quiz.max_attempts}</div>
+                <div className="text-sm text-orange-800">Próby</div>
               </div>
             </div>
           </div>
@@ -851,8 +920,45 @@ export default function QuizTaking() {
           </button>
         )}
           </div>
+          </div>
+        </div>
+        
+        {/* Przyciski akcji */}
+        <div className="flex justify-center gap-4 mt-8">
+          <button
+            onClick={() => router.push(`/courses/${slug}`)}
+            className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium"
+          >
+            Powrót do kursu
+          </button>
+          
+          {attemptsCount < quiz.max_attempts && (
+            <button
+              onClick={() => {
+                // Resetuj stan quizu i rozpocznij nową próbę
+                setQuizSubmitted(false);
+                setCurrentQuestionIndex(0);
+                setSelectedAnswers({});
+                setOpenAnswers({});
+                setScore(0);
+                setGrade(0);
+                setGradeDescription('');
+                setTimeLeft(quiz.time_limit ? quiz.time_limit * 60 : 1800);
+                setQuizStarted(false);
+                // Odśwież liczbę prób
+                fetchAttempts(quizId).then(count => {
+                  setAttemptsCount(count);
+                  if (count >= quiz.max_attempts) {
+                    setMaxAttemptsReached(true);
+                  }
+                });
+              }}
+              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+            >
+              Rozpocznij nową próbę ({attemptsCount + 1}/{quiz.max_attempts})
+            </button>
+          )}
         </div>
       </div>
-    </div>
-  );
-} 
+    );
+  }

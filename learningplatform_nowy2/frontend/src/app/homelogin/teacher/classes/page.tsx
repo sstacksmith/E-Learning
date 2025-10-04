@@ -19,7 +19,7 @@ import {
   Award
 } from 'lucide-react';
 import { db } from '@/config/firebase';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, arrayUnion, arrayRemove, serverTimestamp } from 'firebase/firestore';
 
 interface Class {
   id: string;
@@ -34,6 +34,11 @@ interface Class {
   created_at: any;
   updated_at: any;
   assignedCourses?: string[];
+  schedule?: Array<{
+    day: string;
+    time: string;
+    room: string;
+  }>;
 }
 
 interface Student {
@@ -187,6 +192,15 @@ export default function ClassesPage() {
       const docRef = await addDoc(collection(db, 'classes'), classData);
       console.log('✅ handleCreateClass - klasa utworzona z ID:', docRef.id);
       
+      // Synchronizuj plan zajęć z kalendarzem
+      try {
+        await syncClassScheduleToCalendar(classData, []);
+        console.log('✅ Plan zajęć zsynchronizowany z kalendarzem');
+      } catch (syncError) {
+        console.error('❌ Błąd synchronizacji planu zajęć:', syncError);
+        // Nie przerywamy procesu tworzenia klasy, tylko logujemy błąd
+      }
+      
       setSuccess('Klasa została utworzona pomyślnie!');
       setShowCreateModal(false);
       resetForm();
@@ -267,6 +281,97 @@ export default function ClassesPage() {
     }));
   };
 
+  const addScheduleSlot = () => {
+    setFormData(prev => ({
+      ...prev,
+      schedule: [...prev.schedule, {
+        day: '',
+        time: '',
+        room: ''
+      }]
+    }));
+  };
+
+  // Funkcja synchronizacji planu zajęć z kalendarzem
+  const syncClassScheduleToCalendar = async (classData: any, students: string[]) => {
+    if (!classData.schedule || classData.schedule.length === 0) {
+      console.log('No schedule to sync for class:', classData.name);
+      return;
+    }
+
+    try {
+      console.log('Syncing schedule to calendar for class:', classData.name);
+      
+      // Dla każdego slotu planu zajęć
+      for (const scheduleSlot of classData.schedule) {
+        if (!scheduleSlot.day || !scheduleSlot.time || !scheduleSlot.room) {
+          console.log('Skipping incomplete schedule slot:', scheduleSlot);
+          continue;
+        }
+
+        // Konwertuj dzień tygodnia na datę (następny występ tego dnia)
+        const dayMapping = {
+          'Poniedziałek': 1,
+          'Wtorek': 2,
+          'Środa': 3,
+          'Czwartek': 4,
+          'Piątek': 5
+        };
+
+        const targetDay = dayMapping[scheduleSlot.day as keyof typeof dayMapping];
+        if (!targetDay) continue;
+
+        // Znajdź następny występ tego dnia tygodnia
+        const today = new Date();
+        const daysUntilTarget = (targetDay - today.getDay() + 7) % 7;
+        const nextOccurrence = new Date(today);
+        nextOccurrence.setDate(today.getDate() + (daysUntilTarget === 0 ? 7 : daysUntilTarget));
+
+        // Utwórz wydarzenie kalendarza
+        const eventData = {
+          title: `${scheduleSlot.room} - ${classData.name}`,
+          description: `Lekcja dla klasy ${classData.name}`,
+          type: 'class_lesson',
+          classId: classData.id,
+          className: classData.name,
+          subject: classData.subject || 'Lekcja',
+          room: scheduleSlot.room,
+          day: scheduleSlot.day,
+          time: scheduleSlot.time,
+          students: students, // Lista studentów przypisanych do klasy
+          assignedTo: students, // Kompatybilność ze starszą strukturą
+          date: nextOccurrence.toISOString().split('T')[0], // YYYY-MM-DD
+          startTime: scheduleSlot.time,
+          endTime: calculateEndTime(scheduleSlot.time, 45), // 45 minut lekcji
+          createdBy: user?.email,
+          createdAt: serverTimestamp(),
+          isRecurring: true, // Oznaczenie że to powtarzające się zajęcia
+          recurrenceType: 'weekly'
+        };
+
+        console.log('Creating calendar event:', eventData);
+        
+        // Dodaj wydarzenie do kolekcji events
+        await addDoc(collection(db, 'events'), eventData);
+      }
+
+      console.log('Schedule synced successfully for class:', classData.name);
+    } catch (error) {
+      console.error('Error syncing schedule to calendar:', error);
+      throw error;
+    }
+  };
+
+  // Funkcja pomocnicza do obliczania czasu zakończenia lekcji
+  const calculateEndTime = (startTime: string, durationMinutes: number) => {
+    const [hours, minutes] = startTime.split(':').map(Number);
+    const startDate = new Date();
+    startDate.setHours(hours, minutes, 0, 0);
+    
+    const endDate = new Date(startDate.getTime() + durationMinutes * 60000);
+    return `${endDate.getHours().toString().padStart(2, '0')}:${endDate.getMinutes().toString().padStart(2, '0')}`;
+  };
+
   const resetStudentForm = () => {
     setStudentFormData({
       studentEmail: ''
@@ -277,6 +382,26 @@ export default function ClassesPage() {
     setCourseFormData({
       courseId: ''
     });
+  };
+
+  // Funkcja do synchronizacji wszystkich klas z kalendarzem
+  const syncAllClassesToCalendar = async () => {
+    try {
+      console.log('🔄 Rozpoczynam synchronizację wszystkich klas z kalendarzem...');
+      
+      for (const classItem of classes) {
+        if (classItem.schedule && classItem.schedule.length > 0 && classItem.students && classItem.students.length > 0) {
+          console.log(`Synchronizuję klasę: ${classItem.name}`);
+          await syncClassScheduleToCalendar(classItem, classItem.students);
+        }
+      }
+      
+      setSuccess('Wszystkie klasy zostały zsynchronizowane z kalendarzem!');
+      console.log('✅ Synchronizacja wszystkich klas zakończona');
+    } catch (error) {
+      console.error('❌ Błąd synchronizacji wszystkich klas:', error);
+      setError('Wystąpił błąd podczas synchronizacji klas z kalendarzem.');
+    }
   };
 
   const handleAddStudentToClass = async () => {
@@ -304,6 +429,16 @@ export default function ClassesPage() {
       await updateDoc(classRef, {
         students: arrayUnion(student.id)
       });
+
+      // Synchronizuj plan zajęć klasy z kalendarzem dla tego studenta
+      try {
+        const updatedStudents = [...(selectedClass.students || []), student.id];
+        await syncClassScheduleToCalendar(selectedClass, updatedStudents);
+        console.log('✅ Plan zajęć zsynchronizowany dla nowego studenta');
+      } catch (syncError) {
+        console.error('❌ Błąd synchronizacji planu zajęć dla studenta:', syncError);
+        // Nie przerywamy procesu, tylko logujemy błąd
+      }
 
       setSuccess('Uczeń został dodany do klasy!');
       resetStudentForm();
@@ -574,6 +709,18 @@ export default function ClassesPage() {
             </div>
           )}
 
+          {/* Synchronization Button */}
+          <div className="flex justify-center mb-6">
+            <button
+              onClick={syncAllClassesToCalendar}
+              className="flex items-center gap-2 px-4 py-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors text-sm font-medium border border-green-200"
+              title="Synchronizuj plan zajęć wszystkich klas z kalendarzem"
+            >
+              <Calendar className="h-4 w-4" />
+              Synchronizuj z kalendarzem
+            </button>
+          </div>
+
           {/* Classes Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredClasses.map((cls) => (
@@ -729,13 +876,6 @@ export default function ClassesPage() {
                     <option value="2">Klasa 2</option>
                     <option value="3">Klasa 3</option>
                     <option value="4">Klasa 4</option>
-                    <option value="5">Klasa 5</option>
-                    <option value="6">Klasa 6</option>
-                    <option value="7">Klasa 7</option>
-                    <option value="8">Klasa 8</option>
-                    <option value="Liceum 1">Liceum 1</option>
-                    <option value="Liceum 2">Liceum 2</option>
-                    <option value="Liceum 3">Liceum 3</option>
                   </select>
                 </div>
               </div>
@@ -784,7 +924,7 @@ export default function ClassesPage() {
                   </label>
                   <button
                     type="button"
-                    onClick={() => alert('Funkcja w trakcie rozwoju')}
+                    onClick={addScheduleSlot}
                     className="flex items-center gap-2 px-3 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium"
                   >
                     <Plus className="h-4 w-4" />
@@ -794,44 +934,64 @@ export default function ClassesPage() {
                 
                 <div className="space-y-3">
                   {formData.schedule.map((slot, index) => (
-                    <div key={index} className="grid grid-cols-1 md:grid-cols-4 gap-3 p-4 bg-gray-50 rounded-xl">
-                      <select
-                        value={slot.day}
-                        onChange={(e) => updateScheduleSlot(index, 'day', e.target.value)}
-                        className="px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      >
-                        <option value="">Dzień</option>
-                        <option value="Poniedziałek">Poniedziałek</option>
-                        <option value="Wtorek">Wtorek</option>
-                        <option value="Środa">Środa</option>
-                        <option value="Czwartek">Czwartek</option>
-                        <option value="Piątek">Piątek</option>
-                      </select>
+                    <div key={index} className="grid grid-cols-1 md:grid-cols-4 gap-3 p-4 bg-gray-50 rounded-xl border border-gray-200">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Dzień tygodnia</label>
+                        <select
+                          value={slot.day || ''}
+                          onChange={(e) => updateScheduleSlot(index, 'day', e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                        >
+                          <option value="">Wybierz dzień</option>
+                          <option value="Poniedziałek">Poniedziałek</option>
+                          <option value="Wtorek">Wtorek</option>
+                          <option value="Środa">Środa</option>
+                          <option value="Czwartek">Czwartek</option>
+                          <option value="Piątek">Piątek</option>
+                        </select>
+                      </div>
                       
-                      <input
-                        type="time"
-                        value={slot.time}
-                        onChange={(e) => updateScheduleSlot(index, 'time', e.target.value)}
-                        className="px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Godzina</label>
+                        <input
+                          type="time"
+                          value={slot.time || ''}
+                          onChange={(e) => updateScheduleSlot(index, 'time', e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                        />
+                      </div>
                       
-                      <input
-                        type="text"
-                        value={slot.room}
-                        onChange={(e) => updateScheduleSlot(index, 'room', e.target.value)}
-                        placeholder="Sala"
-                        className="px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Sala/Przedmiot</label>
+                        <input
+                          type="text"
+                          value={slot.room || ''}
+                          onChange={(e) => updateScheduleSlot(index, 'room', e.target.value)}
+                          placeholder="np. Sala 101, Matematyka"
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                        />
+                      </div>
                       
-                      <button
-                        type="button"
-                        onClick={() => removeScheduleSlot(index)}
-                        className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                      <div className="flex items-end">
+                        <button
+                          type="button"
+                          onClick={() => removeScheduleSlot(index)}
+                          className="w-full flex items-center justify-center px-3 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors"
+                          title="Usuń zajęcia"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
                     </div>
                   ))}
+                  
+                  {formData.schedule.length === 0 && (
+                    <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-xl border-2 border-dashed border-gray-300">
+                      <Calendar className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                      <p className="text-lg font-medium">Brak zaplanowanych zajęć</p>
+                      <p className="text-sm mt-2">Dodaj zajęcia, aby stworzyć plan dla tej klasy</p>
+                    </div>
+                  )}
                 </div>
               </div>
               
@@ -909,13 +1069,6 @@ export default function ClassesPage() {
                     <option value="2">Klasa 2</option>
                     <option value="3">Klasa 3</option>
                     <option value="4">Klasa 4</option>
-                    <option value="5">Klasa 5</option>
-                    <option value="6">Klasa 6</option>
-                    <option value="7">Klasa 7</option>
-                    <option value="8">Klasa 8</option>
-                    <option value="Liceum 1">Liceum 1</option>
-                    <option value="Liceum 2">Liceum 2</option>
-                    <option value="Liceum 3">Liceum 3</option>
                   </select>
                 </div>
               </div>
@@ -964,7 +1117,7 @@ export default function ClassesPage() {
                   </label>
                   <button
                     type="button"
-                    onClick={() => alert('Funkcja w trakcie rozwoju')}
+                    onClick={addScheduleSlot}
                     className="flex items-center gap-2 px-3 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium"
                   >
                     <Plus className="h-4 w-4" />
@@ -974,44 +1127,64 @@ export default function ClassesPage() {
                 
                 <div className="space-y-3">
                   {formData.schedule.map((slot, index) => (
-                    <div key={index} className="grid grid-cols-1 md:grid-cols-4 gap-3 p-4 bg-gray-50 rounded-xl">
-                      <select
-                        value={slot.day}
-                        onChange={(e) => updateScheduleSlot(index, 'day', e.target.value)}
-                        className="px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      >
-                        <option value="">Dzień</option>
-                        <option value="Poniedziałek">Poniedziałek</option>
-                        <option value="Wtorek">Wtorek</option>
-                        <option value="Środa">Środa</option>
-                        <option value="Czwartek">Czwartek</option>
-                        <option value="Piątek">Piątek</option>
-                      </select>
+                    <div key={index} className="grid grid-cols-1 md:grid-cols-4 gap-3 p-4 bg-gray-50 rounded-xl border border-gray-200">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Dzień tygodnia</label>
+                        <select
+                          value={slot.day || ''}
+                          onChange={(e) => updateScheduleSlot(index, 'day', e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                        >
+                          <option value="">Wybierz dzień</option>
+                          <option value="Poniedziałek">Poniedziałek</option>
+                          <option value="Wtorek">Wtorek</option>
+                          <option value="Środa">Środa</option>
+                          <option value="Czwartek">Czwartek</option>
+                          <option value="Piątek">Piątek</option>
+                        </select>
+                      </div>
                       
-                      <input
-                        type="time"
-                        value={slot.time}
-                        onChange={(e) => updateScheduleSlot(index, 'time', e.target.value)}
-                        className="px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Godzina</label>
+                        <input
+                          type="time"
+                          value={slot.time || ''}
+                          onChange={(e) => updateScheduleSlot(index, 'time', e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                        />
+                      </div>
                       
-                      <input
-                        type="text"
-                        value={slot.room}
-                        onChange={(e) => updateScheduleSlot(index, 'room', e.target.value)}
-                        placeholder="Sala"
-                        className="px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Sala/Przedmiot</label>
+                        <input
+                          type="text"
+                          value={slot.room || ''}
+                          onChange={(e) => updateScheduleSlot(index, 'room', e.target.value)}
+                          placeholder="np. Sala 101, Matematyka"
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                        />
+                      </div>
                       
-                      <button
-                        type="button"
-                        onClick={() => removeScheduleSlot(index)}
-                        className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                      <div className="flex items-end">
+                        <button
+                          type="button"
+                          onClick={() => removeScheduleSlot(index)}
+                          className="w-full flex items-center justify-center px-3 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors"
+                          title="Usuń zajęcia"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
                     </div>
                   ))}
+                  
+                  {formData.schedule.length === 0 && (
+                    <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-xl border-2 border-dashed border-gray-300">
+                      <Calendar className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                      <p className="text-lg font-medium">Brak zaplanowanych zajęć</p>
+                      <p className="text-sm mt-2">Dodaj zajęcia, aby stworzyć plan dla tej klasy</p>
+                    </div>
+                  )}
                 </div>
               </div>
               

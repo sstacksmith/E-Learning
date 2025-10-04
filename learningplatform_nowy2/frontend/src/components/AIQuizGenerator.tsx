@@ -16,7 +16,7 @@ interface Question {
   answers: Array<{
     id: string;
     content: string;
-    isCorrect: boolean;
+    is_correct: boolean;
     type: 'text' | 'math' | 'mixed';
   }>;
   explanation?: string;
@@ -90,13 +90,13 @@ Odpowiedz TYLKO w formacie JSON bez dodatkowych komentarzy:
         {
           "id": "a1",
           "content": "Odpowiedź A",
-          "isCorrect": true,
+          "is_correct": true,
           "type": "text"
         },
         {
           "id": "a2", 
           "content": "Odpowiedź B",
-          "isCorrect": false,
+          "is_correct": false,
           "type": "text"
         }
       ],
@@ -415,7 +415,7 @@ WAŻNE:
                         <div
                           key={answer.id}
                           className={`p-3 rounded-lg text-sm font-medium transition-all duration-200 ${
-                            answer.isCorrect 
+                            answer.is_correct 
                               ? 'bg-gradient-to-r from-green-50 to-green-100 text-green-800 border-2 border-green-200 shadow-sm' 
                               : 'bg-gray-50 text-gray-700 border border-gray-200'
                           }`}
@@ -425,7 +425,7 @@ WAŻNE:
                               {String.fromCharCode(65 + answerIndex)}
                             </span>
                             {answer.content}
-                            {answer.isCorrect && (
+                            {answer.is_correct && (
                               <div className="w-5 h-5 bg-green-500 text-white rounded-full flex items-center justify-center ml-auto">
                                 <CheckCircle className="w-3 h-3" />
                               </div>

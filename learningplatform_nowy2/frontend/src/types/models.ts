@@ -71,6 +71,7 @@ export interface Quiz extends FirebaseDocument {
   description: string;
   subject: string;
   course_id: string;
+  course_title: string;
   questions: Question[];
   max_attempts: number;
   time_limit?: number;

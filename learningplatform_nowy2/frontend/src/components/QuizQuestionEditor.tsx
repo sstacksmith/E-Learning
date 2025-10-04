@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { MathEditor } from './MathEditor';
 import MathView from './MathView';
 import { CheckCircle } from 'lucide-react';
+import { Question, Answer } from '@/types/models';
 
 // Funkcja pomocnicza do generowania UUID
 const generateUUID = (): string => {
@@ -24,21 +25,14 @@ interface MixedContent {
   content: string;
 }
 
-interface Answer {
-  id: string;
-  content: string;
+// Lokalne typy rozszerzające globalne
+interface LocalAnswer extends Omit<Answer, 'created_at' | 'updated_at' | 'created_by'> {
   mathContent?: string;
-  isCorrect: boolean;
-  type: 'text' | 'math' | 'mixed';
 }
 
-interface QuestionData {
-  id: string;
-  content: string;
+interface QuestionData extends Omit<Question, 'created_at' | 'updated_at' | 'created_by' | 'answers'> {
   mathContent?: string;
-  type: 'text' | 'math' | 'mixed' | 'open';
-  answers: Answer[];
-  explanation?: string;
+  answers: LocalAnswer[];
 }
 
 interface QuizQuestionEditorProps {
@@ -58,6 +52,8 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
       content: '',
       type: 'text',
       answers: [],
+      points: 1,
+      order: 0,
     }
   );
 
@@ -89,7 +85,7 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
             {
               id: generateUUID(),
               content: '',
-              isCorrect: true,
+              is_correct: true,
               type: 'mixed' as const,
             },
           ],
@@ -106,7 +102,7 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
             {
               id: generateUUID(),
               content: '',
-              isCorrect: false,
+              is_correct: false,
               type: 'mixed' as const,
             },
           ],
@@ -156,7 +152,7 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
       const updated = {
         ...prev,
         answers: prev.answers.map((ans) =>
-          ans.id === answerId ? { ...ans, isCorrect: !ans.isCorrect } : ans
+          ans.id === answerId ? { ...ans, is_correct: !ans.is_correct } : ans
         ),
       };
       console.log('Updated question after toggling correct answer:', updated);
@@ -185,7 +181,7 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
       return 'Pytanie musi mieć minimum 2 odpowiedzi';
     }
     
-    const hasCorrectAnswer = question.answers.some(answer => answer.isCorrect);
+    const hasCorrectAnswer = question.answers.some(answer => answer.is_correct);
     if (!hasCorrectAnswer) {
       return 'Musi być zaznaczona minimum 1 poprawna odpowiedź';
     }
@@ -199,6 +195,8 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
       content: '',
       type: 'text' as const,
       answers: [],
+      points: 1,
+      order: 0,
     };
     setQuestion(newQuestion);
     setIsOpenQuestion(false);
@@ -251,7 +249,7 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                     answers: [{
                       id: generateUUID(),
                       content: '',
-                      isCorrect: true,
+                      is_correct: true,
                       type: 'mixed' as const
                     }]
                   };
@@ -357,7 +355,7 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
               )}
               <div 
                 className={`flex-1 p-2 rounded transition-colors ${
-                  answer.isCorrect ? 'bg-green-50 border-green-200' : ''
+                  answer.is_correct ? 'bg-green-50 border-green-200' : ''
                 }`}
               >
                 <div className="space-y-2">
@@ -420,11 +418,11 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                 <button
                   onClick={() => handleToggleCorrect(answer.id)}
                   className={`px-3 py-2 rounded transition-colors ${
-                    answer.isCorrect 
+                    answer.is_correct 
                       ? 'bg-green-500 text-white hover:bg-green-600' 
                       : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                   }`}
-                  title={answer.isCorrect ? 'Kliknij aby odznaczyć jako niepoprawną' : 'Kliknij aby oznaczyć jako poprawną'}
+                  title={answer.is_correct ? 'Kliknij aby odznaczyć jako niepoprawną' : 'Kliknij aby oznaczyć jako poprawną'}
                 >
                   ✓
                 </button>

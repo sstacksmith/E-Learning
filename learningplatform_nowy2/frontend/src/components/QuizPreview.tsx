@@ -10,35 +10,22 @@ const MathView = dynamic(() => import('./MathView'), {
 import { useAuth } from '@/hooks/useAuth';
 import { db } from '@/config/firebase';
 import { collection, query, where, getDocs, deleteDoc, doc } from 'firebase/firestore';
+import { Quiz, Question, Answer } from '@/types/models';
 
-interface Answer {
-  id: string;
-  content: string;
+// Lokalne typy rozszerzające globalne
+interface LocalAnswer extends Omit<Answer, 'created_at' | 'updated_at' | 'created_by'> {
   mathContent?: string;
-  isCorrect: boolean;
-  type: 'text' | 'math' | 'mixed';
+  isCorrect: boolean; // Alias dla is_correct
 }
 
-interface Question {
-  id: string;
-  content: string;
+interface LocalQuestion extends Omit<Question, 'created_at' | 'updated_at' | 'created_by' | 'answers'> {
   mathContent?: string;
-  type: 'text' | 'math' | 'mixed' | 'open';
-  answers: Answer[];
   explanation?: string;
+  answers: LocalAnswer[];
 }
 
-interface Quiz {
-  id: string;
-  title: string;
-  description: string;
-  subject: string;
-  course_id: string;
-  course_title: string;
-  questions: Question[];
-  created_at: string;
-  created_by: string;
-  max_attempts: number;
+interface LocalQuiz extends Omit<Quiz, 'updated_at' | 'created_by' | 'questions'> {
+  questions: LocalQuestion[];
 }
 
 interface StudentAnswer {
@@ -66,7 +53,7 @@ interface QuizResult {
 }
 
 interface QuizPreviewProps {
-  quiz: Quiz;
+  quiz: LocalQuiz;
   onClose: () => void;
   onDelete?: () => void; // Optional callback for parent component
 }
@@ -125,7 +112,7 @@ const QuizPreview: React.FC<QuizPreviewProps> = ({ quiz, onClose, onDelete }) =>
       } else {
         // Pytanie zamknięte
         const selectedAnswerId = result.answers.selected[question.id];
-        const correctAnswer = question.answers.find(a => a.isCorrect);
+        const correctAnswer = question.answers.find(a => a.is_correct);
         return {
           questionId: question.id,
           selectedAnswerId,
@@ -246,7 +233,7 @@ const QuizPreview: React.FC<QuizPreviewProps> = ({ quiz, onClose, onDelete }) =>
                         ) : (
                           <div>
                             {(() => {
-                              const correctAnswer = question.answers.find(a => a.isCorrect);
+                              const correctAnswer = question.answers.find(a => a.is_correct);
                               return correctAnswer ? (
                                 <div>
                                   {correctAnswer.content && (
@@ -505,7 +492,7 @@ const QuizPreview: React.FC<QuizPreviewProps> = ({ quiz, onClose, onDelete }) =>
                   <p><strong>Przedmiot:</strong> {quiz.subject}</p>
                 </div>
                 <div>
-                  <p><strong>Data utworzenia:</strong> {new Date(quiz.created_at).toLocaleDateString()}</p>
+                  <p><strong>Data utworzenia:</strong> {new Date(quiz.created_at as any).toLocaleDateString()}</p>
                   <p><strong>Liczba pytań:</strong> {quiz.questions.length}</p>
                   <p><strong>Maksymalna liczba prób:</strong> {quiz.max_attempts || 1}</p>
                 </div>
