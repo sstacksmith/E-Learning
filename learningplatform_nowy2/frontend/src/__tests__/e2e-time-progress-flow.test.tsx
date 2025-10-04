@@ -2,6 +2,15 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { collection, getDocs, addDoc, updateDoc } from 'firebase/firestore'
 
+// Mock collection
+const mockCollection = collection as jest.MockedFunction<typeof collection>
+mockCollection.mockImplementation((db, collectionName) => ({
+  id: collectionName,
+  path: collectionName,
+  parent: null,
+  type: 'collection'
+}))
+
 // Mock kompleksowych danych dla e2e testu
 const mockCompleteData = {
   parentStudent: {

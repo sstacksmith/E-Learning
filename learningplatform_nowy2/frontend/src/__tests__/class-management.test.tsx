@@ -494,7 +494,7 @@ describe('Class Management Tests', () => {
       });
 
       await waitFor(() => {
-        const searchInput = screen.getByPlaceholderText('Szukaj klas...');
+        const searchInput = screen.getByPlaceholderText('Wyszukaj klasę po nazwie, poziomie lub przedmiocie...');
         fireEvent.change(searchInput, { target: { value: '3A' } });
       });
 
@@ -510,7 +510,7 @@ describe('Class Management Tests', () => {
       });
 
       await waitFor(() => {
-        const searchInput = screen.getByPlaceholderText('Szukaj klas...');
+        const searchInput = screen.getByPlaceholderText('Wyszukaj klasę po nazwie, poziomie lub przedmiocie...');
         fireEvent.change(searchInput, { target: { value: 'nonexistent' } });
       });
 
@@ -529,7 +529,7 @@ describe('Class Management Tests', () => {
       });
 
       await waitFor(() => {
-        expect(screen.getByText('Wystąpił błąd podczas ładowania klas.')).toBeInTheDocument();
+        expect(screen.getByText('Wystąpił błąd podczas pobierania klas.')).toBeInTheDocument();
       });
     });
 
@@ -546,7 +546,7 @@ describe('Class Management Tests', () => {
       });
 
       // Fill required fields
-      fireEvent.change(screen.getByDisplayValue(''), { target: { value: '1A' } });
+      fireEvent.change(screen.getByPlaceholderText('np. 3A, 1B, 2C'), { target: { value: '1A' } });
       fireEvent.change(screen.getByDisplayValue('1'), { target: { value: '2' } });
 
       const submitButton = screen.getByText('Utwórz Klasę');

@@ -4,6 +4,24 @@ import { addDoc, updateDoc, getDocs, query, where, collection } from 'firebase/f
 const mockAddDoc = addDoc as jest.MockedFunction<typeof addDoc>
 const mockUpdateDoc = updateDoc as jest.MockedFunction<typeof updateDoc>
 const mockGetDocs = getDocs as jest.MockedFunction<typeof getDocs>
+const mockCollection = collection as jest.MockedFunction<typeof collection>
+const mockQuery = query as jest.MockedFunction<typeof query>
+const mockWhere = where as jest.MockedFunction<typeof where>
+
+// Mock collection to return a mock collection reference
+mockCollection.mockImplementation((db, collectionName) => ({
+  id: collectionName,
+  path: collectionName,
+  parent: null,
+  type: 'collection'
+}))
+
+// Mock query to return a mock query
+mockQuery.mockImplementation((collectionRef, ...constraints) => ({
+  type: 'query',
+  collection: collectionRef,
+  constraints
+}))
 
 // Funkcje do zarządzania postępem lekcji
 class LessonProgressManager {
@@ -15,8 +33,9 @@ class LessonProgressManager {
   ) {
     try {
       // Sprawdź czy progress już istnieje
+      const mockDb = {}
       const progressQuery = query(
-        collection({} as unknown, 'progress'),
+        collection(mockDb, 'progress'),
         where('studentId', '==', studentId),
         where('lessonId', '==', lessonId)
       )
@@ -34,7 +53,7 @@ class LessonProgressManager {
 
       if (existingProgress.empty) {
         // Utwórz nowy rekord postępu
-        const docRef = await addDoc(collection({} as unknown, 'progress'), progressData)
+        const docRef = await addDoc(collection(mockDb, 'progress'), progressData)
         return { id: docRef.id, ...progressData }
       } else {
         // Zaktualizuj istniejący rekord
@@ -60,7 +79,7 @@ class LessonProgressManager {
   ) {
     try {
       const progressQuery = query(
-        collection({} as unknown, 'progress'),
+        collection({}, 'progress'),
         where('studentId', '==', studentId),
         where('lessonId', '==', lessonId)
       )
@@ -105,7 +124,7 @@ class LessonProgressManager {
   static async getLessonProgress(studentId: string, lessonId: string) {
     try {
       const progressQuery = query(
-        collection({} as unknown, 'progress'),
+        collection({}, 'progress'),
         where('studentId', '==', studentId),
         where('lessonId', '==', lessonId)
       )
@@ -131,14 +150,14 @@ class LessonProgressManager {
     try {
       // Pobierz wszystkie lekcje kursu
       const lessonsQuery = query(
-        collection({} as unknown, 'lessons'),
+        collection({}, 'lessons'),
         where('courseId', '==', courseId)
       )
       const lessonsSnapshot = await getDocs(lessonsQuery)
       
       // Pobierz postęp dla tego studenta
       const progressQuery = query(
-        collection({} as unknown, 'progress'),
+        collection({}, 'progress'),
         where('studentId', '==', studentId)
       )
       const progressSnapshot = await getDocs(progressQuery)
@@ -208,9 +227,9 @@ describe('Lesson Progress Management', () => {
         85
       )
 
-      expect(mockGetDocs).toHaveBeenCalledWith(expect.anything())
+      expect(mockGetDocs).toHaveBeenCalledWith(expect.any(Object))
       expect(mockAddDoc).toHaveBeenCalledWith(
-        expect.anything(),
+        expect.any(Object),
         {
           studentId: mockStudentId,
           lessonId: mockLessonId,
@@ -301,7 +320,7 @@ describe('Lesson Progress Management', () => {
       )
 
       expect(mockAddDoc).toHaveBeenCalledWith(
-        expect.anything(),
+        expect.any(Object),
         {
           studentId: mockStudentId,
           lessonId: mockLessonId,
@@ -445,7 +464,7 @@ describe('Lesson Progress Management', () => {
       expect(result).toEqual({
         totalLessons: 3,
         completedLessons: 2,
-        progressPercentage: 66.66666666666667, // 2/3 * 100
+        progressPercentage: 66.66666666666666, // 2/3 * 100
         totalTimeSpent: 65 // 30 + 25 + 10
       })
     })

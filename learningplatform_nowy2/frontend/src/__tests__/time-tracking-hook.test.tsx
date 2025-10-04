@@ -1,5 +1,15 @@
 import { renderHook, act } from '@testing-library/react'
+import { useState } from 'react'
 import { collection, addDoc, updateDoc, getDocs, query, where } from 'firebase/firestore'
+
+// Mock collection
+const mockCollection = collection as jest.MockedFunction<typeof collection>
+mockCollection.mockImplementation((db, collectionName) => ({
+  id: collectionName,
+  path: collectionName,
+  parent: null,
+  type: 'collection'
+}))
 
 // Prosty hook do śledzenia czasu nauki (jeśli nie istnieje, tworzymy go)
 function useTimeTracking(userId: string, courseId: string) {
@@ -24,7 +34,7 @@ function useTimeTracking(userId: string, courseId: string) {
 
     // Zapisz do Firebase
     try {
-      await addDoc(collection({} as any, 'user_learning_time'), {
+      await addDoc(collection({}, 'user_learning_time'), {
         userId,
         courseId,
         time_spent_minutes: sessionTime,
@@ -133,7 +143,7 @@ describe('useTimeTracking Hook', () => {
 
     // Sprawdź czy dane zostały zapisane do Firebase
     expect(mockAddDoc).toHaveBeenCalledWith(
-      expect.anything(),
+      expect.any(Object),
       {
         userId: mockUserId,
         courseId: mockCourseId,

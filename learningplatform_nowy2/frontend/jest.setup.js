@@ -1,5 +1,8 @@
 import '@testing-library/jest-dom'
 
+// Polyfill for fetch
+global.fetch = jest.fn()
+
 // Mock Next.js router
 jest.mock('next/navigation', () => ({
   useRouter: () => ({
@@ -27,6 +30,22 @@ global.__firebaseMocks = {
 }
 
 jest.mock('firebase/firestore', () => global.__firebaseMocks)
+
+// Mock Firebase auth
+jest.mock('firebase/auth', () => ({
+  createUserWithEmailAndPassword: jest.fn(),
+  signInWithEmailAndPassword: jest.fn(),
+  signOut: jest.fn(),
+  onAuthStateChanged: jest.fn(),
+  getAuth: jest.fn(),
+}))
+
+// Mock Firebase config
+jest.mock('@/config/firebase', () => ({
+  auth: {},
+  db: {},
+  analytics: {},
+}))
 
 // Mock auth context
 const mockUser = {
