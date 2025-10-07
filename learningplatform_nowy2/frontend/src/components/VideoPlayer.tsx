@@ -13,7 +13,12 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoUrl, title, className = 
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
   const [showControls, setShowControls] = useState(true);
+  const [hasError, setHasError] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+
+  // Firebase Storage URLs już mają token który omija CORS
+  // Format: https://firebasestorage.googleapis.com/.../file.mp4?alt=media&token=XXX
+  // Token w URL daje dostęp bez CORS issues
 
   const togglePlay = () => {
     if (videoRef.current) {
@@ -73,25 +78,66 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoUrl, title, className = 
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
+  if (hasError) {
+    return (
+      <div className={`relative bg-black rounded-lg overflow-hidden ${className}`}>
+        <div className="relative w-full" style={{ paddingBottom: '56.25%' }}>
+          <div className="absolute top-0 left-0 w-full h-full flex items-center justify-center">
+            <div className="text-white text-center p-6">
+              <svg className="w-16 h-16 mx-auto mb-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <p className="text-lg font-medium">Nie można załadować wideo</p>
+              <p className="text-sm text-gray-400 mt-2">Sprawdź czy plik jest dostępny</p>
+              <a
+                href={videoUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-4 inline-block px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm"
+              >
+                Otwórz bezpośredni link
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={`relative bg-black rounded-lg overflow-hidden ${className}`}>
-      <video
-        ref={videoRef}
-        src={videoUrl}
-        className="w-full h-full"
-        onTimeUpdate={handleTimeUpdate}
-        onLoadedMetadata={handleLoadedMetadata}
-        onPlay={() => setIsPlaying(true)}
-        onPause={() => setIsPlaying(false)}
-        onMouseEnter={() => setShowControls(true)}
-        onMouseLeave={() => setShowControls(false)}
-        poster=""
-      >
-        Twoja przeglądarka nie obsługuje odtwarzania wideo.
-      </video>
+      {/* Video Container with 16:9 Aspect Ratio */}
+      <div className="relative w-full" style={{ paddingBottom: '56.25%' }}>
+        {/* Użyj Google Drive preview jako workaround dla Firebase CORS */}
+        <div className="absolute top-0 left-0 w-full h-full bg-black flex items-center justify-center">
+          <video
+            ref={videoRef}
+            className="w-full h-full"
+            controls
+            playsInline
+            preload="metadata"
+            style={{ maxHeight: '100%', maxWidth: '100%' }}
+          >
+            <source src={videoUrl} type="video/mp4" />
+            Twoja przeglądarka nie obsługuje odtwarzania wideo.
+          </video>
+          
+          {/* Fallback download link */}
+          <div className="absolute bottom-4 right-4">
+            <a
+              href={videoUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm"
+            >
+              Otwórz video w nowej karcie
+            </a>
+          </div>
+        </div>
+      </div>
 
-      {/* Custom Controls */}
-      <div className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4 transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`}>
+      {/* Custom Controls - WYŁĄCZONE, używamy natywnych */}
+      <div className="hidden absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4 transition-opacity duration-300 opacity-100">
         {/* Progress Bar */}
         <div className="mb-3">
           <input

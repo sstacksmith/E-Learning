@@ -1,19 +1,6 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-
-// Funkcja pomocnicza do generowania UUID
-const generateUUID = (): string => {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-    return crypto.randomUUID();
-  }
-  // Fallback dla starszych przeglądarek
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-    const r = Math.random() * 16 | 0;
-    const v = c === 'x' ? r : (r & 0x3 | 0x8);
-    return v.toString(16);
-  });
-};
 import { useRouter, useParams } from 'next/navigation';
 import { db } from '@/config/firebase';
 import { doc, getDoc, collection, addDoc, updateDoc, serverTimestamp, query, where, getDocs, DocumentData } from 'firebase/firestore';
@@ -23,13 +10,28 @@ import QuizAnswerInput from '@/components/QuizAnswerInput';
 import { Quiz, Question } from '@/types';
 import { QuizNotFound } from '@/components/QuizNotFound';
 import { calculateGradeFromPercentage, getGradeDescription, getGradeColor } from '@/utils/gradeCalculator';
+import Providers from '@/components/Providers';
+
+// Funkcja pomocnicza do generowania UUID
+const generateUUID = (): string => {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  // Fallback dla starszych przeglądarek
+  const pattern = /[xy]/g;
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(pattern, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+};
 
 interface QuizAnswer {
   content: string;
   type: 'text' | 'math';
 }
 
-export default function QuizTaking() {
+function QuizTakingContent() {
   const router = useRouter();
   const params = useParams();
   const slug = params?.slug as string;
@@ -314,7 +316,7 @@ export default function QuizTaking() {
       if (attempts >= quizData.max_attempts) {
         setMaxAttemptsReached(true);
         setError('Wykorzystano maksymalną liczbę prób dla tego quizu.');
-        router.push('/courses/' + slug);
+        router.push(`/courses/${slug}`);
         return;
       }
     } catch (err) {
@@ -659,7 +661,7 @@ export default function QuizTaking() {
                 <div className="text-sm text-purple-800">Liczba pytań</div>
               </div>
               <div className="bg-orange-50 p-4 rounded-lg">
-                <div className="text-2xl font-bold text-orange-600">{attemptsCount}/{quiz.max_attempts}</div>
+                <div className="text-2xl font-bold text-orange-600">{attemptsCount} / {quiz.max_attempts}</div>
                 <div className="text-sm text-orange-800">Próby</div>
               </div>
             </div>
@@ -792,7 +794,7 @@ export default function QuizTaking() {
           
           <div className="mb-4 p-3 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg">
             <div className="text-sm">
-              Próba: {attemptsCount + 1} z {quiz.max_attempts}
+              Próba: {attemptsCount + 1} / {quiz.max_attempts}
               {attemptsCount >= quiz.max_attempts - 1 && (
                 <span className="ml-2 text-orange-600 font-medium">
                   To jest Twoja ostatnia próba!
@@ -805,7 +807,7 @@ export default function QuizTaking() {
           <div className="flex items-center justify-between bg-gray-50 rounded-lg p-4">
             <div className="flex items-center space-x-6">
               <div className="text-sm text-gray-600">
-          Pytanie {currentQuestionIndex + 1} z {quiz.questions.length}
+          Pytanie {currentQuestionIndex + 1} / {quiz.questions.length}
         </div>
               <div className="flex items-center space-x-2 text-sm text-gray-600">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -814,7 +816,7 @@ export default function QuizTaking() {
                 <span className="font-mono">{formatTime(timeLeft)}</span>
               </div>
               <div className="text-sm text-gray-600">
-                {getAnsweredCount()}/{quiz.questions.length} odpowiedzi
+                {getAnsweredCount()} / {quiz.questions.length} odpowiedzi
               </div>
             </div>
           </div>
@@ -955,10 +957,18 @@ export default function QuizTaking() {
               }}
               className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
             >
-              Rozpocznij nową próbę ({attemptsCount + 1}/{quiz.max_attempts})
+              Rozpocznij nową próbę ({attemptsCount + 1} / {quiz.max_attempts})
             </button>
           )}
         </div>
       </div>
-    );
-  }
+  );
+}
+
+export default function QuizTaking() {
+  return (
+    <Providers>
+      <QuizTakingContent />
+    </Providers>
+  );
+}

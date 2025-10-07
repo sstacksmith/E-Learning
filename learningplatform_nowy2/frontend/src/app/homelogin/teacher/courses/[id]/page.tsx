@@ -16,6 +16,8 @@ import { QuizAssignmentModal } from '@/components/QuizAssignmentModal';
 import { ReorderableSection } from '@/components/ReorderableSection';
 import { MathEditor } from '@/components/MathEditor';
 import MathView from '@/components/MathView';
+import { DraggableContentBlock } from '@/components/DraggableContentBlock';
+import { DroppableContentArea } from '@/components/DroppableContentArea';
 // Dynamiczny import MDXEditor
 const MDXEditor = dynamic(() => import('@mdxeditor/editor').then(mod => mod.MDXEditor), { ssr: false });
 import {
@@ -69,15 +71,30 @@ interface Section {
   id: string | number;
   title: string;
   name?: string;
-  type?: "material" | "assignment" | "form" | "exam" | "aktywnosc";
+  type?: "material" | "assignment";
   description?: string;
   order?: number;
   deadline?: string;
   contents?: SectionContent[];
   subsections?: Subsection[];
   fileUrl?: string;
-  formUrl?: string;
   submissions?: { userId: string; fileUrl?: string; submittedAt?: string }[];
+}
+
+interface ContentBlock {
+  id: string | number;
+  type: "text" | "file" | "video" | "quiz" | "math";
+  content?: string;
+  title?: string;
+  fileUrl?: string;
+  videoUrl?: string;
+  youtubeUrl?: string;
+  videoSource?: 'upload' | 'youtube';
+  quizId?: string;
+  mathContent?: string;
+  order: number;
+  fileSize?: number; // rozmiar pliku w bajtach
+  fileError?: string; // błąd walidacji pliku
 }
 
 interface Subsection {
@@ -86,6 +103,7 @@ interface Subsection {
   description?: string;
   sectionId: string | number;
   materials: Material[];
+  contentBlocks: ContentBlock[];
   order: number;
   createdAt: string;
   updatedAt: string;
@@ -96,7 +114,7 @@ interface Material {
   id: string | number;
   title: string;
   description?: string;
-  type: "text" | "file" | "task" | "exam" | "activity" | "video" | "quiz" | "math";
+  type: "text" | "file" | "task" | "video" | "quiz" | "math";
   subsectionId: string | number;
   order: number;
   deadline?: string;
@@ -163,6 +181,7 @@ interface Quiz {
   created_at: string;
   created_by: string;
   max_attempts: number;
+  time_limit?: number;
 }
 
 
@@ -187,7 +206,17 @@ function TeacherCourseDetailContent() {
   const [studentSearchTerm, setStudentSearchTerm] = useState<string>("");
   const [selectedStudentsToAdd, setSelectedStudentsToAdd] = useState<string[]>([]);
   const [showAssignedStudents, setShowAssignedStudents] = useState<boolean>(false);
+  const [showStudentManagement, setShowStudentManagement] = useState<boolean>(false);
 
+  // Nowy edytor treści lekcji
+  const [editingLessonContent, setEditingLessonContent] = useState<number | null>(null);
+  const [lessonContent, setLessonContent] = useState<ContentBlock[]>([]);
+  const [editingContentId, setEditingContentId] = useState<number | null>(null);
+  const [showQuizSelector, setShowQuizSelector] = useState<boolean>(false);
+  const [editingQuizBlockId, setEditingQuizBlockId] = useState<number | null>(null);
+  const [showQuizPreview, setShowQuizPreview] = useState<boolean>(false);
+  const [previewQuiz, setPreviewQuiz] = useState<Quiz | null>(null);
+  const [savingLesson, setSavingLesson] = useState<boolean>(false);
 
   // Banner state
   const [bannerUrl, setBannerUrl] = useState<string>("");
@@ -207,13 +236,13 @@ function TeacherCourseDetailContent() {
   const [showSubsection, setShowSubsection] = useState<{[id:number]: boolean}>({});
   const [addingSubsection, setAddingSubsection] = useState<number | null>(null);
   const [editingSubsection, setEditingSubsection] = useState<number | null>(null);
-  const [newSubsection, setNewSubsection] = useState<{name: string, description: string}>({name: '', description: ''});
-  const [editSubsection, setEditSubsection] = useState<{name: string, description: string}>({name: '', description: ''});
+  const [newSubsection, setNewSubsection] = useState<{name: string}>({name: ''});
+  const [editSubsection, setEditSubsection] = useState<{name: string}>({name: ''});
   const [addingMaterial, setAddingMaterial] = useState<number | null>(null);
   const [newMaterial, setNewMaterial] = useState<{
     title: string;
     description: string;
-    type: "text" | "file" | "task" | "exam" | "activity" | "video" | "quiz" | "math";
+    type: "text" | "file" | "task" | "video" | "quiz" | "math";
     deadline?: string;
     content?: string;
     file?: File | null;
@@ -234,12 +263,9 @@ function TeacherCourseDetailContent() {
     videoSource: 'upload',
     quizId: ''
   });
-  const [editingContentId, setEditingContentId] = useState<number | null>(null);
   const [editContent, setEditContent] = useState<SectionContent | null>(null);
   
   // Stan do zarządzania quizami
-  const [availableQuizzes, setAvailableQuizzes] = useState<any[]>([]);
-  const [showQuizSelector, setShowQuizSelector] = useState(false);
 
   // Stan do trybu uporządkowania
   const [isReorderMode, setIsReorderMode] = useState(false);
@@ -247,33 +273,231 @@ function TeacherCourseDetailContent() {
   const [isSavingOrder, setIsSavingOrder] = useState(false);
   const [draggedElement, setDraggedElement] = useState<string | null>(null);
 
-  // Funkcja do pobierania dostępnych quizów
-  const fetchAvailableQuizzes = async () => {
-    try {
-      const { collection, getDocs, query, where } = await import('firebase/firestore');
-      const quizzesCollection = collection(db, 'quizzes');
-      const quizzesSnapshot = await getDocs(quizzesCollection);
-      
-      const quizzes = quizzesSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      
-      setAvailableQuizzes(quizzes);
-    } catch (error) {
-      console.error('Error fetching quizzes:', error);
+
+
+  // Funkcje do zarządzania treścią lekcji
+  const startEditingLessonContent = (subsection: Subsection) => {
+    setLessonContent(subsection.contentBlocks || []);
+    setEditingLessonContent(Number(subsection.id));
+  };
+
+  const cancelEditingLessonContent = () => {
+    setEditingLessonContent(null);
+    setLessonContent([]);
+    setEditingContentId(null);
+  };
+
+  const addContentBlock = (type: "text" | "file" | "video" | "quiz" | "math", insertIndex?: number) => {
+    const newBlock: ContentBlock = {
+      id: Date.now(),
+      type,
+      content: type === 'text' ? '' : undefined,
+      title: type === 'file' ? '' : undefined,
+      youtubeUrl: type === 'video' ? '' : undefined,
+      videoSource: type === 'video' ? 'youtube' : undefined,
+      quizId: type === 'quiz' ? '' : undefined,
+      mathContent: type === 'math' ? '' : undefined,
+      order: insertIndex !== undefined ? insertIndex : lessonContent.length
+    };
+
+    if (insertIndex !== undefined) {
+      const newContent = [...lessonContent];
+      newContent.splice(insertIndex, 0, newBlock);
+      // Aktualizuj kolejność
+      newContent.forEach((block, index) => {
+        block.order = index;
+      });
+      setLessonContent(newContent);
+    } else {
+      setLessonContent([...lessonContent, newBlock]);
     }
   };
 
-  // Funkcja do przypisywania quizu do lekcji
-  const handleAssignQuizToLesson = (quizId: string, quizTitle: string) => {
-    setNewMaterial(prev => ({
-      ...prev,
-      quizId: quizId,
-      title: quizTitle,
-      type: 'quiz'
-    }));
+  const updateContentBlock = (blockId: number, updates: Partial<ContentBlock>) => {
+    setLessonContent(lessonContent.map(block => 
+      block.id === blockId ? { ...block, ...updates } : block
+    ));
+  };
+
+  const deleteContentBlock = (blockId: number) => {
+    const newContent = lessonContent.filter(block => block.id !== blockId);
+    // Aktualizuj kolejność
+    newContent.forEach((block, index) => {
+      block.order = index;
+    });
+    setLessonContent(newContent);
+  };
+
+  const reorderContentBlocks = (newOrder: ContentBlock[]) => {
+    setLessonContent(newOrder);
+  };
+
+  const saveLessonContent = async () => {
+    if (!editingLessonContent) return;
+    
+    setSavingLesson(true);
+
+    try {
+      // Upload plików do Firebase Storage przed zapisaniem
+      const storage = getStorage();
+      const uploadedContent = await Promise.all(
+        lessonContent.map(async (block) => {
+          // Skip if videoUrl/fileUrl is already a Firebase URL
+          if (block.videoUrl && block.videoUrl.startsWith('http') && !block.videoUrl.startsWith('blob:')) {
+            return block;
+          }
+          if (block.fileUrl && block.fileUrl.startsWith('http') && !block.fileUrl.startsWith('blob:')) {
+            return block;
+          }
+
+          // Upload video file
+          if (block.type === 'video' && block.videoUrl && block.videoUrl.startsWith('blob:')) {
+            try {
+              const response = await fetch(block.videoUrl);
+              const blob = await response.blob();
+              const fileName = block.title || `video_${Date.now()}`;
+              const storageRef = ref(storage, `courses/${courseId}/lessons/${editingLessonContent}/videos/${Date.now()}_${fileName}`);
+              
+              // Upload z public metadata
+              await uploadBytes(storageRef, blob, {
+                contentType: blob.type || 'video/mp4',
+                cacheControl: 'public, max-age=31536000',
+                customMetadata: {
+                  'Access-Control-Allow-Origin': '*'
+                }
+              });
+              
+              const firebaseUrl = await getDownloadURL(storageRef);
+              console.log('Uploaded video URL:', firebaseUrl);
+              return { ...block, videoUrl: firebaseUrl };
+            } catch (error) {
+              console.error('Error uploading video:', error);
+              alert(`Błąd podczas uploadu video: ${block.title}`);
+              return block;
+            }
+          }
+
+          // Upload file
+          if (block.type === 'file' && block.fileUrl && block.fileUrl.startsWith('blob:')) {
+            try {
+              const response = await fetch(block.fileUrl);
+              const blob = await response.blob();
+              const fileName = block.title || `file_${Date.now()}`;
+              const storageRef = ref(storage, `courses/${courseId}/lessons/${editingLessonContent}/files/${Date.now()}_${fileName}`);
+              
+              // Upload z public metadata
+              await uploadBytes(storageRef, blob, {
+                contentType: blob.type,
+                cacheControl: 'public, max-age=31536000',
+                customMetadata: {
+                  'Access-Control-Allow-Origin': '*'
+                }
+              });
+              
+              const firebaseUrl = await getDownloadURL(storageRef);
+              return { ...block, fileUrl: firebaseUrl };
+            } catch (error) {
+              console.error('Error uploading file:', error);
+              alert(`Błąd podczas uploadu pliku: ${block.title}`);
+              return block;
+            }
+          }
+
+          return block;
+        })
+      );
+
+      const newSections = sections.map(section => ({
+        ...section,
+        subsections: (section.subsections || []).map(sub => 
+          sub.id === editingLessonContent
+            ? { ...sub, contentBlocks: uploadedContent, updatedAt: new Date().toISOString() }
+            : sub
+        )
+      }));
+
+      setSections(newSections);
+      setEditingLessonContent(null);
+      setLessonContent([]);
+      setEditingContentId(null);
+
+      // Zapisz do Firestore
+      const cleanData = (obj: any): any => {
+        if (obj === null || obj === undefined) return null;
+        if (Array.isArray(obj)) {
+          return obj.map(cleanData).filter(item => item !== null);
+        }
+        if (typeof obj === 'object') {
+          const cleaned: any = {};
+          for (const [key, value] of Object.entries(obj)) {
+            const cleanedValue = cleanData(value);
+            if (cleanedValue !== null) {
+              cleaned[key] = cleanedValue;
+            }
+          }
+          return Object.keys(cleaned).length > 0 ? cleaned : null;
+        }
+        return obj;
+      };
+
+      const cleanedSections = cleanData(newSections);
+      await updateDoc(doc(db, "courses", String(courseId)), {
+        sections: cleanedSections,
+        updatedAt: new Date().toISOString()
+      });
+      
+      alert('Treść lekcji zapisana pomyślnie!');
+    } catch (error) {
+      console.error('Error saving lesson content:', error);
+      alert('Błąd podczas zapisywania treści lekcji: ' + (error instanceof Error ? error.message : 'Nieznany błąd'));
+    } finally {
+      setSavingLesson(false);
+    }
+  };
+
+  const selectQuiz = (quizId: string) => {
+    if (editingQuizBlockId) {
+      updateContentBlock(editingQuizBlockId, { quizId });
+      setEditingQuizBlockId(null);
+    }
     setShowQuizSelector(false);
+  };
+
+  const openQuizPreview = (quizId: string) => {
+    console.log('openQuizPreview called with quizId:', quizId);
+    console.log('Available quizzes:', quizzes);
+    const quiz = quizzes.find(q => q.id === quizId);
+    console.log('Found quiz:', quiz);
+    if (quiz) {
+      setPreviewQuiz(quiz);
+      setShowQuizPreview(true);
+    } else {
+      console.error('Quiz not found with ID:', quizId);
+      // Spróbuj załadować quizy ponownie
+      fetchQuizzes();
+    }
+  };
+
+  // Funkcja do walidacji rozmiaru pliku
+  const validateFileSize = (file: File, type: 'video' | 'file'): { isValid: boolean; error?: string } => {
+    const maxSizeVideo = 500 * 1024 * 1024; // 500MB
+    const maxSizeFile = 100 * 1024 * 1024; // 100MB
+    
+    if (type === 'video' && file.size > maxSizeVideo) {
+      return {
+        isValid: false,
+        error: `Plik video jest za duży. Maksymalny rozmiar: 500MB. Aktualny rozmiar: ${(file.size / (1024 * 1024)).toFixed(1)}MB`
+      };
+    }
+    
+    if (type === 'file' && file.size > maxSizeFile) {
+      return {
+        isValid: false,
+        error: `Plik jest za duży. Maksymalny rozmiar: 100MB. Aktualny rozmiar: ${(file.size / (1024 * 1024)).toFixed(1)}MB`
+      };
+    }
+    
+    return { isValid: true };
   };
 
   // Fetch students from Firestore
@@ -474,26 +698,20 @@ function TeacherCourseDetailContent() {
 
   // Fetch quizzes for this course
   const fetchQuizzes = useCallback(async () => {
-    if (!courseId) return;
-    
     try {
       setLoadingQuizzes(true);
       setQuizError(null);
       
-      console.log('Fetching quizzes for course:', courseId);
+      console.log('Fetching all quizzes');
       const quizzesCollection = collection(db, 'quizzes');
-      const quizzesQuery = query(
-        quizzesCollection,
-        where('course_id', '==', courseId)
-      );
+      const quizzesSnapshot = await getDocs(quizzesCollection);
       
-      const quizzesSnapshot = await getDocs(quizzesQuery);
       const quizzesList = quizzesSnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as Quiz[];
       
-      console.log('Found quizzes for course:', quizzesList);
+      console.log('Found all quizzes:', quizzesList);
       setQuizzes(quizzesList);
     } catch (error) {
       console.error('Error fetching quizzes:', error);
@@ -501,7 +719,7 @@ function TeacherCourseDetailContent() {
     } finally {
       setLoadingQuizzes(false);
     }
-  }, [courseId]);
+  }, []);
 
   useEffect(() => {
     fetchQuizzes();
@@ -528,22 +746,6 @@ function TeacherCourseDetailContent() {
     return isNotAssigned && isNotInAssignedClass && matchesSearch;
   });
 
-  // Funkcje do zarządzania wyborem uczniów
-  const selectAllAvailableStudents = () => {
-    setSelectedStudentsToAdd(filteredAvailableStudents.map(student => student.uid));
-  };
-
-  const deselectAllStudents = () => {
-    setSelectedStudentsToAdd([]);
-  };
-
-  const toggleStudentSelection = (studentId: string) => {
-    setSelectedStudentsToAdd(prev => 
-      prev.includes(studentId) 
-        ? prev.filter(id => id !== studentId)
-        : [...prev, studentId]
-    );
-  };
 
   // Usuwanie ucznia z kursu
   const handleRemoveStudent = async (studentId: string) => {
@@ -586,94 +788,6 @@ function TeacherCourseDetailContent() {
     }
   };
 
-  // Dodawanie wielu uczniów na raz
-  const handleAddSelectedStudents = async () => {
-    if (!courseId || selectedStudentsToAdd.length === 0) return;
-    
-    try {
-      const courseDoc = await getDoc(doc(db, "courses", String(courseId)));
-      if (!courseDoc.exists()) {
-        setError('Kurs nie został znaleziony');
-        return;
-      }
-      
-      const courseData = courseDoc.data();
-      const currentAssignedUsers = courseData.assignedUsers || [];
-      
-      // Pobierz dane wybranych uczniów
-      const studentsToAdd = students.filter(s => selectedStudentsToAdd.includes(s.uid));
-      
-      // Dodaj uczniów do kursu (używając emaili)
-      const newAssignedUsers = [...currentAssignedUsers];
-      studentsToAdd.forEach(student => {
-        if (!currentAssignedUsers.includes(student.email)) {
-          newAssignedUsers.push(student.email);
-        }
-      });
-      
-      // Zaktualizuj kurs
-      await updateDoc(doc(db, "courses", String(courseId)), {
-        assignedUsers: newAssignedUsers
-      });
-      
-      // Odśwież listę przypisanych uczniów
-      const updatedAssignedUsersList = await Promise.all(
-        newAssignedUsers.map(async (userIdentifier: string) => {
-          try {
-            let userDoc;
-            if (userIdentifier.includes('@')) {
-              const usersQuery = query(collection(db, "users"), where("email", "==", userIdentifier));
-              const userSnapshot = await getDocs(usersQuery);
-              if (!userSnapshot.empty) {
-                userDoc = userSnapshot.docs[0];
-              }
-            } else {
-              userDoc = await getDoc(doc(db, "users", userIdentifier));
-            }
-            
-            if (userDoc && userDoc.exists()) {
-              const userData = userDoc.data() as { firstName?: string; lastName?: string; email?: string; };
-              return {
-                uid: userDoc.id,
-                displayName: `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || userData.email || userIdentifier,
-                email: userData.email || userIdentifier,
-                role: 'student',
-                is_active: true
-              };
-            } else {
-              return {
-                uid: userIdentifier,
-                displayName: userIdentifier.includes('@') ? userIdentifier.split('@')[0] : userIdentifier,
-                email: userIdentifier.includes('@') ? userIdentifier : `${userIdentifier}@example.com`,
-                role: 'student',
-                is_active: true
-              };
-            }
-          } catch (error) {
-            console.error('Error fetching user data for:', userIdentifier, error);
-            return {
-              uid: userIdentifier,
-              displayName: userIdentifier.includes('@') ? userIdentifier.split('@')[0] : userIdentifier,
-              email: userIdentifier.includes('@') ? userIdentifier : `${userIdentifier}@example.com`,
-              role: 'student',
-              is_active: true
-            };
-          }
-        })
-      );
-      
-      setAssignedUsers(updatedAssignedUsersList);
-      setSelectedStudentsToAdd([]);
-      setStudentSearchTerm('');
-      setSuccess(`Dodano ${studentsToAdd.length} uczniów do kursu!`);
-      
-      // Wyczyść komunikat po 3 sekundach
-      setTimeout(() => setSuccess(null), 3000);
-    } catch (error) {
-      console.error('Error adding students:', error);
-      setError('Błąd podczas dodawania uczniów do kursu');
-    }
-  };
 
   // Assign student to course using Firestore
   const handleAssignStudent = useCallback(async (e: React.FormEvent) => {
@@ -793,6 +907,98 @@ function TeacherCourseDetailContent() {
       setTimeout(() => setError(null), 3000);
     }
   }, [selectedStudent, courseId, setError, setSuccess, setAssignedUsers]);
+
+  // Funkcje do zarządzania uczniami
+  const handleAddStudent = async (studentId: string) => {
+    if (!courseId) return;
+    
+    try {
+      const courseDoc = await getDoc(doc(db, "courses", String(courseId)));
+      
+      if (!courseDoc.exists()) {
+        setError('Kurs nie został znaleziony');
+        return;
+      }
+      
+      const courseData = courseDoc.data();
+      const assignedUsers = courseData.assignedUsers || [];
+      
+      if (assignedUsers.includes(studentId)) {
+        setError('Student jest już przypisany do tego kursu');
+        return;
+      }
+      
+      assignedUsers.push(studentId);
+      
+      await updateDoc(doc(db, "courses", String(courseId)), {
+        assignedUsers: assignedUsers
+      });
+      
+      setSuccess('Uczeń został dodany do kursu!');
+      
+      // Refresh assigned users
+      const updatedCourseDoc = await getDoc(doc(db, "courses", String(courseId)));
+      if (updatedCourseDoc.exists()) {
+        const updatedCourseData = updatedCourseDoc.data();
+        const assignedUsersFromFirestore = updatedCourseData.assignedUsers || [];
+        
+        const assignedUsersList = await Promise.all(
+          assignedUsersFromFirestore.map(async (userIdentifier: string) => {
+            try {
+              let userDoc;
+              if (userIdentifier.includes('@')) {
+                const usersQuery = query(collection(db, "users"), where("email", "==", userIdentifier));
+                const userSnapshot = await getDocs(usersQuery);
+                if (!userSnapshot.empty) {
+                  userDoc = userSnapshot.docs[0];
+                }
+              } else {
+                userDoc = await getDoc(doc(db, "users", userIdentifier));
+              }
+                
+              if (userDoc && userDoc.exists()) {
+                const userData = userDoc.data() as { firstName?: string; lastName?: string; email?: string; };
+                return {
+                  uid: userDoc.id,
+                  displayName: `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || userData.email || userIdentifier,
+                  email: userData.email || userIdentifier,
+                  role: 'student',
+                  is_active: true
+                };
+              } else {
+                return {
+                  uid: userIdentifier,
+                  displayName: userIdentifier.includes('@') ? userIdentifier.split('@')[0] : userIdentifier,
+                  email: userIdentifier.includes('@') ? userIdentifier : `${userIdentifier}@example.com`,
+                  role: 'student',
+                  is_active: true
+                };
+              }
+            } catch (error) {
+              console.error('Error fetching user data for:', userIdentifier, error);
+              return {
+                uid: userIdentifier,
+                displayName: userIdentifier.includes('@') ? userIdentifier.split('@')[0] : userIdentifier,
+                email: userIdentifier.includes('@') ? userIdentifier : `${userIdentifier}@example.com`,
+                role: 'student',
+                is_active: true
+              };
+            }
+          })
+        );
+        
+        setAssignedUsers(assignedUsersList);
+        
+        setTimeout(() => {
+          setSuccess(null);
+        }, 3000);
+      }
+    } catch (error) {
+      console.error('Error adding student:', error);
+      setError('Błąd podczas dodawania ucznia do kursu');
+    }
+  };
+
 
   useEffect(() => {
     if (!courseId) return;
@@ -933,7 +1139,7 @@ function TeacherCourseDetailContent() {
       id,
       name: newSection.name,
       title: newSection.name, // Dodajemy title jako kopię name
-      type: newSection.type as "material" | "assignment" | "form",
+      type: newSection.type as "material" | "assignment",
       deadline: newSection.deadline || undefined,
       contents: []
     };
@@ -954,8 +1160,8 @@ function TeacherCourseDetailContent() {
       console.log('New section saved, refreshing data...');
       await refreshCourseData();
       
-      // Automatycznie utwórz event w kalendarzu dla zadań i egzaminów
-      if ((newSection.type === 'assignment' || newSection.type === 'form') && newSection.deadline && user?.uid) {
+      // Automatycznie utwórz event w kalendarzu dla egzaminów
+      if (newSection.type === 'assignment' && newSection.deadline && user?.uid) {
         await createCalendarEvent(sectionWithSubmissions, courseId, user.uid);
       }
     }
@@ -1184,13 +1390,13 @@ function TeacherCourseDetailContent() {
       // Create event in calendar collection
       const eventData = {
         title: section.name,
-        type: section.type === 'assignment' ? 'assignment' : section.type === 'exam' ? 'exam' : 'activity',
+        type: section.type === 'assignment' ? 'assignment' : 'material',
         courseId: String(courseId),
         sectionId: section.id,
         deadline: section.deadline,
         createdBy: teacherUid,
         students: assignedUids, // All students assigned to this course
-        description: `${section.type === 'exam' ? 'Egzamin' : 'Zadanie'} z kursu: ${courseData.title || 'Kurs'}`,
+        description: `Zadanie z kursu: ${courseData.title || 'Kurs'}`,
         createdAt: new Date().toISOString()
       };
       
@@ -1265,9 +1471,9 @@ function TeacherCourseDetailContent() {
     const newSubsectionData: Subsection = {
       id: subsectionId,
       name: newSubsection.name.trim(),
-      description: newSubsection.description.trim() || undefined,
       sectionId: sectionId,
       materials: [],
+      contentBlocks: [],
       order: 0,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -1284,7 +1490,7 @@ function TeacherCourseDetailContent() {
     );
 
     setSections(newSections);
-    setNewSubsection({name: '', description: ''});
+    setNewSubsection({name: ''});
     setAddingSubsection(null);
 
     // Funkcja do usuwania undefined wartości
@@ -1357,8 +1563,7 @@ function TeacherCourseDetailContent() {
   // Funkcja do otwierania edycji podsekcji
   const openEditSubsection = (subsection: Subsection) => {
     setEditSubsection({
-      name: subsection.name,
-      description: subsection.description || ''
+      name: subsection.name
     });
     setEditingSubsection(subsection.id as number);
   };
@@ -1366,11 +1571,11 @@ function TeacherCourseDetailContent() {
   // Funkcja do anulowania edycji podsekcji
   const cancelEditSubsection = () => {
     setEditingSubsection(null);
-    setEditSubsection({name: '', description: ''});
+    setEditSubsection({name: ''});
   };
 
   // Nowa funkcja do edycji podsekcji
-  const handleEditSubsection = async (sectionId: number, subsectionId: number, newName: string, newDescription: string) => {
+  const handleEditSubsection = async (sectionId: number, subsectionId: number, newName: string) => {
     if (!newName.trim()) return;
     
     const newSections = sections.map(section =>
@@ -1382,7 +1587,6 @@ function TeacherCourseDetailContent() {
                 ? {
                     ...sub,
                     name: newName.trim(),
-                    description: newDescription.trim() || undefined,
                     updatedAt: new Date().toISOString()
                   }
                 : sub
@@ -1393,7 +1597,7 @@ function TeacherCourseDetailContent() {
 
     setSections(newSections);
     setEditingSubsection(null);
-    setEditSubsection({name: '', description: ''});
+    setEditSubsection({name: ''});
 
     // Funkcja do usuwania undefined wartości
     const cleanData = (obj: any): any => {
@@ -1477,7 +1681,6 @@ function TeacherCourseDetailContent() {
       videoUrl: videoUrl || undefined,
       youtubeUrl: newMaterial.youtubeUrl?.trim() || undefined,
       content: newMaterial.content || undefined,
-      questions: newMaterial.type === 'exam' ? [] : undefined,
       quizId: newMaterial.type === 'quiz' ? newMaterial.quizId : undefined,
       submissions: [],
       createdAt: new Date().toISOString(),
@@ -1584,7 +1787,7 @@ function TeacherCourseDetailContent() {
               subsection.id === subsectionId
                 ? {
                     ...subsection,
-                    materials: subsection.materials.filter(mat => mat.id !== materialId)
+                    materials: (subsection.materials || []).filter(mat => mat.id !== materialId)
                   }
                 : subsection
             )
@@ -1788,7 +1991,12 @@ function TeacherCourseDetailContent() {
             {course?.title || 'Szczegóły kursu'}
           </h1>
 
-          <div className="w-20"></div>
+          <button
+            onClick={() => window.location.href = `/homelogin/teacher/courses/${courseId}/preview`}
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 shadow-lg hover:shadow-xl transition-all duration-200 ease-in-out"
+          >
+            👁️ Podgląd
+          </button>
         </div>
       </div>
 
@@ -1852,204 +2060,31 @@ function TeacherCourseDetailContent() {
         </div>
       </div>
 
-      {/* Dodaj sekcję przypisywania uczniów pod banerem: */}
-      <div className="w-full mb-4 bg-white rounded-2xl shadow-lg p-4 lg:p-6">
-        <h3 className="text-lg font-bold mb-2 text-[#4067EC]">Zarządzanie uczniami kursu</h3>
-        
-        {/* Aktualnie przypisani uczniowie - SCHOWANA LISTA */}
-        <div className="mb-6">
-          <button
-            onClick={() => setShowAssignedStudents(!showAssignedStudents)}
-            className="flex items-center justify-between w-full p-3 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors"
-          >
-            <h4 className="text-md font-semibold text-gray-700">
-              Przypisani uczniowie ({assignedUsers?.length || 0})
-            </h4>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-500">
-                {showAssignedStudents ? 'Ukryj' : 'Pokaż'}
-              </span>
-              <svg 
-                className={`w-5 h-5 text-gray-500 transition-transform ${showAssignedStudents ? 'rotate-180' : ''}`} 
-                fill="none" 
-                stroke="currentColor" 
-                viewBox="0 0 24 24"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            </div>
-          </button>
-          
-          {/* Schowana lista uczniów */}
-          {showAssignedStudents && (
-            <div className="mt-3 p-4 bg-white rounded-lg border border-gray-200">
-              {Array.isArray(assignedUsers) && assignedUsers.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {assignedUsers.map(u => (
-                    <div key={u.uid} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
-                      <div className="flex-1">
-                        <div className="font-medium text-gray-900 text-sm">{u.displayName || u.email}</div>
-                        <div className="text-xs text-gray-500">{u.email}</div>
-                      </div>
-                      <button
-                        onClick={() => handleRemoveStudent(u.uid)}
-                        className="ml-2 p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
-                        title="Usuń z kursu"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center text-gray-500 py-4 bg-gray-50 rounded-lg">
-                  <svg className="w-12 h-12 mx-auto mb-2 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
-                  </svg>
-                  Brak przypisanych uczniów
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Dodawanie nowych uczniów */}
-        <div className="border-t pt-6">
-          <h4 className="text-md font-semibold mb-4 text-gray-700">Dodaj nowych uczniów</h4>
-          
-          {/* Wyszukiwarka uczniów */}
-          <div className="mb-4">
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="🔍 Wyszukaj uczniów po imieniu, nazwisku lub emailu..."
-                value={studentSearchTerm}
-                onChange={e => setStudentSearchTerm(e.target.value)}
-                className="w-full px-4 py-3 pl-12 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#4067EC] focus:border-[#4067EC] transition-all"
-              />
-              <svg className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-            </div>
-          </div>
-
-          {/* Przyciski zarządzania */}
-          <div className="flex gap-2 mb-4">
-            <button
-              type="button"
-              onClick={selectAllAvailableStudents}
-              className="px-4 py-2 bg-[#4067EC] text-white text-sm font-medium rounded-lg hover:bg-[#3155d4] transition-all flex items-center gap-2"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-              Zaznacz wszystkich dostępnych
-            </button>
-            <button
-              type="button"
-              onClick={deselectAllStudents}
-              className="px-4 py-2 bg-gray-500 text-white text-sm font-medium rounded-lg hover:bg-gray-600 transition-all flex items-center gap-2"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-              Odznacz wszystkich
-            </button>
-          </div>
-
-          {/* Lista dostępnych uczniów z checkboxami */}
-          <div className="max-h-64 overflow-y-auto border-2 border-gray-200 rounded-xl p-4 bg-gray-50">
-            {filteredAvailableStudents.length > 0 ? (
-              <div className="space-y-3">
-                {filteredAvailableStudents.map(student => (
-                  <label key={student.uid} className="flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-200 hover:border-[#4067EC] hover:bg-[#F1F4FE] transition-all cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={selectedStudentsToAdd.includes(student.uid)}
-                      onChange={() => toggleStudentSelection(student.uid)}
-                      className="w-4 h-4 text-[#4067EC] border-gray-300 rounded focus:ring-[#4067EC] focus:ring-2"
-                    />
-                    <div className="flex-1">
-                      <div className="font-medium text-gray-900">{student.displayName || 'Brak nazwy'}</div>
-                      <div className="text-sm text-gray-500">{student.email}</div>
-                    </div>
-                    <div className="text-xs text-gray-400">
-                      {selectedStudentsToAdd.includes(student.uid) ? '✓ Zaznaczony' : '○ Niezaznaczony'}
-                    </div>
-                  </label>
-                ))}
-              </div>
-            ) : studentSearchTerm ? (
-              <div className="text-center text-gray-500 py-8">
-                <svg className="w-12 h-12 mx-auto mb-2 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-                Brak wyników dla: &quot;{studentSearchTerm}&quot;
-              </div>
-            ) : (
-              <div className="text-center text-gray-500 py-8">
-                <svg className="w-12 h-12 mx-auto mb-2 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
-                </svg>
-                Brak dostępnych uczniów do dodania
-              </div>
-            )}
-          </div>
-
-          {/* Licznik i przycisk dodawania */}
-          {filteredAvailableStudents.length > 0 && (
-            <div className="mt-4 flex items-center justify-between">
-              <div className="text-sm text-gray-600">
-                Zaznaczono: <span className="font-semibold text-[#4067EC]">{selectedStudentsToAdd.length}</span> z <span className="font-semibold">{filteredAvailableStudents.length}</span> dostępnych uczniów
-              </div>
-              <button
-                onClick={handleAddSelectedStudents}
-                disabled={selectedStudentsToAdd.length === 0}
-                className="px-6 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all flex items-center gap-2"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                </svg>
-                Dodaj zaznaczonych ({selectedStudentsToAdd.length})
-              </button>
-            </div>
-          )}
-
-          {/* Komunikaty */}
-          {success && (
-            <div className="mt-3 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg flex items-center gap-2 shadow-lg animate-pulse">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-              <span className="font-medium">{success}</span>
-            </div>
-          )}
-          {error && (
-            <div className="mt-3 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-center gap-2">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-              {error}
-            </div>
-          )}
-        </div>
-      </div>
-
       {/* DODAJ SEKCJĘ I UPORZĄDKUJ */}
       <div className="w-full mb-4 flex justify-end gap-3">
         {!isReorderMode ? (
+          <>
+            <button
+              onClick={() => setShowStudentManagement(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors shadow-sm font-semibold"
+              title="Zarządzaj uczniami przypisanymi do kursu"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+              </svg>
+              Zarządzaj uczniami
+            </button>
           <button
             onClick={handleStartReorder}
             className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors shadow-sm font-semibold"
-            title="Uporządkuj kolejność sekcji i podsekcji"
+              title="Uporządkuj kolejność rozdziałów i lekcji"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
             </svg>
             Uporządkuj
           </button>
+          </>
         ) : (
           <div className="flex items-center gap-2">
             <button
@@ -2080,12 +2115,12 @@ function TeacherCourseDetailContent() {
         
         {!addingSection ? (
           <button onClick={() => setAddingSection(true)} className="flex items-center gap-2 bg-[#4067EC] text-white px-4 py-2 rounded-lg font-semibold shadow hover:bg-[#3155d4] transition">
-            <FaPlus /> Dodaj sekcję
+            <FaPlus /> Dodaj rozdział
           </button>
         ) : (
           <form onSubmit={handleAddSection} className="flex flex-col gap-4 bg-white p-4 rounded-lg shadow">
             <div className="flex flex-col sm:flex-row gap-2 items-center">
-              <input type="text" placeholder="Nazwa sekcji" className="border rounded px-3 py-2" value={newSection.name} onChange={e => setNewSection(s => ({...s, name: e.target.value}))} required />
+              <input type="text" placeholder="Nazwa rozdziału" className="border rounded px-3 py-2" value={newSection.name} onChange={e => setNewSection(s => ({...s, name: e.target.value}))} required />
               <div className="flex gap-2">
                 <button
                   type="button"
@@ -2101,39 +2136,19 @@ function TeacherCourseDetailContent() {
                   type="button"
                   className={`flex flex-col items-center px-2 py-1 rounded border transition focus:outline-none ${newSection.type === 'assignment' ? 'text-[#4067EC] border-[#4067EC] font-bold' : 'text-gray-700 border-gray-300'} bg-transparent hover:bg-transparent`}
                   onClick={() => setNewSection(s => ({...s, type: 'assignment'}))}
-                  title="Zadanie"
-                  style={{minWidth: 48}}
-                >
-                  <FaClipboardList className="text-lg mb-0.5" />
-                  <span className="text-[10px] font-medium leading-tight">Zadanie</span>
-                </button>
-                <button
-                  type="button"
-                  className={`flex flex-col items-center px-2 py-1 rounded border transition focus:outline-none ${newSection.type === 'exam' ? 'text-[#4067EC] border-[#4067EC] font-bold' : 'text-gray-700 border-gray-300'} bg-transparent hover:bg-transparent`}
-                  onClick={() => setNewSection(s => ({...s, type: 'exam'}))}
                   title="Egzamin"
                   style={{minWidth: 48}}
                 >
-                  <FaGraduationCap className="text-lg mb-0.5" />
+                  <FaClipboardList className="text-lg mb-0.5" />
                   <span className="text-[10px] font-medium leading-tight">Egzamin</span>
-                </button>
-                <button
-                  type="button"
-                  className={`flex flex-col items-center px-2 py-1 rounded border transition focus:outline-none ${newSection.type === 'aktywnosc' ? 'text-[#4067EC] border-[#4067EC] font-bold' : 'text-gray-700 border-gray-300'} bg-transparent hover:bg-transparent`}
-                  onClick={() => setNewSection(s => ({...s, type: 'aktywnosc'}))}
-                  title="Aktywność"
-                  style={{minWidth: 48}}
-                >
-                  <FaUsers className="text-lg mb-0.5" />
-                  <span className="text-[10px] font-medium leading-tight">Aktywność</span>
                 </button>
               </div>
               <button type="submit" className="bg-[#4067EC] text-white px-4 py-2 rounded font-semibold">Dodaj</button>
               <button type="button" className="bg-gray-200 px-4 py-2 rounded font-semibold" onClick={() => setAddingSection(false)}>Anuluj</button>
             </div>
-            {(newSection.type === 'assignment' || newSection.type === 'exam') && (
+            {newSection.type === 'assignment' && (
               <div className="flex flex-col sm:flex-row gap-2 items-center">
-                <label className="text-sm font-medium text-gray-700">Termin {newSection.type === 'exam' ? 'egzaminu' : 'oddania'}:</label>
+                <label className="text-sm font-medium text-gray-700">Termin oddania:</label>
                 <input 
                   type="datetime-local" 
                   className="border rounded px-3 py-2" 
@@ -2205,7 +2220,9 @@ function TeacherCourseDetailContent() {
                 <span>{showSection[Number(section.id)] ? <FaChevronUp /> : <FaChevronDown />}</span>
                 <div>
                   <span>{section.name}</span>
-                  <span className="text-base font-normal ml-2">({section.type})</span>
+                  <span className="text-base font-normal ml-2">
+                    ({section.type === 'assignment' ? 'Egzamin' : 'Materiał'})
+                  </span>
                   {section.type === 'assignment' && section.deadline && (
                     <span className="block text-sm font-normal text-gray-600">
                       Termin: {new Date(section.deadline).toLocaleString('pl-PL')}
@@ -2219,18 +2236,20 @@ function TeacherCourseDetailContent() {
                     e.stopPropagation();
                     handleEditSection(section);
                   }} 
-                  className="text-blue-500 hover:text-blue-700 text-xl bg-transparent border-none"
+                  className="flex items-center gap-1 px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors"
+                  title="Edytuj rozdział"
                 >
-                  ✏️
+                  ✏️ Edytuj
                 </button>
                 <button 
                   onClick={(e) => {
                     e.stopPropagation();
                     handleDeleteSection(Number(section.id));
                   }} 
-                  className="text-red-500 hover:text-red-700 text-2xl bg-transparent border-none"
+                  className="flex items-center gap-1 px-2 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors"
+                  title="Usuń rozdział"
                 >
-                  🗑️
+                  🗑️ Usuń
                 </button>
               </div>
             </div>
@@ -2243,7 +2262,7 @@ function TeacherCourseDetailContent() {
                     <div className="flex flex-col sm:flex-row gap-2 items-center mb-3">
                       <input 
                         type="text" 
-                        placeholder="Nazwa sekcji" 
+                        placeholder="Nazwa rozdziału" 
                         className="border rounded px-3 py-2" 
                         value={editSection?.name || ''} 
                         onChange={e => setEditSection(prev => prev ? {...prev, name: e.target.value} : null)} 
@@ -2252,12 +2271,10 @@ function TeacherCourseDetailContent() {
                       <select 
                         className="border rounded px-3 py-2" 
                         value={editSection?.type || ''} 
-                        onChange={e => setEditSection(prev => prev ? {...prev, type: e.target.value as "material" | "assignment" | "exam" | "aktywnosc"} : null)}
+                        onChange={e => setEditSection(prev => prev ? {...prev, type: e.target.value as "material" | "assignment"} : null)}
                       >
                         <option value="material">Materiał</option>
-                        <option value="assignment">Zadanie</option>
-                        <option value="exam">Egzamin</option>
-                        <option value="aktywnosc">Aktywność</option>
+                        <option value="assignment">Egzamin</option>
                       </select>
                       <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded font-semibold">
                         Zapisz
@@ -2288,28 +2305,21 @@ function TeacherCourseDetailContent() {
                     className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
                   >
                     <FaPlus className="text-sm" />
-                    Dodaj podsekcję
+                    Dodaj lekcję
                   </button>
                 </div>
 
                 {/* Formularz dodawania podsekcji */}
                 {addingSubsection === Number(section.id) && (
                   <div className="bg-green-50 p-4 rounded-lg border border-green-200 mb-4">
-                    <h4 className="font-semibold text-green-800 mb-3">Dodaj podsekcję</h4>
+                    <h4 className="font-semibold text-green-800 mb-3">Dodaj lekcję</h4>
                     <div className="space-y-3">
                       <input
                         type="text"
-                        placeholder="Nazwa podsekcji"
+                        placeholder="Nazwa lekcji"
                         className="w-full border border-gray-300 rounded-lg px-3 py-2"
                         value={newSubsection.name}
                         onChange={e => setNewSubsection(prev => ({...prev, name: e.target.value}))}
-                      />
-                      <textarea
-                        placeholder="Opis podsekcji (opcjonalny)"
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                        rows={3}
-                        value={newSubsection.description}
-                        onChange={e => setNewSubsection(prev => ({...prev, description: e.target.value}))}
                       />
                       <div className="flex gap-2">
                         <button
@@ -2321,7 +2331,7 @@ function TeacherCourseDetailContent() {
                         <button
                           onClick={() => {
                             setAddingSubsection(null);
-                            setNewSubsection({name: '', description: ''});
+                            setNewSubsection({name: ''});
                           }}
                           className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600"
                         >
@@ -2335,28 +2345,21 @@ function TeacherCourseDetailContent() {
                 {/* Formularz edycji podsekcji */}
                 {editingSubsection && (
                   <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200 mb-4">
-                    <h4 className="font-semibold text-yellow-800 mb-3">Edytuj podsekcję</h4>
+                    <h4 className="font-semibold text-yellow-800 mb-3">Edytuj lekcję</h4>
                     <div className="space-y-3">
                       <input
                         type="text"
-                        placeholder="Nazwa podsekcji"
+                        placeholder="Nazwa lekcji"
                         className="w-full border border-gray-300 rounded-lg px-3 py-2"
                         value={editSubsection.name}
                         onChange={e => setEditSubsection(prev => ({...prev, name: e.target.value}))}
-                      />
-                      <textarea
-                        placeholder="Opis podsekcji (opcjonalny)"
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                        rows={3}
-                        value={editSubsection.description}
-                        onChange={e => setEditSubsection(prev => ({...prev, description: e.target.value}))}
                       />
                       <div className="flex gap-2">
                         <button
                           onClick={() => {
                             const section = sections.find(s => s.subsections?.some(sub => sub.id === editingSubsection));
                             if (section) {
-                              handleEditSubsection(Number(section.id), editingSubsection, editSubsection.name, editSubsection.description);
+                              handleEditSubsection(Number(section.id), editingSubsection, editSubsection.name);
                             }
                           }}
                           className="bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700"
@@ -2394,7 +2397,7 @@ function TeacherCourseDetailContent() {
                                 <p className="text-sm text-gray-600">{subsection.description}</p>
                               )}
                               <p className="text-xs text-gray-500">
-                                {subsection.materials.length} materiałów
+                                {(subsection.contentBlocks?.length || subsection.materials?.length || 0)} materiałów
                               </p>
                             </div>
                           </div>
@@ -2402,32 +2405,32 @@ function TeacherCourseDetailContent() {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setAddingMaterial(Number(subsection.id));
+                                startEditingLessonContent(subsection);
                               }}
-                              className="text-blue-600 hover:text-blue-800"
-                              title="Dodaj materiał"
+                              className="flex items-center gap-1 px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors"
+                              title="Edytuj treść lekcji"
                             >
-                              <FaPlus />
+                              📝 Treść
                             </button>
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
                                 openEditSubsection(subsection);
                               }}
-                              className="text-green-600 hover:text-green-800"
-                              title="Edytuj podsekcję"
+                              className="flex items-center gap-1 px-2 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200 transition-colors"
+                              title="Edytuj nazwę lekcji"
                             >
-                              ✏️
+                              ✏️ Nazwa
                             </button>
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleDeleteSubsection(Number(section.id), Number(subsection.id));
                               }}
-                              className="text-red-500 hover:text-red-700"
-                              title="Usuń podsekcję"
+                              className="flex items-center gap-1 px-2 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors"
+                              title="Usuń lekcję"
                             >
-                              🗑️
+                              🗑️ Usuń
                             </button>
                           </div>
                         </div>
@@ -2435,7 +2438,262 @@ function TeacherCourseDetailContent() {
                         {/* Zawartość podsekcji */}
                         {showSubsection[Number(subsection.id)] && (
                           <div className="px-4 pb-4">
-                            {/* Formularz dodawania materiału */}
+                            {/* Nowy edytor treści lekcji */}
+                            {editingLessonContent === Number(subsection.id) && (
+                              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200 mb-4">
+                                <div className="flex justify-between items-center mb-4">
+                                  <h5 className="font-semibold text-blue-800">Edytor treści lekcji</h5>
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={saveLessonContent}
+                                      disabled={savingLesson}
+                                      className={`px-4 py-2 rounded-lg text-white ${
+                                        savingLesson 
+                                          ? 'bg-gray-400 cursor-not-allowed' 
+                                          : 'bg-green-600 hover:bg-green-700'
+                                      }`}
+                                    >
+                                      {savingLesson ? 'Zapisywanie...' : 'Zapisz'}
+                                    </button>
+                                    <button
+                                      onClick={cancelEditingLessonContent}
+                                      disabled={savingLesson}
+                                      className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                      Anuluj
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {/* Przyciski dodawania treści */}
+                                <div className="flex flex-wrap gap-2 mb-4">
+                                  <button
+                                    onClick={() => addContentBlock('text')}
+                                    className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                                  >
+                                    📄 Dodaj tekst
+                                  </button>
+                                  <button
+                                    onClick={() => addContentBlock('file')}
+                                    className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                                  >
+                                    📎 Dodaj plik
+                                  </button>
+                                  <button
+                                    onClick={() => addContentBlock('video')}
+                                    className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                                  >
+                                    🎥 Dodaj video
+                                  </button>
+                                  <button
+                                    onClick={() => addContentBlock('quiz')}
+                                    className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                                  >
+                                    ❓ Dodaj quiz
+                                  </button>
+                                  <button
+                                    onClick={() => addContentBlock('math')}
+                                    className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                                  >
+                                    🧮 Dodaj matematykę
+                                  </button>
+                                </div>
+
+                                {/* Lista bloków treści z drag and drop */}
+                                <DroppableContentArea
+                                  contentBlocks={lessonContent}
+                                  onReorder={reorderContentBlocks}
+                                >
+                                  {lessonContent.map((block, index) => (
+                                    <DraggableContentBlock
+                                      key={block.id}
+                                      block={block}
+                                      index={index}
+                                      onDelete={deleteContentBlock}
+                                      onAddAfter={(insertIndex) => addContentBlock('text', insertIndex)}
+                                    >
+
+                                      {/* Edycja treści bloku */}
+                                      {block.type === 'text' && (
+                                        <textarea
+                                          placeholder="Wpisz tekst..."
+                                          className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                                          rows={4}
+                                          value={block.content || ''}
+                                          onChange={(e) => updateContentBlock(Number(block.id), { content: e.target.value })}
+                                        />
+                                      )}
+
+                                      {block.type === 'math' && (
+                                        <div className="space-y-3">
+                                          <MathEditor
+                                            initialValue={block.mathContent || ''}
+                                            onChange={(content) => updateContentBlock(Number(block.id), { mathContent: content })}
+                                          />
+                                          {block.mathContent && (
+                                            <div className="border border-gray-300 rounded-lg p-3 bg-gray-50">
+                                              <MathView content={block.mathContent} />
+                                            </div>
+                                          )}
+                                        </div>
+                                      )}
+
+                                      {block.type === 'video' && (
+                                        <div className="space-y-3">
+                                          <div className="flex gap-2">
+                                            <button
+                                              type="button"
+                                              onClick={() => updateContentBlock(Number(block.id), { videoSource: 'upload' })}
+                                              className={`px-3 py-1 rounded text-sm ${
+                                                block.videoSource === 'upload'
+                                                  ? 'bg-blue-500 text-white'
+                                                  : 'bg-gray-200 text-gray-700'
+                                              }`}
+                                            >
+                                              Upload
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => updateContentBlock(Number(block.id), { videoSource: 'youtube' })}
+                                              className={`px-3 py-1 rounded text-sm ${
+                                                block.videoSource === 'youtube'
+                                                  ? 'bg-blue-500 text-white'
+                                                  : 'bg-gray-200 text-gray-700'
+                                              }`}
+                                            >
+                                              YouTube
+                                            </button>
+                                          </div>
+                                          
+                                          {block.videoSource === 'upload' && (
+                                            <div className="space-y-2">
+                                              <input
+                                                type="file"
+                                                accept="video/*"
+                                                onChange={(e) => {
+                                                  const file = e.target.files?.[0];
+                                                  if (file) {
+                                                    const validation = validateFileSize(file, 'video');
+                                                    if (validation.isValid) {
+                                                      updateContentBlock(Number(block.id), { 
+                                                        title: file.name,
+                                                        videoUrl: URL.createObjectURL(file),
+                                                        fileSize: file.size,
+                                                        fileError: undefined
+                                                      });
+                                                    } else {
+                                                      updateContentBlock(Number(block.id), { 
+                                                        fileError: validation.error,
+                                                        title: undefined,
+                                                        videoUrl: undefined,
+                                                        fileSize: undefined
+                                                      });
+                                                    }
+                                                  }
+                                                }}
+                                                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                                              />
+                                              <p className="text-xs text-gray-500">
+                                                Maksymalny rozmiar: 500MB
+                                              </p>
+                                              {block.fileError && (
+                                                <p className="text-xs text-red-600 bg-red-50 p-2 rounded">
+                                                  {block.fileError}
+                                                </p>
+                                              )}
+                                            </div>
+                                          )}
+                                          
+                                          {block.videoSource === 'youtube' && (
+                                            <input
+                                              type="url"
+                                              placeholder="URL YouTube"
+                                              className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                                              value={block.youtubeUrl || ''}
+                                              onChange={(e) => updateContentBlock(Number(block.id), { youtubeUrl: e.target.value })}
+                                            />
+                                          )}
+                                        </div>
+                                      )}
+
+                                      {block.type === 'quiz' && (
+                                        <div className="space-y-3">
+                                          {block.quizId ? (
+                                            <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                                              <p className="text-green-800 font-medium">
+                                                Quiz: {quizzes.find(q => q.id === block.quizId)?.title}
+                                              </p>
+                                              <button
+                                                onClick={() => updateContentBlock(Number(block.id), { quizId: '' })}
+                                                className="text-red-600 hover:text-red-800 text-sm mt-1"
+                                              >
+                                                Usuń quiz
+                                              </button>
+                                            </div>
+                                          ) : (
+                                            <button
+                                              onClick={() => {
+                                                fetchQuizzes();
+                                                setEditingQuizBlockId(Number(block.id));
+                                                setShowQuizSelector(true);
+                                              }}
+                                              className="w-full p-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-gray-400 text-gray-600 hover:text-gray-800"
+                                            >
+                                              Wybierz quiz
+                                            </button>
+                                          )}
+                                        </div>
+                                      )}
+
+                                      {block.type === 'file' && (
+                                        <div className="space-y-2">
+                                          <input
+                                            type="file"
+                                            onChange={(e) => {
+                                              const file = e.target.files?.[0];
+                                              if (file) {
+                                                const validation = validateFileSize(file, 'file');
+                                                if (validation.isValid) {
+                                                  updateContentBlock(Number(block.id), { 
+                                                    title: file.name,
+                                                    fileUrl: URL.createObjectURL(file),
+                                                    fileSize: file.size,
+                                                    fileError: undefined
+                                                  });
+                                                } else {
+                                                  updateContentBlock(Number(block.id), { 
+                                                    fileError: validation.error,
+                                                    title: undefined,
+                                                    fileUrl: undefined,
+                                                    fileSize: undefined
+                                                  });
+                                                }
+                                              }
+                                            }}
+                                            className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                                          />
+                                          <p className="text-xs text-gray-500">
+                                            Maksymalny rozmiar: 100MB
+                                          </p>
+                                          {block.fileError && (
+                                            <p className="text-xs text-red-600 bg-red-50 p-2 rounded">
+                                              {block.fileError}
+                                            </p>
+                                          )}
+                                        </div>
+                                      )}
+                                    </DraggableContentBlock>
+                                  ))}
+                                  {lessonContent.length === 0 && (
+                                    <div className="text-center text-gray-500 py-8">
+                                      <p>Lekcja jest pusta. Kliknij przycisk &quot;📝&quot; aby dodać treść.</p>
+                                    </div>
+                                  )}
+                                </DroppableContentArea>
+                              </div>
+                            )}
+
+                            {/* Stary formularz dodawania materiału - ukryty */}
                             {addingMaterial === Number(subsection.id) && (
                               <div className="bg-blue-50 p-4 rounded-lg border border-blue-200 mb-4">
                                 <h5 className="font-semibold text-blue-800 mb-3">Dodaj materiał</h5>
@@ -2446,8 +2704,6 @@ function TeacherCourseDetailContent() {
                                       { type: 'file', label: 'Plik', icon: '📎' },
                                       { type: 'video', label: 'Video', icon: '🎥' },
                                       { type: 'task', label: 'Zadanie', icon: '📝' },
-                                      { type: 'exam', label: 'Egzamin', icon: '🎓' },
-                                      { type: 'activity', label: 'Aktywność', icon: '🎯' },
                                       { type: 'quiz', label: 'Quiz', icon: '❓' },
                                       { type: 'math', label: 'Matematyka', icon: '🧮' }
                                     ].map(({ type, label, icon }) => (
@@ -2506,7 +2762,7 @@ function TeacherCourseDetailContent() {
                                     </div>
                                   )}
 
-                                  {(newMaterial.type === 'task' || newMaterial.type === 'exam') && (
+                                  {newMaterial.type === 'task' && (
                                     <input
                                       type="datetime-local"
                                       placeholder="Termin"
@@ -2666,7 +2922,7 @@ function TeacherCourseDetailContent() {
                                         <button
                                           type="button"
                                           onClick={() => {
-                                            fetchAvailableQuizzes();
+                                            fetchQuizzes();
                                             setShowQuizSelector(true);
                                           }}
                                           className="text-blue-600 hover:text-blue-800 text-sm"
@@ -2692,7 +2948,7 @@ function TeacherCourseDetailContent() {
                                         <button
                                           type="button"
                                           onClick={() => {
-                                            fetchAvailableQuizzes();
+                                            fetchQuizzes();
                                             setShowQuizSelector(true);
                                           }}
                                           className="w-full p-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-gray-400 text-gray-600 hover:text-gray-800"
@@ -2734,9 +2990,76 @@ function TeacherCourseDetailContent() {
                               </div>
                             )}
 
+                            {/* Wyświetlanie bloków treści lekcji */}
+                            {!editingLessonContent && subsection.contentBlocks && subsection.contentBlocks.length > 0 && (
+                              <div className="space-y-3 mb-4">
+                                {subsection.contentBlocks.map((block) => (
+                                  <div key={block.id} className="bg-white p-4 rounded-lg border border-gray-200">
+                                    <div className="flex items-center gap-2 mb-2">
+                                      <span className="text-lg">
+                                        {block.type === 'text' && '📄'}
+                                        {block.type === 'file' && '📎'}
+                                        {block.type === 'video' && '🎥'}
+                                        {block.type === 'quiz' && '❓'}
+                                        {block.type === 'math' && '🧮'}
+                                      </span>
+                                      <span className="font-medium capitalize">{block.type}</span>
+                                    </div>
+                                    
+                                    {block.type === 'text' && block.content && (
+                                      <p className="text-gray-700 whitespace-pre-wrap">{block.content}</p>
+                                    )}
+                                    
+                                    {block.type === 'math' && block.mathContent && (
+                                      <div className="border border-gray-300 rounded-lg p-3 bg-gray-50">
+                                        <MathView content={block.mathContent} />
+                                      </div>
+                                    )}
+                                    
+                                    {block.type === 'video' && (
+                                      <div>
+                                        {block.videoSource === 'upload' && block.videoUrl && (
+                                          <div>
+                                            <p className="text-blue-600">Video: {block.title}</p>
+                                            {block.fileSize && (
+                                              <p className="text-xs text-gray-500">
+                                                Rozmiar: {(block.fileSize / (1024 * 1024)).toFixed(1)}MB
+                                              </p>
+                                            )}
+                                            <video controls className="w-full max-w-md">
+                                              <source src={block.videoUrl} type="video/mp4" />
+                                              Twoja przeglądarka nie obsługuje odtwarzania video.
+                                            </video>
+                                          </div>
+                                        )}
+                                        {block.videoSource === 'youtube' && block.youtubeUrl && (
+                                          <p className="text-blue-600">YouTube: {block.youtubeUrl}</p>
+                                        )}
+                                      </div>
+                                    )}
+                                    
+                                    {block.type === 'quiz' && block.quizId && (
+                                      <p className="text-green-600">Quiz: {quizzes.find(q => q.id === block.quizId)?.title}</p>
+                                    )}
+                                    
+                                    {block.type === 'file' && block.title && (
+                                      <div>
+                                        <p className="text-gray-600">Plik: {block.title}</p>
+                                        {block.fileSize && (
+                                          <p className="text-xs text-gray-500">
+                                            Rozmiar: {(block.fileSize / (1024 * 1024)).toFixed(1)}MB
+                                          </p>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
                             {/* Lista materiałów */}
                             <div className="space-y-2">
-                              {subsection.materials.length === 0 ? (
+                              {(!subsection.materials || subsection.materials.length === 0) ? (
                                 <div className="text-gray-400 italic text-sm">Brak materiałów w tej podsekcji.</div>
                               ) : (
                                 subsection.materials.map((material) => (
@@ -2748,8 +3071,6 @@ function TeacherCourseDetailContent() {
                                         {material.type === 'file' && '📎'}
                                         {material.type === 'video' && '🎥'}
                                         {material.type === 'task' && '📝'}
-                                        {material.type === 'exam' && '🎓'}
-                                        {material.type === 'activity' && '🎯'}
                                         {material.type === 'quiz' && '❓'}
                                         {material.type === 'math' && '🧮'}
                                       </div>
@@ -2776,10 +3097,10 @@ function TeacherCourseDetailContent() {
                                       </div>
                                       <button
                                         onClick={() => handleDeleteMaterial(Number(section.id), Number(subsection.id), Number(material.id))}
-                                        className="text-red-500 hover:text-red-700"
+                                        className="flex items-center gap-1 px-2 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors"
                                         title="Usuń materiał"
                                       >
-                                        🗑️
+                                        🗑️ Usuń
                                       </button>
                                     </div>
                                     
@@ -2806,7 +3127,7 @@ function TeacherCourseDetailContent() {
                                     )}
 
                                     {/* Quiz Display */}
-                                    {material.type === 'quiz' && material.quizId && (
+                                    {material.type === 'quiz' && material.quizId && material.quizId.trim() !== '' && (
                                       <div className="px-3 pb-3">
                                         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                                           <div className="flex items-center gap-2 mb-2">
@@ -2818,7 +3139,7 @@ function TeacherCourseDetailContent() {
                                           </p>
                                           <div className="flex gap-2">
                                             <button
-                                              onClick={() => window.open(`/courses/${(course as any)?.slug}/quiz/${material.quizId}`, '_blank')}
+                                              onClick={() => material.quizId && openQuizPreview(material.quizId)}
                                               className="text-sm bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 transition"
                                             >
                                               Podgląd quizu
@@ -3026,61 +3347,6 @@ function TeacherCourseDetailContent() {
         </div>
       </div>
 
-      {/* Quiz Selector Modal */}
-      {showQuizSelector && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
-            <div className="flex items-center justify-between p-6 border-b">
-              <h3 className="text-lg font-semibold text-gray-900">Wybierz quiz do przypisania</h3>
-              <button
-                onClick={() => setShowQuizSelector(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="p-6 max-h-[60vh] overflow-y-auto">
-              {availableQuizzes.length === 0 ? (
-                <div className="text-center py-8">
-                  <p className="text-gray-500">Brak dostępnych quizów</p>
-                  <button
-                    onClick={() => window.open(`/homelogin/teacher/quizzes`, '_blank')}
-                    className="mt-4 text-blue-600 hover:text-blue-800"
-                  >
-                    Utwórz nowy quiz
-                  </button>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {availableQuizzes.map((quiz) => (
-                    <div
-                      key={quiz.id}
-                      className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 cursor-pointer transition-colors"
-                      onClick={() => handleAssignQuizToLesson(quiz.id, quiz.title)}
-                    >
-                      <h4 className="font-semibold text-gray-900 mb-2">{quiz.title}</h4>
-                      <p className="text-gray-600 text-sm mb-3">{quiz.description}</p>
-                      <div className="space-y-1 text-sm text-gray-500">
-                        <div>Pytania: {quiz.questions?.length || 0}</div>
-                        <div>Maksymalne próby: {quiz.max_attempts || 1}</div>
-                        <div>Utworzono: {new Date(quiz.created_at).toLocaleDateString('pl-PL')}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-            <div className="flex justify-end gap-3 p-6 border-t">
-              <button
-                onClick={() => setShowQuizSelector(false)}
-                className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300"
-              >
-                Anuluj
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Quiz Assignment Modal */}
       <QuizAssignmentModal
@@ -3090,6 +3356,356 @@ function TeacherCourseDetailContent() {
         courseTitle={course?.title || ''}
         onQuizAssigned={fetchQuizzes}
       />
+
+      {/* Modal wyboru quizów */}
+      {showQuizSelector && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-gray-800">Wybierz quiz</h2>
+              <button
+                onClick={() => setShowQuizSelector(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {quizzes.map((quiz) => (
+                <div key={quiz.id} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50">
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <h3 className="font-medium text-gray-800">{quiz.title}</h3>
+                      <p className="text-sm text-gray-600 mt-1">{quiz.description}</p>
+                      <p className="text-xs text-gray-500 mt-2">
+                        {quiz.questions?.length || 0} pytań
+                      </p>
+                    </div>
+                  <button
+                      onClick={() => selectQuiz(quiz.id)}
+                      className="bg-blue-500 text-white px-4 py-2 rounded text-sm hover:bg-blue-600"
+                  >
+                      Wybierz
+                  </button>
+                </div>
+                </div>
+              ))}
+              
+              {quizzes.length === 0 && (
+                <div className="text-center text-gray-500 py-8">
+                  <p>Brak dostępnych quizów</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal podglądu quizu */}
+      {showQuizPreview && previewQuiz && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+            <div className="flex items-center justify-between p-6 border-b">
+              <h3 className="text-lg font-semibold text-gray-900">Podgląd quizu: {previewQuiz.title}</h3>
+              <button
+                onClick={() => setShowQuizPreview(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                ✕
+              </button>
+                      </div>
+            <div className="p-6 max-h-[70vh] overflow-y-auto">
+              <div className="mb-4">
+                <p className="text-gray-600 mb-2">{previewQuiz.description}</p>
+                <div className="flex gap-4 text-sm text-gray-500">
+                  <span>Pytania: {previewQuiz.questions?.length || 0}</span>
+                  <span>Maksymalne próby: {previewQuiz.max_attempts || 1}</span>
+                  <span>Czas: {previewQuiz.time_limit ? `${previewQuiz.time_limit} min` : 'Bez limitu'}</span>
+                </div>
+              </div>
+              
+              {previewQuiz.questions && previewQuiz.questions.length > 0 ? (
+                <div className="space-y-4">
+                  {previewQuiz.questions.map((question: any, index: number) => (
+                    <div key={index} className="border border-gray-200 rounded-lg p-4">
+                      <h4 className="font-medium text-gray-800 mb-3">
+                        Pytanie {index + 1}: {question.question}
+                      </h4>
+                      
+                      {question.type === 'multiple_choice' && question.options && (
+                        <div className="space-y-2">
+                          {question.options.map((option: string, optionIndex: number) => (
+                            <div key={optionIndex} className="flex items-center gap-2">
+                              <input
+                                type="radio"
+                                name={`question_${index}`}
+                                value={optionIndex}
+                                disabled
+                                className="text-blue-600"
+                              />
+                              <span className={`text-sm ${
+                                optionIndex === question.correct_answer 
+                                  ? 'text-green-600 font-medium' 
+                                  : 'text-gray-600'
+                              }`}>
+                                {option}
+                                {optionIndex === question.correct_answer && ' ✓'}
+                              </span>
+                    </div>
+                  ))}
+                        </div>
+                      )}
+                      
+                      {question.type === 'true_false' && (
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="radio"
+                              name={`question_${index}`}
+                              value="true"
+                              disabled
+                              className="text-blue-600"
+                            />
+                            <span className={`text-sm ${
+                              question.correct_answer === true 
+                                ? 'text-green-600 font-medium' 
+                                : 'text-gray-600'
+                            }`}>
+                              Prawda
+                              {question.correct_answer === true && ' ✓'}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="radio"
+                              name={`question_${index}`}
+                              value="false"
+                              disabled
+                              className="text-blue-600"
+                            />
+                            <span className={`text-sm ${
+                              question.correct_answer === false 
+                                ? 'text-green-600 font-medium' 
+                                : 'text-gray-600'
+                            }`}>
+                              Fałsz
+                              {question.correct_answer === false && ' ✓'}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {question.type === 'text' && (
+                        <div>
+                          <input
+                            type="text"
+                            placeholder="Odpowiedź tekstowa"
+                            disabled
+                            className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-gray-50"
+                          />
+                          <p className="text-xs text-gray-500 mt-1">
+                            Poprawna odpowiedź: {question.correct_answer}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center text-gray-500 py-8">
+                  <p>Brak pytań w tym quizie</p>
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end gap-3 p-6 border-t">
+              <button
+                onClick={() => setShowQuizPreview(false)}
+                className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300"
+              >
+                Zamknij
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal zarządzania uczniami */}
+      {showStudentManagement && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold text-gray-800">Zarządzanie uczniami kursu</h2>
+              <button
+                onClick={() => setShowStudentManagement(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Taby */}
+            <div className="flex gap-4 mb-6">
+              <button
+                onClick={() => setShowAssignedStudents(true)}
+                className={`px-4 py-2 rounded-lg font-medium ${
+                  showAssignedStudents 
+                    ? 'bg-gray-200 text-gray-800' 
+                    : 'text-gray-600 hover:text-gray-800'
+                }`}
+              >
+                Przypisani uczniowie ({assignedUsers.length})
+              </button>
+              <button
+                onClick={() => setShowAssignedStudents(false)}
+                className={`px-4 py-2 rounded-lg font-medium ${
+                  !showAssignedStudents 
+                    ? 'bg-gray-200 text-gray-800' 
+                    : 'text-gray-600 hover:text-gray-800'
+                }`}
+              >
+                Dodaj nowych uczniów
+              </button>
+            </div>
+
+            {/* Zawartość tabów */}
+            {showAssignedStudents ? (
+              /* Lista przypisanych uczniów */
+              <div>
+                <h3 className="text-lg font-semibold mb-3">Przypisani uczniowie ({assignedUsers.length})</h3>
+                {assignedUsers.length === 0 ? (
+                  <p className="text-gray-500 italic">Brak przypisanych uczniów</p>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {assignedUsers.map((student) => (
+                      <div key={student.uid} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div>
+                          <p className="font-medium">{student.displayName}</p>
+                          <p className="text-sm text-gray-600">{student.email}</p>
+                        </div>
+                        <button
+                          onClick={() => handleRemoveStudent(student.uid)}
+                          className="flex items-center gap-1 px-2 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors"
+                          title="Usuń ucznia z kursu"
+                        >
+                          🗑️ Usuń
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* Dodawanie nowych uczniów */
+              <div>
+                <h3 className="text-lg font-semibold mb-4">Dodaj nowych uczniów</h3>
+                
+                {/* Pasek wyszukiwania */}
+                <div className="relative mb-4">
+                  <input
+                    type="text"
+                    placeholder="Wyszukaj uczniów po imieniu, nazwisku lub emailu..."
+                    value={studentSearchTerm}
+                    onChange={(e) => setStudentSearchTerm(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 pl-10 pr-10"
+                  />
+                  <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
+                    🔍
+    </div>
+                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400">
+                    👤
+                  </div>
+                </div>
+
+                {/* Przyciski akcji */}
+                <div className="flex gap-2 mb-4">
+                  <button
+                    onClick={() => {
+                      const availableStudents = students.filter(student => 
+                        !assignedUsers.some(assigned => assigned.uid === student.uid) &&
+                        (student.displayName?.toLowerCase().includes(studentSearchTerm.toLowerCase()) ||
+                         student.email?.toLowerCase().includes(studentSearchTerm.toLowerCase()))
+                      );
+                      setSelectedStudentsToAdd(availableStudents.map(s => s.uid));
+                    }}
+                    className="flex items-center gap-2 bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700"
+                  >
+                    ✓ Zaznacz wszystkich dostępnych
+                  </button>
+                  <button
+                    onClick={() => setSelectedStudentsToAdd([])}
+                    className="flex items-center gap-2 bg-gray-600 text-white px-3 py-2 rounded-lg hover:bg-gray-700"
+                  >
+                    ✕ Odznacz wszystkich
+                  </button>
+                </div>
+
+                {/* Lista uczniów */}
+                <div className="max-h-60 overflow-y-auto border border-gray-200 rounded-lg mb-4">
+                  {students
+                    .filter(student => 
+                      !assignedUsers.some(assigned => assigned.uid === student.uid) &&
+                      (student.displayName?.toLowerCase().includes(studentSearchTerm.toLowerCase()) ||
+                       student.email?.toLowerCase().includes(studentSearchTerm.toLowerCase()))
+                    )
+                    .map((student) => (
+                      <div key={student.uid} className="flex items-center justify-between p-3 hover:bg-gray-50 border-b border-gray-100 last:border-b-0">
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="checkbox"
+                            checked={selectedStudentsToAdd.includes(student.uid)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedStudentsToAdd([...selectedStudentsToAdd, student.uid]);
+                              } else {
+                                setSelectedStudentsToAdd(selectedStudentsToAdd.filter(id => id !== student.uid));
+                              }
+                            }}
+                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                          />
+                          <div>
+                            <p className="font-medium">{student.displayName}</p>
+                            <p className="text-sm text-gray-600">{student.email}</p>
+                          </div>
+                        </div>
+                        <div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+                          {selectedStudentsToAdd.includes(student.uid) ? 'Zaznaczony' : 'Niezaznaczony'}
+                        </div>
+                      </div>
+                    ))}
+                </div>
+
+                {/* Podsumowanie i przycisk dodawania */}
+                <div className="flex justify-between items-center">
+                  <p className="text-sm text-gray-600">
+                    Zaznaczono: {selectedStudentsToAdd.length} z {students.filter(student => 
+                      !assignedUsers.some(assigned => assigned.uid === student.uid) &&
+                      (student.displayName?.toLowerCase().includes(studentSearchTerm.toLowerCase()) ||
+                       student.email?.toLowerCase().includes(studentSearchTerm.toLowerCase()))
+                    ).length} dostępnych uczniów
+                  </p>
+                  <button
+                    onClick={() => {
+                      selectedStudentsToAdd.forEach(studentId => {
+                        handleAddStudent(studentId);
+                      });
+                      setSelectedStudentsToAdd([]);
+                    }}
+                    disabled={selectedStudentsToAdd.length === 0}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg ${
+                      selectedStudentsToAdd.length === 0
+                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        : 'bg-gray-600 text-white hover:bg-gray-700'
+                    }`}
+                  >
+                    + Dodaj zaznaczonych ({selectedStudentsToAdd.length})
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
