@@ -186,10 +186,36 @@ class CourseListCreateView(APIView):
         print("User is authenticated and is a teacher, proceeding with course creation...")
         
         try:
-            # Generuj slug z tytułu
-            def generate_slug(title):
+            # Generuj unikalny slug z tytułu
+            def generate_unique_slug(title, db):
                 import re
-                return re.sub(r'[^a-z0-9\s-]', '', title.lower()).replace(' ', '-').strip('-')
+                import uuid
+                
+                # Generuj bazowy slug
+                base_slug = re.sub(r'[^a-z0-9\s-]', '', title.lower()).replace(' ', '-').strip('-')
+                if not base_slug:
+                    base_slug = f"course-{uuid.uuid4().hex[:8]}"
+                
+                # Sprawdź czy slug już istnieje w Firebase
+                unique_slug = base_slug
+                counter = 1
+                
+                while True:
+                    # Sprawdź w Firebase czy slug już istnieje
+                    existing_courses = db.collection('courses').where('slug', '==', unique_slug).get()
+                    if not existing_courses:
+                        break
+                    
+                    # Jeśli istnieje, dodaj licznik
+                    unique_slug = f"{base_slug}-{counter}"
+                    counter += 1
+                    
+                    # Zabezpieczenie przed nieskończoną pętlą
+                    if counter > 1000:
+                        unique_slug = f"{base_slug}-{uuid.uuid4().hex[:8]}"
+                        break
+                
+                return unique_slug
             
             # Przygotuj dane kursu dla Firestore
             course_data = {
@@ -200,7 +226,6 @@ class CourseListCreateView(APIView):
                 'is_active': True,
                 'pdfUrls': request.data.get('pdfUrls', []),
                 'links': request.data.get('links', []),
-                'slug': generate_slug(request.data.get('title', '')),
                 'created_by': request.user.email,
                 'teacherEmail': request.user.email,
                 'assignedUsers': [],
@@ -213,6 +238,12 @@ class CourseListCreateView(APIView):
             
             # Zapisz bezpośrednio do Firestore
             db = firestore.client()
+            
+            # Generuj unikalny slug
+            course_title = request.data.get('title', '')
+            unique_slug = generate_unique_slug(course_title, db)
+            course_data['slug'] = unique_slug
+            
             course_ref = db.collection('courses').document()
             course_ref.set(course_data)
             
