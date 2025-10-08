@@ -59,7 +59,7 @@ function CourseDetail() {
         // Pobierz quizy przypisane do tego kursu
         const quizzesQuery = query(
           collection(db, "quizzes"),
-          where("courseId", "==", courseDoc.id)
+          where("course_id", "==", courseDoc.id)
         );
         const quizzesSnapshot = await getDocs(quizzesQuery);
         const quizzesData = quizzesSnapshot.docs.map(doc => ({

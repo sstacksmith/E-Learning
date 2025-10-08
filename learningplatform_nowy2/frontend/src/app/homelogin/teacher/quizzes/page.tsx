@@ -297,7 +297,7 @@ export default function QuizManagementPage() {
       title: generatedQuiz.title,
       description: generatedQuiz.description,
       subject: generatedQuiz.subject,
-      course_id: newQuiz.course_id,
+      course_id: generatedQuiz.courseId, // Używamy courseId z wygenerowanego quizu
       questions: generatedQuiz.questions.map((q: any, qIndex: number) => ({
         id: q.id || `q${qIndex + 1}`,
         content: q.content || '',
@@ -771,7 +771,11 @@ export default function QuizManagementPage() {
                             key={course.id}
                             className="p-4 hover:bg-purple-50 cursor-pointer border-b border-gray-100 last:border-b-0 transition-colors"
                             onClick={() => {
-                              setNewQuiz((prev) => ({ ...prev, course_id: course.id }));
+                              setNewQuiz((prev) => ({ 
+                                ...prev, 
+                                course_id: course.id,
+                                subject: course.title  // Automatycznie uzupełnij przedmiot
+                              }));
                               setSearchTerm(course.title);
                               setIsSearchOpen(false);
                             }}

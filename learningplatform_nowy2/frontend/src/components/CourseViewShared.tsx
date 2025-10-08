@@ -31,6 +31,7 @@ export const CourseViewShared: React.FC<CourseViewProps> = ({
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showSidebarSection, setShowSidebarSection] = useState<{[id: string]: boolean}>({});
   const [quizTitles, setQuizTitles] = useState<{[quizId: string]: string}>({});
+  const [quizAttempts, setQuizAttempts] = useState<{[quizId: string]: number}>({});
 
   // Pobierz nazwy quizów
   useEffect(() => {
@@ -67,6 +68,34 @@ export const CourseViewShared: React.FC<CourseViewProps> = ({
 
     fetchQuizTitles();
   }, [sections]);
+
+  // Pobierz liczbę prób dla quizów
+  useEffect(() => {
+    const fetchQuizAttempts = async () => {
+      if (!user || !quizzes.length) return;
+      
+      const attempts: {[quizId: string]: number} = {};
+      
+      for (const quiz of quizzes) {
+        try {
+          const attemptsQuery = query(
+            collection(db, 'quiz_attempts'),
+            where('user_id', '==', user.uid),
+            where('quiz_id', '==', quiz.id)
+          );
+          const attemptsSnapshot = await getDocs(attemptsQuery);
+          attempts[quiz.id] = attemptsSnapshot.size;
+        } catch (error) {
+          console.error(`Error fetching attempts for quiz ${quiz.id}:`, error);
+          attempts[quiz.id] = 0;
+        }
+      }
+      
+      setQuizAttempts(attempts);
+    };
+
+    fetchQuizAttempts();
+  }, [user, quizzes]);
 
   // Oblicz statystyki
   const stats = React.useMemo(() => {
@@ -760,7 +789,9 @@ export const CourseViewShared: React.FC<CourseViewProps> = ({
                                             <p className="font-semibold text-gray-900">
                                               {quizTitles[block.quizId] || 'Wczytywanie...'}
                                             </p>
-                                            <p className="text-xs text-gray-500">Quiz</p>
+                                            <p className="text-xs text-gray-500">
+                                              Quiz • Próby: {quizAttempts[block.quizId] || 0}
+                                            </p>
                                           </div>
                                         </div>
                                         {!isTeacherPreview && (
@@ -1249,7 +1280,9 @@ export const CourseViewShared: React.FC<CourseViewProps> = ({
                                                     <p className="font-semibold text-gray-900">
                                                       {quizTitles[block.quizId] || 'Wczytywanie...'}
                                                     </p>
-                                                    <p className="text-xs text-gray-500">Quiz</p>
+                                                    <p className="text-xs text-gray-500">
+                                                      Quiz • Próby: {quizAttempts[block.quizId] || 0}
+                                                    </p>
                                                   </div>
                                                 </div>
                                                 {!isTeacherPreview && (
@@ -1374,13 +1407,28 @@ export const CourseViewShared: React.FC<CourseViewProps> = ({
                         </div>
                       </div>
                       <div className="flex items-center justify-between mt-4">
-                        <span className="text-sm text-gray-600">
-                          {quiz.questions?.length || 0} pytań
-                        </span>
+                        <div className="flex flex-col gap-1">
+                          <span className="text-sm text-gray-600">
+                            {quiz.questions?.length || 0} pytań
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            Próby: {quizAttempts[quiz.id] || 0}/{quiz.max_attempts || 1}
+                          </span>
+                        </div>
                         {!isTeacherPreview && (
-                          <button className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors text-sm">
-                            Rozpocznij quiz
-                          </button>
+                          <a
+                            href={`/courses/${course?.slug || course?.id}/quiz/${quiz.id}`}
+                            className={`px-4 py-2 rounded-lg transition-colors text-sm inline-block ${
+                              (quizAttempts[quiz.id] || 0) >= (quiz.max_attempts || 1)
+                                ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                                : 'bg-orange-600 text-white hover:bg-orange-700'
+                            }`}
+                          >
+                            {(quizAttempts[quiz.id] || 0) >= (quiz.max_attempts || 1) 
+                              ? 'Wykorzystano próby' 
+                              : 'Rozpocznij quiz'
+                            }
+                          </a>
                         )}
                       </div>
                     </div>

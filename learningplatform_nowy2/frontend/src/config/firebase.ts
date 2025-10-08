@@ -12,7 +12,8 @@ const firebaseConfig = {
   authDomain: "cogito-8443e.firebaseapp.com",
   databaseURL: "https://cogito-8443e-default-rtdb.europe-west1.firebasedatabase.app",
   projectId: "cogito-8443e",
-  storageBucket: "cogito-8443e.firebasestorage.app",
+  // Firebase JS SDK expects the bucket in appspot.com domain
+  storageBucket: "cogito-8443e.appspot.com",
   messagingSenderId: "521032313093",
   appId: "1:521032313093:web:1a41027325856c453bef6c",
   measurementId: "G-ZM1TL5JYZ8"

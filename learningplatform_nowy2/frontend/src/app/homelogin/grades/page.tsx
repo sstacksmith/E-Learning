@@ -10,11 +10,19 @@ import { useRouter } from 'next/navigation';
 interface Grade {
   id: string;
   subject: string;
-  grade: string;
-  description: string;
-  date: string;
-  teacherId: string;
+  grade?: string;
+  value?: string | number;
+  value_grade?: string | number;
+  description?: string;
+  comment?: string;
+  date?: string;
+  graded_at?: string;
+  teacherId?: string;
   gradeType?: string;
+  grade_type?: string;
+  quiz_title?: string;
+  percentage?: number;
+  quiz_id?: string;
 }
 
 interface GroupedGrades {
@@ -22,12 +30,18 @@ interface GroupedGrades {
 }
 
 function GradesPageContent() {
-  const { user } = useAuth();
+  console.log('🚀 GradesPageContent function called!');
+  
+  const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const [grades, setGrades] = useState<Grade[]>([]);
   const [loading, setLoading] = useState(true);
   const [displayName, setDisplayName] = useState<string>('');
-  const [toast, setToast] = useState<{grade: string, description: string, date: string, gradeType?: string} | null>(null);
+  const [userCourses, setUserCourses] = useState<any[]>([]);
+
+  console.log('🔄 GradesPageContent rendered, user:', user?.uid, 'authLoading:', authLoading);
+  console.log('🔄 User object:', user);
+  console.log('🔄 AuthLoading object:', authLoading);
 
   useEffect(() => {
     if (!user) return;
@@ -42,25 +56,109 @@ function GradesPageContent() {
     fetchDisplayName();
   }, [user]);
 
+  // Pobierz kursy użytkownika
   useEffect(() => {
-    if (!user) return;
-    const fetchGrades = async () => {
-      setLoading(true);
-      const gradesQuery = query(collection(db, 'grades'), where('studentId', '==', user.uid));
-      const gradesSnapshot = await getDocs(gradesQuery);
-      const gradesList = gradesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Grade));
-      setGrades(gradesList);
-      setLoading(false);
+    const fetchUserCourses = async () => {
+      if (!user) return;
+      console.log('🔄 Fetching user courses for:', user.uid, 'email:', user.email);
+      
+      // Pobierz kursy gdzie assignedUsers zawiera user.uid
+      const coursesByUidQuery = query(
+        collection(db, 'courses'),
+        where('assignedUsers', 'array-contains', user.uid)
+      );
+      const coursesByUidSnapshot = await getDocs(coursesByUidQuery);
+      const coursesByUidList = coursesByUidSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      console.log('📚 Courses by UID:', coursesByUidList);
+
+      // Pobierz kursy gdzie assignedUsers zawiera user.email
+      const coursesByEmailQuery = query(
+        collection(db, 'courses'),
+        where('assignedUsers', 'array-contains', user.email)
+      );
+      const coursesByEmailSnapshot = await getDocs(coursesByEmailQuery);
+      const coursesByEmailList = coursesByEmailSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      console.log('📚 Courses by Email:', coursesByEmailList);
+
+      // Połącz obie listy i usuń duplikaty
+      const allCourses = [...coursesByUidList, ...coursesByEmailList];
+      const uniqueCourses = allCourses.filter((course, index, self) =>
+        index === self.findIndex(c => c.id === course.id)
+      );
+      
+      console.log('📚 All unique courses:', uniqueCourses);
+      setUserCourses(uniqueCourses);
     };
-    fetchGrades();
+    fetchUserCourses();
   }, [user]);
+
+  const fetchGrades = async () => {
+    if (!user) return;
+    setLoading(true);
+    console.log('🔄 Fetching grades for user:', user.uid);
+
+    // Pobierz wszystkie oceny użytkownika
+    const gradesQuery = query(collection(db, 'grades'), where('user_id', '==', user.uid));
+    const gradesSnapshot = await getDocs(gradesQuery);
+    const gradesList = gradesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Grade));
+    console.log('📊 Fetched grades:', gradesList);
+
+    // Pobierz również oceny gdzie studentEmail jest równy email użytkownika
+    const gradesByEmailQuery = query(collection(db, 'grades'), where('studentEmail', '==', user.email));
+    const gradesByEmailSnapshot = await getDocs(gradesByEmailQuery);
+    const gradesByEmailList = gradesByEmailSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Grade));
+    console.log('📊 Fetched grades by email:', gradesByEmailList);
+
+    // Połącz obie listy i usuń duplikaty
+    const allGrades = [...gradesList, ...gradesByEmailList];
+    const uniqueGrades = allGrades.filter((grade, index, self) =>
+      index === self.findIndex(g => g.id === grade.id)
+    );
+
+    console.log('📊 All unique grades:', uniqueGrades);
+    console.log('📊 Grades count:', uniqueGrades.length);
+    console.log('📊 Grades details:', uniqueGrades.map(g => ({
+      id: g.id,
+      subject: g.subject,
+      value: g.value,
+      quiz_title: g.quiz_title,
+      percentage: g.percentage,
+      graded_at: g.graded_at
+    })));
+    setGrades(uniqueGrades);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    console.log('🔄 Grades useEffect triggered, user:', user?.uid, 'authLoading:', authLoading);
+    console.log('🔄 useEffect dependencies changed - user:', user?.uid, 'authLoading:', authLoading);
+    if (authLoading) {
+      console.log('⏳ Auth still loading, waiting...');
+      return;
+    }
+    if (!user) {
+      console.log('❌ No user found');
+      return;
+    }
+    console.log('✅ User found, fetching grades...');
+    fetchGrades();
+  }, [user, authLoading]);
 
   // Grupowanie ocen po przedmiocie i sortowanie po dacie rosnąco
   const groupedGrades: GroupedGrades = grades.reduce((acc, grade) => {
-    if (!acc[grade.subject]) acc[grade.subject] = [];
-    acc[grade.subject].push(grade);
+    const subject = grade.subject || 'Inne';
+    if (!acc[subject]) acc[subject] = [];
+    acc[subject].push(grade);
     return acc;
   }, {} as GroupedGrades);
+
+  // Dodaj kursy bez ocen
+  userCourses.forEach(course => {
+    const courseTitle = course.title || course.name || 'Nieznany kurs';
+    if (!groupedGrades[courseTitle]) {
+      groupedGrades[courseTitle] = [];
+    }
+  });
   
   // Sortuj oceny w każdym przedmiocie po dacie rosnąco
   Object.keys(groupedGrades).forEach(subject => {
@@ -73,14 +171,15 @@ function GradesPageContent() {
   });
 
   // Funkcja do określania koloru badge na podstawie oceny
-  function getGradeColor(grade: string) {
-    if (grade === '5' || grade === '6') return 'bg-green-500 text-white shadow-green-200';
-    if (grade === '4') return 'bg-emerald-500 text-white shadow-emerald-200';
-    if (grade === '3') return 'bg-yellow-500 text-white shadow-yellow-200';
-    if (grade === '2') return 'bg-orange-500 text-white shadow-orange-200';
-    if (grade === '1') return 'bg-red-500 text-white shadow-red-200';
-    if (grade === '+') return 'bg-blue-500 text-white shadow-blue-200';
-    if (grade === '-') return 'bg-gray-500 text-white shadow-gray-200';
+  function getGradeColor(grade: string | number | undefined) {
+    const gradeStr = String(grade || '');
+    if (gradeStr === '5' || gradeStr === '6') return 'bg-green-500 text-white shadow-green-200';
+    if (gradeStr === '4') return 'bg-emerald-500 text-white shadow-emerald-200';
+    if (gradeStr === '3') return 'bg-yellow-500 text-white shadow-yellow-200';
+    if (gradeStr === '2') return 'bg-orange-500 text-white shadow-orange-200';
+    if (gradeStr === '1') return 'bg-red-500 text-white shadow-red-200';
+    if (gradeStr === '+') return 'bg-blue-500 text-white shadow-blue-200';
+    if (gradeStr === '-') return 'bg-gray-500 text-white shadow-gray-200';
     // inne przypadki, np. opisowe
     return 'bg-gray-400 text-white shadow-gray-200';
   }
@@ -88,7 +187,11 @@ function GradesPageContent() {
   // Funkcja do liczenia średniej ocen (tylko liczbowych)
   function calculateAverage(grades: Grade[]): string {
     const numericGrades = grades
-      .map(g => parseFloat(g.grade.replace(',', '.')))
+      .map(g => {
+        const gradeValue = g.grade || g.value || g.value_grade;
+        if (!gradeValue) return NaN;
+        return parseFloat(String(gradeValue).replace(',', '.'));
+      })
       .filter(n => !isNaN(n));
     if (numericGrades.length === 0) return '-';
     const avg = numericGrades.reduce((a, b) => a + b, 0) / numericGrades.length;
@@ -105,10 +208,12 @@ function GradesPageContent() {
   const totalGrades = grades.length;
   const subjectsCount = Object.keys(groupedGrades).length;
   const recentGrades = grades.filter(grade => {
-    const gradeDate = new Date(grade.date);
+    const gradeDate = grade.date || grade.graded_at;
+    if (!gradeDate) return false;
+    const date = new Date(gradeDate);
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    return gradeDate > thirtyDaysAgo;
+    return date > thirtyDaysAgo;
   }).length;
 
   return (
@@ -129,7 +234,13 @@ function GradesPageContent() {
               Dziennik ocen
             </h1>
             
-            <div className="w-20"></div>
+            <button
+              onClick={fetchGrades}
+              disabled={loading}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+            >
+              {loading ? 'Ładowanie...' : 'Odśwież'}
+            </button>
           </div>
         </div>
       </div>
@@ -206,6 +317,9 @@ function GradesPageContent() {
             <h2 className="text-lg sm:text-xl font-bold text-white">Oceny z przedmiotów</h2>
           </div>
           
+          {/* Dodatkowy odstęp aby tooltip nie był przykrywany */}
+          <div className="h-8"></div>
+          
           {loading ? (
             <div className="p-8 text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
@@ -242,21 +356,56 @@ function GradesPageContent() {
                         </div>
                       </td>
                       <td className="px-3 sm:px-6 py-3 sm:py-4">
-                        <div className="flex flex-wrap gap-1 sm:gap-2">
-                          {subjectGrades.map((grade, gradeIdx) => (
-                        <button
-                              key={grade.id}
-                              className={`px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg font-bold text-xs sm:text-sm shadow-sm transition-all duration-200 hover:scale-105 hover:shadow-md ${getGradeColor(grade.grade)}`}
-                          onClick={() => setToast({grade: grade.grade, description: grade.description, date: grade.date, gradeType: grade.gradeType})}
-                        >
-                          {grade.grade}
-                        </button>
-                          ))}
-                        </div>
+                        {subjectGrades.length > 0 ? (
+                          <div className="flex flex-wrap gap-1 sm:gap-2">
+                            {subjectGrades.map((grade, gradeIdx) => {
+                              const gradeValue = grade.grade || grade.value || grade.value_grade;
+                              const gradeDescription = grade.description || grade.comment || '';
+                              const gradeDate = grade.date || grade.graded_at || '';
+                              const gradeType = grade.gradeType || grade.grade_type || '';
+                              
+                              return (
+                                <div key={grade.id} className="relative group">
+                                  <button
+                                    className={`px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg font-bold text-xs sm:text-sm shadow-sm transition-all duration-200 hover:scale-105 hover:shadow-md ${getGradeColor(gradeValue)}`}
+                                  >
+                                    {gradeValue}
+                                  </button>
+                                  
+                                  {/* Tooltip */}
+                                  <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50 min-w-[250px] max-w-[350px]">
+                                    <div className="space-y-1">
+                                      <div className="font-semibold">Ocena: {gradeValue}</div>
+                                      {gradeType && (
+                                        <div><span className="font-medium">Typ:</span> {gradeType}</div>
+                                      )}
+                                      {grade.quiz_title && (
+                                        <div><span className="font-medium">Quiz:</span> {grade.quiz_title}</div>
+                                      )}
+                                      {grade.percentage !== undefined && (
+                                        <div><span className="font-medium">Wynik:</span> {grade.percentage}%</div>
+                                      )}
+                                      {gradeDescription && (
+                                        <div><span className="font-medium">Opis:</span> {gradeDescription}</div>
+                                      )}
+                                      {gradeDate && (
+                                        <div><span className="font-medium">Data:</span> {new Date(gradeDate).toLocaleDateString('pl-PL')}</div>
+                                      )}
+                                    </div>
+                                    {/* Arrow */}
+                                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-b-4 border-transparent border-b-gray-900"></div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <span className="text-xs sm:text-sm text-gray-500">Brak ocen w tym przedmiocie</span>
+                        )}
                       </td>
                       <td className="px-3 sm:px-6 py-3 sm:py-4">
                         <span className="inline-flex items-center px-2 py-1 sm:px-3 sm:py-1 rounded-full text-xs sm:text-sm font-semibold bg-blue-100 text-blue-800">
-                          {calculateAverage(subjectGrades)}
+                          {subjectGrades.length > 0 ? calculateAverage(subjectGrades) : 'Brak ocen'}
                       </span>
                       </td>
                       <td className="px-3 sm:px-6 py-3 sm:py-4">
@@ -271,40 +420,6 @@ function GradesPageContent() {
         </div>
       </div>
 
-      {/* Toast Notification */}
-      {toast && (
-        <div className="fixed top-6 right-6 z-50 bg-white border border-gray-200 shadow-xl rounded-xl px-4 sm:px-6 py-4 min-w-[280px] sm:min-w-[300px] max-w-sm">
-          <button
-            className="absolute top-3 right-3 text-gray-400 hover:text-gray-700 transition-colors"
-            onClick={() => setToast(null)}
-            aria-label="Zamknij powiadomienie"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-          
-          <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
-              <Award className="w-5 h-5 text-blue-600" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="font-semibold text-gray-800 mb-1 text-sm sm:text-base">Ocena: {toast.grade}</div>
-              {toast.gradeType && (
-                <div className="text-xs sm:text-sm text-gray-600 mb-1">
-                  <span className="font-medium">Typ:</span> {toast.gradeType}
-                </div>
-              )}
-              <div className="text-xs sm:text-sm text-gray-600 mb-1">
-                <span className="font-medium">Opis:</span> {toast.description || 'Brak opisu'}
-              </div>
-              <div className="text-xs text-gray-500">
-                <span className="font-medium">Data:</span> {toast.date || 'Brak daty'}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

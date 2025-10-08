@@ -1,8 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { getAI, getGenerativeModel, GoogleAIBackend } from 'firebase/ai';
-import firebaseApp from '@/config/firebase';
+import firebaseApp, { db } from '@/config/firebase';
+import { collection, getDocs } from 'firebase/firestore';
+import { useAuth } from '@/context/AuthContext';
 import { Sparkles, BookOpen, Clock, Users, Target, Zap, CheckCircle, X, Edit3, Save, Settings, Eye, Info, AlertTriangle } from 'lucide-react';
 
 // Inicjalizacja AI
@@ -27,9 +29,16 @@ interface GeneratedQuiz {
   title: string;
   description: string;
   subject: string;
+  courseId: string;
   questions: Question[];
   estimatedTime: number;
   difficulty: 'easy' | 'medium' | 'hard';
+}
+
+interface Course {
+  id: string;
+  title: string;
+  description?: string;
 }
 
 interface AIQuizGeneratorProps {
@@ -41,10 +50,13 @@ export const AIQuizGenerator: React.FC<AIQuizGeneratorProps> = ({
   onQuizGenerated,
   onClose,
 }) => {
+  const { user } = useAuth();
   const [step, setStep] = useState<'input' | 'generating' | 'preview' | 'editing'>('input');
   const [quizDescription, setQuizDescription] = useState('');
+  const [courses, setCourses] = useState<Course[]>([]);
   const [quizSettings, setQuizSettings] = useState({
     subject: '',
+    courseId: '',
     grade: '',
     difficulty: 'medium' as 'easy' | 'medium' | 'hard',
     questionCount: 5,
@@ -58,9 +70,43 @@ export const AIQuizGenerator: React.FC<AIQuizGeneratorProps> = ({
   const [isEditingQuestion, setIsEditingQuestion] = useState(false);
   const [questionEditPrompt, setQuestionEditPrompt] = useState('');
 
+  // Pobierz kursy nauczyciela
+  useEffect(() => {
+    const fetchCourses = async () => {
+      if (!user?.email) return;
+      
+      try {
+        const coursesSnapshot = await getDocs(collection(db, 'courses'));
+        const teacherCourses = coursesSnapshot.docs
+          .filter(doc => {
+            const data = doc.data();
+            return data.created_by === user.email || 
+                   data.teacherEmail === user.email ||
+                   (Array.isArray(data.assignedUsers) && data.assignedUsers.includes(user.email));
+          })
+          .map(doc => ({
+            id: doc.id,
+            title: doc.data().title || 'Bez nazwy',
+            description: doc.data().description || ''
+          }));
+        
+        setCourses(teacherCourses);
+      } catch (error) {
+        console.error('Error fetching courses:', error);
+      }
+    };
+
+    fetchCourses();
+  }, [user]);
+
   const generateQuiz = async () => {
     if (!quizDescription.trim()) {
       setError('Proszę opisać czego ma dotyczyć quiz');
+      return;
+    }
+
+    if (!quizSettings.courseId.trim()) {
+      setError('Proszę wybrać kurs dla quizu');
       return;
     }
 
@@ -137,6 +183,7 @@ WAŻNE:
       // Generuj unikalne ID dla pytań i odpowiedzi
       const processedQuiz: GeneratedQuiz = {
         ...quizData,
+        courseId: quizSettings.courseId,
         questions: quizData.questions.map((q: any, qIndex: number) => ({
           ...q,
           id: `q${qIndex + 1}`,
@@ -370,15 +417,32 @@ WAŻNE:
                   <div className="group">
                     <label className="block text-sm font-semibold text-blue-700 mb-2 flex items-center gap-2">
                       <BookOpen className="w-4 h-4" />
-                      Przedmiot
+                      Przedmiot (Kurs)
                     </label>
-                    <input
-                      type="text"
-                      value={quizSettings.subject}
-                      onChange={(e) => setQuizSettings(prev => ({ ...prev, subject: e.target.value }))}
-                      className="w-full p-4 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition-all duration-300"
-                      placeholder="Np.: Matematyka, Historia, Język polski"
-                    />
+                    <select
+                      value={quizSettings.courseId}
+                      onChange={(e) => {
+                        const selectedCourse = courses.find(c => c.id === e.target.value);
+                        setQuizSettings(prev => ({ 
+                          ...prev, 
+                          courseId: e.target.value,
+                          subject: selectedCourse?.title || ''
+                        }));
+                      }}
+                      className="w-full p-4 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition-all duration-300 bg-white"
+                    >
+                      <option value="">Wybierz kurs...</option>
+                      {courses.map((course) => (
+                        <option key={course.id} value={course.id}>
+                          {course.title}
+                        </option>
+                      ))}
+                    </select>
+                    {courses.length === 0 && (
+                      <p className="text-sm text-gray-500 mt-2">
+                        Brak dostępnych kursów. Utwórz kurs w sekcji &quot;Kursy&quot; aby móc tworzyć quizy.
+                      </p>
+                    )}
                   </div>
 
                   <div className="group">
@@ -386,13 +450,17 @@ WAŻNE:
                       <Users className="w-4 h-4" />
                       Klasa/poziom
                     </label>
-                    <input
-                      type="text"
+                    <select
                       value={quizSettings.grade}
                       onChange={(e) => setQuizSettings(prev => ({ ...prev, grade: e.target.value }))}
-                      className="w-full p-4 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-green-100 focus:border-green-500 transition-all duration-300"
-                      placeholder="Np.: Klasa 5, Liceum, Studia"
-                    />
+                      className="w-full p-4 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-green-100 focus:border-green-500 transition-all duration-300 bg-white"
+                    >
+                      <option value="">Wybierz klasę...</option>
+                      <option value="1 klasa liceum">1 klasa liceum</option>
+                      <option value="2 klasa liceum">2 klasa liceum</option>
+                      <option value="3 klasa liceum">3 klasa liceum</option>
+                      <option value="4 klasa liceum">4 klasa liceum</option>
+                    </select>
                   </div>
 
                   <div className="group">

@@ -36,7 +36,7 @@ function QuizTakingContent() {
   const params = useParams();
   const slug = params?.slug as string;
   const quizId = params?.id as string;
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   
   const [quiz, setQuiz] = useState<Quiz | null>(null);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -47,6 +47,7 @@ function QuizTakingContent() {
   const [grade, setGrade] = useState(0);
   const [gradeDescription, setGradeDescription] = useState('');
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [attemptsCount, setAttemptsCount] = useState(0);
   const [maxAttemptsReached, setMaxAttemptsReached] = useState(false);
@@ -58,27 +59,37 @@ function QuizTakingContent() {
     if (!slug || !quizId) {
       setError('Nieprawidłowy URL quizu');
       setLoading(false);
+      return;
+    }
+    
+    // Wait for auth to finish loading
+    if (authLoading) {
+      console.log('Auth still loading...');
+      return;
     }
     
     // Check if user is authenticated
     if (!user) {
       setError('Musisz być zalogowany, aby wziąć udział w quizie');
       setLoading(false);
+      return;
     }
     
-    console.log('Component initialized with:', { slug, quizId, user: !!user, userId: user?.uid });
-  }, [slug, quizId, user]);
+    console.log('Component initialized with:', { slug, quizId, user: !!user, userId: user?.uid, authLoading });
+  }, [slug, quizId, user, authLoading]);
 
   // Handle quiz submission
   const handleSubmit = useCallback(async () => {
+    console.log('🚀 handleSubmit called!', { quiz: !!quiz, user: !!user, quizId: quiz?.id, userId: user?.uid });
+    
     if (!quiz || !user) {
-      console.error('Missing quiz or user:', { quiz: !!quiz, user: !!user });
+      console.error('❌ Missing quiz or user:', { quiz: !!quiz, user: !!user });
       return;
     }
     
     try {
-      console.log('Starting quiz submission...', { quizId: quiz.id, userId: user.uid });
-      setLoading(true);
+      console.log('✅ Starting quiz submission...', { quizId: quiz.id, userId: user.uid });
+      setSubmitting(true);
       setError(null);
       
       // Calculate score
@@ -133,6 +144,14 @@ function QuizTakingContent() {
       const calculatedGrade = calculateGradeFromPercentage(finalScore);
       const calculatedGradeDescription = getGradeDescription(calculatedGrade);
       
+      console.log('📊 Quiz results:', {
+        correctAnswers,
+        totalQuestions,
+        finalScore,
+        calculatedGrade,
+        calculatedGradeDescription
+      });
+      
       // Ustaw wartości w stanie
       setGrade(calculatedGrade);
       setGradeDescription(calculatedGradeDescription);
@@ -175,9 +194,15 @@ function QuizTakingContent() {
       // 🆕 AUTOMATYCZNE WYSTAWIANIE OCENY DO DZIENNIKA
       try {
         // Pobierz ID nauczyciela z kursu
-        const courseDoc = await getDocs(query(collection(db, 'courses'), where('id', '==', quiz.course_id || slug)));
-        if (!courseDoc.empty) {
-          const courseData = courseDoc.docs[0].data();
+        console.log('🔍 Looking for course with ID:', quiz.course_id);
+        // Poprawka: quiz.course_id to już document ID, nie pole 'id'
+        const courseDocRef = doc(db, 'courses', quiz.course_id);
+        const courseDocSnap = await getDoc(courseDocRef);
+        if (courseDocSnap.exists()) {
+          const courseData = courseDocSnap.data();
+          const courseDocId = courseDocSnap.id;
+          console.log('📚 Found course data:', courseData);
+          console.log('📚 Course document ID:', courseDocId);
           const teacherId = courseData.created_by || courseData.teacherEmail || user.uid;
           
           // Sprawdź czy już istnieje ocena z tego quizu
@@ -192,44 +217,58 @@ function QuizTakingContent() {
           // Określ numer próby dla opisu
           const currentAttemptNumber = attemptsCount + 1;
           
-          // Jeśli już istnieje ocena z tego quizu, zaktualizuj ją
+          // Jeśli już istnieje ocena z tego quizu, sprawdź czy nowa jest lepsza
           if (!existingGradesSnapshot.empty) {
-            // Zaktualizuj istniejącą ocenę
-            for (const gradeDoc of existingGradesSnapshot.docs) {
-              await updateDoc(doc(db, 'grades', gradeDoc.id), {
+            const existingGradeDoc = existingGradesSnapshot.docs[0];
+            const existingGradeData = existingGradeDoc.data();
+            const existingGrade = existingGradeData.value;
+            
+            // Aktualizuj tylko jeśli nowa ocena jest lepsza (wyższa)
+            if (calculatedGrade > existingGrade) {
+              await updateDoc(doc(db, 'grades', existingGradeDoc.id), {
                 value: calculatedGrade,
-                comment: `Quiz: ${quiz.title} - ${finalScore}% (${calculatedGradeDescription}) - Próba ${currentAttemptNumber}`,
+                comment: `Quiz: ${quiz.title} - ${finalScore}% (${calculatedGradeDescription}) - Próba ${currentAttemptNumber} - NAJLEPSZE PODEJŚCIE`,
                 graded_at: new Date().toISOString(),
                 quiz_title: quiz.title,
                 subject: quiz.subject || 'Quiz',
-                grade_type: 'Quiz'
+                grade_type: 'Quiz',
+                percentage: finalScore,
+                attempt_number: currentAttemptNumber,
+                is_best_attempt: true
               });
+              console.log(`✅ Zaktualizowano ocenę ${calculatedGrade} (${calculatedGradeDescription}) w dzienniku za quiz "${quiz.title}" - Próba ${currentAttemptNumber} - NOWA NAJLEPSZA OCENA`);
+            } else {
+              console.log(`ℹ️ Ocena ${calculatedGrade} nie jest lepsza od istniejącej ${existingGrade} - nie aktualizowano dziennika`);
             }
-            console.log(`✅ Zaktualizowano ocenę ${calculatedGrade} (${calculatedGradeDescription}) w dzienniku za quiz "${quiz.title}" - Próba ${currentAttemptNumber}`);
           } else {
             // Dodaj nową ocenę
             const newGrade = {
               user_id: user.uid,
-              course_id: quiz.course_id || slug,
+              course_id: courseDocId,
               value: calculatedGrade,
-              comment: `Quiz: ${quiz.title} - ${finalScore}% (${calculatedGradeDescription}) - Próba ${currentAttemptNumber}`,
+              comment: `Quiz: ${quiz.title} - ${finalScore}% (${calculatedGradeDescription}) - Próba ${currentAttemptNumber} - NAJLEPSZE PODEJŚCIE`,
               graded_by: teacherId,
               graded_at: new Date().toISOString(),
               quiz_id: quiz.id,
               quiz_title: quiz.title,
-              subject: quiz.subject || 'Quiz',
+              subject: courseData.title || courseData.name || quiz.subject || 'Quiz',
               grade_type: 'Quiz',
               studentEmail: user.email,
               studentName: (user as any).displayName || user.email,
               teacherEmail: courseData.teacherEmail || courseData.created_by_email,
+              percentage: finalScore,
+              attempt_number: currentAttemptNumber,
+              is_best_attempt: true,
               createdAt: serverTimestamp()
             };
             
-            await addDoc(collection(db, 'grades'), newGrade);
+            const gradeDoc = await addDoc(collection(db, 'grades'), newGrade);
             console.log(`✅ Dodano ocenę ${calculatedGrade} (${calculatedGradeDescription}) do dziennika za quiz "${quiz.title}" - Próba ${currentAttemptNumber}`);
+            console.log('📝 Grade document ID:', gradeDoc.id);
+            console.log('📊 Grade data saved:', newGrade);
           }
         } else {
-          console.warn('⚠️ Nie znaleziono kursu dla quizu:', quiz.course_id || slug);
+          console.warn('⚠️ Nie znaleziono kursu dla quizu:', quiz.course_id);
         }
       } catch (gradeError) {
         console.error('❌ Błąd podczas dodawania oceny do dziennika:', gradeError);
@@ -248,7 +287,7 @@ function QuizTakingContent() {
       }
       setError(`Nie udało się zapisać wyników quizu: ${error instanceof Error ? error.message : 'Nieznany błąd'}`);
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   }, [quiz, user, selectedAnswers, openAnswers, slug]);
 
@@ -273,8 +312,9 @@ function QuizTakingContent() {
 
   const fetchQuiz = useCallback(async () => {
     try {
-      console.log('Fetching quiz with ID:', quizId);
+      console.log('🔄 Starting fetchQuiz with ID:', quizId);
       console.log('Firebase db object:', db);
+      setLoading(true);
 
       const quizDoc = await getDoc(doc(db, 'quizzes', quizId));
       if (!quizDoc.exists()) throw new Error('Quiz not found');
@@ -311,13 +351,15 @@ function QuizTakingContent() {
       setQuiz(quizData);
       
       // Check attempts
-      const attempts = await fetchAttempts(quizId);
-      setAttemptsCount(attempts);
-      if (attempts >= quizData.max_attempts) {
-        setMaxAttemptsReached(true);
-        setError('Wykorzystano maksymalną liczbę prób dla tego quizu.');
-        router.push(`/courses/${slug}`);
-        return;
+      if (user) {
+        const attempts = await fetchAttempts(quizId);
+        setAttemptsCount(attempts);
+        if (attempts >= quizData.max_attempts) {
+          setMaxAttemptsReached(true);
+          setError('Wykorzystano maksymalną liczbę prób dla tego quizu.');
+          router.push(`/courses/${slug}`);
+          return;
+        }
       }
     } catch (err) {
       console.error('Detailed error fetching quiz:', err);
@@ -332,13 +374,14 @@ function QuizTakingContent() {
     } finally {
       setLoading(false);
     }
-  }, [router, slug, fetchAttempts, quizId]);
+  }, [router, slug, quizId]);
 
   useEffect(() => {
-    if (slug && quizId) {
-    fetchQuiz();
+    if (slug && quizId && !authLoading && user) {
+      console.log('🔄 Starting fetchQuiz - auth ready');
+      fetchQuiz();
     }
-  }, [fetchQuiz, slug, quizId]);
+  }, [fetchQuiz, slug, quizId, authLoading, user]);
 
   // Timer functionality
   useEffect(() => {
@@ -393,16 +436,33 @@ function QuizTakingContent() {
 
   // Check if current question is answered
   const isCurrentQuestionAnswered = useCallback(() => {
-    if (!quiz || currentQuestionIndex < 0 || currentQuestionIndex >= quiz.questions.length) return false;
+    if (!quiz || currentQuestionIndex < 0 || currentQuestionIndex >= quiz.questions.length) {
+      console.log('❌ isCurrentQuestionAnswered: invalid quiz or index');
+      return false;
+    }
     
     const currentQuestion = quiz.questions[currentQuestionIndex];
-    if (!currentQuestion) return false;
-    
-    if (currentQuestion.type === 'open' || !currentQuestion.answers?.length) {
-      return openAnswers[currentQuestion.id]?.content?.trim() || false;
-    } else {
-      return selectedAnswers[currentQuestion.id] || false;
+    if (!currentQuestion) {
+      console.log('❌ isCurrentQuestionAnswered: no current question');
+      return false;
     }
+    
+    let isAnswered = false;
+    if (currentQuestion.type === 'open' || !currentQuestion.answers?.length) {
+      isAnswered = !!(openAnswers[currentQuestion.id]?.content?.trim());
+    } else {
+      isAnswered = !!(selectedAnswers[currentQuestion.id]);
+    }
+    
+    console.log('🔍 isCurrentQuestionAnswered:', {
+      questionId: currentQuestion.id,
+      questionType: currentQuestion.type,
+      isAnswered,
+      openAnswer: openAnswers[currentQuestion.id],
+      selectedAnswer: selectedAnswers[currentQuestion.id]
+    });
+    
+    return isAnswered;
   }, [quiz, currentQuestionIndex, openAnswers, selectedAnswers]);
 
   // Check if all questions are answered
@@ -416,7 +476,7 @@ function QuizTakingContent() {
     }) || false;
   }, [quiz?.questions, openAnswers, selectedAnswers]);
 
-  if (loading) return <div className="p-4">Ładowanie quizu...</div>;
+  if (authLoading || loading) return <div className="p-4">Ładowanie quizu...</div>;
   if (error) return <div className="p-4 text-red-500">{error}</div>;
   if (!quiz) return <QuizNotFound />;
   if (!quiz.questions || quiz.questions.length === 0) return <div className="p-4 text-red-500">Quiz nie ma pytań</div>;

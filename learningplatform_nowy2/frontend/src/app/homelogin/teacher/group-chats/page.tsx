@@ -5,9 +5,10 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from '@/context/AuthContext';
-import { MessageSquare, Users, Clock, Send, Plus } from 'lucide-react';
-import { db } from '@/config/firebase';
+import { MessageSquare, Users, Clock, Send, Plus, FileText, Download } from 'lucide-react';
+import { db, storage } from '@/config/firebase';
 import { collection, query, where, onSnapshot, getDocs, addDoc, serverTimestamp, orderBy, limit } from 'firebase/firestore';
+// import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 interface GroupChat {
   id: string;
@@ -33,6 +34,11 @@ interface Message {
   senderName: string;
   senderEmail: string; // Dodaję email nadawcy
   createdAt: { seconds: number } | null;
+  fileUrl?: string;
+  fileData?: string; // Base64 data
+  fileName?: string;
+  fileType?: string;
+  fileSize?: number;
 }
 
 interface User {
@@ -50,12 +56,16 @@ export default function GroupChatsPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [sending, setSending] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [showCreateChat, setShowCreateChat] = useState(false);
   const [newChatName, setNewChatName] = useState('');
   const [newChatDescription, setNewChatDescription] = useState('');
   const [availableStudents, setAvailableStudents] = useState<User[]>([]);
   const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [activeTab, setActiveTab] = useState<'messages' | 'files'>('messages');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Pobierz czaty grupowe nauczyciela
@@ -267,6 +277,84 @@ export default function GroupChatsPage() {
     }
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null;
+    if (!file) { setSelectedFile(null); return; }
+    const maxSize = 20 * 1024 * 1024; // 20 MB
+    if (file.size > maxSize) {
+      alert('Plik jest za duży. Maksymalny rozmiar to 20 MB.');
+      e.target.value = '';
+      setSelectedFile(null);
+      return;
+    }
+    setSelectedFile(file);
+  };
+
+  const handleSendFile = async () => {
+    if (!selectedChat || !user || !selectedFile) return;
+    
+    // Sprawdź rozmiar pliku (max 5MB dla base64)
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    if (selectedFile.size > maxSize) {
+      alert('Plik jest za duży. Maksymalny rozmiar to 5 MB.');
+      return;
+    }
+
+    console.log('🚀 START FILE UPLOAD (BASE64):', {
+      chatId: selectedChat.id,
+      userId: user.uid,
+      fileName: selectedFile.name,
+      fileSize: selectedFile.size,
+      fileType: selectedFile.type
+    });
+
+    try {
+      setUploading(true);
+      setUploadProgress(0);
+      
+      // Konwertuj plik na base64
+      console.log('📄 Converting file to base64...');
+      const reader = new FileReader();
+      
+      const base64Promise = new Promise<string>((resolve, reject) => {
+        reader.onload = () => {
+          const result = reader.result as string;
+          resolve(result);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(selectedFile);
+      });
+
+      const base64Data = await base64Promise;
+      console.log('✅ File converted to base64, size:', base64Data.length);
+
+      const messageData = {
+        text: '',
+        senderId: user.uid,
+        senderName: (user as any).displayName || user.email,
+        senderEmail: user.email,
+        createdAt: serverTimestamp(),
+        fileData: base64Data, // Przechowujemy plik jako base64
+        fileName: selectedFile.name,
+        fileType: selectedFile.type || 'application/octet-stream',
+        fileSize: selectedFile.size
+      };
+
+      console.log('💾 Saving message with file to Firestore...');
+      await addDoc(collection(db, 'groupChats', selectedChat.id, 'messages'), messageData);
+      console.log('✅ Message with file saved successfully');
+
+      setSelectedFile(null);
+      setUploadProgress(0);
+    } catch (error) {
+      console.error('💥 ERROR during file upload:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Nieznany błąd';
+      alert(`Błąd podczas wysyłania pliku: ${errorMessage}`);
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const handleCreateChat = async () => {
     if (!newChatName.trim() || selectedStudents.length === 0 || !user) return;
 
@@ -301,7 +389,23 @@ export default function GroupChatsPage() {
   const formatTime = (timestamp: { seconds: number } | null) => {
     if (!timestamp) return '';
     const date = new Date(timestamp.seconds * 1000);
-    return date.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
+    const now = new Date();
+    const isToday = date.toDateString() === now.toDateString();
+    const isYesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000).toDateString() === date.toDateString();
+    
+    if (isToday) {
+      return date.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
+    } else if (isYesterday) {
+      return `Wczoraj ${date.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })}`;
+    } else {
+      return date.toLocaleDateString('pl-PL', { 
+        day: '2-digit', 
+        month: '2-digit', 
+        year: '2-digit',
+        hour: '2-digit', 
+        minute: '2-digit' 
+      });
+    }
   };
 
   if (loading) {
@@ -512,6 +616,32 @@ export default function GroupChatsPage() {
                   </div>
                 </div>
                 
+                {/* Tabs */}
+                <div className="mt-4 flex space-x-1 bg-gray-100 p-1 rounded-lg">
+                  <button
+                    onClick={() => setActiveTab('messages')}
+                    className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                      activeTab === 'messages'
+                        ? 'bg-white text-blue-600 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    <MessageSquare className="h-4 w-4 inline mr-2" />
+                    Wiadomości
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('files')}
+                    className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                      activeTab === 'files'
+                        ? 'bg-white text-blue-600 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    <FileText className="h-4 w-4 inline mr-2" />
+                    Pliki ({messages.filter(m => m.fileData || m.fileUrl).length})
+                  </button>
+                </div>
+                
                 {/* Lista uczestników */}
                 <div className="mt-3 p-3 bg-white rounded-lg border border-gray-200">
                   <h4 className="font-medium text-gray-800 mb-2 flex items-center gap-2 text-sm">
@@ -535,26 +665,124 @@ export default function GroupChatsPage() {
                 </div>
               </div>
 
-              {/* Messages - STAŁA WYSOKOŚĆ z scrollowaniem w środku */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0 max-h-[calc(100vh-435px)]">
-                {messages.map((message) => (
-                  <div key={message.id} className={`flex ${message.senderId === user?.uid ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                      message.senderId === user?.uid
-                        ? 'bg-blue-600 text-white' 
-                        : 'bg-gray-100 text-gray-900'
-                    }`}>
-                      {message.senderId !== user?.uid && (
-                        <div className="text-xs font-medium mb-1 opacity-75">{message.senderName}</div>
-                      )}
-                      <div className="text-sm">{message.text}</div>
-                      <div className={`text-xs mt-1 ${message.senderId === user?.uid ? 'text-blue-100' : 'text-gray-500'}`}>
-                        {formatTime(message.createdAt)}
+              {/* Content Area - STAŁA WYSOKOŚĆ z scrollowaniem w środku */}
+              <div className="flex-1 overflow-y-auto p-4 min-h-0 max-h-[calc(100vh-435px)]">
+                {activeTab === 'messages' ? (
+                  <div className="space-y-4">
+                    {messages.map((message) => (
+                      <div key={message.id} className={`flex ${message.senderId === user?.uid ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
+                          message.senderId === user?.uid
+                            ? 'bg-blue-600 text-white' 
+                            : 'bg-gray-100 text-gray-900'
+                        }`}>
+                          {message.senderId !== user?.uid && (
+                            <div className="text-xs font-medium mb-1 opacity-75">{message.senderName}</div>
+                          )}
+                          {message.fileData ? (
+                            <div className="text-sm">
+                              {/^image\//.test(message.fileType || '') ? (
+                                <div className="block">
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img src={message.fileData} alt={message.fileName || 'Załącznik'} className="rounded-lg max-h-64 object-contain" />
+                                </div>
+                              ) : (
+                                <a 
+                                  href={message.fileData} 
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className={`underline ${message.senderId === user?.uid ? 'text-white' : 'text-blue-600'}`}
+                                >
+                                  Otwórz plik{message.fileName ? `: ${message.fileName}` : ''}
+                                </a>
+                              )}
+                              {message.fileSize ? (
+                                <div className={`text-xs mt-1 ${message.senderId === user?.uid ? 'text-blue-100' : 'text-gray-500'}`}>
+                                  {(message.fileSize / (1024 * 1024)).toFixed(2)} MB
+                                </div>
+                              ) : null}
+                              {message.text ? (
+                                <div className="mt-2">{message.text}</div>
+                              ) : null}
+                            </div>
+                          ) : message.fileUrl ? (
+                            <div className="text-sm">
+                              {/^image\//.test(message.fileType || '') ? (
+                                <a href={message.fileUrl} target="_blank" rel="noreferrer" className="block">
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img src={message.fileUrl} alt={message.fileName || 'Załącznik'} className="rounded-lg max-h-64 object-contain" />
+                                </a>
+                              ) : (
+                                <a href={message.fileUrl} target="_blank" rel="noreferrer" className={`underline ${message.senderId === user?.uid ? 'text-white' : 'text-blue-600'}`}>
+                                  Pobierz plik{message.fileName ? `: ${message.fileName}` : ''}
+                                </a>
+                              )}
+                              {message.fileSize ? (
+                                <div className={`text-xs mt-1 ${message.senderId === user?.uid ? 'text-blue-100' : 'text-gray-500'}`}>
+                                  {(message.fileSize / (1024 * 1024)).toFixed(2)} MB
+                                </div>
+                              ) : null}
+                              {message.text ? (
+                                <div className="mt-2">{message.text}</div>
+                              ) : null}
+                            </div>
+                          ) : (
+                            <div className="text-sm">{message.text}</div>
+                          )}
+                          <div className={`text-xs mt-1 ${message.senderId === user?.uid ? 'text-blue-100' : 'text-gray-500'}`}>
+                            {formatTime(message.createdAt)}
+                          </div>
+                        </div>
                       </div>
-                    </div>
+                    ))}
+                    <div ref={messagesEndRef} />
                   </div>
-                ))}
-                <div ref={messagesEndRef} />
+                ) : (
+                  <div className="space-y-3">
+                    <h4 className="font-semibold text-gray-900 mb-4">Pliki w czacie</h4>
+                    {messages.filter(m => m.fileData || m.fileUrl).length === 0 ? (
+                      <div className="text-center py-8 text-gray-500">
+                        <FileText className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                        <p>Brak plików w tym czacie</p>
+                        <p className="text-sm">Pliki pojawią się tutaj po wysłaniu załączników</p>
+                      </div>
+                    ) : (
+                      messages
+                        .filter(m => m.fileData || m.fileUrl)
+                        .map((message) => (
+                          <div key={message.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
+                            <div className="flex items-center space-x-3">
+                              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                                {/^image\//.test(message.fileType || '') ? (
+                                  <div className="w-8 h-8 bg-green-100 rounded flex items-center justify-center">
+                                    <span className="text-green-600 text-xs">IMG</span>
+                                  </div>
+                                ) : (
+                                  <FileText className="h-5 w-5 text-blue-600" />
+                                )}
+                              </div>
+                              <div>
+                                <p className="font-medium text-gray-900">{message.fileName || 'Bez nazwy'}</p>
+                                <p className="text-sm text-gray-500">
+                                  {message.senderName} • {formatTime(message.createdAt)} • 
+                                  {message.fileSize ? ` ${(message.fileSize / (1024 * 1024)).toFixed(2)} MB` : ''}
+                                </p>
+                              </div>
+                            </div>
+                            <a
+                              href={message.fileData || message.fileUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center space-x-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                            >
+                              <Download className="h-4 w-4" />
+                              <span className="text-sm">Otwórz</span>
+                            </a>
+                          </div>
+                        ))
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Message Input - stała wysokość */}
@@ -568,6 +796,20 @@ export default function GroupChatsPage() {
                     disabled={sending}
                     className="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
                   />
+                  <input
+                    type="file"
+                    onChange={handleFileChange}
+                    disabled={uploading || sending || !selectedChat}
+                    className="block text-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSendFile}
+                    disabled={uploading || !selectedFile || !selectedChat}
+                    className="bg-white text-blue-600 border border-blue-200 px-3 py-2 rounded-lg hover:bg-blue-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {uploading ? `Wysyłanie... ${uploadProgress}%` : 'Wyślij plik'}
+                  </button>
                   <button
                     type="submit"
                     disabled={sending || !newMessage.trim()}
