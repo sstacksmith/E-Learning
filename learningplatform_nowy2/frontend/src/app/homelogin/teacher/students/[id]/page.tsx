@@ -352,7 +352,8 @@ export default function StudentProfilePage() {
             className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-all duration-200"
           >
             <ArrowLeft className="w-4 h-4" />
-            Powrót do strony głównej
+            <span className="hidden sm:inline">Powrót do strony głównej</span>
+            <span className="sm:hidden">Powrót</span>
           </button>
 
           <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">
@@ -363,11 +364,11 @@ export default function StudentProfilePage() {
         </div>
       </div>
 
-      <div className="p-6">
-        <div className="max-w-6xl mx-auto">
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+      <div className="p-4 sm:p-6 lg:p-8">
+        <div className="w-full max-w-none">
+          <div className="grid grid-cols-1 xl:grid-cols-5 gap-4 sm:gap-6 lg:gap-8">
             {/* Left Section - Profile and Navigation */}
-            <div className="lg:col-span-1">
+            <div className="xl:col-span-2">
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                 {/* User Profile */}
                 <div className="text-center mb-6">
@@ -445,12 +446,12 @@ export default function StudentProfilePage() {
             </div>
 
             {/* Right Section - Personal Information */}
-            <div className="lg:col-span-3">
+            <div className="xl:col-span-3">
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                 <h2 className="text-2xl font-bold text-gray-900 mb-6">Informacje osobiste</h2>
                 
                 {/* Information Cards Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
                   {/* Imię i nazwisko */}
                   <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
                     <div className="flex items-center gap-3">
@@ -620,13 +621,13 @@ export default function StudentProfilePage() {
           </div>
 
           {/* Notatki nauczycieli */}
-          <div className="mt-6">
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="mt-4 sm:mt-6 lg:mt-8">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
               <h2 className="text-xl font-semibold text-gray-900 mb-6">Notatki nauczycieli</h2>
               
               {/* Dodawanie nowej notatki */}
               <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-                <div className="flex gap-3">
+                <div className="flex flex-col sm:flex-row gap-3">
                   <textarea
                     value={newNote}
                     onChange={(e) => setNewNote(e.target.value)}
@@ -637,7 +638,7 @@ export default function StudentProfilePage() {
                   <button
                     onClick={handleAddNote}
                     disabled={!newNote.trim() || addingNote}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 sm:w-auto w-full"
                   >
                     {addingNote ? (
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
