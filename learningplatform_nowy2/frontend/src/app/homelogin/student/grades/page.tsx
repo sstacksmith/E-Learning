@@ -244,7 +244,7 @@ function GradesPageContent() {
                           {grade.value}
                         </span>
                         <span className="text-xs text-gray-500">
-                          {grade.graded_at ? new Date(grade.graded_at).toLocaleDateString('pl-PL') : 'Brak daty'}
+                          {grade.graded_at ? new Date(grade.graded_at).toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\./g, '/') : 'Brak daty'}
                         </span>
                       </div>
                       
@@ -288,7 +288,7 @@ function GradesPageContent() {
               {toast.percentage !== undefined && (
                 <p className="text-xs text-green-600 mb-1">Wynik: {toast.percentage}%</p>
               )}
-              <p className="text-xs text-gray-500">Data: {toast.date ? new Date(toast.date).toLocaleDateString('pl-PL') : 'Brak daty'}</p>
+              <p className="text-xs text-gray-500">Data: {toast.date ? new Date(toast.date).toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\./g, '/') : 'Brak daty'}</p>
               {toast.gradeType && (
                 <p className="text-xs text-gray-500">Typ: {toast.gradeType}</p>
               )}

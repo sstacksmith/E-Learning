@@ -190,7 +190,7 @@ function SuperAdminDashboardContent() {
             type: 'approval',
             title: 'Użytkownik zatwierdzony',
             description: `${user.firstName || ''} ${user.lastName || ''} został zatwierdzony`,
-            timestamp: new Date().toLocaleString('pl-PL'),
+            timestamp: new Date().toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\./g, '/'),
             icon: CheckCircle
           });
         }

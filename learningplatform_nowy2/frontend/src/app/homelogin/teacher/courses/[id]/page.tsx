@@ -2225,7 +2225,7 @@ function TeacherCourseDetailContent() {
                   </span>
                   {section.type === 'assignment' && section.deadline && (
                     <span className="block text-sm font-normal text-gray-600">
-                      Termin: {new Date(section.deadline).toLocaleString('pl-PL')}
+                      Termin: {new Date(section.deadline).toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\./g, '/')}
                     </span>
                   )}
                 </div>
@@ -3081,7 +3081,7 @@ function TeacherCourseDetailContent() {
                                         )}
                                         {material.deadline && (
                                           <p className="text-xs text-red-600">
-                                            Termin: {new Date(material.deadline).toLocaleString('pl-PL')}
+                                            Termin: {new Date(material.deadline).toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\./g, '/')}
                                           </p>
                                         )}
                                                                               {material.videoUrl && (
@@ -3314,7 +3314,7 @@ function TeacherCourseDetailContent() {
                   <div className="space-y-2 text-sm text-gray-500">
                     <div>Pytania: {quiz.questions?.length || 0}</div>
                     <div>Maksymalne próby: {quiz.max_attempts || 1}</div>
-                    <div>Utworzono: {new Date(quiz.created_at).toLocaleDateString('pl-PL')}</div>
+                    <div>Utworzono: {new Date(quiz.created_at).toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\./g, '/')}</div>
                   </div>
                   <div className="mt-4 flex gap-2">
                     <button

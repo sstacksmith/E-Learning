@@ -418,7 +418,7 @@ export default function GroupChatView() {
 
   const formatDate = (timestamp: { seconds: number } | null) => {
     if (!timestamp || !timestamp.seconds) return '';
-    return new Date(timestamp.seconds * 1000).toLocaleDateString('pl-PL');
+    return new Date(timestamp.seconds * 1000).toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\./g, '/');
   };
 
   return (

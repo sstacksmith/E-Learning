@@ -1,6 +1,6 @@
 'use client';
 import React, { useEffect, useState } from 'react';
-import { collection, getDocs, query, where, doc, getDoc } from 'firebase/firestore';
+import { collection, getDocs, query, where, doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
 import { useAuth } from '../../../context/AuthContext';
 import Providers from '@/components/Providers';
@@ -23,10 +23,18 @@ interface Grade {
   quiz_title?: string;
   percentage?: number;
   quiz_id?: string;
+  course_id?: string;
 }
 
 interface GroupedGrades {
   [subject: string]: Grade[];
+}
+
+interface Course {
+  id: string;
+  title?: string;
+  name?: string;
+  [key: string]: any;
 }
 
 function GradesPageContent() {
@@ -62,32 +70,64 @@ function GradesPageContent() {
       if (!user) return;
       console.log('🔄 Fetching user courses for:', user.uid, 'email:', user.email);
       
-      // Pobierz kursy gdzie assignedUsers zawiera user.uid
-      const coursesByUidQuery = query(
-        collection(db, 'courses'),
-        where('assignedUsers', 'array-contains', user.uid)
-      );
-      const coursesByUidSnapshot = await getDocs(coursesByUidQuery);
-      const coursesByUidList = coursesByUidSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      console.log('📚 Courses by UID:', coursesByUidList);
+      try {
+        // Pobierz kursy gdzie assignedUsers zawiera user.uid
+        const coursesByUidQuery = query(
+          collection(db, 'courses'),
+          where('assignedUsers', 'array-contains', user.uid)
+        );
+        const coursesByUidSnapshot = await getDocs(coursesByUidQuery);
+        const coursesByUidList = coursesByUidSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        console.log('📚 Courses by UID:', coursesByUidList);
 
-      // Pobierz kursy gdzie assignedUsers zawiera user.email
-      const coursesByEmailQuery = query(
-        collection(db, 'courses'),
-        where('assignedUsers', 'array-contains', user.email)
-      );
-      const coursesByEmailSnapshot = await getDocs(coursesByEmailQuery);
-      const coursesByEmailList = coursesByEmailSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      console.log('📚 Courses by Email:', coursesByEmailList);
+        // Pobierz kursy gdzie assignedUsers zawiera user.email
+        const coursesByEmailQuery = query(
+          collection(db, 'courses'),
+          where('assignedUsers', 'array-contains', user.email)
+        );
+        const coursesByEmailSnapshot = await getDocs(coursesByEmailQuery);
+        const coursesByEmailList = coursesByEmailSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        console.log('📚 Courses by Email:', coursesByEmailList);
 
-      // Połącz obie listy i usuń duplikaty
-      const allCourses = [...coursesByUidList, ...coursesByEmailList];
-      const uniqueCourses = allCourses.filter((course, index, self) =>
-        index === self.findIndex(c => c.id === course.id)
-      );
-      
-      console.log('📚 All unique courses:', uniqueCourses);
-      setUserCourses(uniqueCourses);
+        // 🆕 DODATKOWO: Pobierz wszystkie kursy i sprawdź które mają oceny dla tego użytkownika
+        const allCoursesSnapshot = await getDocs(collection(db, 'courses'));
+        const allCoursesList: Course[] = allCoursesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        console.log('📚 All courses in database:', allCoursesList.length);
+
+        // Sprawdź które kursy mają oceny dla tego użytkownika
+        const gradesQuery = query(
+          collection(db, 'grades'),
+          where('user_id', '==', user.uid)
+        );
+        const gradesSnapshot = await getDocs(gradesQuery);
+        const userGrades = gradesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Grade));
+        console.log('📊 User grades:', userGrades);
+
+        // Znajdź kursy z ocenami
+        const coursesWithGrades: Course[] = [];
+        for (const grade of userGrades) {
+          if (grade.course_id) {
+            const courseWithGrade = allCoursesList.find(course => course.id === grade.course_id);
+            if (courseWithGrade && !coursesWithGrades.find(c => c.id === courseWithGrade.id)) {
+              coursesWithGrades.push(courseWithGrade);
+              console.log('📚 Found course with grade:', courseWithGrade.title || courseWithGrade.name, 'for grade:', grade.value);
+            }
+          }
+        }
+        console.log('📚 Courses with grades:', coursesWithGrades);
+
+        // Połącz wszystkie kursy: assigned + z ocenami
+        const allCourses = [...coursesByUidList, ...coursesByEmailList, ...coursesWithGrades];
+        const uniqueCourses = allCourses.filter((course, index, self) =>
+          index === self.findIndex(c => c.id === course.id)
+        );
+        
+        console.log('📚 Final unique courses (assigned + with grades):', uniqueCourses);
+        setUserCourses(uniqueCourses);
+      } catch (error) {
+        console.error('❌ Error fetching user courses:', error);
+        setUserCourses([]);
+      }
     };
     fetchUserCourses();
   }, [user]);
@@ -127,6 +167,42 @@ function GradesPageContent() {
     })));
     setGrades(uniqueGrades);
     setLoading(false);
+  };
+
+  // 🆕 Funkcja do ręcznego przypisania kursu (dla debugowania)
+  const handleManualCourseAssignment = async (courseId: string) => {
+    if (!user || !courseId) return;
+    
+    try {
+      console.log('🔧 Manually assigning user to course:', courseId);
+      
+      // Pobierz kurs
+      const courseDocRef = doc(db, 'courses', courseId);
+      const courseDocSnap = await getDoc(courseDocRef);
+      
+      if (courseDocSnap.exists()) {
+        const courseData = courseDocSnap.data();
+        const assignedUsers = courseData.assignedUsers || [];
+        
+        // Dodaj użytkownika jeśli nie jest już przypisany
+        if (!assignedUsers.includes(user.uid) && !assignedUsers.includes(user.email)) {
+          await updateDoc(courseDocRef, {
+            assignedUsers: [...assignedUsers, user.uid, user.email]
+          });
+          console.log('✅ User manually assigned to course:', courseId);
+          alert('Kurs został ręcznie przypisany! Odśwież stronę.');
+        } else {
+          console.log('ℹ️ User already assigned to course:', courseId);
+          alert('Użytkownik jest już przypisany do tego kursu.');
+        }
+      } else {
+        console.error('❌ Course not found:', courseId);
+        alert('Kurs nie został znaleziony.');
+      }
+    } catch (error) {
+      console.error('❌ Error manually assigning course:', error);
+      alert('Błąd podczas przypisywania kursu.');
+    }
   };
 
   useEffect(() => {
@@ -234,13 +310,22 @@ function GradesPageContent() {
               Dziennik ocen
             </h1>
             
-            <button
-              onClick={fetchGrades}
-              disabled={loading}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
-            >
-              {loading ? 'Ładowanie...' : 'Odśwież'}
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => handleManualCourseAssignment('uJOSNq2Yn6IxkLmSvsgN')}
+                className="px-3 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors text-sm"
+                title="Przypisz do kursu 'czekolada'"
+              >
+                🔧 Czekolada
+              </button>
+              <button
+                onClick={fetchGrades}
+                disabled={loading}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+              >
+                {loading ? 'Ładowanie...' : 'Odśwież'}
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -389,7 +474,7 @@ function GradesPageContent() {
                                         <div><span className="font-medium">Opis:</span> {gradeDescription}</div>
                                       )}
                                       {gradeDate && (
-                                        <div><span className="font-medium">Data:</span> {new Date(gradeDate).toLocaleDateString('pl-PL')}</div>
+                                        <div><span className="font-medium">Data:</span> {new Date(gradeDate).toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\./g, '/')}</div>
                                       )}
                                     </div>
                                     {/* Arrow */}

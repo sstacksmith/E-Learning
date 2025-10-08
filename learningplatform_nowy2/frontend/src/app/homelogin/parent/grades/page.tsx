@@ -260,7 +260,7 @@ export default function ParentGrades() {
                 {assignedStudent?.grades.map((grade) => (
                   <tr key={grade.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(grade.date).toLocaleDateString('pl-PL')}
+                      {new Date(grade.date).toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\./g, '/')}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                       {grade.course.title}

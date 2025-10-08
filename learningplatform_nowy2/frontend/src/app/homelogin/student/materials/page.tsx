@@ -213,7 +213,7 @@ function StudentMaterialsContent() {
                   <div className="flex items-center gap-2 text-sm text-gray-600">
                     <span className="font-medium">Data:</span>
                     <span className="text-gray-700">
-                      {new Date(material.createdAt).toLocaleDateString('pl-PL')}
+                      {new Date(material.createdAt).toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\./g, '/')}
                     </span>
                   </div>
                 </div>

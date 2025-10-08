@@ -480,7 +480,7 @@ export const CourseViewShared: React.FC<CourseViewProps> = ({
                             </span>
                             {section.type === 'assignment' && section.deadline && (
                               <span className="ml-2 text-sm text-red-600">
-                                • Termin: {new Date(section.deadline).toLocaleString('pl-PL')}
+                                • Termin: {new Date(section.deadline).toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\./g, '/')}
                               </span>
                             )}
                           </div>
@@ -1354,7 +1354,7 @@ export const CourseViewShared: React.FC<CourseViewProps> = ({
                             <div className="flex items-center gap-2 text-sm">
                               <Calendar className="h-4 w-4 text-red-600" />
                               <span className="text-red-600 font-medium">
-                                Termin: {new Date(exam.deadline).toLocaleString('pl-PL')}
+                                Termin: {new Date(exam.deadline).toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\./g, '/')}
                               </span>
                             </div>
                           )}

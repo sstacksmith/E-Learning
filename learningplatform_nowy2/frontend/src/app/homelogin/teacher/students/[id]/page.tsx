@@ -550,7 +550,7 @@ export default function StudentProfilePage() {
                           <p className="text-gray-600 text-sm mb-2">{achievement.description}</p>
                           <div className="flex items-center gap-2 text-xs text-gray-500">
                             <Calendar className="w-3 h-3" />
-                            <span>{new Date(achievement.date).toLocaleDateString('pl-PL')}</span>
+                            <span>{new Date(achievement.date).toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\./g, '/')}</span>
                           </div>
                           <div className="mt-2 w-8 h-1 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full"></div>
                         </div>
@@ -659,7 +659,7 @@ export default function StudentProfilePage() {
                         <span className="font-medium text-gray-900">{note.teacherName}</span>
                         <span className="text-sm text-gray-500 ml-2">
                           {note.createdAt?.toDate?.() ? 
-                            note.createdAt.toDate().toLocaleDateString('pl-PL') : 
+                            note.createdAt.toDate().toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\./g, '/') : 
                             'Data nieznana'
                           }
                         </span>

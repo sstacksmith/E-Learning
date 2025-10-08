@@ -101,7 +101,7 @@ function StudentCoursesContent() {
 
   const formatDate = (dateString: string) => {
     try {
-      return new Date(dateString).toLocaleDateString('pl-PL');
+      return new Date(dateString).toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\./g, '/');
     } catch {
       return 'Nieznana data';
     }

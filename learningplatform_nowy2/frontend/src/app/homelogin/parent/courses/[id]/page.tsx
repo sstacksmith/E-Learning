@@ -448,7 +448,7 @@ export default function ParentCourseDetails() {
       day: 'numeric',
       hour: '2-digit',
       minute: '2-digit'
-    });
+    }).replace(/\./g, '/');
   };
 
   return (
@@ -584,7 +584,7 @@ export default function ParentCourseDetails() {
                     day: 'numeric',
                     hour: '2-digit',
                     minute: '2-digit'
-                  }) : 'Brak'}
+                  }).replace(/\./g, '/') : 'Brak'}
               </p>
               <p className="text-sm text-gray-500">
                 Całkowity czas: {formatTime(courseDetails.totalTimeSpent)}

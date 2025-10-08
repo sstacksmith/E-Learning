@@ -345,7 +345,7 @@ export const FirebaseQuizDisplay: React.FC<FirebaseQuizDisplayProps> = ({ quizId
                       </span>
                       <div className="flex items-center gap-4">
                         <span className="text-sm text-gray-600">
-                          {new Date(attempt.started_at).toLocaleDateString('pl-PL')}
+                          {new Date(attempt.started_at).toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\./g, '/')}
                         </span>
                         {attempt.completed_at ? (
                           <span className={`px-2 py-1 rounded text-sm font-medium ${
@@ -414,7 +414,7 @@ export const FirebaseQuizDisplay: React.FC<FirebaseQuizDisplayProps> = ({ quizId
                   {attempts.map((attempt, index) => (
                     <div key={attempt.id} className="flex justify-between items-center p-2 bg-white rounded border">
                       <span className="text-sm text-gray-600">
-                        Próba {attempt.attempt_number || index + 1} - {new Date(attempt.started_at).toLocaleDateString('pl-PL')}
+                        Próba {attempt.attempt_number || index + 1} - {new Date(attempt.started_at).toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\./g, '/')}
                       </span>
                       {attempt.completed_at ? (
                         <span className={`px-2 py-1 rounded text-sm font-medium ${

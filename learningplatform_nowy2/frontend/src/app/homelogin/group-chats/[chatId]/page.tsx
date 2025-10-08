@@ -120,7 +120,7 @@ export default function StudentGroupChatView() {
 
   const formatDate = (timestamp: { seconds: number }) => {
     const date = new Date(timestamp.seconds * 1000);
-    return date.toLocaleDateString('pl-PL', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    return date.toLocaleDateString('pl-PL', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }).replace(/\./g, '/');
   };
 
   if (loading) {

@@ -334,7 +334,7 @@ export const ActivityPanel: React.FC<{ selectedDate: string | null, events: Even
               <div className={`font-bold ${ev.deadline ? 'text-red-700' : 'text-[#1a237e]'}`}>{ev.title}</div>
               {ev.deadline ? (
                 <div className="text-xs text-[#4067EC]">
-                  Termin: {new Date(ev.deadline).toLocaleString('pl-PL')}
+                  Termin: {new Date(ev.deadline).toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\./g, '/')}
                 </div>
               ) : (
                 <div className="text-xs text-[#4067EC]">{ev.startTime} - {ev.endTime}</div>

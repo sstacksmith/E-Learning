@@ -526,8 +526,8 @@ export default function TeacherSurveysPage() {
                         </p>
                         <p className="text-xs text-gray-500">
                           {response.submittedAt?.toDate?.() ? 
-                            response.submittedAt.toDate().toLocaleString('pl-PL') : 
-                            new Date(response.submittedAt).toLocaleString('pl-PL')
+                            response.submittedAt.toDate().toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\./g, '/') : 
+                            new Date(response.submittedAt).toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\./g, '/')
                           }
                         </p>
                       </div>
@@ -598,7 +598,7 @@ export default function TeacherSurveysPage() {
                     </div>
                     
                     <div className="text-xs text-gray-500 mb-4">
-                      Utworzono: {new Date(survey.created_at).toLocaleDateString('pl-PL')}
+                      Utworzono: {new Date(survey.created_at).toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\./g, '/')}
                     </div>
 
                     <div className="flex gap-2">

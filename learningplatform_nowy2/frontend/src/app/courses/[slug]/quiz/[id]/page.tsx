@@ -204,6 +204,7 @@ function QuizTakingContent() {
           console.log('📚 Found course data:', courseData);
           console.log('📚 Course document ID:', courseDocId);
           const teacherId = courseData.created_by || courseData.teacherEmail || user.uid;
+          const teacherEmail = courseData.created_by_email || courseData.teacherEmail || courseData.created_by;
           
           // Sprawdź czy już istnieje ocena z tego quizu
           const existingGradesQuery = query(
@@ -228,6 +229,7 @@ function QuizTakingContent() {
               await updateDoc(doc(db, 'grades', existingGradeDoc.id), {
                 value: calculatedGrade,
                 comment: `Quiz: ${quiz.title} - ${finalScore}% (${calculatedGradeDescription}) - Próba ${currentAttemptNumber} - NAJLEPSZE PODEJŚCIE`,
+                graded_by: teacherEmail,
                 graded_at: new Date().toISOString(),
                 quiz_title: quiz.title,
                 subject: quiz.subject || 'Quiz',
@@ -237,6 +239,29 @@ function QuizTakingContent() {
                 is_best_attempt: true
               });
               console.log(`✅ Zaktualizowano ocenę ${calculatedGrade} (${calculatedGradeDescription}) w dzienniku za quiz "${quiz.title}" - Próba ${currentAttemptNumber} - NOWA NAJLEPSZA OCENA`);
+
+              // 🔔 Dodaj powiadomienie dla ucznia o zaktualizowanej ocenie
+              try {
+                const notificationData = {
+                  user_id: user.uid,
+                  type: 'grade',
+                  title: 'Zaktualizowana ocena',
+                  message: `Ocena z quizu "${quiz.title}" została poprawiona na ${calculatedGrade}`,
+                  timestamp: new Date().toISOString(),
+                  read: false,
+                  course_id: courseDocId,
+                  course_title: courseData.title || courseData.name || quiz.subject || 'Quiz',
+                  grade_value: calculatedGrade,
+                  quiz_title: quiz.title,
+                  action_url: '/homelogin/student/grades',
+                  created_at: serverTimestamp()
+                };
+                
+                await addDoc(collection(db, 'notifications'), notificationData);
+                console.log('🔔 Dodano powiadomienie o zaktualizowanej ocenie dla ucznia');
+              } catch (notificationError) {
+                console.error('❌ Błąd podczas dodawania powiadomienia o aktualizacji:', notificationError);
+              }
             } else {
               console.log(`ℹ️ Ocena ${calculatedGrade} nie jest lepsza od istniejącej ${existingGrade} - nie aktualizowano dziennika`);
             }
@@ -247,7 +272,7 @@ function QuizTakingContent() {
               course_id: courseDocId,
               value: calculatedGrade,
               comment: `Quiz: ${quiz.title} - ${finalScore}% (${calculatedGradeDescription}) - Próba ${currentAttemptNumber} - NAJLEPSZE PODEJŚCIE`,
-              graded_by: teacherId,
+              graded_by: teacherEmail,
               graded_at: new Date().toISOString(),
               quiz_id: quiz.id,
               quiz_title: quiz.title,
@@ -266,6 +291,29 @@ function QuizTakingContent() {
             console.log(`✅ Dodano ocenę ${calculatedGrade} (${calculatedGradeDescription}) do dziennika za quiz "${quiz.title}" - Próba ${currentAttemptNumber}`);
             console.log('📝 Grade document ID:', gradeDoc.id);
             console.log('📊 Grade data saved:', newGrade);
+
+            // 🔔 Dodaj powiadomienie dla ucznia o nowej ocenie
+            try {
+              const notificationData = {
+                user_id: user.uid,
+                type: 'grade',
+                title: 'Nowa ocena',
+                message: `Otrzymano ocenę ${calculatedGrade} z quizu "${quiz.title}"`,
+                timestamp: new Date().toISOString(),
+                read: false,
+                course_id: courseDocId,
+                course_title: courseData.title || courseData.name || quiz.subject || 'Quiz',
+                grade_value: calculatedGrade,
+                quiz_title: quiz.title,
+                action_url: '/homelogin/student/grades',
+                created_at: serverTimestamp()
+              };
+              
+              await addDoc(collection(db, 'notifications'), notificationData);
+              console.log('🔔 Dodano powiadomienie o nowej ocenie dla ucznia');
+            } catch (notificationError) {
+              console.error('❌ Błąd podczas dodawania powiadomienia:', notificationError);
+            }
           }
         } else {
           console.warn('⚠️ Nie znaleziono kursu dla quizu:', quiz.course_id);
