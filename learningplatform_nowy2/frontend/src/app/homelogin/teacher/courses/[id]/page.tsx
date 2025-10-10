@@ -201,6 +201,7 @@ function TeacherCourseDetailContent() {
   const [loadingQuizzes, setLoadingQuizzes] = useState(true);
   const [quizError, setQuizError] = useState<string | null>(null);
   const [showQuizAssignmentModal, setShowQuizAssignmentModal] = useState(false);
+  const [showQuizzesSection, setShowQuizzesSection] = useState(false);
 
   // Nowe zmienne dla zarządzania uczniami
   const [studentSearchTerm, setStudentSearchTerm] = useState<string>("");
@@ -3282,67 +3283,73 @@ function TeacherCourseDetailContent() {
       {/* QUIZZES SECTION */}
       <div className="w-full mt-4">
         <div className="bg-white rounded-2xl shadow-lg p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <FaQuestionCircle className="text-2xl text-[#4067EC]" />
-            <h2 className="text-2xl font-semibold text-[#4067EC]">Quizy w tym kursie</h2>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <FaQuestionCircle className="text-2xl text-[#4067EC]" />
+              <h2 className="text-2xl font-semibold text-[#4067EC]">Quizy w tym kursie</h2>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setShowQuizAssignmentModal(true)}
+                className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
+              >
+                <FaPlus className="text-sm" />
+                Przypisz quiz do kursu
+              </button>
+              <button
+                onClick={() => setShowQuizzesSection(!showQuizzesSection)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                {showQuizzesSection ? <FaChevronUp /> : <FaChevronDown />}
+              </button>
+            </div>
           </div>
           
-          {loadingQuizzes ? (
-            <div className="text-center py-8 text-gray-500">Ładowanie quizów...</div>
-          ) : quizError ? (
-            <div className="text-center py-8 text-red-500">
-              {quizError}
-            </div>
-          ) : quizzes.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              Brak quizów w tym kursie. Utwórz quiz w sekcji &quot;Zarządzanie quizami&quot;.
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {quizzes.map((quiz) => (
-                <div
-                  key={quiz.id}
-                  className="p-4 border border-gray-200 rounded-lg hover:shadow-md transition-shadow"
-                >
-                  <div className="flex items-start justify-between mb-3">
-                    <h3 className="text-lg font-semibold text-gray-900">{quiz.title}</h3>
-                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
-                      {quiz.subject}
-                    </span>
-                  </div>
-                  <p className="text-gray-600 text-sm mb-3">{quiz.description}</p>
-                  <div className="space-y-2 text-sm text-gray-500">
-                    <div>Pytania: {quiz.questions?.length || 0}</div>
-                    <div>Maksymalne próby: {quiz.max_attempts || 1}</div>
-                    <div>Utworzono: {new Date(quiz.created_at).toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\./g, '/')}</div>
-                  </div>
-                  <div className="mt-4 flex gap-2">
-                    <button
-                      onClick={() => window.open(`/homelogin/teacher/quizzes`, '_blank')}
-                      className="text-sm bg-[#4067EC] text-white px-3 py-1 rounded hover:bg-[#3155d4] transition"
-                    >
-                      Zarządzaj
-                    </button>
-                  </div>
+          {showQuizzesSection && (
+            <div className="max-h-96 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+              {loadingQuizzes ? (
+                <div className="text-center py-8 text-gray-500">Ładowanie quizów...</div>
+              ) : quizError ? (
+                <div className="text-center py-8 text-red-500">
+                  {quizError}
                 </div>
-              ))}
+              ) : quizzes.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  Brak quizów w tym kursie. Utwórz quiz w sekcji &quot;Zarządzanie quizami&quot;.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pr-2">
+                  {quizzes.map((quiz) => (
+                    <div
+                      key={quiz.id}
+                      className="p-4 border border-gray-200 rounded-lg hover:shadow-md transition-shadow"
+                    >
+                      <div className="flex items-start justify-between mb-3">
+                        <h3 className="text-lg font-semibold text-gray-900">{quiz.title}</h3>
+                        <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                          {quiz.subject}
+                        </span>
+                      </div>
+                      <p className="text-gray-600 text-sm mb-3">{quiz.description}</p>
+                      <div className="space-y-2 text-sm text-gray-500">
+                        <div>Pytania: {quiz.questions?.length || 0}</div>
+                        <div>Maksymalne próby: {quiz.max_attempts || 1}</div>
+                        <div>Utworzono: {new Date(quiz.created_at).toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\./g, '/')}</div>
+                      </div>
+                      <div className="mt-4 flex gap-2">
+                        <button
+                          onClick={() => window.open(`/homelogin/teacher/quizzes`, '_blank')}
+                          className="text-sm bg-[#4067EC] text-white px-3 py-1 rounded hover:bg-[#3155d4] transition"
+                        >
+                          Zarządzaj
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
-          
-          <div className="mt-6 flex justify-center gap-4">
-            <button
-              onClick={() => setShowQuizAssignmentModal(true)}
-              className="inline-flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-green-700 transition"
-            >
-              <FaPlus /> Przypisz quizy
-            </button>
-            <button
-              onClick={() => window.open(`/homelogin/teacher/quizzes`, '_blank')}
-              className="inline-flex items-center gap-2 bg-[#4067EC] text-white px-4 py-2 rounded-lg font-semibold hover:bg-[#3155d4] transition"
-            >
-              <FaPlus /> Utwórz nowy quiz
-            </button>
-          </div>
         </div>
         </div>
       </div>
