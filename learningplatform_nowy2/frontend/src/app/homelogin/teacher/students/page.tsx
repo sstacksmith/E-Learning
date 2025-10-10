@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { Search, Star, BookOpen, Plus, UserPlus, Users, ArrowLeft, Grid3X3, List, Filter, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { db } from '@/config/firebase';
-import { collection, getDocs, query, where, updateDoc, doc } from 'firebase/firestore';
+import { collection, getDocs, query, where, updateDoc, doc, addDoc } from 'firebase/firestore';
 
 interface Student {
   id: string;
@@ -18,6 +18,20 @@ interface Student {
   frequency: number;
   courses: string[];
   lastActivity: string;
+}
+
+interface Class {
+  id: string;
+  name: string;
+  description?: string;
+  grade_level: number;
+  subject?: string;
+  students: string[];
+  max_students: number;
+  academic_year: string;
+  is_active: boolean;
+  teacher_id: string;
+  teacher_email: string;
 }
 
 interface UserData {
@@ -57,16 +71,172 @@ export default function StudentsPage() {
   });
   const [showFilters, setShowFilters] = useState(false);
 
+  // 🆕 NOWE - Tree structure states
+  const [classes, setClasses] = useState<Class[]>([]);
+  const [selectedClass, setSelectedClass] = useState<Class | null>(null);
+  const [showClassSelection, setShowClassSelection] = useState(true);
+
+  // 🆕 DEBUG - loguj zmiany stanu
+  useEffect(() => {
+    console.log('🔍 STATE DEBUG - showClassSelection changed:', showClassSelection);
+    console.log('🔍 STATE DEBUG - selectedClass changed:', selectedClass);
+    console.log('🔍 STATE DEBUG - classes changed:', classes.length, classes);
+  }, [showClassSelection, selectedClass, classes]);
+
   useEffect(() => {
     console.log('🔍 useEffect - user changed:', user);
     if (user && user.uid) {
-      console.log('🔍 useEffect - user ma UID, wywołuję fetchStudents i fetchAllStudents');
+      console.log('🔍 useEffect - user ma UID, wywołuję fetchClasses, fetchStudents i fetchAllStudents');
+      console.log('🔍 useEffect - user details:', {
+        uid: user.uid,
+        email: user.email,
+        role: user.role
+      });
+      fetchClasses();
       fetchStudents();
       fetchAllStudents();
     } else {
       console.log('🔍 useEffect - brak użytkownika lub UID');
     }
   }, [user]);
+
+  // 🆕 NOWY useEffect - pobieranie uczniów gdy zmieni się wybrana klasa
+  useEffect(() => {
+    if (selectedClass && user) {
+      console.log('🔍 useEffect - selectedClass changed, wywołuję fetchStudents');
+      fetchStudents();
+    }
+  }, [selectedClass, user]);
+
+  // 🆕 NOWA FUNKCJA - pobieranie klas
+  const fetchClasses = async () => {
+    if (!user || !user.uid) {
+      console.error('❌ Brak użytkownika lub UID w fetchClasses');
+      return;
+    }
+    
+    try {
+      console.log('🔍 fetchClasses - START - pobieranie klas dla nauczyciela:', user.uid);
+      console.log('🔍 fetchClasses - user object:', user);
+      
+      const classesRef = collection(db, 'classes');
+      console.log('🔍 fetchClasses - classesRef created:', classesRef);
+      
+      const classesSnapshot = await getDocs(classesRef);
+      console.log('🔍 fetchClasses - pobrano dokumenty klas:', classesSnapshot.docs.length);
+      
+      // Loguj wszystkie klasy w bazie
+      if (classesSnapshot.docs.length === 0) {
+        console.log('⚠️ fetchClasses - BRAK KLAS W BAZIE DANYCH!');
+        setClasses([]);
+        return;
+      }
+      
+      classesSnapshot.docs.forEach((doc, index) => {
+        const data = doc.data();
+        console.log(`📚 Klasa ${index + 1}:`, {
+          id: doc.id,
+          name: data.name || 'Brak nazwy',
+          teacher_id: data.teacher_id,
+          teacherId: data.teacherId, // Sprawdź też to pole
+          teacher_email: data.teacher_email,
+          is_active: data.is_active,
+          students: data.students, // 🆕 DODAJ STUDENTÓW
+          students_count: data.students ? data.students.length : 0, // 🆕 LICZBA STUDENTÓW
+          nauczyciel_uid: user.uid,
+          wszystkie_pola: data
+        });
+        
+        // 🆕 DODATKOWE LOGI - rozwiń szczegóły
+        console.log(`📚 Klasa ${index + 1} - SZCZEGÓŁY:`, data);
+        console.log(`📚 Klasa ${index + 1} - STUDENCI:`, data.students);
+        console.log(`📚 Klasa ${index + 1} - TEACHER_ID:`, data.teacher_id);
+        console.log(`📚 Klasa ${index + 1} - TEACHER_ID === USER_UID:`, data.teacher_id === user.uid);
+        
+        // 🆕 SPRAWDŹ WSZYSTKIE POLA Z NAUCZYCIELEM
+        console.log(`📚 Klasa ${index + 1} - WSZYSTKIE POLA NAUCZYCIELA:`, {
+          teacher_id: data.teacher_id,
+          teacher_email: data.teacher_email,
+          teacher_uid: data.teacher_uid,
+          prowadzacy: data.prowadzacy,
+          prowadzacy_id: data.prowadzacy_id,
+          prowadzacy_uid: data.prowadzacy_uid,
+          user_uid: user.uid
+        });
+      });
+      
+      // 🆕 DEBUG - pokaż WSZYSTKIE klasy przed filtrowaniem
+      console.log('🔍 WSZYSTKIE KLASY PRZED FILTROWANIEM:');
+      classesSnapshot.docs.forEach((doc, index) => {
+        const data = doc.data();
+        console.log(`📚 Klasa ${index + 1} - PRZED FILTREM:`, {
+          id: doc.id,
+          name: data.name,
+          teacher_id: data.teacher_id,
+          is_active: data.is_active,
+          students: data.students,
+          students_count: data.students ? data.students.length : 0,
+          user_uid: user.uid,
+          teacher_id_match: data.teacher_id === user.uid,
+          any_teacher_match: data.teacher_id === user.uid
+        });
+      });
+
+      const classesData = classesSnapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() } as Class))
+        .filter(cls => {
+          const isActive = cls.is_active !== false; // Domyślnie true jeśli nie ustawione
+          const isTeacherClass = cls.teacher_id === user.uid; // Sprawdź tylko teacher_id
+          
+          console.log(`🔍 Sprawdzam klasę "${cls.name}":`, {
+            isActive,
+            isTeacherClass,
+            teacher_id: cls.teacher_id,
+            user_uid: user.uid,
+            students: cls.students,
+            students_count: cls.students ? cls.students.length : 0,
+            matches: isActive && isTeacherClass,
+            reason_rejected: !isActive ? 'nieaktywna' : !isTeacherClass ? 'nie należy do nauczyciela' : 'akceptowana'
+          });
+          
+          return isActive && isTeacherClass;
+        });
+      
+      console.log('🔍 fetchClasses - znalezione klasy dla nauczyciela:', classesData.length);
+      console.log('🔍 fetchClasses - klasy:', classesData);
+      
+      // 🆕 DEBUG - sprawdź puste klasy
+      const emptyClasses = classesData.filter(cls => !cls.students || cls.students.length === 0);
+      const classesWithStudents = classesData.filter(cls => cls.students && cls.students.length > 0);
+      console.log('🔍 Puste klasy:', emptyClasses.length, emptyClasses.map(c => c.name));
+      console.log('🔍 Klasy z uczniami:', classesWithStudents.length, classesWithStudents.map(c => `${c.name} (${c.students.length})`));
+      
+      // 🆕 DEBUG - sprawdź wszystkie klasy w bazie (nie tylko nauczyciela)
+      const allClassesInDb = classesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Class));
+      const allEmptyClasses = allClassesInDb.filter(cls => !cls.students || cls.students.length === 0);
+      console.log('🔍 WSZYSTKIE PUSTE KLASY W BAZIE:', allEmptyClasses.length, allEmptyClasses.map(c => `${c.name} (teacher: ${c.teacher_id})`));
+      console.log('🔍 WSZYSTKIE KLASY W BAZIE:', allClassesInDb.length, allClassesInDb.map(c => `${c.name} (teacher: ${c.teacher_id}, students: ${c.students ? c.students.length : 0})`));
+      
+      setClasses(classesData);
+      
+      // Jeśli nauczyciel ma tylko jedną klasę, automatycznie ją wybierz
+      if (classesData.length === 1) {
+        console.log('🔍 fetchClasses - automatyczny wybór jedynej klasy:', classesData[0].name);
+        setSelectedClass(classesData[0]);
+        setShowClassSelection(false);
+      } else if (classesData.length === 0) {
+        console.log('⚠️ fetchClasses - nauczyciel nie ma żadnych klas!');
+        setShowClassSelection(true); // Pokaż ekran wyboru klas (pusty)
+      } else {
+        console.log('🔍 fetchClasses - nauczyciel ma wiele klas, pokazuję wybór');
+        setShowClassSelection(true);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching classes:', error);
+      console.error('❌ Error details:', error);
+      setError(`Wystąpił błąd podczas pobierania klas: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  };
 
   const fetchAllStudents = async () => {
     if (!user || !user.uid) {
@@ -115,103 +285,59 @@ export default function StudentsPage() {
       return;
     }
     
-    setLoading(true);
-    setError(null);
-    
-    try {
-      console.log('Fetching students for teacher:', user.email, 'UID:', user.uid);
-      
-      // 1. Pobierz kursy nauczyciela
-      const coursesRef = collection(db, 'courses');
-      const coursesSnapshot = await getDocs(coursesRef);
-      
-      console.log('🔍 fetchStudents - Wszystkie kursy w bazie:', coursesSnapshot.docs.length);
-      coursesSnapshot.docs.forEach(doc => {
-        const data = doc.data();
-        console.log(`📚 Kurs: ${data.title}, created_by: ${data.created_by}, teacherEmail: ${data.teacherEmail}, assignedUsers: ${data.assignedUsers}`);
-      });
-      
-      const teacherCourses = coursesSnapshot.docs.filter(doc => {
-        const data = doc.data();
-        const isCreatedBy = data.created_by === user.email;
-        const isTeacherEmail = data.teacherEmail === user.email;
-        const isAssignedUser = Array.isArray(data.assignedUsers) && data.assignedUsers.includes(user.email);
-        
-        console.log(`🔍 Sprawdzam kurs "${data.title}": created_by=${isCreatedBy}, teacherEmail=${isTeacherEmail}, assignedUser=${isAssignedUser}`);
-        
-        return isCreatedBy || isTeacherEmail || isAssignedUser;
-      });
-      
-      console.log('🔍 fetchStudents - Kursy nauczyciela:', teacherCourses.length);
-      
-      // Debug: pokaż szczegóły kursów nauczyciela
-      teacherCourses.forEach(courseDoc => {
-        const courseData = courseDoc.data();
-        console.log(`📚 Kurs nauczyciela: "${courseData.title}", assignedUsers:`, courseData.assignedUsers);
-      });
-      
-      if (teacherCourses.length === 0) {
-        console.log('⚠️ Brak kursów dla nauczyciela');
+    // Jeśli nie wybrano klasy, nie pobieraj uczniów
+    if (!selectedClass) {
+      console.log('🔍 fetchStudents - brak wybranej klasy, pomijam pobieranie uczniów');
         setStudents([]);
         setLoading(false);
         return;
       }
       
-      // 2. Zbierz wszystkich uczniów z kursów nauczyciela
-      const allStudentIds = new Set<string>();
-      const courseStudentMap = new Map<string, string[]>(); // studentId -> course titles
+    setLoading(true);
+    setError(null);
       
-      // Pobierz wszystkich użytkowników raz (zamiast w pętli)
+    try {
+      console.log('Fetching students for teacher:', user.email, 'UID:', user.uid, 'Selected class:', selectedClass.name);
+      
+      // 1. Pobierz wszystkich użytkowników raz
       const usersRef = collection(db, 'users');
       const usersSnapshot = await getDocs(usersRef);
       
-      for (const courseDoc of teacherCourses) {
-        const courseData = courseDoc.data();
-        const courseTitle = courseData.title;
-        const assignedUsers = courseData.assignedUsers || [];
-        
-        // Dla każdego przypisanego użytkownika w kursie
-        console.log(`🔍 Przetwarzam kurs "${courseTitle}" z assignedUsers:`, assignedUsers);
-        for (const userId of assignedUsers) {
-          // Sprawdź czy to email czy uid
-          const isEmail = userId.includes('@');
-          console.log(`🔍 Sprawdzam userId: "${userId}", isEmail: ${isEmail}`);
-          
-          const userDoc = usersSnapshot.docs.find(doc => {
-            const userData = doc.data();
-            return isEmail ? userData.email === userId : doc.id === userId;
-          });
-          
+      // 2. Pobierz uczniów TYLKO z wybranej klasy
+      const allStudentIds = new Set<string>();
+      const courseStudentMap = new Map<string, string[]>(); // studentId -> course titles
+      
+      console.log(`🔍 Pobieram uczniów TYLKO z klasy: ${selectedClass.name} (ID: ${selectedClass.id})`);
+      const classStudentIds = selectedClass.students || [];
+      console.log(`🔍 Uczniowie w klasie:`, classStudentIds);
+      console.log(`🔍 Szczegóły klasy:`, selectedClass);
+      
+      // Dodaj uczniów z wybranej klasy
+      classStudentIds.forEach((studentId, index) => {
+        console.log(`🔍 Sprawdzam ucznia ${index + 1}/${classStudentIds.length}: ${studentId}`);
+        const userDoc = usersSnapshot.docs.find(doc => doc.id === studentId);
           if (userDoc) {
             const userData = userDoc.data();
-            console.log(`✅ Znaleziono użytkownika: ${userData.email || userData.displayName}, rola: ${userData.role}`);
+          console.log(`🔍 Dane ucznia ${studentId}:`, {
+            email: userData.email,
+            displayName: userData.displayName,
+            role: userData.role,
+            firstName: userData.firstName,
+            lastName: userData.lastName
+          });
             if (userData.role === 'student') {
-              allStudentIds.add(userDoc.id);
-              // Dodaj tylko ten konkretny kurs do mapy ucznia
-              const existing = courseStudentMap.get(userDoc.id) || [];
-              if (!existing.includes(courseTitle)) {
-                courseStudentMap.set(userDoc.id, [...existing, courseTitle]);
-              }
-              console.log(`🎓 Dodano ucznia ${userData.email || userData.displayName} do kursu ${courseTitle}`);
+            console.log(`✅ Znaleziono ucznia z klasy: ${userData.email || userData.displayName}`);
+            allStudentIds.add(studentId);
+            // Dodaj informację o klasie
+            const existing = courseStudentMap.get(studentId) || [];
+            if (!existing.includes(selectedClass.name)) {
+              courseStudentMap.set(studentId, [...existing, selectedClass.name]);
             }
           } else {
-            console.log(`❌ Nie znaleziono użytkownika dla userId: ${userId}`);
-          }
-        }
-      }
-      
-      // 3. Dodaj uczniów bezpośrednio przypisanych do nauczyciela (assignedToTeacher)
-      console.log(`🔍 Sprawdzam uczniów bezpośrednio przypisanych do nauczyciela ${user.uid}`);
-      usersSnapshot.docs.forEach(doc => {
-        const userData = doc.data();
-        if (userData.role === 'student' && userData.assignedToTeacher === user.uid) {
-          console.log(`🎓 Znaleziono bezpośrednio przypisanego ucznia: ${userData.email || userData.displayName}`);
-          allStudentIds.add(doc.id);
-          // Sprawdź czy uczeń już ma jakieś kursy
-          const existing = courseStudentMap.get(doc.id) || [];
-          if (!existing.includes('Przypisany bezpośrednio')) {
-            courseStudentMap.set(doc.id, [...existing, 'Przypisany bezpośrednio']);
-          }
+            console.log(`❌ Użytkownik ${studentId} nie jest studentem (rola: ${userData.role})`);
+            }
+          } else {
+          console.log(`❌ Nie znaleziono dokumentu dla ucznia: ${studentId}`);
         }
       });
       
@@ -264,7 +390,7 @@ export default function StudentsPage() {
                               const studentInfo = {
                       id: studentId,
                       name: studentData.displayName || studentData.email || 'Nieznany uczeń',
-                      class: `Klasa ${studentCourses[0] || 'Nieznana'}`,
+                      class: selectedClass.name, // Użyj nazwy wybranej klasy
                       averageGrade: Math.round(averageGrade * 10) / 10,
                       frequency: 0, // Usunięte
                       courses: studentCourses,
@@ -471,6 +597,35 @@ export default function StudentsPage() {
   // Check if any filters are active
   const hasActiveFilters = searchTerm || filters.class || filters.gradeRange || filters.sortBy !== 'name' || filters.sortOrder !== 'asc';
 
+  // 🆕 NOWE FUNKCJE - obsługa wyboru klasy
+  const handleClassSelect = (selectedClass: Class) => {
+    console.log('🔍 handleClassSelect - wybrano klasę:', selectedClass.name);
+    setSelectedClass(selectedClass);
+    setShowClassSelection(false);
+    // Wyczyść filtry gdy zmienia się klasa
+    setSearchTerm('');
+    setFilters({
+      class: '',
+      gradeRange: '',
+      sortBy: 'name',
+      sortOrder: 'asc'
+    });
+  };
+
+  const handleBackToClassSelection = () => {
+    console.log('🔍 handleBackToClassSelection - powrót do wyboru klasy');
+    setSelectedClass(null);
+    setShowClassSelection(true);
+    setStudents([]);
+    setSearchTerm('');
+    setFilters({
+      class: '',
+      gradeRange: '',
+      sortBy: 'name',
+      sortOrder: 'asc'
+    });
+  };
+
   const getGradeColor = (grade: number) => {
     if (grade >= 4.5) return 'text-green-600';
     if (grade >= 3.5) return 'text-yellow-600';
@@ -501,13 +656,41 @@ export default function StudentsPage() {
 
             <div className="text-center">
               <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-blue-600">
-                Lista Uczniów
+                {showClassSelection ? 'Wybierz Klasę' : 'Lista Uczniów'}
               </h1>
-              <p className="text-gray-600 mt-1 font-medium">Zarządzaj swoimi uczniami</p>
+              <p className="text-gray-600 mt-1 font-medium">
+                {showClassSelection 
+                  ? 'Wybierz klasę, aby zobaczyć listę uczniów' 
+                  : selectedClass 
+                    ? `Uczniowie klasy: ${selectedClass.name}` 
+                    : 'Zarządzaj swoimi uczniami'
+                }
+              </p>
+              {selectedClass && (
+                <div className="mt-2 flex items-center justify-center gap-2 text-sm text-gray-500">
+                  <span>Rok: {selectedClass.grade_level}</span>
+                  <span>•</span>
+                  <span>Rok szkolny: {selectedClass.academic_year}</span>
+                  <span>•</span>
+                  <span>Uczniów: {selectedClass.students?.length || 0}</span>
+                </div>
+              )}
             </div>
 
             <div className="flex items-center gap-3">
-              {/* View Mode Toggle */}
+              {/* Powrót do klas - pokazuj tylko gdy nie jesteśmy w wyborze klas */}
+              {!showClassSelection && selectedClass && (
+                <button
+                  onClick={handleBackToClassSelection}
+                  className="flex items-center gap-3 px-5 py-3 bg-white/70 backdrop-blur-sm text-gray-700 rounded-xl hover:bg-white hover:shadow-lg transition-all duration-300 ease-in-out border border-white/30 hover:border-blue-200 group"
+                >
+                  <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
+                  <span className="font-medium">Powrót do klas</span>
+                </button>
+              )}
+
+              {/* View Mode Toggle - pokazuj tylko gdy nie jesteśmy w wyborze klas */}
+              {!showClassSelection && (
               <div className="flex items-center bg-white/70 backdrop-blur-sm rounded-xl border border-white/30 p-1">
                 <button
                   onClick={() => setViewMode('cards')}
@@ -532,7 +715,10 @@ export default function StudentsPage() {
                   <span className="text-sm font-medium">Lista</span>
                 </button>
               </div>
+              )}
 
+              {/* Przycisk Przypisz Ucznia - pokazuj tylko gdy nie jesteśmy w wyborze klas */}
+              {!showClassSelection && (
               <button 
                 onClick={() => setShowAssignModal(true)}
                 className="flex items-center gap-3 px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 font-semibold"
@@ -540,6 +726,7 @@ export default function StudentsPage() {
                 <UserPlus className="h-5 w-5" />
                 <span>Przypisz Ucznia</span>
               </button>
+              )}
             </div>
           </div>
         </div>
@@ -547,7 +734,119 @@ export default function StudentsPage() {
 
       <div className="px-4 sm:px-6 lg:px-8 py-8">
         <div className="space-y-8">
-          {/* Stats Cards */}
+          {/* 🆕 NOWA SEKCJA - Wybór klasy */}
+          {showClassSelection && (
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-8 border border-white/30 shadow-sm">
+              <div className="text-center mb-8">
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">Wybierz Klasę</h2>
+                <p className="text-gray-600">Wybierz klasę, aby zobaczyć listę uczniów</p>
+              </div>
+              
+              {classes.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="w-20 h-20 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                    <Users className="h-10 w-10 text-blue-600" />
+                  </div>
+                  <h3 className="text-xl font-bold text-gray-900 mb-3">Brak klas</h3>
+                  <p className="text-gray-600 mb-8 max-w-md mx-auto">
+                    Nie masz jeszcze żadnych klas. Utwórz przykładową klasę, aby przetestować funkcjonalność.
+                  </p>
+                  <button 
+                    onClick={async () => {
+                      console.log('🔍 Tworzę przykładową klasę...');
+                      if (!user) return;
+                      
+                      const exampleClass = {
+                        name: '3A',
+                        description: 'Przykładowa klasa matematyki',
+                        grade_level: 3,
+                        subject: 'przedmiot/kurs',
+                        max_students: 30,
+                        academic_year: '2024/2025',
+                        students: [],
+                        is_active: true,
+                        teacher_id: user.uid,
+                        teacher_email: user.email,
+                        created_at: new Date(),
+                        updated_at: new Date(),
+                        assignedCourses: []
+                      };
+                      
+                      try {
+                        const docRef = await addDoc(collection(db, 'classes'), exampleClass);
+                        console.log('✅ Przykładowa klasa utworzona z ID:', docRef.id);
+                        setError(''); // Wyczyść błędy
+                        fetchClasses(); // Odśwież listę klas
+                      } catch (error) {
+                        console.error('❌ Błąd tworzenia przykładowej klasy:', error);
+                        setError(`Błąd tworzenia przykładowej klasy: ${error instanceof Error ? error.message : String(error)}`);
+                      }
+                    }}
+                    className="bg-blue-600 text-white px-8 py-4 rounded-xl hover:bg-blue-700 transition-all duration-300 font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+                  >
+                    Utwórz Przykładową Klasę
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {classes.map((classItem) => (
+                    <div 
+                      key={classItem.id}
+                      onClick={() => handleClassSelect(classItem)}
+                      className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden group cursor-pointer hover:border-blue-300"
+                    >
+                      <div className="p-6">
+                        <div className="flex items-start justify-between mb-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center shadow-sm">
+                              <Users className="h-6 w-6 text-white" />
+                            </div>
+                            <div>
+                              <h3 className="font-semibold text-gray-900 text-lg leading-tight group-hover:text-blue-600 transition-colors">
+                                {classItem.name}
+                              </h3>
+                              <p className="text-sm text-gray-500 mt-1">
+                                Rok {classItem.grade_level}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-gray-500">Uczniów:</span>
+                            <span className="font-medium text-gray-900">
+                              {classItem.students?.length || 0} / {classItem.max_students}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-gray-500">Rok szkolny:</span>
+                            <span className="font-medium text-gray-900">{classItem.academic_year}</span>
+                          </div>
+                          {classItem.subject && (
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="text-gray-500">Przedmiot:</span>
+                              <span className="font-medium text-gray-900">{classItem.subject}</span>
+                            </div>
+                          )}
+                        </div>
+                        
+                        <div className="mt-6 pt-4 border-t border-gray-100">
+                          <div className="flex items-center justify-center text-blue-600 text-sm font-medium group-hover:text-blue-700 transition-colors">
+                            <span>Kliknij, aby zobaczyć uczniów</span>
+                            <ArrowLeft className="w-4 h-4 ml-2 transform rotate-180 group-hover:translate-x-1 transition-transform" />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Stats Cards - pokazuj tylko gdy nie jesteśmy w wyborze klas */}
+          {!showClassSelection && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-white/30 shadow-sm hover:shadow-md transition-all duration-300">
               <div className="flex items-center gap-4">
@@ -589,6 +888,7 @@ export default function StudentsPage() {
               </div>
             </div>
           </div>
+          )}
 
             {/* Assign Student Modal */}
       {showAssignModal && (
@@ -750,7 +1050,8 @@ export default function StudentsPage() {
         </div>
       )}
 
-          {/* Enhanced Search and Filters */}
+          {/* Enhanced Search and Filters - pokazuj tylko gdy nie jesteśmy w wyborze klas */}
+          {!showClassSelection && (
           <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-white/30 shadow-sm space-y-4">
             {/* Search Bar */}
             <div className="relative">
@@ -860,9 +1161,10 @@ export default function StudentsPage() {
               </div>
             )}
           </div>
+          )}
 
-          {/* Error Display */}
-          {error && (
+          {/* Error Display - pokazuj tylko gdy nie jesteśmy w wyborze klas */}
+          {!showClassSelection && error && (
             <div className="bg-red-50 border-2 border-red-200 text-red-700 px-6 py-4 rounded-xl flex items-center gap-3">
               <div className="w-6 h-6 bg-red-100 rounded-full flex items-center justify-center">
                 <span className="text-red-600 text-sm">!</span>
@@ -871,7 +1173,9 @@ export default function StudentsPage() {
             </div>
           )}
 
-          {/* Students Display - Cards or List */}
+          {/* Students Display - Cards or List - pokazuj tylko gdy nie jesteśmy w wyborze klas */}
+          {!showClassSelection && (
+            <>
           {viewMode === 'cards' ? (
             /* Enhanced Students Grid - Clean Design */
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -1036,6 +1340,8 @@ export default function StudentsPage() {
                 </button>
               )}
             </div>
+              )}
+            </>
           )}
         </div>
       </div>

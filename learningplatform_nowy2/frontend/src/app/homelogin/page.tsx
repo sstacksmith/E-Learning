@@ -8,6 +8,7 @@ import { useAuth } from '@/context/AuthContext';
 import Calendar from '../../components/Calendar';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../../config/firebase';
+import { Search, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 
 
 import Providers from '@/components/Providers';
@@ -203,7 +204,11 @@ function Dashboard() {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [assignedCourses, setAssignedCourses] = useState<Course[]>([]);
+  const [filteredCourses, setFilteredCourses] = useState<Course[]>([]);
   const [loadingAssigned, setLoadingAssigned] = useState(true);
+  const [courseSearch, setCourseSearch] = useState('');
+  const [courseSortBy, setCourseSortBy] = useState<'title' | 'category'>('title');
+  const [courseSortOrder, setCourseSortOrder] = useState<'asc' | 'desc'>('asc');
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [loadingTeachers, setLoadingTeachers] = useState(true);
   const searchRef = useRef<HTMLDivElement>(null);
@@ -295,6 +300,63 @@ function Dashboard() {
     };
     fetchAssignedCourses();
   }, [user]);
+
+  // Funkcja sortowania kursów
+  const sortCourses = (coursesToSort: Course[]) => {
+    return [...coursesToSort].sort((a, b) => {
+      let aValue: string = '';
+      let bValue: string = '';
+      
+      switch (courseSortBy) {
+        case 'title':
+          aValue = a.title?.toLowerCase() || '';
+          bValue = b.title?.toLowerCase() || '';
+          break;
+        case 'category':
+          aValue = a.category_name?.toLowerCase() || '';
+          bValue = b.category_name?.toLowerCase() || '';
+          break;
+      }
+      
+      if (courseSortOrder === 'asc') {
+        return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
+      } else {
+        return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
+      }
+    });
+  };
+
+  // Funkcja filtrowania i sortowania kursów
+  const filterAndSortCourses = () => {
+    let filtered = assignedCourses;
+    
+    if (courseSearch) {
+      filtered = assignedCourses.filter(course => {
+        const title = course.title?.toLowerCase() || '';
+        const category = course.category_name?.toLowerCase() || '';
+        const searchTerm = courseSearch.toLowerCase();
+        
+        return title.includes(searchTerm) || category.includes(searchTerm);
+      });
+    }
+    
+    setFilteredCourses(sortCourses(filtered));
+  };
+
+  // Automatyczne filtrowanie i sortowanie gdy zmienia się search, sortBy lub sortOrder
+  useEffect(() => {
+    filterAndSortCourses();
+  }, [assignedCourses, courseSearch, courseSortBy, courseSortOrder]);
+
+  // Funkcja zmiany sortowania kursów
+  const handleCourseSortChange = (newSortBy: 'title' | 'category') => {
+    if (courseSortBy === newSortBy) {
+      setCourseSortOrder(courseSortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setCourseSortBy(newSortBy);
+      setCourseSortOrder('asc');
+    }
+  };
 
   // Pobierz nauczycieli z Firestore
   useEffect(() => {
@@ -1046,25 +1108,25 @@ function Dashboard() {
         </header>
         
         {/* Dashboard grid */}
-        <div className="flex-1 p-6 lg:p-8">
+        <div className="flex-1 p-4 lg:p-6">
           {/* Main dashboard */}
-          <section className="space-y-6 lg:space-y-8">
+          <section className="space-y-4 lg:space-y-6">
             {/* Progress & Chart */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
               {/* Shortcut/statystyka do statystyk profilu */}
               <div className="lg:col-span-1">
-                <a href="/profile/statistics" className="block bg-white/90 backdrop-blur-xl rounded-2xl shadow-lg p-6 flex flex-col justify-between hover:shadow-xl transition-all duration-300 cursor-pointer border border-white/20 hover:border-[#4067EC] h-full group">
-                  <div className="flex items-center gap-4 mb-4">
-                    <div className="bg-gradient-to-r from-[#4067EC] to-[#5577FF] p-3 rounded-xl text-white shadow-lg">
-                      <svg className="w-8 h-8" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2a4 4 0 014-4h4" /></svg>
+                <a href="/profile/statistics" className="block bg-white/90 backdrop-blur-xl rounded-xl shadow-lg p-4 flex flex-col justify-between hover:shadow-xl transition-all duration-300 cursor-pointer border border-white/20 hover:border-[#4067EC] h-full group">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="bg-gradient-to-r from-[#4067EC] to-[#5577FF] p-2 rounded-lg text-white shadow-lg">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2a4 4 0 014-4h4" /></svg>
                     </div>
                     <div>
-                      <div className="text-sm text-gray-500 font-medium">Statystyki profilu</div>
-                      <div className="text-xl font-bold text-gray-800 group-hover:text-[#4067EC] transition-colors">Zobacz szczegóły &rarr;</div>
+                      <div className="text-xs text-gray-500 font-medium">Statystyki profilu</div>
+                      <div className="text-sm font-bold text-gray-800 group-hover:text-[#4067EC] transition-colors">Zobacz szczegóły &rarr;</div>
                     </div>
                   </div>
-                  <div className="h-32 flex items-center justify-center">
-                    <svg viewBox="0 0 200 80" className="w-full h-24">
+                  <div className="h-20 flex items-center justify-center">
+                    <svg viewBox="0 0 200 80" className="w-full h-16">
                       <rect x="20" y="40" width="20" height="30" fill="url(#gradient)" rx="4" />
                       <rect x="50" y="30" width="20" height="40" fill="url(#gradient)" rx="4" />
                       <rect x="80" y="20" width="20" height="50" fill="url(#gradient)" rx="4" />
@@ -1083,20 +1145,20 @@ function Dashboard() {
 
               {/* Chat with Teacher */}
               <div className="lg:col-span-1">
-                <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-lg p-6 h-full border border-white/20">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="bg-gradient-to-r from-green-500 to-green-600 p-3 rounded-xl text-white shadow-lg">
-                      <svg className="w-8 h-8" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <div className="bg-white/90 backdrop-blur-xl rounded-xl shadow-lg p-4 h-full border border-white/20">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="bg-gradient-to-r from-green-500 to-green-600 p-2 rounded-lg text-white shadow-lg">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                       </svg>
                     </div>
-                    <h2 className="text-lg font-bold text-gray-800">Napisz do nauczyciela</h2>
+                    <h2 className="text-sm font-bold text-gray-800">Napisz do nauczyciela</h2>
                   </div>
-                  <form className="flex flex-col gap-4" onSubmit={handleSendMessage}>
+                  <form className="flex flex-col gap-3" onSubmit={handleSendMessage}>
                     <div>
-                      <label className="text-sm font-semibold text-gray-700 mb-2 block">Wybierz nauczyciela</label>
+                      <label className="text-xs font-semibold text-gray-700 mb-1 block">Wybierz nauczyciela</label>
                       <select
-                        className="w-full border border-white/30 rounded-xl px-4 py-3 focus:ring-2 focus:ring-[#4067EC] bg-white/60 backdrop-blur-sm text-gray-800 font-medium text-sm shadow-sm"
+                        className="w-full border border-white/30 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#4067EC] bg-white/60 backdrop-blur-sm text-gray-800 font-medium text-xs shadow-sm"
                         required
                         value={selectedTeacher}
                         onChange={e => setSelectedTeacher(e.target.value)}
@@ -1108,9 +1170,9 @@ function Dashboard() {
                       </select>
                     </div>
                     <div>
-                      <label className="text-sm font-semibold text-gray-700 mb-2 block">Wiadomość</label>
+                      <label className="text-xs font-semibold text-gray-700 mb-1 block">Wiadomość</label>
                       <textarea
-                        className="w-full border border-white/30 rounded-xl px-4 py-3 focus:ring-2 focus:ring-[#4067EC] resize-none min-h-[100px] max-h-[200px] bg-white/60 backdrop-blur-sm text-gray-800 font-medium placeholder-gray-400 text-sm shadow-sm"
+                        className="w-full border border-white/30 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#4067EC] resize-none min-h-[60px] max-h-[120px] bg-white/60 backdrop-blur-sm text-gray-800 font-medium placeholder-gray-400 text-xs shadow-sm"
                         maxLength={2000}
                         placeholder="Napisz wiadomość..."
                         required
@@ -1119,19 +1181,19 @@ function Dashboard() {
                       />
                     </div>
                     <div>
-                      <label className="text-sm font-semibold text-gray-700 mb-2 block">Załącz pliki (max 3, jpg/png/pdf, max 30MB)</label>
+                      <label className="text-xs font-semibold text-gray-700 mb-1 block">Załącz pliki (max 3, jpg/png/pdf, max 30MB)</label>
                       <input
                         type="file"
                         accept=".jpg,.jpeg,.png,.pdf"
-                        className="w-full border border-white/30 rounded-xl px-4 py-3 text-sm bg-white/60 backdrop-blur-sm shadow-sm"
+                        className="w-full border border-white/30 rounded-lg px-3 py-2 text-xs bg-white/60 backdrop-blur-sm shadow-sm"
                         multiple
                         onChange={handleFileChange}
                         disabled={selectedFiles.length >= 3}
                       />
-                      {fileError && <div className="text-red-500 text-sm mt-2">{fileError}</div>}
-                      <ul className="mt-2 space-y-2">
+                      {fileError && <div className="text-red-500 text-xs mt-1">{fileError}</div>}
+                      <ul className="mt-1 space-y-1">
                         {selectedFiles.map((file) => (
-                          <li key={file.name} className="flex items-center justify-between bg-white/40 rounded-lg p-2 text-sm text-gray-700">
+                          <li key={file.name} className="flex items-center justify-between bg-white/40 rounded-lg p-1 text-xs text-gray-700">
                             <span className="font-medium">{file.name} ({(file.size/1024/1024).toFixed(2)} MB)</span>
                             <button type="button" className="text-red-500 hover:text-red-700 font-semibold" onClick={() => handleRemoveFile(selectedFiles.indexOf(file))}>Usuń</button>
                           </li>
@@ -1142,7 +1204,7 @@ function Dashboard() {
                     {sendError && <div className="text-red-600 text-sm bg-red-50 rounded-lg p-3">{sendError}</div>}
                     <button
                       type="submit"
-                      className="w-full bg-gradient-to-r from-[#4067EC] to-[#5577FF] text-white px-6 py-3 rounded-xl font-semibold cursor-pointer transition-all duration-200 hover:from-[#3155d4] hover:to-[#4067EC] hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                      className="w-full bg-gradient-to-r from-[#4067EC] to-[#5577FF] text-white px-3 py-2 rounded-lg font-semibold cursor-pointer transition-all duration-200 hover:from-[#3155d4] hover:to-[#4067EC] hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed text-xs"
                       disabled={!!fileError || selectedFiles.length > 3 || sending}
                     >
                       {sending ? 'Wysyłanie...' : 'Wyślij wiadomość'}
@@ -1153,35 +1215,35 @@ function Dashboard() {
 
               {/* Ankiety */}
               <div className="lg:col-span-1">
-                <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-lg p-6 h-full flex flex-col justify-between border border-white/20">
+                <div className="bg-white/90 backdrop-blur-xl rounded-xl shadow-lg p-4 h-full flex flex-col justify-between border border-white/20">
                   <div>
-                    <div className="flex items-center gap-3 mb-4">
-                      <div className="bg-gradient-to-r from-orange-500 to-orange-600 p-3 rounded-xl text-white shadow-lg">
-                        <svg className="w-8 h-8" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="bg-gradient-to-r from-orange-500 to-orange-600 p-2 rounded-lg text-white shadow-lg">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                         </svg>
                       </div>
-                      <h2 className="text-lg font-bold text-gray-800">Ankiety</h2>
+                      <h2 className="text-sm font-bold text-gray-800">Ankiety</h2>
                     </div>
-                    <p className="text-sm text-gray-600 mb-6">Twoja opinia jest dla nas bardzo ważna! Pomóż nam rozwijać platformę.</p>
-                    <div className="flex items-center gap-4 mb-6">
-                      <div className="bg-gradient-to-r from-[#4067EC] to-[#5577FF] p-3 rounded-xl text-white shadow-lg">
-                        <svg className="w-8 h-8" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <p className="text-xs text-gray-600 mb-4">Twoja opinia jest dla nas bardzo ważna! Pomóż nam rozwijać platformę.</p>
+                    <div className="flex items-center gap-2 mb-4">
+                      <div className="bg-gradient-to-r from-[#4067EC] to-[#5577FF] p-2 rounded-lg text-white shadow-lg">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                       </div>
                       <div>
-                        <div className="text-sm text-gray-500 font-medium">Wypełnij ankiety</div>
-                        <div className="text-base font-semibold text-gray-800">Pomóż nam się rozwijać</div>
+                        <div className="text-xs text-gray-500 font-medium">Wypełnij ankiety</div>
+                        <div className="text-sm font-semibold text-gray-800">Pomóż nam się rozwijać</div>
                       </div>
                     </div>
                   </div>
                   <a 
                     href="/homelogin/ankiety" 
-                    className="inline-flex items-center justify-center bg-gradient-to-r from-[#4067EC] to-[#5577FF] text-white px-6 py-3 rounded-xl font-semibold hover:from-[#3155d4] hover:to-[#4067EC] transition-all duration-200 hover:shadow-lg w-full group shadow-md"
+                    className="inline-flex items-center justify-center bg-gradient-to-r from-[#4067EC] to-[#5577FF] text-white px-3 py-2 rounded-lg font-semibold hover:from-[#3155d4] hover:to-[#4067EC] transition-all duration-200 hover:shadow-lg w-full group shadow-md text-xs"
                   >
                     <span className="text-white font-bold">Przejdź do ankiet</span>
-                    <svg className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform text-white" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <svg className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform text-white" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                     </svg>
                   </a>
@@ -1191,20 +1253,89 @@ function Dashboard() {
 
             {/* Top Courses (przypisane do użytkownika) */}
             <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-lg p-6 border border-white/20">
-              <div className="flex items-center gap-3 mb-6">
+              <Link 
+                href={user?.role === 'teacher' ? '/homelogin/teacher/courses' : '/homelogin/my-courses'}
+                className="flex items-center gap-3 mb-6 hover:opacity-80 transition-opacity duration-200 cursor-pointer"
+              >
                 <div className="bg-gradient-to-r from-emerald-500 to-emerald-600 p-3 rounded-xl text-white shadow-lg">
                   <svg className="w-8 h-8" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                   </svg>
                 </div>
                 <h2 className="text-xl font-bold text-gray-800">Moje kursy</h2>
+              </Link>
+              
+              {/* Wyszukiwarka i sortowanie kursów */}
+              <div className="mb-6">
+                <div className="flex flex-col lg:flex-row gap-4 items-center justify-between">
+                  {/* Wyszukiwarka */}
+                  <div className="relative flex-1 max-w-md">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <input
+                        type="text"
+                        placeholder="Wyszukaj kursy..."
+                        className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm text-gray-900 transition-all duration-200 ease-in-out hover:border-gray-300 bg-white/80"
+                        value={courseSearch}
+                        onChange={(e) => setCourseSearch(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Sortowanie */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-gray-700">Sortuj:</span>
+                    <div className="flex bg-gray-100 rounded-lg p-1 shadow-sm">
+                      <button
+                        onClick={() => handleCourseSortChange('title')}
+                        className={`px-3 py-1 rounded-md text-xs font-medium transition-all duration-200 ease-in-out hover:scale-105 active:scale-95 flex items-center gap-1 ${
+                          courseSortBy === 'title' 
+                            ? 'bg-white text-emerald-600 shadow-md transform scale-105' 
+                            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                        }`}
+                      >
+                        Tytuł
+                        {courseSortBy === 'title' && (
+                          courseSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+                        )}
+                      </button>
+                      <button
+                        onClick={() => handleCourseSortChange('category')}
+                        className={`px-3 py-1 rounded-md text-xs font-medium transition-all duration-200 ease-in-out hover:scale-105 active:scale-95 flex items-center gap-1 ${
+                          courseSortBy === 'category' 
+                            ? 'bg-white text-emerald-600 shadow-md transform scale-105' 
+                            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                        }`}
+                      >
+                        Kategoria
+                        {courseSortBy === 'category' && (
+                          courseSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Informacja o liczbie kursów */}
+                <div className="mt-3 flex items-center justify-between">
+                  <div className="text-xs text-gray-600">
+                    {courseSearch ? (
+                      <>Znaleziono <span className="font-semibold text-emerald-600">{filteredCourses.length}</span> kursów dla &quot;<span className="font-semibold">{courseSearch}</span>&quot;</>
+                    ) : (
+                      <>Wyświetlane <span className="font-semibold text-emerald-600">{filteredCourses.length}</span> z <span className="font-semibold">{assignedCourses.length}</span> kursów</>
+                    )}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    Sortowanie: {courseSortBy === 'title' ? 'Tytuł' : 'Kategoria'} ({courseSortOrder === 'asc' ? 'A-Z' : 'Z-A'})
+                  </div>
+                </div>
               </div>
               {loadingAssigned ? (
                 <div className="flex items-center justify-center py-8">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500"></div>
                   <span className="ml-3 text-emerald-600 font-medium">Ładowanie kursów...</span>
                 </div>
-              ) : assignedCourses.length === 0 ? (
+              ) : filteredCourses.length === 0 ? (
                 <div className="text-center py-8">
                   <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
                     <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -1215,8 +1346,8 @@ function Dashboard() {
                   <p className="text-gray-400 text-sm mt-1">Skontaktuj się z nauczycielem, aby zostać dodanym do kursu.</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {assignedCourses.map((course, index) => {
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {filteredCourses.map((course, index) => {
                     const colors = [
                       'from-emerald-500 to-emerald-600',
                       'from-orange-500 to-orange-600', 
@@ -1228,20 +1359,20 @@ function Dashboard() {
                     const colorClass = colors[index % colors.length];
                     
                     return (
-                      <div key={course.id} className="bg-white rounded-xl p-5 border border-gray-100 hover:shadow-xl transition-all duration-300 group hover:border-gray-200">
-                        <div className="flex items-center gap-4 mb-4">
-                          <div className={`w-16 h-16 bg-gradient-to-r ${colorClass} rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-200`}>
-                            <Image src="/thumb.png" alt={course.title} width={32} height={32} className="w-8 h-8 rounded" />
+                      <div key={course.id} className="bg-white rounded-lg p-3 border border-gray-100 hover:shadow-xl transition-all duration-300 group hover:border-gray-200">
+                        <div className="flex items-center gap-2 mb-3">
+                          <div className={`w-10 h-10 bg-gradient-to-r ${colorClass} rounded-lg flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-200`}>
+                            <Image src="/thumb.png" alt={course.title} width={20} height={20} className="w-5 h-5 rounded" />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <h3 className="font-bold text-gray-800 text-base truncate group-hover:text-gray-900 transition-colors">{course.title}</h3>
+                            <h3 className="font-bold text-gray-800 text-sm truncate group-hover:text-gray-900 transition-colors">{course.title}</h3>
                             {course.category_name && (
-                              <p className="text-sm text-gray-500 truncate mt-1">{course.category_name}</p>
+                              <p className="text-xs text-gray-500 truncate mt-1">{course.category_name}</p>
                             )}
                           </div>
                         </div>
                         <Link href={`/courses/${course.slug || course.id}`}>
-                          <button className="w-full bg-gradient-to-r from-slate-600 to-slate-700 text-white px-4 py-3 rounded-xl text-sm font-semibold cursor-pointer transition-all duration-200 hover:from-slate-700 hover:to-slate-800 hover:shadow-lg group-hover:scale-105 border border-slate-500/20">
+                          <button className="w-full bg-gradient-to-r from-slate-600 to-slate-700 text-white px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer transition-all duration-200 hover:from-slate-700 hover:to-slate-800 hover:shadow-lg group-hover:scale-105 border border-slate-500/20">
                             Otwórz kurs
                           </button>
                         </Link>
@@ -1253,14 +1384,14 @@ function Dashboard() {
             </div>
             
             {/* Kalendarz */}
-            <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-lg p-6 border border-white/20">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="bg-gradient-to-r from-teal-500 to-teal-600 p-3 rounded-xl text-white shadow-lg">
-                  <svg className="w-8 h-8" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <div className="bg-white/90 backdrop-blur-xl rounded-xl shadow-lg p-4 border border-white/20">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="bg-gradient-to-r from-teal-500 to-teal-600 p-2 rounded-lg text-white shadow-lg">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                   </svg>
                 </div>
-                <h2 className="text-xl font-bold text-gray-800">Kalendarz i Aktywności</h2>
+                <h2 className="text-lg font-bold text-gray-800">Kalendarz i Aktywności</h2>
               </div>
               <Calendar />
             </div>

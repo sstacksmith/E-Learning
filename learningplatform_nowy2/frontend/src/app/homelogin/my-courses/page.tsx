@@ -8,7 +8,7 @@ import { db } from "../../../config/firebase";
 import Link from "next/link";
 import { useRouter } from 'next/navigation';
 import Providers from '@/components/Providers';
-import { ArrowLeft, Grid3X3, List, Search, X, BookOpen, Clock, Users, Star } from 'lucide-react';
+import { ArrowLeft, Grid3X3, List, Search, X, BookOpen, Clock, Users, Star, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 
 interface Course {
   id: number;
@@ -33,6 +33,8 @@ function MyCoursesPageContent() {
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('grid');
   const [search, setSearch] = useState('');
   const [showSearchResults, setShowSearchResults] = useState(false);
+  const [sortBy, setSortBy] = useState<'title' | 'subject' | 'date'>('title');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const searchRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -55,13 +57,59 @@ function MyCoursesPageContent() {
     fetchCourses();
   }, [user]);
 
+  // Automatyczne sortowanie gdy zmienia się sortBy lub sortOrder
+  useEffect(() => {
+    if (search) {
+      const filtered = courses.filter(course => {
+        const title = course.title?.toLowerCase() || '';
+        const description = course.description?.toLowerCase() || '';
+        const subject = course.subject?.toLowerCase() || '';
+        const searchTerm = search.toLowerCase();
+        
+        return title.includes(searchTerm) || description.includes(searchTerm) || subject.includes(searchTerm);
+      });
+      setFilteredCourses(sortCourses(filtered));
+    } else {
+      setFilteredCourses(sortCourses(courses));
+    }
+  }, [sortBy, sortOrder, courses, search]);
+
+  // Funkcja sortowania
+  const sortCourses = (coursesToSort: Course[]) => {
+    return [...coursesToSort].sort((a, b) => {
+      let aValue: string | number = '';
+      let bValue: string | number = '';
+      
+      switch (sortBy) {
+        case 'title':
+          aValue = a.title?.toLowerCase() || '';
+          bValue = b.title?.toLowerCase() || '';
+          break;
+        case 'subject':
+          aValue = a.subject?.toLowerCase() || a.category_name?.toLowerCase() || '';
+          bValue = b.subject?.toLowerCase() || b.category_name?.toLowerCase() || '';
+          break;
+        case 'date':
+          aValue = a.id || 0;
+          bValue = b.id || 0;
+          break;
+      }
+      
+      if (sortOrder === 'asc') {
+        return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
+      } else {
+        return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
+      }
+    });
+  };
+
   // Funkcja wyszukiwania
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setSearch(value);
     
     if (value.length === 0) {
-      setFilteredCourses(courses);
+      setFilteredCourses(sortCourses(courses));
       setShowSearchResults(false);
     } else {
       const filtered = courses.filter(course => {
@@ -72,8 +120,18 @@ function MyCoursesPageContent() {
         
         return title.includes(searchTerm) || description.includes(searchTerm) || subject.includes(searchTerm);
       });
-      setFilteredCourses(filtered);
+      setFilteredCourses(sortCourses(filtered));
       setShowSearchResults(true);
+    }
+  };
+
+  // Funkcja zmiany sortowania
+  const handleSortChange = (newSortBy: 'title' | 'subject' | 'date') => {
+    if (sortBy === newSortBy) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(newSortBy);
+      setSortOrder('asc');
     }
   };
 
@@ -145,33 +203,84 @@ function MyCoursesPageContent() {
         </div>
       </div>
 
-      {/* Wyszukiwarka */}
+      {/* Wyszukiwarka i sortowanie */}
       <div className="bg-white/60 backdrop-blur-sm border-b border-white/20 px-4 sm:px-6 lg:px-8 py-4">
-        <div className="relative max-w-2xl mx-auto" ref={searchRef}>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Wyszukaj kursy..."
-              className="w-full pl-10 pr-10 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4067EC] focus:border-[#4067EC] text-gray-900 transition-all duration-200 ease-in-out hover:border-gray-300 hover:shadow-sm bg-white/80 backdrop-blur-sm"
-              value={search}
-              onChange={handleSearchChange}
-            />
-            {search && (
-              <button
-                onClick={() => {
-                  setSearch('');
-                  setFilteredCourses(courses);
-                  setShowSearchResults(false);
-                }}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 hover:scale-110 active:scale-95 transition-all duration-200 ease-in-out p-1 rounded-full hover:bg-gray-100"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            )}
-          </div>
+        <div className="max-w-6xl mx-auto">
+          <div className="flex flex-col lg:flex-row gap-4 items-center justify-between">
+            {/* Wyszukiwarka */}
+            <div className="relative flex-1 max-w-2xl" ref={searchRef}>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Wyszukaj kursy..."
+                  className="w-full pl-10 pr-10 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4067EC] focus:border-[#4067EC] text-gray-900 transition-all duration-200 ease-in-out hover:border-gray-300 hover:shadow-sm bg-white/80 backdrop-blur-sm"
+                  value={search}
+                  onChange={handleSearchChange}
+                />
+                {search && (
+                  <button
+                    onClick={() => {
+                      setSearch('');
+                      setFilteredCourses(sortCourses(courses));
+                      setShowSearchResults(false);
+                    }}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 hover:scale-110 active:scale-95 transition-all duration-200 ease-in-out p-1 rounded-full hover:bg-gray-100"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Sortowanie */}
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-medium text-gray-700">Sortuj według:</span>
+              <div className="flex bg-gray-100 rounded-lg p-1 shadow-sm">
+                <button
+                  onClick={() => handleSortChange('title')}
+                  className={`px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 ease-in-out hover:scale-105 active:scale-95 flex items-center gap-1 ${
+                    sortBy === 'title' 
+                      ? 'bg-white text-[#4067EC] shadow-md transform scale-105' 
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                  }`}
+                >
+                  Tytuł
+                  {sortBy === 'title' && (
+                    sortOrder === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+                  )}
+                </button>
+                <button
+                  onClick={() => handleSortChange('subject')}
+                  className={`px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 ease-in-out hover:scale-105 active:scale-95 flex items-center gap-1 ${
+                    sortBy === 'subject' 
+                      ? 'bg-white text-[#4067EC] shadow-md transform scale-105' 
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                  }`}
+                >
+                  Przedmiot
+                  {sortBy === 'subject' && (
+                    sortOrder === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+                  )}
+                </button>
+                <button
+                  onClick={() => handleSortChange('date')}
+                  className={`px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 ease-in-out hover:scale-105 active:scale-95 flex items-center gap-1 ${
+                    sortBy === 'date' 
+                      ? 'bg-white text-[#4067EC] shadow-md transform scale-105' 
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                  }`}
+                >
+                  Data
+                  {sortBy === 'date' && (
+                    sortOrder === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
+      </div>
 
       {/* Główna zawartość */}
       <div className="flex-1 px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
@@ -186,6 +295,20 @@ function MyCoursesPageContent() {
             </div>
           </div>
         ) : (
+          <>
+            {/* Informacja o liczbie kursów */}
+            <div className="mb-6 flex items-center justify-between">
+              <div className="text-sm text-gray-600">
+                {search ? (
+                  <>Znaleziono <span className="font-semibold text-[#4067EC]">{filteredCourses.length}</span> kursów dla &quot;<span className="font-semibold">{search}</span>&quot;</>
+                ) : (
+                  <>Wyświetlane <span className="font-semibold text-[#4067EC]">{filteredCourses.length}</span> z <span className="font-semibold">{courses.length}</span> kursów</>
+                )}
+              </div>
+              <div className="text-xs text-gray-500">
+                Sortowanie: {sortBy === 'title' ? 'Tytuł' : sortBy === 'subject' ? 'Przedmiot' : 'Data'} ({sortOrder === 'asc' ? 'A-Z' : 'Z-A'})
+              </div>
+            </div>
           <div className={`${
             viewMode === 'grid' 
               ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 sm:gap-6 lg:gap-8' 
@@ -296,6 +419,7 @@ function MyCoursesPageContent() {
                 </div>
             ))}
           </div>
+          </>
         )}
       </div>
     </div>

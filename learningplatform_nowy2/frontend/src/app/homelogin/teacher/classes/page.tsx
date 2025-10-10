@@ -179,9 +179,12 @@ export default function ClassesPage() {
       const coursesRef = collection(db, 'courses');
       const coursesSnapshot = await getDocs(coursesRef);
       
+      // Pobierz wszystkie kursy, nie tylko te utworzone przez nauczyciela
       const coursesData = coursesSnapshot.docs
-        .map(doc => ({ id: doc.id, ...doc.data() } as Course))
-        .filter(course => course.created_by === user?.email);
+        .map(doc => ({ id: doc.id, ...doc.data() } as Course));
+      
+      console.log('🔍 fetchCourses - pobrano kursów:', coursesData.length);
+      console.log('🔍 fetchCourses - kursy:', coursesData.map(c => c.title));
       
       setCourses(coursesData);
     } catch (error) {
@@ -817,75 +820,65 @@ export default function ClassesPage() {
           </div>
 
           {/* Classes Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
             {filteredClasses.map((cls) => (
-              <div key={cls.id} className="bg-white/90 backdrop-blur-sm rounded-2xl border border-white/30 p-6 hover:shadow-xl hover:shadow-blue-500/10 transition-all duration-300 transform hover:-translate-y-1 group h-96 flex flex-col">
+              <div key={cls.id} className="bg-white/90 backdrop-blur-sm rounded-2xl border border-white/30 p-4 hover:shadow-xl hover:shadow-blue-500/10 transition-all duration-300 transform hover:-translate-y-1 group h-80 flex flex-col">
                 {/* Class Header */}
-                <div className="flex items-center justify-between mb-6">
-                  <div className="w-16 h-16 bg-blue-500 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300">
-                    <School className="h-8 w-8 text-white" />
+                <div className="flex items-center justify-between mb-4">
+                  <div className="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300">
+                    <School className="h-6 w-6 text-white" />
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-1">
                     <button 
                       onClick={() => openEditModal(cls)}
-                      className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
+                      className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
                     >
-                      <Edit className="h-4 w-4" />
+                      <Edit className="h-3 w-3" />
                     </button>
                     <button 
                       onClick={() => handleDeleteClass(cls.id)}
-                      className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors"
+                      className="p-1.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors"
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <Trash2 className="h-3 w-3" />
                     </button>
                   </div>
                 </div>
 
                 {/* Class Info */}
                 <div className="mb-4 flex-1 min-h-0">
-                  <h3 className="text-xl font-bold text-gray-900 mb-2 group-hover:text-blue-600 transition-colors">
+                  <h3 className="text-lg font-bold text-gray-900 mb-2 group-hover:text-blue-600 transition-colors line-clamp-1">
                     {cls.name}
                   </h3>
-                  <p className="text-sm text-gray-600 font-medium mb-2">Klasa {cls.grade_level} • {cls.subject}</p>
-                  <div className="h-12 overflow-hidden">
-                    {cls.description && (
-                      <p className="text-sm text-gray-500 line-clamp-2">{cls.description}</p>
-                    )}
-                  </div>
+                  <p className="text-xs text-gray-600 font-medium mb-4">Klasa {cls.grade_level} • {cls.subject}</p>
                 </div>
 
                 {/* Stats */}
-                <div className="space-y-3 mb-6 flex-shrink-0">
-                  <div className="flex justify-between items-center p-3 bg-gray-50 rounded-xl">
-                    <span className="text-sm text-gray-600 font-medium">Uczniowie</span>
-                    <span className="text-lg font-bold text-blue-600">{cls.students?.length || 0}/{cls.max_students}</span>
-                  </div>
-                  
-                  <div className="flex justify-between items-center p-3 bg-gray-50 rounded-xl">
-                    <span className="text-sm text-gray-600 font-medium">Rok akademicki</span>
-                    <span className="text-lg font-bold text-green-600">{cls.academic_year}</span>
+                <div className="mb-6 flex-shrink-0">
+                  <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                    <span className="text-xs text-gray-600 font-medium">Uczniowie</span>
+                    <span className="text-sm font-bold text-blue-600">{cls.students?.length || 0}/{cls.max_students}</span>
                   </div>
                 </div>
 
                 {/* Action Buttons */}
-                <div className="flex gap-2 mt-auto flex-shrink-0 h-12">
+                <div className="flex gap-2 mt-auto flex-shrink-0 h-10">
                   <button 
                     onClick={() => {
                       setSelectedClass(cls);
                       setShowManageStudentsModal(true);
                     }}
-                    className="flex-1 bg-blue-600 text-white py-3 px-4 rounded-xl hover:bg-blue-700 transition-all duration-300 font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+                    className="flex-1 bg-blue-600 text-white py-2 px-2 rounded-lg hover:bg-blue-700 transition-all duration-300 font-medium text-xs shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
                   >
-                    Zarządzaj Uczniami
+                    Zarządzaj
                   </button>
                   <button 
                     onClick={() => {
                       setSelectedClass(cls);
                       setShowAssignCourseModal(true);
                     }}
-                    className="w-12 bg-green-50 text-green-600 rounded-xl hover:bg-green-100 transition-all duration-300 border border-green-200 hover:border-green-300 font-medium flex items-center justify-center"
+                    className="w-10 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-all duration-300 border border-green-200 hover:border-green-300 font-medium flex items-center justify-center"
                   >
-                    <BookOpen className="h-4 w-4" />
+                    <BookOpen className="h-3 w-3" />
                   </button>
                 </div>
               </div>
@@ -977,25 +970,25 @@ export default function ClassesPage() {
 
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Przedmiot *
+                  Przedmiot/Kurs *
                 </label>
                 <select
                   value={formData.subject}
                   onChange={(e) => setFormData(prev => ({ ...prev, subject: e.target.value }))}
                   className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
                 >
-                  <option value="">Wybierz przedmiot</option>
-                  <option value="Matematyka">Matematyka</option>
-                  <option value="Język polski">Język polski</option>
-                  <option value="Historia">Historia</option>
-                  <option value="Geografia">Geografia</option>
-                  <option value="Biologia">Biologia</option>
-                  <option value="Chemia">Chemia</option>
-                  <option value="Fizyka">Fizyka</option>
-                  <option value="Język angielski">Język angielski</option>
-                  <option value="Informatyka">Informatyka</option>
-                  <option value="Wychowanie fizyczne">Wychowanie fizyczne</option>
+                  <option value="">Wybierz przedmiot/kurs</option>
+                  {courses.map((course) => (
+                    <option key={course.id} value={course.title}>
+                      {course.title}
+                    </option>
+                  ))}
                 </select>
+                {courses.length === 0 && (
+                  <p className="text-sm text-gray-500 mt-2">
+                    Brak dostępnych kursów. Utwórz najpierw kurs w sekcji &quot;Moje Kursy&quot;.
+                  </p>
+                )}
               </div>
 
               <div>
@@ -1170,25 +1163,25 @@ export default function ClassesPage() {
 
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Przedmiot *
+                  Przedmiot/Kurs *
                 </label>
                 <select
                   value={formData.subject}
                   onChange={(e) => setFormData(prev => ({ ...prev, subject: e.target.value }))}
                   className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
                 >
-                  <option value="">Wybierz przedmiot</option>
-                  <option value="Matematyka">Matematyka</option>
-                  <option value="Język polski">Język polski</option>
-                  <option value="Historia">Historia</option>
-                  <option value="Geografia">Geografia</option>
-                  <option value="Biologia">Biologia</option>
-                  <option value="Chemia">Chemia</option>
-                  <option value="Fizyka">Fizyka</option>
-                  <option value="Język angielski">Język angielski</option>
-                  <option value="Informatyka">Informatyka</option>
-                  <option value="Wychowanie fizyczne">Wychowanie fizyczne</option>
+                  <option value="">Wybierz przedmiot/kurs</option>
+                  {courses.map((course) => (
+                    <option key={course.id} value={course.title}>
+                      {course.title}
+                    </option>
+                  ))}
                 </select>
+                {courses.length === 0 && (
+                  <p className="text-sm text-gray-500 mt-2">
+                    Brak dostępnych kursów. Utwórz najpierw kurs w sekcji &quot;Moje Kursy&quot;.
+                  </p>
+                )}
               </div>
 
               <div>

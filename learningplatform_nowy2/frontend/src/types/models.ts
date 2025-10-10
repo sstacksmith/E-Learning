@@ -32,6 +32,7 @@ export interface Course extends FirebaseDocument {
   is_active: boolean;
   teacherEmail: string;
   instructor_name?: string;
+  courseType: 'obowiązkowy' | 'fakultatywny'; // 🆕 NOWE - typ kursu
   assignedUsers: string[]; // 🚨 ZACHOWUJĘ - kompatybilność wsteczna
   assignedClasses: string[]; // 🆕 NOWE - ID klas przypisanych do kursu
   sections: Section[];

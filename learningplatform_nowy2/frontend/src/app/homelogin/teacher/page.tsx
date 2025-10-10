@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { db } from '@/config/firebase';
 import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 import TutorManagement from '@/components/TutorManagement';
@@ -1027,8 +1028,12 @@ export default function TeacherDashboard() {
       <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         {statCards.map((stat, index) => {
           const Icon = stat.icon;
-          return (
-            <div key={index} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          const isCoursesCard = stat.title === "Moje Kursy";
+          const isStudentsCard = stat.title === "Uczniowie";
+          const isClickableCard = isCoursesCard || isStudentsCard;
+          
+          const cardContent = (
+            <div className={`bg-white rounded-lg shadow-sm border border-gray-200 p-6 ${isClickableCard ? 'hover:shadow-md hover:border-blue-300 transition-all duration-200 cursor-pointer' : ''}`}>
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm font-medium text-gray-500">{stat.title}</h3>
                 <div className={`p-2 rounded-lg ${stat.color}`}>
@@ -1042,6 +1047,26 @@ export default function TeacherDashboard() {
               </p>
             </div>
           );
+          
+          if (isCoursesCard) {
+            return (
+              <Link key={index} href="/homelogin/teacher/courses">
+                {cardContent}
+              </Link>
+            );
+          } else if (isStudentsCard) {
+            return (
+              <Link key={index} href="/homelogin/teacher/students">
+                {cardContent}
+              </Link>
+            );
+          } else {
+            return (
+              <div key={index}>
+                {cardContent}
+              </div>
+            );
+          }
         })}
       </div>
 
@@ -1177,7 +1202,7 @@ export default function TeacherDashboard() {
             </div>
             
             <div className="p-6">
-              <div className="space-y-4">
+              <div className="max-h-96 overflow-y-auto space-y-4 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
                 {filteredActivities.length > 0 ? (
                   filteredActivities.map((activity) => {
                     const Icon = activity.icon;

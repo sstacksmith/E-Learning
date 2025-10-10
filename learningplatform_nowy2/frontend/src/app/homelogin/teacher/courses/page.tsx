@@ -22,6 +22,7 @@ interface Course {
   teacherEmail?: string;
   assignedUsers?: string[];
   sections?: unknown[];
+  courseType?: 'obowiązkowy' | 'fakultatywny';
 }
 
 // Usunięte SUBJECTS - nieużywane po usunięciu formularza tworzenia kursów
@@ -54,13 +55,16 @@ export default function TeacherCourses() {
     subject: '',
     year_of_study: 1,
     instructor_name: '',
-    category_name: ''
+    category_name: '',
+    courseType: 'obowiązkowy' as 'obowiązkowy' | 'fakultatywny'
   });
   const [creatingCourse, setCreatingCourse] = useState(false);
   const [fixingPermissions, setFixingPermissions] = useState(false);
+  const [updatingCourseTypes, setUpdatingCourseTypes] = useState(false);
   
-  // State dla wyszukiwarki
+  // State dla wyszukiwarki i filtrowania
   const [searchTerm, setSearchTerm] = useState('');
+  const [courseTypeFilter, setCourseTypeFilter] = useState<'wszystkie' | 'obowiązkowy' | 'fakultatywny'>('wszystkie');
   const [filteredCourses, setFilteredCourses] = useState<Course[]>([]);
 
   
@@ -96,16 +100,53 @@ export default function TeacherCourses() {
   }, [cacheKey]);
 
   // Funkcja filtrowania kursów
-  const filterCourses = useCallback((courses: Course[], search: string) => {
-    if (!search.trim()) return courses;
+  const filterCourses = useCallback((courses: Course[], search: string, typeFilter: 'wszystkie' | 'obowiązkowy' | 'fakultatywny') => {
+    console.log('🔍 [DEBUG] filterCourses called with:', {
+      totalCourses: courses.length,
+      search,
+      typeFilter,
+      coursesData: courses.map(c => ({
+        id: c.id,
+        title: c.title,
+        courseType: c.courseType,
+        hasCourseType: !!c.courseType
+      }))
+    });
     
-    const searchLower = search.toLowerCase();
-    return courses.filter(course => 
-      course.title.toLowerCase().includes(searchLower) ||
-      course.description.toLowerCase().includes(searchLower) ||
-      course.subject.toLowerCase().includes(searchLower) ||
-      course.year_of_study.toString().includes(searchLower)
-    );
+    let filtered = courses;
+    
+    // Filtrowanie według typu kursu
+    if (typeFilter !== 'wszystkie') {
+      const beforeFilter = filtered.length;
+      filtered = filtered.filter(course => {
+        const courseType = course.courseType || 'obowiązkowy';
+        const matches = courseType === typeFilter;
+        console.log(`🔍 [DEBUG] Course "${course.title}" - courseType: "${courseType}", filter: "${typeFilter}", matches: ${matches}`);
+        return matches;
+      });
+      console.log(`🔍 [DEBUG] Type filter "${typeFilter}": ${beforeFilter} -> ${filtered.length} courses`);
+    }
+    
+    // Filtrowanie według wyszukiwania
+    if (search.trim()) {
+      const searchLower = search.toLowerCase();
+      const beforeSearch = filtered.length;
+      filtered = filtered.filter(course => 
+        course.title.toLowerCase().includes(searchLower) ||
+        course.description.toLowerCase().includes(searchLower) ||
+        course.subject.toLowerCase().includes(searchLower) ||
+        course.year_of_study.toString().includes(searchLower)
+      );
+      console.log(`🔍 [DEBUG] Search "${search}": ${beforeSearch} -> ${filtered.length} courses`);
+    }
+    
+    console.log('🔍 [DEBUG] Final filtered courses:', filtered.map(c => ({
+      id: c.id,
+      title: c.title,
+      courseType: c.courseType || 'obowiązkowy'
+    })));
+    
+    return filtered;
   }, []);
 
   const fetchCourses = useCallback(async (page = 1, useCache = true, retryCount = 0) => {
@@ -169,13 +210,19 @@ export default function TeacherCourses() {
             created_by: data.created_by || null,
             teacherEmail: data.teacherEmail || '',
             assignedUsers: data.assignedUsers || [],
-            sections: data.sections || []
+            sections: data.sections || [],
+            courseType: data.courseType || 'obowiązkowy' // 🆕 DODANE - pole courseType
           };
         })
         .filter(course => (course.teacherEmail || '') === (teacherEmail || '')); // Filtruj tylko kursy nauczyciela
       
-      console.log('[DEBUG] Firestore courses loaded:', firestoreCourses.length);
-      console.log('[DEBUG] Teacher courses:', firestoreCourses.map(c => ({ title: c.title, teacherEmail: c.teacherEmail })));
+      console.log('📥 [DEBUG] Firestore courses loaded:', firestoreCourses.length);
+      console.log('📥 [DEBUG] Teacher courses with courseType:', firestoreCourses.map(c => ({ 
+        title: c.title, 
+        teacherEmail: c.teacherEmail,
+        courseType: c.courseType,
+        hasCourseType: !!c.courseType
+      })));
       
       // Sortuj po dacie utworzenia (najnowsze pierwsze)
       const sortedCourses = firestoreCourses.sort((a, b) => 
@@ -408,6 +455,7 @@ export default function TeacherCourses() {
         teacherEmail: user.email,
         instructor_name: newCourse.instructor_name.trim(),
         category_name: newCourse.category_name.trim(),
+        courseType: newCourse.courseType,
         created_by: user.email,
         assignedUsers: [],
         sections: [],
@@ -419,7 +467,11 @@ export default function TeacherCourses() {
         updated_at: new Date().toISOString()
       };
       
-      console.log('Saving course data to Firestore:', courseData);
+      console.log('💾 [DEBUG] Saving course data to Firestore:', {
+        ...courseData,
+        courseType: courseData.courseType,
+        courseTypeType: typeof courseData.courseType
+      });
       
       const { addDoc, collection } = await import('firebase/firestore');
       const docRef = await addDoc(collection(db, 'courses'), courseData);
@@ -434,7 +486,8 @@ export default function TeacherCourses() {
         subject: '',
         year_of_study: 1,
         instructor_name: '',
-        category_name: ''
+        category_name: '',
+        courseType: 'obowiązkowy'
       });
       
       // Refresh courses list
@@ -452,10 +505,56 @@ export default function TeacherCourses() {
     }
   }, [newCourse, user, clearCache, fetchCourses]);
 
-  // Filtruj kursy gdy zmienia się searchTerm lub courses
+  // Function to update existing courses to mandatory type
+  const handleUpdateCourseTypes = useCallback(async () => {
+    setUpdatingCourseTypes(true);
+    setError(null);
+    
+    try {
+      const response = await fetch('/api/update-existing-courses-type', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      const result = await response.json();
+      
+      if (response.ok) {
+        setSuccess(result.message);
+        // Refresh courses list
+        clearCache();
+        fetchCourses(1, false);
+        // Clear success message after 5 seconds
+        setTimeout(() => setSuccess(null), 5000);
+      } else {
+        setError(result.error || 'Błąd podczas aktualizacji kursów');
+      }
+    } catch (error) {
+      console.error('Error updating course types:', error);
+      setError('Błąd podczas aktualizacji kursów');
+    } finally {
+      setUpdatingCourseTypes(false);
+    }
+  }, [clearCache, fetchCourses]);
+
+  // Filtruj kursy gdy zmienia się searchTerm, courseTypeFilter lub courses
   useEffect(() => {
-    setFilteredCourses(filterCourses(courses, searchTerm));
-  }, [courses, searchTerm, filterCourses]);
+    console.log('🔄 [DEBUG] useEffect filterCourses triggered:', {
+      coursesLength: courses.length,
+      searchTerm,
+      courseTypeFilter,
+      coursesData: courses.map(c => ({
+        id: c.id,
+        title: c.title,
+        courseType: c.courseType
+      }))
+    });
+    
+    const filtered = filterCourses(courses, searchTerm, courseTypeFilter);
+    console.log('🔄 [DEBUG] Setting filteredCourses:', filtered.length);
+    setFilteredCourses(filtered);
+  }, [courses, searchTerm, courseTypeFilter, filterCourses]);
 
   return (
     <div className="min-h-screen bg-blue-50">
@@ -509,6 +608,24 @@ export default function TeacherCourses() {
               <RefreshCw className="h-5 w-5" />
               Odśwież
             </button>
+            
+            <button
+              onClick={handleUpdateCourseTypes}
+              disabled={updatingCourseTypes}
+              className="bg-orange-600 text-white px-4 py-3 rounded-xl hover:bg-orange-700 transition-all duration-300 font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {updatingCourseTypes ? (
+                <>
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  Aktualizacja...
+                </>
+              ) : (
+                <>
+                  <Settings className="h-5 w-5" />
+                  Aktualizuj typy kursów
+                </>
+              )}
+            </button>
           </div>
         </div>
       </div>
@@ -556,6 +673,58 @@ export default function TeacherCourses() {
                 </button>
               )}
             </div>
+            
+            {/* Filter by course type */}
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-medium text-gray-700">Filtruj według typu:</span>
+              <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                Aktualny: {courseTypeFilter} | 
+                Wszystkie: {courses.length} | 
+                Obowiązkowe: {courses.filter(c => (c.courseType || 'obowiązkowy') === 'obowiązkowy').length} | 
+                Fakultatywne: {courses.filter(c => (c.courseType || 'obowiązkowy') === 'fakultatywny').length}
+              </span>
+              <div className="flex bg-gray-100 rounded-lg p-1 shadow-sm">
+                <button
+                  onClick={() => {
+                    console.log('🔘 [DEBUG] Wszystkie button clicked');
+                    setCourseTypeFilter('wszystkie');
+                  }}
+                  className={`px-3 py-1 rounded-md text-sm font-medium transition-all duration-200 ease-in-out hover:scale-105 active:scale-95 ${
+                    courseTypeFilter === 'wszystkie' 
+                      ? 'bg-white text-blue-600 shadow-md transform scale-105' 
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                  }`}
+                >
+                  Wszystkie
+                </button>
+                <button
+                  onClick={() => {
+                    console.log('🔘 [DEBUG] Obowiązkowe button clicked');
+                    setCourseTypeFilter('obowiązkowy');
+                  }}
+                  className={`px-3 py-1 rounded-md text-sm font-medium transition-all duration-200 ease-in-out hover:scale-105 active:scale-95 ${
+                    courseTypeFilter === 'obowiązkowy' 
+                      ? 'bg-white text-red-600 shadow-md transform scale-105' 
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                  }`}
+                >
+                  Obowiązkowe
+                </button>
+                <button
+                  onClick={() => {
+                    console.log('🔘 [DEBUG] Fakultatywne button clicked');
+                    setCourseTypeFilter('fakultatywny');
+                  }}
+                  className={`px-3 py-1 rounded-md text-sm font-medium transition-all duration-200 ease-in-out hover:scale-105 active:scale-95 ${
+                    courseTypeFilter === 'fakultatywny' 
+                      ? 'bg-white text-blue-600 shadow-md transform scale-105' 
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                  }`}
+                >
+                  Fakultatywne
+                </button>
+              </div>
+            </div>
           </div>
 
           {loading ? (
@@ -568,34 +737,34 @@ export default function TeacherCourses() {
             <div className="bg-red-50 border border-red-200 text-red-800 p-4 rounded-lg mb-6">{error}</div>
           ) : (
             <>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-16 mb-20">
+              <div className="max-h-[700px] overflow-y-auto grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4 mb-8 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
                 {filteredCourses.map((course) => (
-                  <div key={`${course.id}-${course.updated_at || course.created_at}`} className="bg-white/90 backdrop-blur-sm rounded-2xl border border-white/30 p-6 hover:shadow-xl hover:shadow-blue-500/10 transition-all duration-300 transform hover:-translate-y-1 group h-[420px] flex flex-col">
+                  <div key={`${course.id}-${course.updated_at || course.created_at}`} className="bg-white/90 backdrop-blur-sm rounded-2xl border border-white/30 p-4 hover:shadow-xl hover:shadow-blue-500/10 transition-all duration-300 transform hover:-translate-y-1 group h-80 flex flex-col">
                     {/* Course Header */}
-                    <div className="flex items-center justify-between mb-6">
-                      <div className="w-16 h-16 bg-blue-500 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300">
-                        <BookOpen className="h-8 w-8 text-white" />
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300">
+                        <BookOpen className="h-6 w-6 text-white" />
                       </div>
                       <div className="flex gap-1">
                         {canDeleteCourse(course) && (
                           <>
                             <button
                               onClick={() => handleStartEditTitle(course)}
-                              className="p-2 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 transition-colors"
+                              className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
                               title="Edytuj nazwę kursu"
                             >
-                              <Edit className="h-4 w-4" />
+                              <Edit className="h-3 w-3" />
                             </button>
                             <button
                               onClick={() => handleDeleteCourse(course.id.toString())}
                               disabled={deletingCourse === course.id.toString()}
-                              className="p-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-colors disabled:opacity-50"
+                              className="p-1.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors disabled:opacity-50"
                               title="Usuń kurs"
                             >
                               {deletingCourse === course.id.toString() ? (
-                                <div className="w-4 h-4 border-2 border-red-600 border-t-transparent rounded-full animate-spin"></div>
+                                <div className="w-3 h-3 border-2 border-red-600 border-t-transparent rounded-full animate-spin"></div>
                               ) : (
-                                <Trash2 className="h-4 w-4" />
+                                <Trash2 className="h-3 w-3" />
                               )}
                             </button>
                           </>
@@ -604,37 +773,27 @@ export default function TeacherCourses() {
                     </div>
 
                     {/* Course Info */}
-                    <div className="mb-6 flex-1 min-h-0">
-                      <h3 className="text-xl font-bold text-gray-900 mb-3 group-hover:text-blue-600 transition-colors">
+                    <div className="mb-4 flex-1 min-h-0">
+                      <h3 className="text-lg font-bold text-gray-900 mb-3 group-hover:text-blue-600 transition-colors line-clamp-1">
                         {course.title}
                       </h3>
-                      <p className="text-sm text-gray-600 font-medium mb-3">Rok {course.year_of_study} • {course.subject}</p>
-                      <div className="h-20 overflow-hidden">
-                        <p className="text-sm text-gray-500 line-clamp-4">{course.description}</p>
+                      <div className="flex items-center gap-2 mb-4">
+                        <p className="text-xs text-gray-600 font-medium">Rok {course.year_of_study} • {course.subject}</p>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          (course.courseType || 'obowiązkowy') === 'obowiązkowy' 
+                            ? 'bg-red-100 text-red-800' 
+                            : 'bg-blue-100 text-blue-800'
+                        }`}>
+                          {(course.courseType || 'obowiązkowy') === 'obowiązkowy' ? 'Obowiązkowy' : 'Fakultatywny'}
+                        </span>
                       </div>
                     </div>
                     
                     {/* Course Stats */}
-                    <div className="space-y-5 mb-8 flex-shrink-0">
-                      <div className="flex justify-between items-center p-5 bg-gray-50 rounded-xl">
-                        <span className="text-sm text-gray-600 font-medium">Sekcje</span>
-                        <span className="text-xl font-bold text-blue-600">{course.sections?.length || 0}</span>
-                      </div>
-                      
-                      <div className="flex justify-between items-center p-5 bg-gray-50 rounded-xl">
-                        <span className="text-sm text-gray-600 font-medium">Uczniowie</span>
-                        <span className="text-xl font-bold text-green-600">{course.assignedUsers?.length || 0}</span>
-                      </div>
-                      
-                      <div className="flex justify-between items-center p-5 bg-gray-50 rounded-xl">
-                        <span className="text-sm text-gray-600 font-medium">Status</span>
-                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                          course.is_active 
-                            ? 'bg-green-100 text-green-800' 
-                            : 'bg-red-100 text-red-800'
-                        }`}>
-                          {course.is_active ? 'Aktywny' : 'Nieaktywny'}
-                        </span>
+                    <div className="mb-6 flex-shrink-0">
+                      <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                        <span className="text-xs text-gray-600 font-medium">Sekcje</span>
+                        <span className="text-sm font-bold text-blue-600">{course.sections?.length || 0}</span>
                       </div>
                     </div>
                     
@@ -646,18 +805,18 @@ export default function TeacherCourses() {
                     )}
                     
                     {/* Action Buttons */}
-                    <div className="flex gap-3 mt-auto flex-shrink-0 h-16">
+                    <div className="flex gap-2 mt-auto flex-shrink-0 h-10">
                       <button 
                         onClick={() => window.location.href = `/homelogin/teacher/courses/${course.id}`}
-                        className="flex-1 bg-blue-600 text-white py-4 px-4 rounded-xl hover:bg-blue-700 transition-all duration-300 font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+                        className="flex-1 bg-blue-600 text-white py-2 px-2 rounded-lg hover:bg-blue-700 transition-all duration-300 font-medium text-xs shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
                       >
                         Zarządzaj
                       </button>
                       <Link 
                         href={`/courses/${course.slug}`}
-                        className="w-16 bg-green-50 text-green-600 rounded-xl hover:bg-green-100 transition-all duration-300 border border-green-200 hover:border-green-300 font-medium flex items-center justify-center"
+                        className="w-10 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-all duration-300 border border-green-200 hover:border-green-300 font-medium flex items-center justify-center"
                       >
-                        <FileText className="h-5 w-5" />
+                        <FileText className="h-3 w-3" />
                       </Link>
                     </div>
                   </div>
@@ -691,71 +850,6 @@ export default function TeacherCourses() {
             </>
           )}
 
-          {/* Info about course management */}
-          <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/30 p-6 mt-6 shadow-lg">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Zarządzanie kursami</h2>
-            <p className="text-gray-700 mb-4">
-              {isAdmin 
-                ? 'Tutaj widzisz wszystkie kursy w systemie. Możesz zarządzać zawartością każdego kursu, dodawać lekcje, materiały i zadania, a także usuwać kursy.'
-                : 'Tutaj widzisz kursy, które zostały Ci przypisane przez administratora lub które sam utworzyłeś. Możesz zarządzać zawartością każdego kursu, dodawać lekcje, materiały i zadania, a także usuwać swoje kursy.'
-              }
-            </p>
-            <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
-              <h3 className="font-semibold text-gray-900 mb-3">Co możesz robić:</h3>
-              <ul className="text-gray-700 text-sm space-y-2">
-                <li className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                  Dodawać i edytować lekcje
-                </li>
-                <li className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                  Uploadować materiały dydaktyczne
-                </li>
-                <li className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                  Tworzyć zadania i quizy
-                </li>
-                <li className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
-                  Przeglądać postępy studentów
-                </li>
-                <li className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-                  Zarządzać ocenami
-                </li>
-                {!isAdmin && (
-                  <li className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-gray-500 rounded-full"></div>
-                    Usuwać swoje kursy
-                  </li>
-                )}
-                {isAdmin && (
-                  <li className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-gray-500 rounded-full"></div>
-                    Usuwać dowolne kursy
-                  </li>
-                )}
-              </ul>
-            </div>
-            {success && (
-              <div className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg mt-4 flex items-center justify-between">
-                <div className="flex items-center">
-                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span>{success}</span>
-                </div>
-                <button
-                  onClick={() => setSuccess(null)}
-                  className="text-green-600 hover:text-green-800"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-            )}
-          </div>
         </div>
       </div>
       
@@ -864,6 +958,26 @@ export default function TeacherCourses() {
                     placeholder="np. Nauki ścisłe, Humanistyczne, Języki"
                     required
                   />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Typ kursu *
+                  </label>
+                  <select
+                    value={newCourse.courseType}
+                    onChange={(e) => setNewCourse(prev => ({ ...prev, courseType: e.target.value as 'obowiązkowy' | 'fakultatywny' }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="obowiązkowy">Obowiązkowy</option>
+                    <option value="fakultatywny">Fakultatywny</option>
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {newCourse.courseType === 'obowiązkowy' 
+                      ? 'Kurs obowiązkowy - uczniowie muszą go ukończyć' 
+                      : 'Kurs fakultatywny - uczniowie mogą go wybrać opcjonalnie'
+                    }
+                  </p>
                 </div>
                 
                 <div className="flex gap-3 pt-4">
