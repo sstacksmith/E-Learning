@@ -52,7 +52,16 @@ def get_user_from_token(request):
                 email=email,
                 username=email,
                 is_teacher=firebase_role == 'teacher',
-                is_student=firebase_role == 'student'
+                is_student=firebase_role == 'student',
+                is_tutor=firebase_role == 'tutor',
+                is_wychowawca=firebase_role == 'wychowawca',
+                is_nauczyciel_wspomagajacy=firebase_role == 'nauczyciel_wspomagajacy',
+                is_psycholog=firebase_role == 'psycholog',
+                is_pedagog=firebase_role == 'pedagog',
+                is_logopeda=firebase_role == 'logopeda',
+                is_terapeuta=firebase_role == 'terapeuta',
+                is_bibliotekarz=firebase_role == 'bibliotekarz',
+                is_administrator=firebase_role == 'administrator'
             )
 
             return user

@@ -63,6 +63,15 @@ class FirebaseAuthentication(BaseAuthentication):
                 is_parent = role == 'parent'
                 is_superuser = role == 'admin'
                 is_staff = role == 'admin'
+                is_tutor = role == 'tutor'
+                is_wychowawca = role == 'wychowawca'
+                is_nauczyciel_wspomagajacy = role == 'nauczyciel_wspomagajacy'
+                is_psycholog = role == 'psycholog'
+                is_pedagog = role == 'pedagog'
+                is_logopeda = role == 'logopeda'
+                is_terapeuta = role == 'terapeuta'
+                is_bibliotekarz = role == 'bibliotekarz'
+                is_administrator = role == 'administrator'
                 
             except Exception as e:
                 print(f"❌ Error getting Firebase custom claims: {e}")
@@ -72,6 +81,15 @@ class FirebaseAuthentication(BaseAuthentication):
                 is_parent = False
                 is_superuser = False
                 is_staff = False
+                is_tutor = False
+                is_wychowawca = False
+                is_nauczyciel_wspomagajacy = False
+                is_psycholog = False
+                is_pedagog = False
+                is_logopeda = False
+                is_terapeuta = False
+                is_bibliotekarz = False
+                is_administrator = False
             
             # Create Firebase user object
             user = FirebaseUser(
@@ -83,6 +101,15 @@ class FirebaseAuthentication(BaseAuthentication):
                 is_parent=is_parent,
                 is_superuser=is_superuser,
                 is_staff=is_staff,
+                is_tutor=is_tutor,
+                is_wychowawca=is_wychowawca,
+                is_nauczyciel_wspomagajacy=is_nauczyciel_wspomagajacy,
+                is_psycholog=is_psycholog,
+                is_pedagog=is_pedagog,
+                is_logopeda=is_logopeda,
+                is_terapeuta=is_terapeuta,
+                is_bibliotekarz=is_bibliotekarz,
+                is_administrator=is_administrator,
                 is_active=True
             )
             

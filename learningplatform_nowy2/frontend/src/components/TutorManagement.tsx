@@ -20,6 +20,9 @@ interface Teacher {
   subject?: string;
   phone?: string;
   availability?: string;
+  instructorType?: string;
+  specialization?: string[];
+  experience?: string;
 }
 
 interface TutorManagementProps {
@@ -53,13 +56,20 @@ export default function TutorManagement({ onClose }: TutorManagementProps) {
         ...doc.data()
       })) as Student[];
       
-      // Pobierz nauczycieli
-      const teachersQuery = query(collection(db, 'users'), where('role', '==', 'teacher'));
-      const teachersSnapshot = await getDocs(teachersQuery);
-      const teachersList = teachersSnapshot.docs.map(doc => ({
-        uid: doc.id,
-        ...doc.data()
-      })) as Teacher[];
+      // Pobierz tylko nowych instruktorów (tutorów, wychowawców, nauczycieli wspomagających)
+      const instructorRoles = ['tutor', 'wychowawca', 'nauczyciel_wspomagajacy'];
+      const teachersList: Teacher[] = [];
+      
+      for (const role of instructorRoles) {
+        const teachersQuery = query(collection(db, 'users'), where('role', '==', role));
+        const teachersSnapshot = await getDocs(teachersQuery);
+        const roleTeachers = teachersSnapshot.docs.map(doc => ({
+          uid: doc.id,
+          ...doc.data(),
+          instructorType: role
+        })) as Teacher[];
+        teachersList.push(...roleTeachers);
+      }
       
       setStudents(studentsList);
       setTeachers(teachersList);
@@ -314,7 +324,12 @@ export default function TutorManagement({ onClose }: TutorManagementProps) {
                       <option value="">-- Wybierz tutora --</option>
                       {teachers.map((teacher) => (
                         <option key={teacher.uid} value={teacher.uid}>
-                          {teacher.displayName || 'Brak nazwiska'} - {teacher.subject || 'Ogólne'}
+                          {teacher.displayName || 'Brak nazwiska'} - {
+                            teacher.instructorType === 'tutor' ? 'Tutor' :
+                            teacher.instructorType === 'wychowawca' ? 'Wychowawca' :
+                            teacher.instructorType === 'nauczyciel_wspomagajacy' ? 'Nauczyciel wspomagający' :
+                            teacher.instructorType === 'teacher' ? 'Nauczyciel' : teacher.instructorType || 'Instruktor'
+                          } - {teacher.subject || 'Ogólne'}
                         </option>
                       ))}
                     </select>
@@ -349,6 +364,22 @@ export default function TutorManagement({ onClose }: TutorManagementProps) {
                                 <Mail className="w-3 h-3" />
                                 <span>{tutor.email}</span>
                               </div>
+                              {tutor.instructorType && (
+                                <div className="flex items-center gap-2">
+                                  <User className="w-3 h-3" />
+                                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                    tutor.instructorType === 'tutor' ? 'bg-blue-100 text-blue-800' :
+                                    tutor.instructorType === 'wychowawca' ? 'bg-green-100 text-green-800' :
+                                    tutor.instructorType === 'nauczyciel_wspomagajacy' ? 'bg-purple-100 text-purple-800' :
+                                    'bg-gray-100 text-gray-800'
+                                  }`}>
+                                    {tutor.instructorType === 'tutor' ? 'Tutor' :
+                                     tutor.instructorType === 'wychowawca' ? 'Wychowawca' :
+                                     tutor.instructorType === 'nauczyciel_wspomagajacy' ? 'Nauczyciel wspomagający' :
+                                     tutor.instructorType === 'teacher' ? 'Nauczyciel' : tutor.instructorType}
+                                  </span>
+                                </div>
+                              )}
                               {tutor.subject && (
                                 <div className="flex items-center gap-2">
                                   <User className="w-3 h-3" />

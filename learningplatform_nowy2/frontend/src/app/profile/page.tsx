@@ -2,13 +2,13 @@
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import React, { useEffect, useState, useRef } from 'react';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, collection, getDocs } from 'firebase/firestore';
 import { db, storage } from '../../config/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import Providers from '@/components/Providers';
 import Link from 'next/link';
-import { ArrowLeft, BarChart3, LogOut, Camera, User, Mail, GraduationCap, Shield, MapPin, Phone, BookOpen, Award } from 'lucide-react';
+import { ArrowLeft, BarChart3, LogOut, Camera, User, Mail, GraduationCap, Shield, BookOpen, Award } from 'lucide-react';
 
 function ProfilePageContent() {
   const router = useRouter();
@@ -16,6 +16,8 @@ function ProfilePageContent() {
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [userClass, setUserClass] = useState('');
+  const [userClasses, setUserClasses] = useState<string[]>([]);
+  const [classNames, setClassNames] = useState<string[]>([]);
   const [photoURL, setPhotoURL] = useState('');
   const [, setLoading] = useState(true);
   const [hovered, setHovered] = useState(false);
@@ -28,13 +30,35 @@ function ProfilePageContent() {
     const fetchUserData = async () => {
       if (!user) return;
       setLoading(true);
+      
       const userDoc = await getDoc(doc(db, 'users', user.uid));
       if (userDoc.exists()) {
         const data = userDoc.data();
+        
         setDisplayName(data.displayName || '');
         setEmail(data.email || '');
         setUserClass(data.class || '');
+        setUserClasses(data.classes || []);
         setPhotoURL(data.photoURL || '');
+        
+        // Pobierz nazwy klas
+        if (data.classes && data.classes.length > 0) {
+          const classesRef = collection(db, 'classes');
+          const classDocs = await getDocs(classesRef);
+          const names: string[] = [];
+          
+          classDocs.forEach(doc => {
+            const classData = doc.data();
+            if (data.classes.includes(doc.id)) {
+              const className = classData.name || classData.title || `Klasa ${doc.id}`;
+              names.push(className);
+            }
+          });
+          
+          setClassNames(names);
+        } else {
+          setClassNames([]);
+        }
       }
       setLoading(false);
     };
@@ -153,9 +177,20 @@ function ProfilePageContent() {
                 <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 text-center mb-2">
                   {displayName || 'Brak imienia i nazwiska'}
                 </h2>
-                <p className="text-gray-600 text-center text-sm sm:text-base mb-4">
+                <p className="text-gray-600 text-center text-sm sm:text-base mb-2">
                   {email || 'Brak adresu email'}
                 </p>
+                
+                {/* Wyświetl klasy */}
+                {classNames.length > 0 && (
+                  <div className="flex flex-wrap justify-center gap-1 mb-4">
+                    {classNames.map((className, index) => (
+                      <span key={index} className="bg-purple-100 text-purple-800 px-2 py-1 rounded-full text-xs font-medium">
+                        {className}
+                      </span>
+                    ))}
+                  </div>
+                )}
                 
                 {/* Status uploadu */}
             {uploading && (
@@ -188,7 +223,10 @@ function ProfilePageContent() {
                 </Link>
                 
                 <Link 
-                  href="/homelogin/my-courses" 
+                  href={user?.role === 'student' ? '/homelogin/my-courses' : 
+                        user?.role === 'teacher' ? '/homelogin/teacher/courses' : 
+                        user?.role === 'parent' ? '/homelogin/parent/courses' : 
+                        '/homelogin/my-courses'} 
                   className="flex items-center gap-3 w-full px-4 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl hover:from-green-600 hover:to-emerald-700 transition-all duration-200 ease-in-out shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]"
                 >
                   <BookOpen className="w-5 h-5 text-white" />
@@ -196,7 +234,7 @@ function ProfilePageContent() {
                 </Link>
                 
                 <Link 
-                  href="/profile/grades" 
+                  href="/homelogin/grades" 
                   className="flex items-center gap-3 w-full px-4 py-3 bg-gradient-to-r from-amber-500 to-orange-600 text-white rounded-xl hover:from-amber-600 hover:to-orange-700 transition-all duration-200 ease-in-out shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]"
                 >
                   <Award className="w-5 h-5 text-white" />
@@ -210,6 +248,7 @@ function ProfilePageContent() {
                   <Shield className="w-5 h-5" />
                   <span className="font-semibold">Zmień hasło</span>
                 </button>
+                
                 
                 <button 
                   onClick={handleLogout}
@@ -264,36 +303,23 @@ function ProfilePageContent() {
                     </div>
                     <h4 className="font-semibold text-gray-900 text-sm sm:text-base lg:text-lg">Klasa/Grupa</h4>
                   </div>
-                                     <p className="text-gray-700 text-sm sm:text-base lg:text-lg font-medium">
-                     {userClass || '-'}
-                   </p>
+                  <div className="text-gray-700 text-sm sm:text-base lg:text-lg font-medium">
+                    {classNames.length > 0 ? (
+                      <div className="space-y-1">
+                        {classNames.map((className, index) => (
+                          <div key={index} className="bg-purple-100 text-purple-800 px-2 py-1 rounded-md text-xs font-medium">
+                            {className}
+                          </div>
+                        ))}
+                      </div>
+                    ) : userClass ? (
+                      <span>{userClass}</span>
+                    ) : (
+                      <span className="text-gray-400">Brak przypisanych klas</span>
+                    )}
+                  </div>
                 </div>
 
-                {/* Karta - Telefon */}
-                <div className="bg-gradient-to-br from-orange-50 to-red-50 rounded-xl p-4 lg:p-6 border border-orange-100 hover:shadow-lg transition-all duration-200 ease-in-out hover:scale-[1.02]">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 bg-orange-500 rounded-lg flex items-center justify-center">
-                      <Phone className="w-5 h-5 text-white" />
-                    </div>
-                    <h4 className="font-semibold text-gray-900 text-sm sm:text-base lg:text-lg">Telefon</h4>
-                  </div>
-                                     <p className="text-gray-700 text-sm sm:text-base lg:text-lg font-medium">
-                     Nie podano
-                   </p>
-                </div>
-
-                {/* Karta - Lokalizacja */}
-                <div className="bg-gradient-to-br from-indigo-50 to-cyan-50 rounded-xl p-4 lg:p-6 border border-indigo-100 hover:shadow-lg transition-all duration-200 ease-in-out hover:scale-[1.02]">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 bg-indigo-500 rounded-lg flex items-center justify-center">
-                      <MapPin className="w-5 h-5 text-white" />
-                    </div>
-                    <h4 className="font-semibold text-gray-900 text-sm sm:text-base lg:text-lg">Lokalizacja</h4>
-                  </div>
-                                     <p className="text-gray-700 text-sm sm:text-base lg:text-lg font-medium">
-                     Nie podano
-                   </p>
-                </div>
 
                 {/* Karta - Status konta */}
                 <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl p-4 lg:p-6 border border-emerald-100 hover:shadow-lg transition-all duration-200 ease-in-out hover:scale-[1.02]">

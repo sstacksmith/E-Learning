@@ -16,6 +16,7 @@ interface Tutor {
   description?: string;
   experience?: string;
   specialization?: string[];
+  instructorType?: string;
   contactInfo?: {
     phone?: string;
     availability?: string;
@@ -56,12 +57,12 @@ const TutorViewPage: React.FC = () => {
         const assignedTutors = studentData.assignedTutors || [];
 
         if (!primaryTutorId && assignedTutors.length === 0) {
-          setError('Nie przypisano żadnych nauczycieli.');
+          setError('Nie przypisano żadnych instruktorów.');
           setLoading(false);
           return;
         }
 
-        // Pobierz wszystkich przypisanych nauczycieli
+        // Pobierz wszystkich przypisanych instruktorów (nauczycieli, tutorów, wychowawców, nauczycieli wspomagających)
         const allTutorIds = [...new Set([primaryTutorId, ...assignedTutors])].filter(Boolean);
         const tutorsData: Tutor[] = [];
 
@@ -72,15 +73,18 @@ const TutorViewPage: React.FC = () => {
             
             if (tutorSnap.exists()) {
               const tutorData = tutorSnap.data() as DocumentData;
+              const instructorType = tutorData.role || 'teacher';
+              
               tutorsData.push({
                 id: tutorId,
                 fullName: tutorData.fullName || tutorData.displayName || 'Brak nazwiska',
                 email: tutorData.email || '',
                 avatarUrl: tutorData.avatarUrl || tutorData.photoURL || '',
                 subject: tutorData.subject || 'Ogólne',
-                description: tutorData.description || 'Doświadczony nauczyciel z pasją do nauczania.',
+                description: tutorData.description || 'Doświadczony instruktor z pasją do nauczania.',
                 experience: tutorData.experience || '5+ lat',
                 specialization: tutorData.specialization || ['Edukacja domowa', 'Indywidualne podejście'],
+                instructorType: instructorType,
                 contactInfo: {
                   phone: tutorData.phone || '',
                   availability: tutorData.availability || 'Pon-Pt 8:00-16:00'
@@ -88,11 +92,11 @@ const TutorViewPage: React.FC = () => {
               });
             }
           } catch (err) {
-            console.error(`Błąd podczas pobierania nauczyciela ${tutorId}:`, err);
+            console.error(`Błąd podczas pobierania instruktora ${tutorId}:`, err);
           }
         }
 
-        // Sortuj - główny nauczyciel pierwszy
+        // Sortuj - główny instruktor pierwszy
         const sortedTutors = tutorsData.sort((a, b) => {
           if (a.id === primaryTutorId) return -1;
           if (b.id === primaryTutorId) return 1;
@@ -121,7 +125,7 @@ const TutorViewPage: React.FC = () => {
           <div className="flex items-center justify-center py-20">
             <div className="text-center">
               <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-[#4067EC] mx-auto mb-4"></div>
-              <p className="text-[#4067EC] font-semibold text-lg">Ładowanie nauczycieli...</p>
+              <p className="text-[#4067EC] font-semibold text-lg">Ładowanie instruktorów...</p>
             </div>
           </div>
         </div>
@@ -166,8 +170,8 @@ const TutorViewPage: React.FC = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
               </svg>
             </div>
-            <h2 className="text-xl font-bold text-gray-800 mb-2">Brak przypisanych nauczycieli</h2>
-            <p className="text-gray-600 mb-4">Nie masz jeszcze przypisanych nauczycieli. Skontaktuj się z administratorem platformy.</p>
+            <h2 className="text-xl font-bold text-gray-800 mb-2">Brak przypisanych instruktorów</h2>
+            <p className="text-gray-600 mb-4">Nie masz jeszcze przypisanych instruktorów. Skontaktuj się z administratorem platformy.</p>
             <Link 
               href="/homelogin"
               className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-[#4067EC] to-[#5577FF] text-white font-semibold rounded-xl hover:from-[#3155d4] hover:to-[#4067EC] transition-all duration-200 hover:shadow-lg"
@@ -198,13 +202,13 @@ const TutorViewPage: React.FC = () => {
               </svg>
             </Link>
             <div>
-              <h1 className="text-3xl font-bold text-gray-800">Moi Nauczyciele</h1>
-              <p className="text-gray-600">Zespół nauczycieli wspierających Twoją edukację domową</p>
+              <h1 className="text-3xl font-bold text-gray-800">Moi Instruktorzy</h1>
+              <p className="text-gray-600">Zespół instruktorów wspierających Twoją edukację domową</p>
             </div>
           </div>
         </div>
 
-        {/* Teachers Grid */}
+        {/* Instructors Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
           {tutors.map((tutor, index) => {
             const isPrimary = index === 0;
@@ -250,7 +254,22 @@ const TutorViewPage: React.FC = () => {
                           </span>
                         )}
                       </div>
-                      <p className="text-sm opacity-90">{tutor.subject}</p>
+                      <div className="flex items-center gap-2">
+                        {tutor.instructorType && (
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            tutor.instructorType === 'tutor' ? 'bg-white/20 text-white' :
+                            tutor.instructorType === 'wychowawca' ? 'bg-white/20 text-white' :
+                            tutor.instructorType === 'nauczyciel_wspomagajacy' ? 'bg-white/20 text-white' :
+                            'bg-white/20 text-white'
+                          }`}>
+                            {tutor.instructorType === 'tutor' ? 'Tutor' :
+                             tutor.instructorType === 'wychowawca' ? 'Wychowawca' :
+                             tutor.instructorType === 'nauczyciel_wspomagajacy' ? 'Nauczyciel wspomagający' :
+                             tutor.instructorType === 'teacher' ? 'Nauczyciel' : tutor.instructorType}
+                          </span>
+                        )}
+                        <p className="text-sm opacity-90">{tutor.subject}</p>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -259,7 +278,7 @@ const TutorViewPage: React.FC = () => {
                 <div className="p-6">
                   {/* Description */}
                   <div className="mb-6">
-                    <h4 className="font-semibold text-gray-800 mb-2">O nauczycielu</h4>
+                    <h4 className="font-semibold text-gray-800 mb-2">O instruktorze</h4>
                     <p className="text-gray-600 text-sm leading-relaxed">{tutor.description}</p>
                   </div>
 
@@ -342,7 +361,7 @@ const TutorViewPage: React.FC = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
-            <h3 className="text-lg font-bold text-gray-800">Współpraca z nauczycielami</h3>
+            <h3 className="text-lg font-bold text-gray-800">Współpraca z instruktorami</h3>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="text-center">
@@ -352,7 +371,7 @@ const TutorViewPage: React.FC = () => {
                 </svg>
               </div>
               <h4 className="font-semibold text-gray-800 mb-2">Komunikacja</h4>
-              <p className="text-sm text-gray-600">Używaj czatu do komunikacji z nauczycielami</p>
+              <p className="text-sm text-gray-600">Używaj czatu do komunikacji z instruktorami</p>
             </div>
             <div className="text-center">
               <div className="w-12 h-12 bg-gradient-to-r from-emerald-100 to-teal-100 rounded-xl flex items-center justify-center mx-auto mb-3">
@@ -361,7 +380,7 @@ const TutorViewPage: React.FC = () => {
                 </svg>
               </div>
               <h4 className="font-semibold text-gray-800 mb-2">Wsparcie</h4>
-              <p className="text-sm text-gray-600">Nauczyciele są dostępni w godzinach pracy</p>
+              <p className="text-sm text-gray-600">Instruktorzy są dostępni w godzinach pracy</p>
             </div>
             <div className="text-center">
               <div className="w-12 h-12 bg-gradient-to-r from-purple-100 to-pink-100 rounded-xl flex items-center justify-center mx-auto mb-3">

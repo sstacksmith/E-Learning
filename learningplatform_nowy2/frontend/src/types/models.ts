@@ -4,12 +4,18 @@ export interface User extends FirebaseDocument {
   email: string;
   displayName: string | null;
   photoURL: string | null;
-  role: 'student' | 'teacher' | 'admin';
+  role: 'student' | 'teacher' | 'admin' | 'tutor' | 'wychowawca' | 'nauczyciel_wspomagajacy' | 'psycholog' | 'pedagog' | 'logopeda' | 'terapeuta' | 'bibliotekarz' | 'administrator';
   isActive: boolean;
   lastLogin: string | null;
   classes?: string[]; // 🆕 NOWE - ID klas do których należy uczeń
   primaryTutorId?: string; // 🆕 NOWE - ID głównego tutora
   assignedTutors?: string[]; // 🆕 NOWE - ID przypisanych tutorów
+  assignedInstructors?: string[]; // 🆕 NOWE - ID przypisanych instruktorów (tutor, wychowawca, nauczyciel wspomagający)
+  instructorType?: 'tutor' | 'wychowawca' | 'nauczyciel_wspomagajacy'; // 🆕 NOWE - typ instruktora
+  specialization?: string[]; // 🆕 NOWE - specjalizacje instruktora
+  experience?: string; // 🆕 NOWE - doświadczenie instruktora
+  availability?: string; // 🆕 NOWE - dostępność instruktora
+  phone?: string; // 🆕 NOWE - telefon instruktora
   metadata: Record<string, unknown>;
 }
 

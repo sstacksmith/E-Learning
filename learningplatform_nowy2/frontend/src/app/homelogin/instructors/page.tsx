@@ -8,14 +8,20 @@ import { ArrowLeft } from 'lucide-react';
 
 interface Instructor {
   id: string;
-  firstName: string;
-  lastName: string;
+  firstName?: string;
+  lastName?: string;
+  displayName?: string;
   email: string;
-  description: string;
-  profileImageUrl: string;
-  subjects: string;
-  experience: string;
-  education: string;
+  description?: string;
+  profileImageUrl?: string;
+  photoURL?: string;
+  subjects?: string;
+  experience?: string;
+  education?: string;
+  instructorType?: string;
+  specialization?: string[];
+  availability?: string;
+  phone?: string;
 }
 
 export default function InstructorsPage() {
@@ -31,22 +37,32 @@ export default function InstructorsPage() {
     try {
       console.log('Loading instructors from Firestore...');
       const usersCollection = collection(db, 'users');
-      const q = query(usersCollection, where('role', '==', 'teacher'));
-      const querySnapshot = await getDocs(q);
       
-      console.log('Found', querySnapshot.size, 'instructors');
+      // Query for only new instructor roles (exclude regular teachers)
+      const instructorRoles = ['tutor', 'wychowawca', 'nauczyciel_wspomagajacy'];
+      const allInstructors: Instructor[] = [];
       
-      const instructorsData = querySnapshot.docs.map(doc => {
-        const data = doc.data();
-        console.log('Instructor data:', { id: doc.id, ...data });
-        return {
-          id: doc.id,
-          ...data
-        } as Instructor;
-      });
+      for (const role of instructorRoles) {
+        const q = query(usersCollection, where('role', '==', role));
+        const querySnapshot = await getDocs(q);
+        
+        console.log(`Found ${querySnapshot.size} ${role} instructors`);
+        
+        const roleInstructors = querySnapshot.docs.map(doc => {
+          const data = doc.data();
+          console.log('Instructor data:', { id: doc.id, ...data });
+          return {
+            id: doc.id,
+            ...data,
+            instructorType: role // Add instructor type
+          } as Instructor;
+        });
+        
+        allInstructors.push(...roleInstructors);
+      }
       
-      console.log('Processed instructors:', instructorsData);
-      setInstructors(instructorsData);
+      console.log('Processed all instructors:', allInstructors);
+      setInstructors(allInstructors);
     } catch (err) {
       console.error('Error loading instructors:', err);
       setError('Błąd ładowania instruktorów');
@@ -54,6 +70,7 @@ export default function InstructorsPage() {
       setLoading(false);
     }
   };
+
 
   if (loading) {
     return (
@@ -100,10 +117,18 @@ export default function InstructorsPage() {
           </button>
           
           <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-            Instruktorzy i Tutorzy
+            Instruktorzy Edukacji Domowej
           </h1>
           
-          <div className="w-20"></div>
+          <Link
+            href="/homelogin/instructors/tutors"
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg hover:from-blue-600 hover:to-indigo-700 transition-all duration-200 ease-in-out border border-blue-600 shadow-lg hover:shadow-xl"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            </svg>
+            Moi Instruktorzy
+          </Link>
         </div>
       </div>
       <main className="flex-1 px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
@@ -116,7 +141,8 @@ export default function InstructorsPage() {
         
         {instructors.length === 0 ? (
           <div className="text-center py-12">
-            <p className="text-gray-500 text-lg">Brak dostępnych instruktorów</p>
+            <p className="text-gray-500 text-lg">Brak dostępnych instruktorów edukacji domowej</p>
+            <p className="text-gray-400 text-sm mt-2">Brak dostępnych instruktorów w systemie</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
@@ -125,10 +151,10 @@ export default function InstructorsPage() {
                 {/* Profile Image */}
                 <div className="flex flex-col items-center mb-4">
                   <div className="relative w-24 h-24 rounded-full overflow-hidden border-4 border-[#4067EC] mb-4">
-                    {instructor.profileImageUrl ? (
+                    {(instructor.profileImageUrl || instructor.photoURL) ? (
                       <Image 
-                        src={instructor.profileImageUrl} 
-                        alt={`${instructor.firstName} ${instructor.lastName}`} 
+                        src={instructor.profileImageUrl || instructor.photoURL || ''} 
+                        alt={instructor.displayName || `${instructor.firstName} ${instructor.lastName}` || 'Instruktor'} 
                         width={96} 
                         height={96} 
                         className="w-full h-full object-cover"
@@ -143,14 +169,29 @@ export default function InstructorsPage() {
                   </div>
                   
                   <h3 className="font-semibold text-xl text-gray-800 text-center">
-                    {instructor.firstName} {instructor.lastName}
+                    {instructor.displayName || `${instructor.firstName || ''} ${instructor.lastName || ''}`.trim() || 'Brak nazwiska'}
                   </h3>
                   
-                  {instructor.subjects && (
-                    <p className="text-sm text-[#4067EC] font-medium text-center mt-1">
-                      {instructor.subjects}
-                    </p>
-                  )}
+                  <div className="text-center mt-1">
+                    {instructor.instructorType && (
+                      <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium mb-1 ${
+                        instructor.instructorType === 'tutor' ? 'bg-blue-100 text-blue-800' :
+                        instructor.instructorType === 'wychowawca' ? 'bg-green-100 text-green-800' :
+                        instructor.instructorType === 'nauczyciel_wspomagajacy' ? 'bg-purple-100 text-purple-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {instructor.instructorType === 'tutor' ? 'Tutor' :
+                         instructor.instructorType === 'wychowawca' ? 'Wychowawca' :
+                         instructor.instructorType === 'nauczyciel_wspomagajacy' ? 'Nauczyciel wspomagający' :
+                         instructor.instructorType === 'teacher' ? 'Nauczyciel' : instructor.instructorType}
+                      </span>
+                    )}
+                    {instructor.subjects && (
+                      <p className="text-sm text-[#4067EC] font-medium">
+                        {instructor.subjects}
+                      </p>
+                    )}
+                  </div>
                 </div>
                 
                 {/* Description */}
