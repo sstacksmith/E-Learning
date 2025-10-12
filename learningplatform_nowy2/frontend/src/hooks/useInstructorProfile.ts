@@ -60,7 +60,7 @@ export const useInstructorProfile = (instructorId: string): UseInstructorProfile
   });
 
   // Memoized values
-  const memoizedInstructor = useMemo(() => instructor, [instructor?.id]);
+  const memoizedInstructor = useMemo(() => instructor, [instructor]);
   const memoizedForm = useMemo(() => form, [form]);
 
   // Computed values
