@@ -105,14 +105,8 @@ const nextConfig = {
   // Allow cross-origin requests in development
   allowedDevOrigins: ['192.168.1.112'],
   
-  // Performance optimizations
-  swcMinify: true,
-  
   // Enable static optimization
   output: 'standalone',
-  
-  // Optimize fonts
-  optimizeFonts: true,
   
   // Enable compression
   compress: true,
