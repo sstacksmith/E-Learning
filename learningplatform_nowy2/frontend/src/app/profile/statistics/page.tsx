@@ -22,12 +22,17 @@ interface UserLearningData {
 
 interface Grade {
   id: string;
-  user_id: string;
-  course_id: string;
-  value: number;
+  user_id?: string;
+  studentId?: string;
+  studentEmail?: string;
+  course_id?: string;
+  value?: number;
+  value_grade?: number;
+  grade?: string | number;
   comment?: string;
-  graded_by: string;
-  graded_at: string;
+  graded_by?: string;
+  graded_at?: string;
+  date?: string;
   quiz_id?: string;
   quiz_title?: string;
   subject?: string;
@@ -83,41 +88,41 @@ export default function StatisticsPage() {
       try {
         console.log('🔄 Fetching grades for user:', user.uid, user.email);
         
-        // Pobierz oceny przez user_id
-        const gradesQuery1 = query(collection(db, 'grades'), where('user_id', '==', user.uid));
-        const gradesSnapshot1 = await getDocs(gradesQuery1);
-        const gradesList1 = gradesSnapshot1.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        console.log('📊 Grades by user_id:', gradesList1);
+      // Pobierz oceny przez user_id
+      const gradesQuery1 = query(collection(db, 'grades'), where('user_id', '==', user.uid));
+      const gradesSnapshot1 = await getDocs(gradesQuery1);
+      const gradesList1 = gradesSnapshot1.docs.map(doc => ({ id: doc.id, ...doc.data() } as Grade));
+      console.log('📊 Grades by user_id:', gradesList1);
 
-        // Pobierz oceny przez studentEmail
-        const gradesQuery2 = query(collection(db, 'grades'), where('studentEmail', '==', user.email));
-        const gradesSnapshot2 = await getDocs(gradesQuery2);
-        const gradesList2 = gradesSnapshot2.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        console.log('📊 Grades by email:', gradesList2);
+      // Pobierz oceny przez studentEmail
+      const gradesQuery2 = query(collection(db, 'grades'), where('studentEmail', '==', user.email));
+      const gradesSnapshot2 = await getDocs(gradesQuery2);
+      const gradesList2 = gradesSnapshot2.docs.map(doc => ({ id: doc.id, ...doc.data() } as Grade));
+      console.log('📊 Grades by email:', gradesList2);
 
-        // Pobierz oceny przez studentId
-        const gradesQuery3 = query(collection(db, 'grades'), where('studentId', '==', user.uid));
-        const gradesSnapshot3 = await getDocs(gradesQuery3);
-        const gradesList3 = gradesSnapshot3.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        console.log('📊 Grades by studentId:', gradesList3);
+      // Pobierz oceny przez studentId
+      const gradesQuery3 = query(collection(db, 'grades'), where('studentId', '==', user.uid));
+      const gradesSnapshot3 = await getDocs(gradesQuery3);
+      const gradesList3 = gradesSnapshot3.docs.map(doc => ({ id: doc.id, ...doc.data() } as Grade));
+      console.log('📊 Grades by studentId:', gradesList3);
 
-        // Połącz wszystkie listy i usuń duplikaty
-        const allGrades = [...gradesList1, ...gradesList2, ...gradesList3];
-        const uniqueGrades = allGrades.filter((grade, index, self) =>
-          index === self.findIndex(g => g.id === grade.id)
-        );
+      // Połącz wszystkie listy i usuń duplikaty
+      const allGrades = [...gradesList1, ...gradesList2, ...gradesList3];
+      const uniqueGrades = allGrades.filter((grade, index, self) =>
+        index === self.findIndex(g => g.id === grade.id)
+      );
 
-        console.log('📊 All unique grades:', uniqueGrades);
-        console.log('📊 Grades details:', uniqueGrades.map(g => ({
-          id: g.id,
-          subject: g.subject,
-          value: g.value || g.value_grade || g.grade,
-          quiz_title: g.quiz_title,
-          percentage: g.percentage,
-          graded_at: g.graded_at || g.date
-        })));
+      console.log('📊 All unique grades:', uniqueGrades);
+      console.log('📊 Grades details:', uniqueGrades.map(g => ({
+        id: g.id,
+        subject: g.subject,
+        value: g.value || g.value_grade || g.grade,
+        quiz_title: g.quiz_title,
+        percentage: g.percentage,
+        graded_at: g.graded_at || g.date
+      })));
 
-        setGrades(uniqueGrades as Grade[]);
+      setGrades(uniqueGrades);
       } catch (error) {
         console.error('Error fetching grades:', error);
       } finally {
@@ -470,7 +475,7 @@ export default function StatisticsPage() {
                       axisLine={false}
                       tickLine={false}
                       tick={{ fontSize: 12, fill: '#666' }}
-                      tickFormatter={(value) => formatMinutes(value)}
+                      tickFormatter={(value: number) => formatMinutes(value)}
                     />
                     <Tooltip 
                       formatter={(value: number) => [formatMinutes(value), 'Czas nauki']}
@@ -512,7 +517,7 @@ export default function StatisticsPage() {
                       axisLine={false}
                       tickLine={false}
                       tick={{ fontSize: 12, fill: '#666' }}
-                      tickFormatter={(value) => formatMinutes(value)}
+                      tickFormatter={(value: number) => formatMinutes(value)}
                     />
                     <Tooltip 
                       formatter={(value: number) => [formatMinutes(value), 'Czas nauki']}
@@ -555,7 +560,7 @@ export default function StatisticsPage() {
                       axisLine={false}
                       tickLine={false}
                       tick={{ fontSize: 12, fill: '#666' }}
-                      tickFormatter={(value) => `${Math.round(value)}h`}
+                      tickFormatter={(value: number) => `${Math.round(value)}h`}
                     />
                     <Tooltip 
                       formatter={(value: number) => [formatMinutes(value), 'Czas nauki']}
