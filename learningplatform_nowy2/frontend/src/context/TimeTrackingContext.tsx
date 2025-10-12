@@ -2,8 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import useApi from '@/hooks/useApi';
-import { doc, setDoc, getDoc, updateDoc, collection, serverTimestamp, Timestamp, increment } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc, serverTimestamp, increment } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 
 interface TimeTrackingContextType {
@@ -26,16 +25,12 @@ export const useTimeTracking = () => {
 
 export const TimeTrackingProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
-  const api = useApi();
   const [isTracking, setIsTracking] = useState(false);
   const [currentSessionTime, setCurrentSessionTime] = useState(0);
   const [hasLoadedSession, setHasLoadedSession] = useState(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastActivityRef = useRef<number>(Date.now());
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const lastUpdateRef = useRef<number>(Date.now());
   const sessionStartTimeRef = useRef<number>(0);
-  const lastAggregatedMinuteRef = useRef<number>(0);
 
   // Zapisz czas sesji do Firebase Storage
   const saveSessionToFirebase = useCallback(async (sessionTime: number, sessionStart: number) => {
@@ -72,36 +67,52 @@ export const TimeTrackingProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   }, [user]);
 
-  // Zaktualizuj dzienny agregat czasu w kolekcji `learningTime`
-  const updateDailyAggregate = useCallback(async (minutesToAdd: number) => {
+  // Zaktualizuj agregat czasu użytkownika w kolekcji `userLearningTime`
+  const updateUserLearningTime = useCallback(async (minutesToAdd: number) => {
     if (!user?.uid || minutesToAdd <= 0) return;
     try {
       const now = new Date();
       const year = now.getFullYear();
       const month = String(now.getMonth() + 1).padStart(2, '0');
       const day = String(now.getDate()).padStart(2, '0');
-      const dateKey = `${year}-${month}-${day}`; // YYYY-MM-DD
-      const hour = now.getHours().toString();
-      const weekday = now.getDay().toString(); // 0=ndz
+      const dateKey = `${year}-${month}-${day}`; // Format: 2025-10-08
 
-      const col = collection(db, 'learningTime');
-      const docId = `${user.uid}_${dateKey}`;
-      const ltDoc = doc(col, docId);
-      await setDoc(ltDoc, {
-        userId: user.uid,
-        dateKey,
-        date: Timestamp.fromDate(new Date(year, now.getMonth(), now.getDate())),
-        minutes: increment(minutesToAdd),
-        updatedAt: serverTimestamp(),
-      }, { merge: true });
-
-      // inkrementuj rozkład godzinowy i dni tygodnia
-      await updateDoc(ltDoc, {
-        [`byHour.${hour}`]: increment(minutesToAdd),
-        [`byWeekday.${weekday}`]: increment(minutesToAdd),
-      });
+      const userTimeDoc = doc(db, 'userLearningTime', user.uid);
+      
+      // Pobierz aktualny dokument
+      const docSnap = await getDoc(userTimeDoc);
+      
+      if (docSnap.exists()) {
+        // Dokument istnieje - aktualizuj
+        const currentData = docSnap.data();
+        const currentDailyStats = currentData.dailyStats || {};
+        const currentDateMinutes = currentDailyStats[dateKey] || 0;
+        
+        await setDoc(userTimeDoc, {
+          userId: user.uid,
+          dailyStats: {
+            ...currentDailyStats,
+            [dateKey]: currentDateMinutes + minutesToAdd
+          },
+          totalMinutes: increment(minutesToAdd),
+          lastUpdated: serverTimestamp(),
+        }, { merge: true });
+      } else {
+        // Dokument nie istnieje - utwórz nowy
+        await setDoc(userTimeDoc, {
+          userId: user.uid,
+          createdAt: serverTimestamp(),
+          dailyStats: {
+            [dateKey]: minutesToAdd
+          },
+          totalMinutes: minutesToAdd,
+          lastUpdated: serverTimestamp(),
+        });
+      }
+      
+      console.log(`✅ Updated userLearningTime: +${minutesToAdd} min on ${dateKey}`);
     } catch (e) {
-      console.error('Error updating daily aggregate', e);
+      console.error('❌ Error updating userLearningTime:', e);
     }
   }, [user]);
 
@@ -216,35 +227,6 @@ export const TimeTrackingProvider: React.FC<{ children: React.ReactNode }> = ({ 
     return Date.now() - lastActivityRef.current < 5 * 60 * 1000; // 5 minut
   };
 
-  // Wyślij czas do backendu
-  const sendTimeToBackend = useCallback(async (minutes: number) => {
-    if (!user?.uid || minutes <= 0) {
-      console.log(`Not sending time to backend: user=${!!user?.uid}, minutes=${minutes}`);
-      return;
-    }
-
-    try {
-      console.log(`=== SENDING TIME TO BACKEND ===`);
-      console.log(`User UID: ${user.uid}`);
-      console.log(`User email: ${user.email}`);
-      console.log(`Minutes to send: ${minutes}`);
-      console.log(`API base URL: ${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}`);
-      
-      const response = await api.post('/api/update-learning-time/', {
-        lesson_id: 'general_learning',
-        time_spent_minutes: minutes
-      });
-      console.log(`✅ Successfully sent ${minutes} minutes to backend:`, response);
-    } catch (error) {
-      console.error('❌ Error sending time to backend:', error);
-      console.error('Error details:', {
-        message: error instanceof Error ? error.message : 'Unknown error',
-        status: (error as any)?.status,
-        response: (error as any)?.response
-      });
-    }
-  }, [api, user]);
-
   const startTracking = useCallback(() => {
     if (!user) return;
     
@@ -262,8 +244,6 @@ export const TimeTrackingProvider: React.FC<{ children: React.ReactNode }> = ({ 
     if (!user) return;
     
     setIsTracking(false);
-    
-    // Nie wysyłamy dodatkowo czasu tutaj, bo wysyłamy co minutę podczas trwania sesji
     
     // Zapisz zakończenie sesji w Firebase
     if (user?.uid) {
@@ -287,7 +267,7 @@ export const TimeTrackingProvider: React.FC<{ children: React.ReactNode }> = ({ 
     
     setCurrentSessionTime(0);
     console.log('Stopped time tracking');
-  }, [user, currentSessionTime, sendTimeToBackend]);
+  }, [user, currentSessionTime]);
 
   const resetSession = () => {
     setCurrentSessionTime(0);
@@ -329,19 +309,12 @@ export const TimeTrackingProvider: React.FC<{ children: React.ReactNode }> = ({ 
             console.log(`Session time updated: ${newTime} minutes`);
             
             // Zapisz do Firebase co minutę
-            if (newTime % 1 === 0) {
-              console.log(`Saving to Firebase: ${newTime} minutes`);
-              saveSessionToFirebase(newTime, sessionStartTimeRef.current);
-              // agreguj do dziennego podsumowania tylko nowo dodaną minutę
-              if (newTime > lastAggregatedMinuteRef.current) {
-                updateDailyAggregate(newTime - lastAggregatedMinuteRef.current);
-                lastAggregatedMinuteRef.current = newTime;
-              }
-            }
+            console.log(`💾 Saving to Firebase: ${newTime} minutes`);
+            saveSessionToFirebase(newTime, sessionStartTimeRef.current);
             
-            // Wyślij do backendu co minutę (1 minuta)
-            console.log(`Sending to backend: 1 minute`);
-            sendTimeToBackend(1);
+            // Aktualizuj userLearningTime co minutę (dodaj 1 minutę)
+            console.log(`📊 Updating userLearningTime: +1 minute`);
+            updateUserLearningTime(1);
             
             return newTime;
           });
@@ -359,7 +332,7 @@ export const TimeTrackingProvider: React.FC<{ children: React.ReactNode }> = ({ 
         clearInterval(intervalRef.current);
       }
     };
-  }, [isTracking, user, saveSessionToFirebase, sendTimeToBackend, updateDailyAggregate]);
+  }, [isTracking, user, saveSessionToFirebase, updateUserLearningTime]);
 
   // Wczytaj sesję z Firebase przy starcie
   useEffect(() => {
