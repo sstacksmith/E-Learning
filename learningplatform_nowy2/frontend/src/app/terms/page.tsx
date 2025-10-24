@@ -1,6 +1,7 @@
 "use client";
 import Image from "next/image";
 import Link from "next/link";
+import ThemeToggle from "@/components/ThemeToggle";
 
 export default function TermsOfService() {
   return (
@@ -23,12 +24,15 @@ export default function TermsOfService() {
                 COGITO
               </span>
             </Link>
-            <Link 
-              href="/" 
-              className="px-6 py-2.5 text-blue-600 font-semibold hover:bg-blue-50 rounded-xl transition-all duration-200"
-            >
-              Powrót do strony głównej
-            </Link>
+            <div className="flex items-center gap-4">
+              <ThemeToggle />
+              <Link 
+                href="/" 
+                className="px-6 py-2.5 text-blue-600 font-semibold hover:bg-blue-50 rounded-xl transition-all duration-200"
+              >
+                Powrót do strony głównej
+              </Link>
+            </div>
           </div>
         </div>
       </header>

@@ -7,6 +7,7 @@ import { doc, getDoc, collection, addDoc, updateDoc, serverTimestamp, query, whe
 import { useAuth } from '@/context/AuthContext';
 import MathView from '@/components/MathView';
 import QuizAnswerInput from '@/components/QuizAnswerInput';
+import ThemeToggle from '@/components/ThemeToggle';
 import { Quiz, Question } from '@/types';
 import { QuizNotFound } from '@/components/QuizNotFound';
 import { calculateGradeFromPercentage, getGradeDescription, getGradeColor } from '@/utils/gradeCalculator';
@@ -723,6 +724,11 @@ function QuizTakingContent() {
   if (quizSubmitted) {
     return (
       <div className="max-w-4xl mx-auto p-6">
+        {/* Theme Toggle */}
+        <div className="fixed top-4 right-4 z-50">
+          <ThemeToggle />
+        </div>
+        
         <h1 className="text-2xl font-bold mb-6">{quiz.title} - Wyniki</h1>
         
         {/* Wyniki quizu */}
@@ -876,7 +882,8 @@ function QuizTakingContent() {
             <div className="flex items-center">
               <div className="text-xl font-bold text-blue-600">EP EduPanel</div>
             </div>
-            <div className="flex space-x-4">
+            <div className="flex items-center space-x-4">
+              <ThemeToggle />
               <button className="px-4 py-2 text-gray-600 hover:text-gray-900">
                 Panel Nauczyciela
               </button>

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { collection, getDocs, addDoc, query, where, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
 import { useAuth } from '../../../context/AuthContext';
+import ThemeToggle from '@/components/ThemeToggle';
 
 interface Teacher {
   uid: string;
@@ -422,7 +423,7 @@ export default function AnkietyPage() {
               Ankiety nauczycieli
             </h1>
             
-            <div className="w-20"></div>
+            <ThemeToggle />
           </div>
         </div>
       </div>

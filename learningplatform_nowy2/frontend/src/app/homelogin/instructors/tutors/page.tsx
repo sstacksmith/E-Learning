@@ -6,6 +6,7 @@ import { doc, getDoc, DocumentData, collection, query, where, getDocs } from 'fi
 import { db } from '@/config/firebase';
 import Image from 'next/image';
 import Link from 'next/link';
+import ThemeToggle from '@/components/ThemeToggle';
 
 interface Tutor {
   id: string;
@@ -192,19 +193,22 @@ const TutorViewPage: React.FC = () => {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <div className="flex items-center gap-4 mb-4">
-            <Link 
-              href="/homelogin"
-              className="p-3 bg-white/90 backdrop-blur-xl rounded-xl shadow-lg border border-white/20 hover:bg-white hover:shadow-xl transition-all duration-200"
-            >
-              <svg className="w-6 h-6 text-[#4067EC]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-              </svg>
-            </Link>
-            <div>
-              <h1 className="text-3xl font-bold text-gray-800">Moi Instruktorzy</h1>
-              <p className="text-gray-600">Zespół instruktorów wspierających Twoją edukację domową</p>
+          <div className="flex items-center justify-between gap-4 mb-4">
+            <div className="flex items-center gap-4">
+              <Link 
+                href="/homelogin"
+                className="p-3 bg-white/90 backdrop-blur-xl rounded-xl shadow-lg border border-white/20 hover:bg-white hover:shadow-xl transition-all duration-200"
+              >
+                <svg className="w-6 h-6 text-[#4067EC]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+              </Link>
+              <div>
+                <h1 className="text-3xl font-bold text-gray-800">Moi Instruktorzy</h1>
+                <p className="text-gray-600">Zespół instruktorów wspierających Twoją edukację domową</p>
+              </div>
             </div>
+            <ThemeToggle />
           </div>
         </div>
 

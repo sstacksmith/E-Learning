@@ -1,6 +1,7 @@
 "use client";
 import Image from "next/image";
 import { ArrowLeft } from 'lucide-react';
+import ThemeToggle from '@/components/ThemeToggle';
 
 const testimonials = [
   { user: "John Doe", text: "Great instructor! Learned a lot.", img: "/puzzleicon.png" },
@@ -26,7 +27,7 @@ export default function TestimonialsPage() {
             Opinie i referencje
           </h1>
           
-          <div className="w-20"></div>
+          <ThemeToggle />
         </div>
       </div>
       <main className="flex-1 px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
@@ -45,3 +46,4 @@ export default function TestimonialsPage() {
     </div>
   );
 } 
+

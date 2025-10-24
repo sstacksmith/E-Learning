@@ -6,6 +6,7 @@ import { useAuth } from '../../../context/AuthContext';
 import Providers from '@/components/Providers';
 import { ArrowLeft, BookOpen, Award, TrendingUp, Calendar, User } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import ThemeToggle from '@/components/ThemeToggle';
 
 interface Grade {
   id: string;
@@ -316,6 +317,11 @@ function GradesPageContent() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+      {/* Theme Toggle */}
+      <div className="absolute top-4 right-4 z-50">
+        <ThemeToggle />
+      </div>
+
       {/* Header - pełna szerokość */}
       <div className="w-full bg-white/80 backdrop-blur-lg border-b border-white/20 shadow-sm">
         <div className="w-full px-4 sm:px-6 lg:px-8 py-4">
@@ -463,6 +469,11 @@ function GradesPageContent() {
                               
                               return (
                                 <div key={grade.id} className="relative group">
+      {/* Theme Toggle */}
+      <div className="absolute top-4 right-4 z-50">
+        <ThemeToggle />
+      </div>
+
                                   <button
                                     className={`px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg font-bold text-xs sm:text-sm shadow-sm transition-all duration-200 hover:scale-105 hover:shadow-md ${getGradeColor(gradeValue)}`}
                                   >
@@ -567,6 +578,11 @@ function GradesPageContent() {
                               
                               return (
                                 <div key={grade.id} className="relative group">
+      {/* Theme Toggle */}
+      <div className="absolute top-4 right-4 z-50">
+        <ThemeToggle />
+      </div>
+
                                   <button
                                     className={`px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg font-bold text-xs sm:text-sm shadow-sm transition-all duration-200 hover:scale-105 hover:shadow-md ${getGradeColor(gradeValue)}`}
                                   >
@@ -630,3 +646,4 @@ export default function GradesPage() {
     </Providers>
   );
 } 
+

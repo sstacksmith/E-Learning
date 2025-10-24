@@ -7,6 +7,7 @@ import Notification from '@/components/Notification';
 import { useAuth } from '@/context/AuthContext';
 import { db } from '@/config/firebase';
 import { doc, getDoc } from 'firebase/firestore';
+import ThemeToggle from '@/components/ThemeToggle';
 
 import SocialLoginButtons from '@/components/Auth/SocialLoginButtons';
 import Providers from '@/components/Providers';
@@ -193,6 +194,11 @@ function LoginPageContent() {
           />
         </div>
         <span className="ml-2 text-base sm:text-lg font-normal text-[#222] group-hover:text-[#4067EC] transition-colors duration-300">Cogito</span>
+      </div>
+      
+      {/* Theme Toggle */}
+      <div className="absolute top-3 sm:top-4 right-3 sm:right-4 z-20">
+        <ThemeToggle />
       </div>
       {/* Left: Login Form */}
       <div className="flex flex-col justify-center items-center w-full lg:w-1/2 min-h-[60vh] lg:min-h-screen bg-[#F1F4FE] py-8 sm:py-12 px-3 sm:px-4 lg:px-8">

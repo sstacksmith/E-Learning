@@ -4,6 +4,7 @@ import TeacherRoute from '@/components/TeacherRoute';
 import { useAuth } from '@/context/AuthContext';
 import { useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
+import ThemeToggle from '@/components/ThemeToggle';
 import {
   GraduationCap,
   BookOpen,
@@ -132,30 +133,30 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
   
   return (
     <TeacherRoute>
-      <div className="flex min-h-screen bg-gray-50 w-full max-w-none">
+      <div className="flex min-h-screen bg-gray-50 dark:bg-gray-900 w-full max-w-none transition-colors duration-200">
         {/* Desktop Sidebar */}
-        <div className="hidden lg:flex lg:w-64 lg:flex-col lg:fixed lg:inset-y-0 bg-white border-r border-gray-200 shadow-sm">
+        <div className="hidden lg:flex lg:w-64 lg:flex-col lg:fixed lg:inset-y-0 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 shadow-sm">
           <div className="flex flex-col flex-1">
             {/* Logo */}
-            <div className="flex items-center h-16 px-6 border-b border-gray-200">
-              <GraduationCap className="h-8 w-8 text-blue-600" />
-              <span className="ml-2 text-lg font-semibold text-gray-900">EduPanel</span>
+            <div className="flex items-center h-16 px-6 border-b border-gray-200 dark:border-gray-700">
+              <GraduationCap className="h-8 w-8 text-blue-600 dark:text-blue-400" />
+              <span className="ml-2 text-lg font-semibold text-gray-900 dark:text-gray-100">EduPanel</span>
             </div>
 
             {/* Teacher Info */}
-            <div className="p-6 border-b border-gray-200">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                  <span className="text-blue-600 font-semibold text-sm">
+                <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center">
+                  <span className="text-blue-600 dark:text-blue-400 font-semibold text-sm">
                     {(user as any)?.displayName?.split(' ').map((n: string) => n[0]).join('') || 
                      user?.email?.substring(0, 2).toUpperCase() || 'NT'}
                   </span>
                 </div>
                 <div>
-                  <p className="font-medium text-gray-900">
+                  <p className="font-medium text-gray-900 dark:text-gray-100">
                     {(user as any)?.displayName || user?.email || 'Nauczyciel'}
                   </p>
-                  <p className="text-sm text-gray-500">
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
                     {isAdmin ? 'Administrator' : 'Nauczyciel'}
                   </p>
                 </div>
@@ -172,8 +173,8 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
                     onClick={() => handleNavigation(item.href)}
                     className={`w-full flex items-center gap-3 px-3 py-2 text-left rounded-lg transition-colors ${
                       item.active
-                        ? 'bg-blue-600 text-white'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                        ? 'bg-blue-600 dark:bg-blue-600 text-white'
+                        : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700'
                     }`}
                   >
                     <Icon className="h-5 w-5" />
@@ -184,11 +185,11 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
             </nav>
 
             {/* Bottom Actions */}
-            <div className="p-4 border-t border-gray-200 space-y-2">
+            <div className="p-4 border-t border-gray-200 dark:border-gray-700 space-y-2">
 
               <button 
                 onClick={handleLogout}
-                className="w-full flex items-center gap-3 px-3 py-2 text-left rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors"
+                className="w-full flex items-center gap-3 px-3 py-2 text-left rounded-lg text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
               >
                 <LogOut className="h-4 w-4" />
                 Wyloguj
@@ -201,26 +202,26 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
         <div className={`lg:hidden fixed inset-0 z-50 ${sidebarOpen ? '' : 'pointer-events-none'}`}>
           {/* Backdrop */}
           <div 
-            className={`fixed inset-0 bg-gray-600 transition-opacity ${
+            className={`fixed inset-0 bg-gray-600 dark:bg-gray-900 transition-opacity ${
               sidebarOpen ? 'opacity-75' : 'opacity-0'
             }`}
             onClick={() => setSidebarOpen(false)}
           />
 
           {/* Sidebar */}
-          <div className={`fixed inset-y-0 left-0 w-64 bg-white transform transition-transform ${
+          <div className={`fixed inset-y-0 left-0 w-64 bg-white dark:bg-gray-800 transform transition-transform ${
             sidebarOpen ? 'translate-x-0' : '-translate-x-full'
           }`}>
             <div className="flex flex-col h-full">
               {/* Mobile Header */}
-              <div className="flex items-center justify-between h-16 px-6 border-b border-gray-200">
+              <div className="flex items-center justify-between h-16 px-6 border-b border-gray-200 dark:border-gray-700">
                 <div className="flex items-center">
-                  <GraduationCap className="h-8 w-8 text-blue-600" />
-                  <span className="ml-2 text-lg font-semibold text-gray-900">EduPanel</span>
+                  <GraduationCap className="h-8 w-8 text-blue-600 dark:text-blue-400" />
+                  <span className="ml-2 text-lg font-semibold text-gray-900 dark:text-gray-100">EduPanel</span>
                 </div>
                 <button
                   onClick={() => setSidebarOpen(false)}
-                  className="p-2 text-gray-600 hover:text-gray-900"
+                  className="p-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100"
                 >
                   <X className="h-5 w-5" />
                 </button>
@@ -236,8 +237,8 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
                       onClick={() => handleNavigation(item.href)}
                       className={`w-full flex items-center gap-3 px-3 py-2 text-left rounded-lg transition-colors ${
                         item.active
-                          ? 'bg-blue-600 text-white'
-                          : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                          ? 'bg-blue-600 dark:bg-blue-600 text-white'
+                          : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700'
                       }`}
                     >
                       <Icon className="h-5 w-5" />
@@ -248,11 +249,11 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
               </nav>
 
               {/* Mobile Bottom Actions */}
-              <div className="p-4 border-t border-gray-200 space-y-2">
+              <div className="p-4 border-t border-gray-200 dark:border-gray-700 space-y-2">
 
                 <button 
                   onClick={handleLogout}
-                  className="w-full flex items-center gap-3 px-3 py-2 text-left rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors"
+                  className="w-full flex items-center gap-3 px-3 py-2 text-left rounded-lg text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                 >
                   <LogOut className="h-4 w-4" />
                   Wyloguj
@@ -265,26 +266,27 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
         {/* Main Content */}
         <div className="lg:pl-64 flex-1 w-full max-w-none flex flex-col">
           {/* Header */}
-          <header className="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-6 shadow-sm flex-shrink-0">
+          <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 h-16 flex items-center justify-between px-6 shadow-sm flex-shrink-0 transition-colors duration-200">
             <div className="flex items-center gap-4">
               {/* Mobile menu button */}
               <button
                 onClick={() => setSidebarOpen(true)}
-                className="lg:hidden p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg"
+                className="lg:hidden p-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
               >
                 <Menu className="h-5 w-5" />
               </button>
-              <h1 className="text-xl font-semibold text-gray-900">
+              <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
                 {isAdmin ? 'Panel Administratora' : 'Panel Nauczyciela'}
               </h1>
             </div>
 
             <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2 cursor-pointer hover:bg-gray-100 rounded-lg p-2 transition-colors">
-                <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                  <User className="h-4 w-4 text-blue-600" />
+              <ThemeToggle />
+              <div className="flex items-center gap-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg p-2 transition-colors">
+                <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center">
+                  <User className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                 </div>
-                <span className="hidden md:inline text-gray-700 font-medium">
+                <span className="hidden md:inline text-gray-700 dark:text-gray-300 font-medium">
                   {(user as any)?.displayName || user?.email || 'Nauczyciel'}
                 </span>
               </div>

@@ -5,6 +5,7 @@ import { BookOpen, Calendar, GraduationCap, HelpCircle, Menu, X } from 'lucide-r
 import VideoPlayer from './VideoPlayer';
 import YouTubePlayer from './YouTubePlayer';
 import MathView from './MathView';
+import ThemeToggle from './ThemeToggle';
 import { db } from '../config/firebase';
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
@@ -203,7 +204,7 @@ export const CourseViewShared: React.FC<CourseViewProps> = ({
       {/* Header with course info */}
       <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-12 px-6">
         <div className="max-w-7xl mx-auto">
-          <div className="flex items-center gap-3 mb-4">
+          <div className="flex items-center justify-between gap-3 mb-4">
             <button
               onClick={() => {
                 // Nauczyciel → /homelogin/teacher/courses
@@ -218,6 +219,7 @@ export const CourseViewShared: React.FC<CourseViewProps> = ({
             >
               ← Powrót do moich kursów
             </button>
+            <ThemeToggle />
           </div>
           <div className="flex items-start justify-between">
             <div className="flex-1">

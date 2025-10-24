@@ -7,6 +7,7 @@ import { db, storage } from '../../config/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import Providers from '@/components/Providers';
+import ThemeToggle from '@/components/ThemeToggle';
 import Link from 'next/link';
 import { ArrowLeft, BarChart3, LogOut, Camera, User, Mail, GraduationCap, Shield, BookOpen, Award } from 'lucide-react';
 
@@ -132,6 +133,9 @@ function ProfilePageContent() {
             <ArrowLeft className="w-4 h-4" />
             Powrót do strony głównej
           </button>
+          
+          {/* Theme Toggle */}
+          <ThemeToggle />
           
           <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
             Mój profil
@@ -270,7 +274,7 @@ function ProfilePageContent() {
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8">
                 {/* Karta - Imię i nazwisko */}
-                <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl p-4 lg:p-6 border border-blue-100 hover:shadow-lg transition-all duration-200 ease-in-out hover:scale-[1.02]">
+                <div className="bg-white/90 backdrop-blur-xl rounded-xl p-4 lg:p-6 border border-gray-200 hover:shadow-lg transition-all duration-200 ease-in-out hover:scale-[1.02]">
                   <div className="flex items-center gap-3 mb-3">
                     <div className="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center">
                       <User className="w-5 h-5 text-white" />
@@ -283,7 +287,7 @@ function ProfilePageContent() {
                 </div>
 
                 {/* Karta - Email */}
-                <div className="bg-gradient-to-br from-green-50 to-blue-50 rounded-xl p-4 lg:p-6 border border-green-100 hover:shadow-lg transition-all duration-200 ease-in-out hover:scale-[1.02]">
+                <div className="bg-white/90 backdrop-blur-xl rounded-xl p-4 lg:p-6 border border-gray-200 hover:shadow-lg transition-all duration-200 ease-in-out hover:scale-[1.02]">
                   <div className="flex items-center gap-3 mb-3">
                     <div className="w-10 h-10 bg-green-500 rounded-lg flex items-center justify-center">
                       <Mail className="w-5 h-5 text-white" />
@@ -296,7 +300,7 @@ function ProfilePageContent() {
                 </div>
 
                 {/* Karta - Klasa/Grupa */}
-                <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-4 lg:p-6 border border-purple-100 hover:shadow-lg transition-all duration-200 ease-in-out hover:scale-[1.02]">
+                <div className="bg-white/90 backdrop-blur-xl rounded-xl p-4 lg:p-6 border border-gray-200 hover:shadow-lg transition-all duration-200 ease-in-out hover:scale-[1.02]">
                   <div className="flex items-center gap-3 mb-3">
                     <div className="w-10 h-10 bg-purple-500 rounded-lg flex items-center justify-center">
                       <GraduationCap className="w-5 h-5 text-white" />
@@ -322,7 +326,7 @@ function ProfilePageContent() {
 
 
                 {/* Karta - Status konta */}
-                <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl p-4 lg:p-6 border border-emerald-100 hover:shadow-lg transition-all duration-200 ease-in-out hover:scale-[1.02]">
+                <div className="bg-white/90 backdrop-blur-xl rounded-xl p-4 lg:p-6 border border-gray-200 hover:shadow-lg transition-all duration-200 ease-in-out hover:scale-[1.02]">
                   <div className="flex items-center gap-3 mb-3">
                     <div className="w-10 h-10 bg-emerald-500 rounded-lg flex items-center justify-center">
                       <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>

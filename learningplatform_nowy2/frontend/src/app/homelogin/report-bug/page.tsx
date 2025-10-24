@@ -1,6 +1,7 @@
 "use client";
 import { useState } from 'react';
 import { ArrowLeft, Send, AlertTriangle, CheckCircle } from 'lucide-react';
+import ThemeToggle from '@/components/ThemeToggle';
 
 interface BugReport {
   category: string;
@@ -100,7 +101,7 @@ export default function ReportBugPage() {
               Zgłoś błąd platformy
             </h1>
             
-            <div className="w-20"></div>
+            <ThemeToggle />
           </div>
         </div>
 
@@ -160,7 +161,7 @@ export default function ReportBugPage() {
             Zgłoś błąd platformy
           </h1>
           
-          <div className="w-20"></div>
+          <ThemeToggle />
         </div>
       </div>
 

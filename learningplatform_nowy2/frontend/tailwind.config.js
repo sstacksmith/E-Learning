@@ -9,14 +9,31 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        dark: {
-          bg: '#1a1a1a',
-          card: '#2d2d2d',
-          text: '#ffffff',
-          border: '#404040',
-          primary: '#4067EC',
-          secondary: '#2d3748',
+        // Używamy CSS Variables dla automatycznego dark mode
+        primary: 'var(--accent-blue)',
+        secondary: 'var(--text-secondary)',
+        background: 'var(--bg-primary)',
+        foreground: 'var(--text-primary)',
+        card: {
+          DEFAULT: 'var(--card-bg)',
+          foreground: 'var(--text-primary)',
         },
+        border: 'var(--border-color)',
+        input: 'var(--input-bg)',
+        ring: 'var(--input-focus)',
+      },
+      backgroundColor: {
+        primary: 'var(--bg-primary)',
+        secondary: 'var(--bg-secondary)',
+        tertiary: 'var(--bg-tertiary)',
+      },
+      textColor: {
+        primary: 'var(--text-primary)',
+        secondary: 'var(--text-secondary)',
+        tertiary: 'var(--text-tertiary)',
+      },
+      borderColor: {
+        DEFAULT: 'var(--border-color)',
       },
     },
   },

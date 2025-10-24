@@ -879,6 +879,11 @@ function SuperAdminDashboardContent() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-64">
+      {/* Theme Toggle */}
+      <div className="absolute top-4 right-4 z-50">
+        <ThemeToggle />
+      </div>
+
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
       </div>
     );
@@ -918,6 +923,11 @@ function SuperAdminDashboardContent() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 w-full">
+      {/* Theme Toggle */}
+      <div className="absolute top-4 right-4 z-50">
+        <ThemeToggle />
+      </div>
+
       {/* Header z przyciskiem powrotu */}
       <div className="bg-white/80 backdrop-blur-lg border-b border-white/20 px-4 sm:px-6 lg:px-8 py-4">
         <div className="flex items-center justify-between">
@@ -959,6 +969,11 @@ function SuperAdminDashboardContent() {
             const Icon = stat.icon;
             return (
               <div key={index} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+      {/* Theme Toggle */}
+      <div className="absolute top-4 right-4 z-50">
+        <ThemeToggle />
+      </div>
+
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-sm font-medium text-gray-500">{stat.title}</h3>
                   <div className={`p-2 rounded-lg ${stat.color}`}>
@@ -1980,6 +1995,11 @@ function SuperAdminDashboardContent() {
                             const student = users.find(u => u.email === studentEmail);
                             return (
                               <div key={index} className="flex items-center justify-between bg-gray-50 p-2 rounded">
+      {/* Theme Toggle */}
+      <div className="absolute top-4 right-4 z-50">
+        <ThemeToggle />
+      </div>
+
                                 <span className="text-sm">
                                   {student ? `${student.firstName || ''} ${student.lastName || ''}` : studentEmail}
                                 </span>
@@ -2134,6 +2154,11 @@ function SuperAdminDashboardContent() {
                     const Icon = activity.icon;
                     return (
                       <div key={activity.id} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+      {/* Theme Toggle */}
+      <div className="absolute top-4 right-4 z-50">
+        <ThemeToggle />
+      </div>
+
                         <div className="p-2 bg-white rounded-lg border">
                           <Icon className="h-4 w-4 text-gray-600" />
                         </div>
@@ -2211,6 +2236,7 @@ function SuperAdminDashboardContent() {
 }
 
 import AdminRoute from '@/components/AdminRoute';
+import ThemeToggle from '@/components/ThemeToggle';
 
 export default function SuperAdminDashboard() {
   return (
@@ -2221,3 +2247,4 @@ export default function SuperAdminDashboard() {
     </Providers>
   );
 } 
+

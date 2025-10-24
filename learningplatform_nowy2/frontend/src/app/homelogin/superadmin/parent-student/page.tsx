@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { db } from '@/config/firebase';
 import { collection, getDocs, doc, query, where } from 'firebase/firestore';
+import ThemeToggle from '@/components/ThemeToggle';
 
 interface ParentStudent {
   id: string;
@@ -149,6 +150,11 @@ export default function ParentStudentManagement() {
 
   return (
     <div className="container mx-auto px-4 py-8">
+      {/* Theme Toggle */}
+      <div className="absolute top-4 right-4 z-50">
+        <ThemeToggle />
+      </div>
+
       <div className="mb-8">
         <h1 className="text-3xl font-bold mb-2 text-gray-900">Zarządzanie Przypisaniami Rodzic-Uczeń</h1>
         <p className="text-gray-600">Przypisuj uczniów do rodziców i zarządzaj istniejącymi relacjami</p>
@@ -436,3 +442,4 @@ export default function ParentStudentManagement() {
     </div>
   );
 } 
+

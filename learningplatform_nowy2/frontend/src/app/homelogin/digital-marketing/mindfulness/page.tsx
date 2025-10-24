@@ -1,6 +1,7 @@
 "use client";
 import Image from "next/image";
 import { ArrowLeft } from 'lucide-react';
+import ThemeToggle from '@/components/ThemeToggle';
 
 const mindfulnessResources = [
   { title: "Mindful Breathing", type: "Exercise", duration: "10 min" },
@@ -11,6 +12,11 @@ const mindfulnessResources = [
 export default function MindfulnessPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 w-full">
+      {/* Theme Toggle */}
+      <div className="absolute top-4 right-4 z-50">
+        <ThemeToggle />
+      </div>
+
       {/* Header z przyciskiem powrotu */}
       <div className="bg-white/80 backdrop-blur-lg border-b border-white/20 px-4 sm:px-6 lg:px-8 py-4">
         <div className="flex items-center justify-between">
@@ -44,3 +50,4 @@ export default function MindfulnessPage() {
     </div>
   );
 } 
+

@@ -3,6 +3,7 @@ import { useState, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, HelpCircle, MessageSquare, Mail, Phone, Clock, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
+import ThemeToggle from '@/components/ThemeToggle';
 
 const faqs = [
   {
@@ -90,7 +91,7 @@ export default function FAQPage() {
               Wsparcie i FAQ
             </h1>
             
-            <div className="w-20"></div>
+            <ThemeToggle />
           </div>
         </div>
       </div>
@@ -268,3 +269,4 @@ export default function FAQPage() {
     </div>
   );
 } 
+

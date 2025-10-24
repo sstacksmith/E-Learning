@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import { sendPasswordResetEmail } from "firebase/auth";
 import { auth } from "../../config/firebase";
 import { useRouter } from "next/navigation";
+import ThemeToggle from "@/components/ThemeToggle";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -29,7 +30,12 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#e3eafe] to-[#f5f7ff]">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#e3eafe] to-[#f5f7ff] relative">
+      {/* Theme Toggle */}
+      <div className="absolute top-4 right-4 z-20">
+        <ThemeToggle />
+      </div>
+      
       <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md border border-[#e3eafe]">
         <h2 className="text-2xl font-bold text-[#4067EC] mb-2 text-center">Resetowanie hasła</h2>
         <p className="text-gray-500 mb-6 text-center">Podaj swój adres e-mail, aby otrzymać link do zmiany hasła.</p>

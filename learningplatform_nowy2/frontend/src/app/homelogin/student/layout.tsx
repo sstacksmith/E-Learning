@@ -8,6 +8,7 @@ import { useAuth } from '@/context/AuthContext';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { collection, getDocs, query, where, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '@/config/firebase';
+import ThemeToggle from '@/components/ThemeToggle';
 
 interface Notification {
   id: string;
@@ -220,38 +221,38 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
   return (
     <StudentRoute>
       <ParentAccess>
-        <div className="min-h-screen bg-[#F4F6FB] flex flex-col">
+        <div className="min-h-screen bg-[#F4F6FB] dark:bg-gray-900 flex flex-col transition-colors duration-200">
           {/* Minimalist Topbar */}
-          <header className="w-full bg-white shadow-sm border-b flex items-center justify-between px-8 py-1 sticky top-0 z-50 h-14">
+          <header className="w-full bg-white dark:bg-gray-800 shadow-sm border-b dark:border-gray-700 flex items-center justify-between px-8 py-1 sticky top-0 z-50 h-14">
             {/* Dashboard/Home link on the left */}
-            <Link href="/homelogin" className="text-[#4067EC] font-bold text-lg hover:underline mr-8">Dashboard</Link>
+            <Link href="/homelogin" className="text-[#4067EC] dark:text-blue-400 font-bold text-lg hover:underline mr-8">Dashboard</Link>
             <nav className="flex-1 flex items-center justify-center gap-8">
               {!isParent && (
                 <>
-                  <Link href="#" className="text-sm text-gray-700 hover:text-[#4067EC] font-medium">Moje terminy</Link>
-                  <Link href="/homelogin/group-chats" className="text-sm text-gray-700 hover:text-[#4067EC] font-medium">Czat grupowy</Link>
-                  <Link href="#" className="text-sm text-gray-700 hover:text-[#4067EC] font-medium">Repozytorium/Manuale</Link>
-                  <Link href="#" className="text-sm text-gray-700 hover:text-[#4067EC] font-medium">Warunki</Link>
-                  <Link href="#" className="text-sm text-gray-700 hover:text-[#4067EC] font-medium">Digiteka - Cyfrowe Materiały Dydaktyczne</Link>
-                  <Link href="#" className="text-sm text-gray-700 hover:text-[#4067EC] font-medium">Wsparcie</Link>
+                  <Link href="#" className="text-sm text-gray-700 dark:text-gray-300 hover:text-[#4067EC] dark:hover:text-blue-400 font-medium transition-colors">Moje terminy</Link>
+                  <Link href="/homelogin/group-chats" className="text-sm text-gray-700 dark:text-gray-300 hover:text-[#4067EC] dark:hover:text-blue-400 font-medium transition-colors">Czat grupowy</Link>
+                  <Link href="#" className="text-sm text-gray-700 dark:text-gray-300 hover:text-[#4067EC] dark:hover:text-blue-400 font-medium transition-colors">Repozytorium/Manuale</Link>
+                  <Link href="#" className="text-sm text-gray-700 dark:text-gray-300 hover:text-[#4067EC] dark:hover:text-blue-400 font-medium transition-colors">Warunki</Link>
+                  <Link href="#" className="text-sm text-gray-700 dark:text-gray-300 hover:text-[#4067EC] dark:hover:text-blue-400 font-medium transition-colors">Digiteka - Cyfrowe Materiały Dydaktyczne</Link>
+                  <Link href="#" className="text-sm text-gray-700 dark:text-gray-300 hover:text-[#4067EC] dark:hover:text-blue-400 font-medium transition-colors">Wsparcie</Link>
                 </>
               )}
-                              <Link href="/homelogin/my-courses" className="text-sm text-gray-700 hover:text-[#4067EC] font-medium">Moje kursy</Link>
-              <Link href="/homelogin/student/calendar" className="text-sm text-gray-700 hover:text-[#4067EC] font-medium">Kalendarz</Link>
-              <Link href="/homelogin/student/quizzes" className="text-sm text-gray-700 hover:text-[#4067EC] font-medium">Quizy</Link>
-              <Link href="/homelogin/ankiety" className="text-sm text-gray-700 hover:text-[#4067EC] font-medium">Ankiety</Link>
-              <Link href="/homelogin/student/grades" className="text-sm text-gray-700 hover:text-[#4067EC] font-medium">Dziennik</Link>
-              <Link href="/homelogin/student/tutors" className="text-sm text-gray-700 hover:text-[#4067EC] font-medium">Tutors</Link>
+                              <Link href="/homelogin/my-courses" className="text-sm text-gray-700 dark:text-gray-300 hover:text-[#4067EC] dark:hover:text-blue-400 font-medium transition-colors">Moje kursy</Link>
+              <Link href="/homelogin/student/calendar" className="text-sm text-gray-700 dark:text-gray-300 hover:text-[#4067EC] dark:hover:text-blue-400 font-medium transition-colors">Kalendarz</Link>
+              <Link href="/homelogin/student/quizzes" className="text-sm text-gray-700 dark:text-gray-300 hover:text-[#4067EC] dark:hover:text-blue-400 font-medium transition-colors">Quizy</Link>
+              <Link href="/homelogin/ankiety" className="text-sm text-gray-700 dark:text-gray-300 hover:text-[#4067EC] dark:hover:text-blue-400 font-medium transition-colors">Ankiety</Link>
+              <Link href="/homelogin/student/grades" className="text-sm text-gray-700 dark:text-gray-300 hover:text-[#4067EC] dark:hover:text-blue-400 font-medium transition-colors">Dziennik</Link>
+              <Link href="/homelogin/student/tutors" className="text-sm text-gray-700 dark:text-gray-300 hover:text-[#4067EC] dark:hover:text-blue-400 font-medium transition-colors">Tutors</Link>
             </nav>
             <div className="flex items-center gap-4 ml-4">
               {/* Notifications */}
               <div className="relative" ref={notificationRef}>
                 <button 
                   onClick={() => setShowNotifications(!showNotifications)}
-                  className="relative p-2 rounded-full hover:bg-[#F1F4FE] transition" 
+                  className="relative p-2 rounded-full hover:bg-[#F1F4FE] dark:hover:bg-gray-700 transition" 
                   aria-label="Powiadomienia"
                 >
-                  <svg className="w-6 h-6 text-[#4067EC]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V4a2 2 0 10-4 0v1.341C7.67 7.165 6 9.388 6 12v2.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
+                  <svg className="w-6 h-6 text-[#4067EC] dark:text-blue-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V4a2 2 0 10-4 0v1.341C7.67 7.165 6 9.388 6 12v2.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
                   {unreadCount > 0 && (
                     <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
                       {unreadCount > 9 ? '9+' : unreadCount}
@@ -261,9 +262,9 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
 
                 {/* Notification Dropdown */}
                 {showNotifications && (
-                  <div className="absolute left-1/2 transform -translate-x-1/2 top-full mt-3 w-[420px] bg-white rounded-xl shadow-2xl border border-gray-200 z-50 overflow-hidden">
+                  <div className="absolute left-1/2 transform -translate-x-1/2 top-full mt-3 w-[420px] bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden">
                     {/* Header */}
-                    <div className="bg-gradient-to-r from-[#4067EC] to-[#5078fc] text-white px-5 py-4">
+                    <div className="bg-gradient-to-r from-[#4067EC] to-[#5078fc] dark:from-blue-600 dark:to-blue-700 text-white px-5 py-4">
                       <div className="flex justify-between items-center">
                         <div className="flex items-center gap-3">
                           <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -272,7 +273,7 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
                           <h3 className="font-bold text-lg">Powiadomienia</h3>
                         </div>
                         {unreadCount > 0 && (
-                          <span className="bg-white text-[#4067EC] text-xs font-bold px-3 py-1 rounded-full">
+                          <span className="bg-white dark:bg-gray-800 text-[#4067EC] dark:text-blue-400 text-xs font-bold px-3 py-1 rounded-full">
                             {unreadCount} {unreadCount === 1 ? 'nowe' : 'nowych'}
                           </span>
                         )}
@@ -289,8 +290,8 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
                           return (
                             <div 
                               key={notification.id} 
-                              className={`p-4 border-b border-gray-100 hover:bg-blue-50 transition-colors cursor-pointer ${
-                                !notification.read ? 'bg-blue-50/50' : ''
+                              className={`p-4 border-b border-gray-100 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors cursor-pointer ${
+                                !notification.read ? 'bg-blue-50/50 dark:bg-gray-700/50' : ''
                               }`}
                               onClick={() => {
                                 if (notification.action_url) {
@@ -301,19 +302,19 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
                               <div className="flex items-start gap-3">
                                 {/* Icon */}
                                 <div className={`flex-shrink-0 p-2.5 rounded-xl ${
-                                  notification.type === 'grade' ? 'bg-green-100' : 
-                                  notification.type === 'event' ? 'bg-blue-100' : 'bg-gray-100'
+                                  notification.type === 'grade' ? 'bg-green-100 dark:bg-green-900/30' : 
+                                  notification.type === 'event' ? 'bg-blue-100 dark:bg-blue-900/30' : 'bg-gray-100 dark:bg-gray-700'
                                 }`}>
                                   {notification.type === 'grade' ? (
-                                    <svg className="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                                    <svg className="w-5 h-5 text-green-600 dark:text-green-400" fill="currentColor" viewBox="0 0 20 20">
                                       <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                                     </svg>
                                   ) : notification.type === 'event' ? (
-                                    <svg className="w-5 h-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                                    <svg className="w-5 h-5 text-blue-600 dark:text-blue-400" fill="currentColor" viewBox="0 0 20 20">
                                       <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
                                     </svg>
                                   ) : (
-                                    <svg className="w-5 h-5 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
+                                    <svg className="w-5 h-5 text-gray-600 dark:text-gray-400" fill="currentColor" viewBox="0 0 20 20">
                                       <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
                                       <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
                                     </svg>
@@ -323,25 +324,25 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
                                 {/* Content */}
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-start justify-between gap-2">
-                                    <h4 className="font-semibold text-gray-900 text-sm leading-snug">
+                                    <h4 className="font-semibold text-gray-900 dark:text-gray-100 text-sm leading-snug">
                                       {notification.title}
                                     </h4>
                                     {!notification.read && (
-                                      <span className="flex-shrink-0 w-2 h-2 bg-blue-600 rounded-full mt-1"></span>
+                                      <span className="flex-shrink-0 w-2 h-2 bg-blue-600 dark:bg-blue-400 rounded-full mt-1"></span>
                                     )}
                                   </div>
                                   
-                                  <p className="text-sm text-gray-600 mt-1 line-clamp-2">
+                                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 line-clamp-2">
                                     {notification.message}
                                   </p>
                                   
                                   {/* Date and Status */}
                                   <div className="flex items-center gap-3 mt-2.5">
                                     <div className="flex items-center gap-1.5">
-                                      <svg className="w-3.5 h-3.5 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                                      <svg className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500" fill="currentColor" viewBox="0 0 20 20">
                                         <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
                                       </svg>
-                                      <span className="text-xs text-gray-500 font-medium">
+                                      <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
                                         {eventDate ? eventDate.toLocaleDateString('pl-PL', { 
                                           day: '2-digit', 
                                           month: 'short',
@@ -352,7 +353,7 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
                                     </div>
                                     
                                     {isOverdue && notification.type === 'event' && (
-                                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-600 bg-red-50 px-2 py-0.5 rounded-full">
+                                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/30 px-2 py-0.5 rounded-full">
                                         <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                                           <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                                         </svg>
@@ -363,7 +364,7 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
                                   
                                   {notification.courseTitle && (
                                     <div className="mt-2">
-                                      <span className="inline-block text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-md">
+                                      <span className="inline-block text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-2 py-1 rounded-md">
                                         📚 {notification.courseTitle}
                                       </span>
                                     </div>
@@ -375,21 +376,21 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
                         })
                       ) : (
                         <div className="p-12 text-center">
-                          <svg className="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
                           </svg>
-                          <p className="text-gray-500 font-medium">Brak powiadomień</p>
-                          <p className="text-xs text-gray-400 mt-1">Wszystkie powiadomienia zostały przeczytane</p>
+                          <p className="text-gray-500 dark:text-gray-400 font-medium">Brak powiadomień</p>
+                          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Wszystkie powiadomienia zostały przeczytane</p>
                         </div>
                       )}
                     </div>
 
                     {/* Footer */}
                     {notifications.length > 0 && (
-                      <div className="p-4 bg-gray-50 border-t border-gray-200 flex justify-between items-center">
+                      <div className="p-4 bg-gray-50 dark:bg-gray-700 border-t border-gray-200 dark:border-gray-600 flex justify-between items-center">
                         <Link 
                           href="/homelogin/student/calendar"
-                          className="text-sm text-[#4067EC] hover:text-[#3155d4] font-semibold flex items-center gap-1"
+                          className="text-sm text-[#4067EC] dark:text-blue-400 hover:text-[#3155d4] dark:hover:text-blue-300 font-semibold flex items-center gap-1 transition-colors"
                         >
                           Zobacz kalendarz
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -398,7 +399,7 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
                         </Link>
                         <button 
                           onClick={markAllAsRead}
-                          className="text-sm text-gray-600 hover:text-gray-900 font-medium"
+                          className="text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 font-medium transition-colors"
                         >
                           Oznacz jako przeczytane
                         </button>
@@ -407,6 +408,10 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
                   </div>
                 )}
               </div>
+              
+              {/* Theme Toggle */}
+              <ThemeToggle />
+              
               {/* User avatar with initials */}
               <div className="w-9 h-9 rounded-full bg-[#4067EC] flex items-center justify-center text-white font-bold text-base">
                 {user?.email?.substring(0, 2).toUpperCase() || 'U'}

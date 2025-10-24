@@ -6,6 +6,7 @@ import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import Providers from "@/components/Providers";
 import ClassManagement from "@/components/ClassManagement";
+import ThemeToggle from "@/components/ThemeToggle";
 
 function HomeContent() {
   const router = useRouter();
@@ -51,6 +52,7 @@ function HomeContent() {
                 </Link>
               </div>
                              <div className="flex items-center space-x-4">
+                 <ThemeToggle />
                  <Link 
                    href="/login" 
                    className="px-6 py-2.5 text-blue-700 font-semibold hover:bg-blue-50 hover:text-blue-800 rounded-xl transition-all duration-200"

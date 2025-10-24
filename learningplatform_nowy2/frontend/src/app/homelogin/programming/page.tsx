@@ -1,6 +1,7 @@
 "use client";
 import Image from "next/image";
 import { ArrowLeft } from 'lucide-react';
+import ThemeToggle from '@/components/ThemeToggle';
 
 const programmingCourses = [
   { title: "Python for Beginners", level: "Beginner", progress: 60, img: "/thumb.png" },
@@ -26,7 +27,7 @@ export default function ProgrammingPage() {
             Kursy programowania
           </h1>
           
-          <div className="w-20"></div>
+          <ThemeToggle />
         </div>
       </div>
       <main className="flex-1 px-4 sm:px-6 lg:px-8 py-6 lg:py-8">

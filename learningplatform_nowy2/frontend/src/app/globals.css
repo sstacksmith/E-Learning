@@ -3,53 +3,475 @@
 @tailwind utilities;
 
 :root {
+  /* Podstawowe kolory */
   --background: #ffffff;
   --foreground: #171717;
   --foreground-rgb: 0, 0, 0;
-  --background-start-rgb: 214, 219, 220;
-  --background-end-rgb: 255, 255, 255;
-  --primary: #4067EC;
-  --button-bg: #4067EC;
-  --button-text: #fff;
-  --card-bg: #fff;
-  --input-bg: #fff;
-  --input-border: #e5e7eb;
-  --link: #4067EC;
+  
+  /* Tła */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f9fafb;
+  --bg-tertiary: #f3f4f6;
+  
+  /* Karty i panele */
+  --card-bg: #ffffff;
+  --card-border: #e5e7eb;
+  --card-hover: #f9fafb;
+  
+  /* Teksty */
+  --text-primary: #111827;
+  --text-secondary: #6b7280;
+  --text-tertiary: #9ca3af;
+  
+  /* Inputy i formularze */
+  --input-bg: #ffffff;
+  --input-border: #d1d5db;
+  --input-focus: #4067EC;
+  --input-text: #111827;
+  --input-placeholder: #9ca3af;
+  
+  /* Przyciski */
+  --button-primary: #4067EC;
+  --button-primary-hover: #3155d4;
+  --button-text: #ffffff;
+  
+  /* Bordy i separatory */
+  --border-color: #e5e7eb;
+  --divider-color: #f3f4f6;
+  
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+  
+  /* Akcenty */
+  --accent-blue: #4067EC;
+  --accent-green: #10b981;
+  --accent-orange: #f59e0b;
+  --accent-red: #ef4444;
+}
+
+.dark {
+  /* Podstawowe kolory */
+  --background: #111827;
+  --foreground: #f3f4f6;
+  --foreground-rgb: 243, 244, 246;
+  
+  /* Tła */
+  --bg-primary: #1f2937;
+  --bg-secondary: #111827;
+  --bg-tertiary: #374151;
+  
+  /* Karty i panele */
+  --card-bg: #1f2937;
+  --card-border: #374151;
+  --card-hover: #374151;
+  
+  /* Teksty */
+  --text-primary: #f9fafb;
+  --text-secondary: #d1d5db;
+  --text-tertiary: #9ca3af;
+  
+  /* Inputy i formularze */
+  --input-bg: #374151;
+  --input-border: #4b5563;
+  --input-focus: #60a5fa;
+  --input-text: #f9fafb;
+  --input-placeholder: #6b7280;
+  
+  /* Przyciski */
+  --button-primary: #3b82f6;
+  --button-primary-hover: #2563eb;
+  --button-text: #ffffff;
+  
+  /* Bordy i separatory */
+  --border-color: #374151;
+  --divider-color: #4b5563;
+  
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+  --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.4);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.5);
+  
+  /* Akcenty */
+  --accent-blue: #60a5fa;
+  --accent-green: #34d399;
+  --accent-orange: #fbbf24;
+  --accent-red: #f87171;
 }
 
 
+
+/* ===== GLOBALNE STYLE AUTO DARK MODE - AGRESYWNE NADPISYWANIE ===== */
 
 body {
   background: var(--background);
-  color: var(--foreground);
+  color: var(--text-primary);
   font-family: Arial, Helvetica, sans-serif;
-  color: rgb(var(--foreground-rgb));
-  background: var(--background);
-  transition: background 0.2s, color 0.2s;
+  transition: background 0.3s ease, color 0.3s ease;
 }
 
-.card, .bg-white {
-  background: var(--card-bg) !important;
-  color: var(--foreground);
-  transition: background 0.2s, color 0.2s;
+/* Główne tło całej strony */
+.dark #__next,
+.dark main,
+.dark body,
+.dark [id*="root"],
+.dark [class*="page"]:not([class*="bg-gradient"]),
+.dark [class*="container"]:not([class*="bg-gradient"]):not([class*="rounded"]) {
+  background-color: var(--bg-secondary) !important;
 }
 
-input, textarea, select {
-  background: var(--input-bg);
-  color: var(--foreground);
-  border-color: var(--input-border);
-  transition: background 0.2s, color 0.2s, border-color 0.2s;
+/* Jasne gradienty tła (from-blue-50, to-indigo-50 itp.) */
+.dark [class*="from-blue-50"],
+.dark [class*="from-indigo-50"],
+.dark [class*="from-gray-50"],
+.dark [class*="from-slate-50"],
+.dark [class*="to-blue-50"],
+.dark [class*="to-indigo-50"],
+.dark [class*="to-gray-50"],
+.dark [class*="to-indigo-100"],
+.dark [class*="via-blue-50"] {
+  background: linear-gradient(to bottom right, var(--bg-primary), var(--bg-secondary)) !important;
 }
 
-.btn {
-  background: var(--button-bg) !important;
-  color: var(--button-text) !important;
-  transition: background 0.2s, color 0.2s;
+/* Gradienty z konkretnych kolorów (e3eafe, f5f7ff) */
+.dark [class*="from-[#e"],
+.dark [class*="to-[#f"],
+.dark [class*="to-[#e"] {
+  background: linear-gradient(to bottom right, var(--bg-primary), var(--bg-secondary)) !important;
 }
 
-a, .link {
-  color: var(--link);
-  transition: color 0.2s;
+/* ===== WSZYSTKIE białe tła -> automatyczny dark mode ===== */
+/* AGRESYWNE ŁAPANIE WSZYSTKICH JASNYCH KOLORÓW */
+
+/* Najpierw przezroczyste tła (bg-white/80, bg-white/60 itp.) */
+.dark [class*="bg-white/"],
+.dark [class*="bg-gray-50/"],
+.dark [class*="bg-gray-100/"] {
+  background-color: rgba(31, 41, 55, 0.9) !important; /* card-bg z opacity */
+}
+
+/* Wszystkie odcienie bg-white/XX */
+.dark .bg-white\/95,
+.dark .bg-white\/90,
+.dark .bg-white\/80,
+.dark [class*="bg-white/9"],
+.dark [class*="bg-white/8"] {
+  background-color: rgba(31, 41, 55, 0.9) !important;
+}
+
+/* WSZYSTKIE div/section/article z bg-white (z lub bez /) */
+.dark div[class*="bg-white"]:not([class*="bg-gradient"]):not(button),
+.dark section[class*="bg-white"]:not([class*="bg-gradient"]):not(button),
+.dark article[class*="bg-white"]:not([class*="bg-gradient"]):not(button),
+.dark main *[class*="bg-white"]:not([class*="bg-gradient"]):not(button) {
+  background-color: rgba(31, 41, 55, 0.9) !important;
+}
+
+/* Wszystkie elementy z backdrop-blur (glassmorphism cards) */
+.dark *[class*="backdrop-blur"][class*="bg-white"],
+.dark *[class*="bg-white"][class*="backdrop-blur"] {
+  background-color: rgba(31, 41, 55, 0.9) !important;
+}
+
+/* Potem solidne kolory */
+.dark [class*="bg-white"]:not([class*="/"]):not([class*="bg-gradient"]),
+.dark [class*="bg-gray-50"]:not([class*="/"]):not([class*="bg-gradient"]),
+.dark [class*="bg-gray-100"]:not([class*="/"]):not([class*="bg-gradient"]),
+.dark [class*="bg-gray-200"]:not([class*="/"]):not([class*="bg-gradient"]),
+.dark [class*="bg-slate-50"]:not([class*="/"]):not([class*="bg-gradient"]),
+.dark [class*="bg-slate-100"]:not([class*="/"]):not([class*="bg-gradient"]),
+.dark [class*="bg-slate-200"]:not([class*="/"]):not([class*="bg-gradient"]),
+.dark [class*="bg-slate-300"]:not([class*="/"]):not([class*="bg-gradient"]),
+.dark [class*="bg-zinc-50"]:not([class*="/"]):not([class*="bg-gradient"]),
+.dark [class*="bg-zinc-100"]:not([class*="/"]):not([class*="bg-gradient"]),
+.dark [class*="bg-zinc-200"]:not([class*="/"]):not([class*="bg-gradient"]),
+.dark [class*="bg-neutral-50"]:not([class*="/"]):not([class*="bg-gradient"]),
+.dark [class*="bg-neutral-100"]:not([class*="/"]):not([class*="bg-gradient"]),
+.dark [class*="bg-neutral-200"]:not([class*="/"]):not([class*="bg-gradient"]) {
+  background-color: var(--card-bg) !important;
+}
+
+/* Uniwersalny selektor dla WSZYSTKICH jasnych kolorów (-50 do -300) */
+/* Ten łapie ABSOLUTNIE WSZYSTKO co ma jasne tło */
+.dark *[class*="bg-"][class*="-50"]:not([class*="bg-gradient"]):not([class*="dark:"]):not(button):not([class*="/"]),
+.dark *[class*="bg-"][class*="-100"]:not([class*="bg-gradient"]):not([class*="dark:"]):not(button):not([class*="/"]):not([class*="bg-red"]):not([class*="bg-green"]):not([class*="bg-blue"]):not([class*="bg-yellow"]):not([class*="bg-orange"]),
+.dark *[class*="bg-"][class*="-200"]:not([class*="bg-gradient"]):not([class*="dark:"]):not(button):not([class*="/"]),
+.dark *[class*="bg-"][class*="-300"]:not([class*="bg-gradient"]):not([class*="dark:"]):not(button):not([class*="/"]) {
+  background-color: var(--card-bg) !important;
+}
+
+/* ===== WSZYSTKIE ciemnoszare tła w dark mode -> jeszcze ciemniejsze ===== */
+.dark [class*="bg-gray-700"],
+.dark [class*="bg-gray-800"],
+.dark [class*="bg-gray-900"],
+.dark [class*="bg-slate-700"],
+.dark [class*="bg-slate-800"] {
+  background-color: var(--bg-primary) !important;
+}
+
+/* ===== WSZYSTKIE teksty -> automatyczny kolor ===== */
+.dark [class*="text-gray-900"],
+.dark [class*="text-gray-800"],
+.dark [class*="text-gray-700"],
+.dark [class*="text-gray-600"],
+.dark [class*="text-slate-900"],
+.dark [class*="text-slate-800"],
+.dark [class*="text-slate-700"],
+.dark [class*="text-slate-600"],
+.dark [class*="text-black"] {
+  color: var(--text-primary) !important;
+}
+
+.dark [class*="text-gray-500"],
+.dark [class*="text-gray-400"],
+.dark [class*="text-slate-500"] {
+  color: var(--text-secondary) !important;
+}
+
+.dark [class*="text-gray-300"],
+.dark [class*="text-gray-200"] {
+  color: var(--text-tertiary) !important;
+}
+
+/* Jasne teksty zostają jasne */
+.dark [class*="text-gray-100"] {
+  color: var(--text-tertiary) !important;
+}
+
+/* WSZYSTKIE label, h1-h6, p - jasne teksty */
+.dark label,
+.dark h1,
+.dark h2,
+.dark h3,
+.dark h4,
+.dark h5,
+.dark h6,
+.dark p[class*="text-gray"],
+.dark p[class*="text-slate"] {
+  color: var(--text-primary) !important;
+}
+
+/* Custom text colors */
+.dark [class*="text-[#2"],
+.dark [class*="text-[#3"],
+.dark [class*="text-[#4"] {
+  color: var(--text-primary) !important;
+}
+
+/* Białe teksty na przyciskach i gradientach - zostaw białe */
+
+/* ===== SIDEBARY i MENU ===== */
+.dark nav,
+.dark aside,
+.dark [class*="sidebar"],
+.dark [class*="menu"] {
+  background-color: var(--bg-primary) !important;
+  color: var(--text-primary) !important;
+}
+
+/* ===== TABELE ===== */
+.dark table,
+.dark thead,
+.dark tbody,
+.dark tr,
+.dark td,
+.dark th {
+  background-color: var(--bg-primary) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-color) !important;
+}
+
+.dark [class*="bg-blue-"],
+.dark [class*="bg-indigo-"],
+.dark [class*="bg-purple-"] {
+  /* Zostaw niebieskie/fioletowe nagłówki */
+  background-color: inherit !important;
+}
+
+/* ===== KARTY użytkowników/specjaliści - specyficzne przypadki ===== */
+/* Usuń zbyt szerokie reguły - będzie załatwione przez bg-white */
+
+/* ===== INPUTY, TEXTAREA, SELECT ===== */
+.dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+.dark textarea,
+.dark select {
+  background-color: var(--input-bg) !important;
+  color: var(--input-text) !important;
+  border-color: var(--input-border) !important;
+}
+
+/* Inputy z custom tłem (bg-[#f5f7ff]) */
+.dark input[class*="bg-[#f"],
+.dark input[class*="bg-[#e"],
+.dark textarea[class*="bg-[#f"],
+.dark textarea[class*="bg-[#e"] {
+  background-color: var(--input-bg) !important;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: var(--input-placeholder) !important;
+}
+
+/* Disabled inputs */
+.dark input:disabled,
+.dark textarea:disabled,
+.dark select:disabled,
+.dark input[disabled],
+.dark textarea[disabled],
+.dark select[disabled] {
+  background-color: var(--bg-tertiary) !important;
+  color: var(--text-tertiary) !important;
+  opacity: 0.7;
+}
+
+/* ===== PRZYCISKI - zostaw kolorowe ===== */
+.dark button:not([class*="bg-blue"]):not([class*="bg-green"]):not([class*="bg-red"]):not([class*="bg-gradient"]) {
+  background-color: var(--bg-tertiary) !important;
+  color: var(--text-primary) !important;
+}
+
+/* ===== DROPDOWNY i SELECTY ===== */
+.dark [class*="dropdown"],
+.dark [class*="select"],
+.dark option {
+  background-color: var(--input-bg) !important;
+  color: var(--input-text) !important;
+}
+
+/* ===== BORDY ===== */
+.dark [class*="border-gray"]:not([class*="/"]),
+.dark [class*="border-white"]:not([class*="/"]) {
+  border-color: var(--border-color) !important;
+}
+
+/* Przezroczyste bordy */
+.dark [class*="border-white/"],
+.dark [class*="border-gray-50/"],
+.dark [class*="border-gray-100/"],
+.dark [class*="border"][class*="border-white/"] {
+  border-color: rgba(55, 65, 81, 0.3) !important;
+}
+
+/* Solidne bordy */
+.dark [class*="border-gray-300"],
+.dark [class*="border-slate-200"],
+.dark [class*="border-slate-300"],
+.dark [class*="border"][class*="border-slate-200"] {
+  border-color: var(--border-color) !important;
+}
+
+/* Bardzo jasne bordy */
+.dark [class*="border-slate-200/"],
+.dark [class*="border-[#e"] {
+  border-color: rgba(55, 65, 81, 0.3) !important;
+}
+
+/* ===== JASNONIEBIESKIE/SZARE TŁA (problemy z ankietami, profilami) ===== */
+.dark [class*="bg-blue-50"]:not([class*="/"]):not([class*="dark:"]),
+.dark [class*="bg-indigo-50"]:not([class*="/"]):not([class*="dark:"]),
+.dark [class*="bg-purple-50"]:not([class*="/"]):not([class*="dark:"]),
+.dark [class*="bg-slate-100"]:not([class*="/"]):not([class*="dark:"]),
+.dark [class*="bg-slate-200"]:not([class*="/"]):not([class*="dark:"]) {
+  background-color: var(--card-bg) !important;
+}
+
+/* ===== Jasne pola (profile, formularze) ===== */
+.dark [class*="bg-green-50"]:not([class*="/"]):not([class*="dark:"]),
+.dark [class*="bg-teal-50"]:not([class*="/"]):not([class*="dark:"]),
+.dark [class*="bg-cyan-50"]:not([class*="/"]):not([class*="dark:"]) {
+  background-color: var(--card-bg) !important;
+}
+
+/* ===== Kolorowe tła dla notyfikacji (zachowaj ale przyciemnij) ===== */
+.dark [class*="bg-blue-100"]:not([class*="dark:"]) {
+  background-color: rgba(59, 130, 246, 0.2) !important; /* blue-900/30 */
+}
+.dark [class*="bg-green-100"]:not([class*="dark:"]) {
+  background-color: rgba(34, 197, 94, 0.2) !important; /* green-900/30 */
+}
+.dark [class*="bg-red-100"]:not([class*="dark:"]) {
+  background-color: rgba(239, 68, 68, 0.2) !important; /* red-900/30 */
+}
+.dark [class*="bg-yellow-100"]:not([class*="dark:"]) {
+  background-color: rgba(234, 179, 8, 0.2) !important; /* yellow-900/30 */
+}
+.dark [class*="bg-orange-100"]:not([class*="dark:"]) {
+  background-color: rgba(249, 115, 22, 0.2) !important; /* orange-900/30 */
+}
+
+/* ===== Wszystkie divы z bardzo jasnymi kolorami ===== */
+/* SUPER AGRESYWNY SELEKTOR - łapie WSZYSTKO co nie zostało złapane powyżej */
+.dark section[class*="bg-white"]:not([class*="/"]),
+.dark article[class*="bg-white"]:not([class*="/"]) {
+  background-color: var(--card-bg) !important;
+}
+
+/* Specjalnie dla ikon w menu i przycisków */
+.dark nav *[class*="bg-"]:not([class*="bg-gradient"]):not([class*="bg-blue"]):not([class*="bg-green"]):not([class*="bg-purple"]),
+.dark aside *[class*="bg-"]:not([class*="bg-gradient"]):not([class*="bg-blue"]):not([class*="bg-green"]):not([class*="bg-purple"]),
+.dark [class*="sidebar"] *[class*="bg-"]:not([class*="bg-gradient"]):not([class*="bg-blue"]):not([class*="bg-green"]):not([class*="bg-purple"]) {
+  background-color: var(--card-bg) !important;
+}
+
+/* Inputy i pola - absolutnie wszystkie */
+.dark *[class*="input"]:not([type="checkbox"]):not([type="radio"]),
+.dark *[class*="form-"],
+.dark form *[class*="bg-white"],
+.dark form *[class*="bg-gray"],
+.dark form *[class*="bg-green"],
+.dark form *[class*="bg-blue"] {
+  background-color: var(--input-bg) !important;
+  color: var(--input-text) !important;
+  border-color: var(--input-border) !important;
+}
+
+/* WSZYSTKIE zaokrąglone białe elementy (ikony, przyciski) */
+.dark [class*="rounded"][class*="bg-white"],
+.dark [class*="rounded"][class*="bg-gray-50"],
+.dark [class*="rounded"][class*="bg-gray-100"],
+.dark [class*="rounded"][class*="bg-gray-200"],
+.dark [class*="rounded"][class*="bg-slate"] {
+  background-color: var(--card-bg) !important;
+}
+
+/* KAŻDY element z padding i białym tłem */
+.dark [class*="p-"][class*="bg-white"],
+.dark [class*="px-"][class*="bg-white"],
+.dark [class*="py-"][class*="bg-white"] {
+  background-color: var(--card-bg) !important;
+}
+
+/* ===== NUKLEARNY SELEKTOR - ŁAPIE ABSOLUTNIE WSZYSTKO ===== */
+/* Każdy biały/jasnoszary element który jeszcze nie został złapany */
+.dark [style*="background: white"],
+.dark [style*="background: #fff"],
+.dark [style*="background: #f"],
+.dark [style*="background-color: white"],
+.dark [style*="background-color: #fff"],
+.dark [style*="background-color: rgb(255"],
+.dark [style*="background-color: rgb(240"],
+.dark [style*="background-color: rgb(250"] {
+  background-color: var(--card-bg) !important;
+}
+
+/* ===== Konkretne przypadki z obrazków ===== */
+/* Kalendarz - białe weekendy */
+.dark .fc-daygrid-day[class*="weekend"] .fc-daygrid-day-frame {
+  background-color: var(--card-bg) !important;
+}
+
+/* Karty w gridzie (moje kursy, dziennik) */
+.dark [class*="grid"] > div[class*="bg-white"],
+.dark [class*="grid"] > div[class*="bg-gray-50"] {
+  background-color: var(--card-bg) !important;
+}
+
+/* Panele informacyjne */
+.dark [class*="rounded-"][class*="bg-white"],
+.dark [class*="rounded-"][class*="shadow"] {
+  background-color: var(--card-bg) !important;
 }
 
 a:hover, .link:hover {
@@ -115,12 +537,72 @@ a:hover, .link:hover {
   }
 }
 
+/* ===== NUKLEARNE REGUŁY - ŁAPIĄ ABSOLUTNIE WSZYSTKIE JASNE ELEMENTY ===== */
+
+/* Wszystkie odcienie pastelowe/jasne WSZYSTKICH kolorów */
+.dark [class*="bg-rose-"]:not([class*="dark:"]):not([class*="/"])[class*="-"],
+.dark [class*="bg-pink-"]:not([class*="dark:"]):not([class*="/"])[class*="-"],
+.dark [class*="bg-fuchsia-"]:not([class*="dark:"]):not([class*="/"])[class*="-"],
+.dark [class*="bg-purple-"]:not([class*="dark:"]):not([class*="/"])[class*="-"],
+.dark [class*="bg-violet-"]:not([class*="dark:"]):not([class*="/"])[class*="-"],
+.dark [class*="bg-indigo-"]:not([class*="dark:"]):not([class*="/"])[class*="-"],
+.dark [class*="bg-sky-"]:not([class*="dark:"]):not([class*="/"])[class*="-"],
+.dark [class*="bg-cyan-"]:not([class*="dark:"]):not([class*="/"])[class*="-"],
+.dark [class*="bg-teal-"]:not([class*="dark:"]):not([class*="/"])[class*="-"],
+.dark [class*="bg-emerald-"]:not([class*="dark:"]):not([class*="/"])[class*="-"],
+.dark [class*="bg-lime-"]:not([class*="dark:"]):not([class*="/"])[class*="-"],
+.dark [class*="bg-mint-"]:not([class*="dark:"]):not([class*="/"])[class*="-"],
+.dark [class*="bg-amber-"]:not([class*="dark:"]):not([class*="/"])[class*="-"],
+.dark [class*="bg-orange-"]:not([class*="dark:"]):not([class*="/"])[class*="-"]:not([class*="bg-orange-100"]):not([class*="bg-orange-500"]):not([class*="bg-orange-600"]) {
+  background-color: var(--card-bg) !important;
+}
+
+/* BARDZO jasne kolory które ZAWSZE mają być ciemne */
+.dark *[class*="bg-"][class*="-50"]:not([class*="bg-gradient"]):not([class*="dark:"]):not(button):not([class*="/"]),
+.dark *[class*="bg-"][class*="-100"]:not([class*="bg-gradient"]):not([class*="dark:"]):not(button):not([class*="/"]):not([class*="bg-red"]):not([class*="bg-green"]):not([class*="bg-blue"]):not([class*="bg-yellow"]):not([class*="bg-orange"]),
+.dark *[class*="bg-"][class*="-200"]:not([class*="bg-gradient"]):not([class*="dark:"]):not(button):not([class*="/"]),
+.dark *[class*="bg-"][class*="-300"]:not([class*="bg-gradient"]):not([class*="dark:"]):not(button):not([class*="/"]) {
+  background-color: var(--card-bg) !important;
+}
+
+/* Avatar placeholders i inne szare elementy */
+.dark [class*="bg-gray-300"],
+.dark [class*="bg-gray-400"] {
+  background-color: var(--bg-tertiary) !important;
+}
+
+.dark [class*="text-gray-600"] {
+  color: var(--text-secondary) !important;
+}
+
+
+/* Inline styles z bardzo jasnymi kolorami RGB */
+.dark [style*="background-color: rgb(255"],
+.dark [style*="background-color: rgb(254"],
+.dark [style*="background-color: rgb(253"],
+.dark [style*="background-color: rgb(252"],
+.dark [style*="background-color: rgb(251"],
+.dark [style*="background-color: rgb(250"],
+.dark [style*="background-color: rgb(249"],
+.dark [style*="background-color: rgb(248"],
+.dark [style*="background-color: rgb(247"],
+.dark [style*="background-color: rgb(246"],
+.dark [style*="background-color: rgb(245"],
+.dark [style*="background-color: rgb(244"],
+.dark [style*="background-color: rgb(243"],
+.dark [style*="background-color: rgb(242"],
+.dark [style*="background-color: rgb(241"],
+.dark [style*="background-color: rgb(240"] {
+  background-color: var(--card-bg) !important;
+}
+
 /* FullCalendar custom contrast styles */
 .fc .fc-daygrid-day {
-  background: #f8fafc;
+  background: var(--bg-secondary);
 }
 .fc .fc-daygrid-day.fc-day-today {
-  background: #e0eaff !important;
+  background: var(--accent-blue) !important;
+  background: color-mix(in srgb, var(--accent-blue) 15%, var(--bg-primary)) !important;
 }
 .fc .fc-daygrid-day-number {
   display: flex;
@@ -133,32 +615,32 @@ a:hover, .link:hover {
   transition: background 0.2s, color 0.2s;
   font-weight: 500;
   font-size: 0.9rem;
-  color: #374151 !important;
+  color: var(--text-primary) !important;
   background: transparent;
   padding: 0;
 }
 .fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-number,
 .fc .fc-daygrid-day.selected-day .fc-daygrid-day-number {
-  background: #3b82f6 !important;
+  background: var(--accent-blue) !important;
   color: #fff !important;
   font-weight: 600;
   box-shadow: 0 1px 3px rgba(59, 130, 246, 0.3);
 }
 .fc .fc-daygrid-day.selected-day {
-  background: #e0eaff !important;
+  background: color-mix(in srgb, var(--accent-blue) 15%, var(--bg-primary)) !important;
 }
 .fc .fc-daygrid-day.fc-day-other {
   opacity: 0.3 !important;
 }
 .fc .fc-daygrid-day.fc-day-other .fc-daygrid-day-frame {
-  background: #f9fafb !important;
+  background: var(--bg-tertiary) !important;
 }
 .fc .fc-daygrid-day.fc-day-other .add-event-btn {
   display: none !important;
 }
 .fc .fc-col-header-cell {
   background: transparent !important;
-  color: #4067EC !important;
+  color: var(--accent-blue) !important;
   font-weight: 500 !important;
   font-size: 0.95rem !important;
   letter-spacing: 0.02em !important;
@@ -169,12 +651,12 @@ a:hover, .link:hover {
 .fc .fc-toolbar-title {
   font-size: 1.2rem !important;
   font-weight: 600 !important;
-  color: #222 !important;
+  color: var(--text-primary) !important;
   letter-spacing: 0.01em !important;
 }
 .fc .fc-button {
-  background: #f3f6fa;
-  color: #4067EC;
+  background: var(--bg-tertiary);
+  color: var(--accent-blue);
   border: none;
   border-radius: 8px;
   font-weight: 500;
@@ -182,11 +664,11 @@ a:hover, .link:hover {
   transition: background 0.2s;
 }
 .fc .fc-button:hover, .fc .fc-button:focus {
-  background: #e0eaff;
-  color: #2563eb;
+  background: var(--card-hover);
+  color: var(--accent-blue);
 }
 .fc .fc-button-primary:not(:disabled).fc-button-active, .fc .fc-button-primary:not(:disabled):active {
-  background: #2563eb;
+  background: var(--accent-blue);
   color: #fff;
 }
 .fc .fc-scrollgrid, .fc .fc-scrollgrid-section {
@@ -208,7 +690,7 @@ a:hover, .link:hover {
 }
 .fc {
   width: 100% !important;
-  background: #f9fafb !important;
+  background: var(--bg-secondary) !important;
   padding: 8px !important;
   border-radius: 12px !important;
 }
@@ -242,24 +724,24 @@ a:hover, .link:hover {
   min-height: 132px !important;
   max-height: 132px !important;
   width: 100% !important;
-  background: #ffffff !important;
+  background: var(--card-bg) !important;
   overflow: hidden !important;
-  border: none !important;
+  border: 1px solid var(--card-border) !important;
   border-radius: 16px !important;
   margin: 0 !important;
   padding: 0 !important;
   transition: all 0.2s ease;
   position: relative !important;
   box-sizing: border-box !important;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+  box-shadow: var(--shadow-sm) !important;
 }
 .fc .fc-daygrid-day-frame:hover {
-  background: #f8fafc !important;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.06) !important;
+  background: var(--card-hover) !important;
+  box-shadow: var(--shadow) !important;
   transform: translateY(-2px);
 }
 .fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-frame {
-  background: #eff6ff !important;
+  background: color-mix(in srgb, var(--accent-blue) 10%, var(--card-bg)) !important;
   box-shadow: 0 4px 6px rgba(59, 130, 246, 0.15), 0 2px 4px rgba(59, 130, 246, 0.1) !important;
 }
 .fc .fc-daygrid-day-events {
@@ -338,6 +820,20 @@ a:hover, .link:hover {
   line-height: 1.2;
 }
 
+/* Event title w dark mode - jasny tekst */
+.dark .event-title {
+  color: var(--text-primary) !important;
+}
+
+/* Event indicator w dark mode */
+.dark .event-indicator {
+  background: rgba(59, 130, 246, 0.25) !important;
+}
+
+.dark .event-indicator:hover {
+  background: rgba(59, 130, 246, 0.35) !important;
+}
+
 /* Wrapper dla numeru dnia i przycisku */
 .day-cell-wrapper {
   position: static;
@@ -353,6 +849,11 @@ a:hover, .link:hover {
   font-weight: 600;
   color: #374151;
   text-align: right;
+}
+
+/* Day number w dark mode */
+.dark .day-cell-wrapper .day-number {
+  color: var(--text-primary) !important;
 }
 
 /* Przycisk dodawania wydarzenia w kafelku */
@@ -566,6 +1067,17 @@ a:hover, .link:hover {
   box-shadow: 0 4px 12px rgba(245, 158, 11, 0.35) !important;
 }
 
+/* Święta w dark mode */
+.dark .fc .fc-daygrid-day.holiday-cell .fc-daygrid-day-frame {
+  background: linear-gradient(135deg, rgba(234, 179, 8, 0.2) 0%, rgba(234, 179, 8, 0.3) 100%) !important;
+  border-color: var(--accent-orange) !important;
+  box-shadow: 0 2px 8px rgba(234, 179, 8, 0.3) !important;
+}
+
+.dark .fc .fc-daygrid-day.holiday-cell .fc-daygrid-day-frame:hover {
+  box-shadow: 0 4px 12px rgba(234, 179, 8, 0.4) !important;
+}
+
 .fc .fc-daygrid-day.holiday-cell .fc-daygrid-day-number {
   color: #92400e !important;
   font-weight: 700 !important;
@@ -600,6 +1112,12 @@ a:hover, .link:hover {
 /* Style dla weekendów - widok miesięczny */
 .fc .fc-daygrid-day.weekend-cell .fc-daygrid-day-frame {
   background: linear-gradient(135deg, #fafbfc 0%, #f0f4f8 100%) !important;
+}
+
+/* Weekend styling w dark mode */
+.dark .fc .fc-daygrid-day.weekend-cell .fc-daygrid-day-frame {
+  background: var(--card-bg) !important;
+  opacity: 0.85;
 }
 
 .fc .fc-daygrid-day.weekend-cell .fc-daygrid-day-number {
@@ -794,7 +1312,90 @@ div[class*='_popupContainer_']:has(div[class*='_popup_']) {
   left: auto !important;
 }
 
+/* ===== DARK MODE - Pozostałe specjalne style ===== */
+/* (Większość jest obsługiwana przez CSS Variables automatycznie) */
+
+/* Timegrid - specjalne kolory dla dark mode */
+.dark .fc .fc-timegrid-col {
+  background: var(--bg-primary) !important;
+}
+
+.dark .fc .fc-timegrid-slot {
+  border-color: var(--border-color) !important;
+}
+
+.dark .fc .fc-timegrid-event {
+  background: var(--accent-blue);
+  border-color: var(--accent-blue);
+  color: #fff;
+}
+
 .mdxeditor {
   min-height: 120px;
   width: 100%;
+}
+
+/* ===== OSTATECZNY FALLBACK - ŁAPIE WSZYSTKO CO ZOSTAŁO ===== */
+/* Ostateczna reguła dla elementów z białym tłem w inline styles */
+.dark [style*="background: white"]:not(button),
+.dark [style*="background: #fff"]:not(button),
+.dark [style*="background: #f"]:not(button),
+.dark [style*="background-color: white"]:not(button),
+.dark [style*="background-color: #fff"]:not(button),
+.dark [style*="background-color: #f"]:not(button),
+.dark [style*="background-color: rgba(255"]:not(button) {
+  background-color: var(--card-bg) !important;
+}
+
+/* ===== MODALNE - Glassmorphism backdrop ZAWSZE widoczny ===== */
+/* Backdrop modal - zachowaj glassmorphism w dark mode */
+.dark .fixed.inset-0[class*="bg-gray-900"],
+.dark .fixed.inset-0[class*="bg-black"],
+.dark .fixed.inset-0.bg-black,
+.dark .fixed.inset-0[class*="bg-opacity"] {
+  background-color: rgba(0, 0, 0, 0.6) !important;
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+}
+
+/* Modal content - zmień na ciemne tło */
+.dark .fixed.inset-0 > .bg-white,
+.dark .fixed.inset-0 .bg-white {
+  background-color: var(--card-bg) !important;
+  border-color: var(--border-color) !important;
+}
+
+/* Modal headings */
+.dark .fixed.inset-0 h2,
+.dark .fixed.inset-0 h3,
+.dark .fixed.inset-0 label {
+  color: var(--text-primary) !important;
+}
+
+/* Modal close buttons */
+.dark .fixed.inset-0 button[class*="bg-gray-100"],
+.dark .fixed.inset-0 button[class*="bg-blue-100"] {
+  background-color: var(--bg-tertiary) !important;
+}
+
+.dark .fixed.inset-0 button[class*="bg-gray-100"]:hover,
+.dark .fixed.inset-0 button[class*="bg-blue-100"]:hover {
+  background-color: var(--card-hover) !important;
+}
+
+/* Modal icon containers */
+.dark .fixed.inset-0 [class*="bg-blue-100"] {
+  background-color: rgba(59, 130, 246, 0.2) !important;
+}
+
+/* Modal text colors */
+.dark .fixed.inset-0 [class*="text-gray-900"],
+.dark .fixed.inset-0 [class*="text-gray-800"],
+.dark .fixed.inset-0 [class*="text-gray-700"] {
+  color: var(--text-primary) !important;
+}
+
+.dark .fixed.inset-0 [class*="text-gray-600"],
+.dark .fixed.inset-0 [class*="text-gray-500"] {
+  color: var(--text-secondary) !important;
 }

@@ -10,6 +10,7 @@ import { db, storage } from '@/config/firebase';
 import { collection, query, where, onSnapshot, addDoc, serverTimestamp, orderBy, limit, getDocs } from 'firebase/firestore';
 // import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useRouter } from 'next/navigation';
+import ThemeToggle from '@/components/ThemeToggle';
 
 interface GroupChat {
   id: string;
@@ -432,6 +433,11 @@ export default function StudentGroupChatsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-64">
+      {/* Theme Toggle */}
+      <div className="absolute top-4 right-4 z-50">
+        <ThemeToggle />
+      </div>
+
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
       </div>
     );
@@ -447,6 +453,11 @@ export default function StudentGroupChatsPage() {
 
   return (
     <div className="h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-4 flex flex-col overflow-hidden">
+      {/* Theme Toggle */}
+      <div className="absolute top-4 right-4 z-50">
+        <ThemeToggle />
+      </div>
+
       {/* Modern Header */}
       <div className="mb-6 flex-shrink-0">
         <div className="bg-white/80 backdrop-blur-lg rounded-2xl p-6 shadow-lg border border-white/20">
@@ -641,6 +652,11 @@ export default function StudentGroupChatsPage() {
                         console.log('Renderuję wiadomość:', message);
                         return (
                           <div key={message.id} className={`flex ${message.senderId === user?.uid ? 'justify-end' : 'justify-start'}`}>
+      {/* Theme Toggle */}
+      <div className="absolute top-4 right-4 z-50">
+        <ThemeToggle />
+      </div>
+
                             <div className={`max-w-xs lg:max-w-md px-4 py-3 rounded-2xl shadow-lg transition-all duration-200 hover:shadow-xl ${
                               message.senderId === user?.uid
                                 ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white' 
@@ -819,3 +835,4 @@ export default function StudentGroupChatsPage() {
     </div>
   );
 }
+

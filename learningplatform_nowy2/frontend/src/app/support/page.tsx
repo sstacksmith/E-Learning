@@ -1,9 +1,15 @@
 "use client";
 import Link from "next/link";
+import ThemeToggle from "@/components/ThemeToggle";
 
 export default function SupportPage() {
   return (
-    <div className="min-h-screen bg-[#F1F4FE] flex flex-col">
+    <div className="min-h-screen bg-[#F1F4FE] flex flex-col relative">
+      {/* Theme Toggle */}
+      <div className="absolute top-4 right-4 z-50">
+        <ThemeToggle />
+      </div>
+      
       <div className="max-w-5xl mx-auto py-16 px-4">
         <h1 className="text-3xl font-bold text-[#4067EC] mb-6">Wsparcie</h1>
         <p className="text-lg text-gray-700 mb-8">Potrzebujesz pomocy? Skorzystaj z poradników, FAQ lub skontaktuj się z naszym zespołem wsparcia edukacji domowej.</p>

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import ParentRoute from '@/components/ParentRoute';
+import ThemeToggle from '@/components/ThemeToggle';
 import {
   Calendar,
   BookOpen,
@@ -391,6 +392,9 @@ export default function ParentLayout({
           </div>
 
           <div className="flex items-center gap-4">
+            {/* Theme Toggle */}
+            <ThemeToggle />
+            
             {/* Notifications Dropdown */}
             <div className="relative" ref={notificationRef}>
               <button 

@@ -2,6 +2,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from 'next/navigation';
+import ThemeToggle from '@/components/ThemeToggle';
 
 export default function CommunityPage() {
   const router = useRouter();
@@ -44,6 +45,7 @@ export default function CommunityPage() {
             </nav>
 
             <div className="flex items-center space-x-4">
+              <ThemeToggle />
               <Link 
                 href="/login" 
                 className="px-6 py-2.5 text-blue-600 font-semibold hover:bg-blue-50 rounded-xl transition-all duration-200"

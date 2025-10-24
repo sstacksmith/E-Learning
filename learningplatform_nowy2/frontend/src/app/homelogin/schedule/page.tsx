@@ -2,6 +2,7 @@
 
 import LessonSchedule from '@/components/LessonSchedule';
 import Providers from '@/components/Providers';
+import ThemeToggle from '@/components/ThemeToggle';
 import { ArrowLeft, Calendar, Clock, Plus, Settings, Download } from 'lucide-react';
 
 function SchedulePageContent() {
@@ -32,6 +33,7 @@ function SchedulePageContent() {
             </div>
             
             <div className="flex items-center gap-3">
+              <ThemeToggle />
               <button className="p-3 bg-white/80 backdrop-blur-sm rounded-xl border border-slate-200 hover:bg-white hover:shadow-md transition-all duration-200">
                 <Settings className="w-5 h-5 text-slate-600" />
               </button>

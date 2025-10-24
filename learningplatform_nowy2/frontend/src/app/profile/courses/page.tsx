@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import useApi from '@/hooks/useApi';
 import Image from 'next/image';
+import ThemeToggle from '@/components/ThemeToggle';
 
 interface Course {
   id: string;
@@ -83,7 +84,12 @@ export default function CoursesPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="container mx-auto px-4 py-8 relative">
+      {/* Theme Toggle */}
+      <div className="absolute top-4 right-4 z-50">
+        <ThemeToggle />
+      </div>
+      
       <h1 className="text-3xl font-bold mb-8">Moje kursy</h1>
 
       {error && (

@@ -7,6 +7,7 @@ import { ArrowLeft, TrendingUp, Award, Clock, Calendar, Star, Trophy, Target } f
 import { doc, getDoc, collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import ThemeToggle from '@/components/ThemeToggle';
 
 interface DailyStats {
   [date: string]: number;
@@ -371,6 +372,11 @@ export default function StatisticsPage() {
 
     return (
     <div className="min-h-screen bg-gradient-to-br from-[#F4F6FB] via-white to-[#E8ECFF] py-8 px-4">
+      {/* Theme Toggle */}
+      <div className="absolute top-4 right-4 z-50">
+        <ThemeToggle />
+      </div>
+
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
@@ -805,4 +811,5 @@ export default function StatisticsPage() {
     </div>
   );
 } 
+
 

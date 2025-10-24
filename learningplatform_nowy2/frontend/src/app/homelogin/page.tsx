@@ -9,7 +9,7 @@ import Calendar from '../../components/Calendar';
 import { collection, getDocs, query, where, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { Search, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
-
+import ThemeToggle from '@/components/ThemeToggle';
 
 import Providers from '@/components/Providers';
 
@@ -1178,15 +1178,15 @@ function Dashboard() {
       )}
 
       {/* Main content */}
-      <main className="flex-1 flex flex-col w-full lg:w-auto bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+      <main className="flex-1 flex flex-col w-full lg:w-auto bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 transition-colors duration-200">
         {/* Header */}
-        <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between px-6 lg:px-8 py-6 bg-white/80 backdrop-blur-lg border-b border-white/20 shadow-sm relative gap-4 sm:gap-0">
+        <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between px-6 lg:px-8 py-6 bg-white/80 dark:bg-gray-800/80 backdrop-blur-lg border-b border-white/20 dark:border-gray-700/50 shadow-sm relative gap-4 sm:gap-0 transition-colors duration-200">
           <div className="relative w-full sm:w-1/2 lg:w-1/3" ref={searchRef}>
             <div className="flex">
               <input
                 type="text"
                 placeholder="Szukaj kursu lub nauczyciela..."
-                className="w-full px-4 py-3 rounded-l-xl border border-white/30 bg-white/60 backdrop-blur-sm focus:outline-none focus:ring-2 focus:ring-[#4067EC] focus:bg-white text-gray-800 font-semibold pr-10 text-sm shadow-sm"
+                className="w-full px-4 py-3 rounded-l-xl border border-white/30 dark:border-gray-600 bg-white/60 dark:bg-gray-700/60 backdrop-blur-sm focus:outline-none focus:ring-2 focus:ring-[#4067EC] dark:focus:ring-blue-400 focus:bg-white dark:focus:bg-gray-700 text-gray-800 dark:text-gray-200 font-semibold pr-10 text-sm shadow-sm transition-colors duration-200"
                 value={search}
                 onChange={handleSearchChange}
                 onFocus={handleSearchFocus}
@@ -1224,6 +1224,7 @@ function Dashboard() {
                   )}
                 </button>
               </div>
+              <ThemeToggle />
               <div className="flex items-center gap-3 p-2 bg-white/60 backdrop-blur-sm rounded-xl border border-white/20 hover:bg-white hover:shadow-lg transition-all duration-200 cursor-pointer" onClick={() => router.push('/profile')}>
                 <Image 
                   src="https://images.unsplash.com/photo-1511367461989-f85a21fda167?auto=format&fit=facearea&w=256&h=256&facepad=2" 
@@ -1232,7 +1233,7 @@ function Dashboard() {
                   height={32} 
                   className="w-8 h-8 rounded-full border-2 border-[#4067EC] object-cover" 
                 />
-                <span className="text-sm font-semibold text-gray-700 hidden sm:block">Profil</span>
+                <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 hidden sm:block">Profil</span>
               </div>
               <button onClick={logout} className="px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl hover:from-red-600 hover:to-red-700 transition-all duration-200 shadow-sm hover:shadow-lg text-sm font-semibold">Wyloguj się</button>
             </div>
@@ -1247,14 +1248,14 @@ function Dashboard() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
               {/* Shortcut/statystyka do statystyk profilu */}
               <div className="lg:col-span-1">
-                <a href="/profile/statistics" className="block bg-white/90 backdrop-blur-xl rounded-xl shadow-lg p-4 flex flex-col justify-between hover:shadow-xl transition-all duration-300 cursor-pointer border border-white/20 hover:border-[#4067EC] h-full group">
+                <a href="/profile/statistics" className="block bg-white/90 dark:bg-gray-800/90 backdrop-blur-xl rounded-xl shadow-lg p-4 flex flex-col justify-between hover:shadow-xl transition-all duration-300 cursor-pointer border border-white/20 dark:border-gray-700/50 hover:border-[#4067EC] dark:hover:border-blue-400 h-full group">
                   <div className="flex items-center gap-3 mb-3">
                     <div className="bg-gradient-to-r from-[#4067EC] to-[#5577FF] p-2 rounded-lg text-white shadow-lg">
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2a4 4 0 014-4h4" /></svg>
                     </div>
                     <div>
-                      <div className="text-xs text-gray-500 font-medium">Statystyki profilu</div>
-                      <div className="text-sm font-bold text-gray-800 group-hover:text-[#4067EC] transition-colors">Zobacz szczegóły &rarr;</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400 font-medium">Statystyki profilu</div>
+                      <div className="text-sm font-bold text-gray-800 dark:text-gray-200 group-hover:text-[#4067EC] dark:group-hover:text-blue-400 transition-colors">Zobacz szczegóły &rarr;</div>
                     </div>
                   </div>
                   <div className="h-20 flex items-center justify-center">
@@ -1277,20 +1278,20 @@ function Dashboard() {
 
               {/* Chat with Teacher */}
               <div className="lg:col-span-1">
-                <div className="bg-white/90 backdrop-blur-xl rounded-xl shadow-lg p-4 h-full border border-white/20">
+                <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-xl rounded-xl shadow-lg p-4 h-full border border-white/20 dark:border-gray-700/50">
                   <div className="flex items-center gap-2 mb-3">
                     <div className="bg-gradient-to-r from-green-500 to-green-600 p-2 rounded-lg text-white shadow-lg">
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                       </svg>
                     </div>
-                    <h2 className="text-sm font-bold text-gray-800">Napisz do nauczyciela</h2>
+                    <h2 className="text-sm font-bold text-gray-800 dark:text-gray-200">Napisz do nauczyciela</h2>
                   </div>
                   <form className="flex flex-col gap-3" onSubmit={handleSendMessage}>
                     <div>
-                      <label className="text-xs font-semibold text-gray-700 mb-1 block">Wybierz nauczyciela</label>
+                      <label className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1 block">Wybierz nauczyciela</label>
                       <select
-                        className="w-full border border-white/30 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#4067EC] bg-white/60 backdrop-blur-sm text-gray-800 font-medium text-xs shadow-sm"
+                        className="w-full border border-white/30 dark:border-gray-600 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#4067EC] dark:focus:ring-blue-400 bg-white/60 dark:bg-gray-700/60 backdrop-blur-sm text-gray-800 dark:text-gray-200 font-medium text-xs shadow-sm"
                         required
                         value={selectedTeacher}
                         onChange={e => setSelectedTeacher(e.target.value)}
@@ -1302,9 +1303,9 @@ function Dashboard() {
                       </select>
                     </div>
                     <div>
-                      <label className="text-xs font-semibold text-gray-700 mb-1 block">Wiadomość</label>
+                      <label className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1 block">Wiadomość</label>
                       <textarea
-                        className="w-full border border-white/30 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#4067EC] resize-none min-h-[60px] max-h-[120px] bg-white/60 backdrop-blur-sm text-gray-800 font-medium placeholder-gray-400 text-xs shadow-sm"
+                        className="w-full border border-white/30 dark:border-gray-600 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#4067EC] dark:focus:ring-blue-400 resize-none min-h-[60px] max-h-[120px] bg-white/60 dark:bg-gray-700/60 backdrop-blur-sm text-gray-800 dark:text-gray-200 font-medium placeholder-gray-400 dark:placeholder-gray-500 text-xs shadow-sm"
                         maxLength={2000}
                         placeholder="Napisz wiadomość..."
                         required
@@ -1313,11 +1314,11 @@ function Dashboard() {
                       />
                     </div>
                     <div>
-                      <label className="text-xs font-semibold text-gray-700 mb-1 block">Załącz pliki (max 3, jpg/png/pdf, max 30MB)</label>
+                      <label className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1 block">Załącz pliki (max 3, jpg/png/pdf, max 30MB)</label>
                       <input
                         type="file"
                         accept=".jpg,.jpeg,.png,.pdf"
-                        className="w-full border border-white/30 rounded-lg px-3 py-2 text-xs bg-white/60 backdrop-blur-sm shadow-sm"
+                        className="w-full border border-white/30 dark:border-gray-600 rounded-lg px-3 py-2 text-xs bg-white/60 dark:bg-gray-700/60 backdrop-blur-sm shadow-sm text-gray-800 dark:text-gray-200"
                         multiple
                         onChange={handleFileChange}
                         disabled={selectedFiles.length >= 3}
@@ -1347,7 +1348,7 @@ function Dashboard() {
 
               {/* Ankiety */}
               <div className="lg:col-span-1">
-                <div className="bg-white/90 backdrop-blur-xl rounded-xl shadow-lg p-4 h-full flex flex-col justify-between border border-white/20">
+                <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-xl rounded-xl shadow-lg p-4 h-full flex flex-col justify-between border border-white/20 dark:border-gray-700/50">
                   <div>
                     <div className="flex items-center gap-2 mb-3">
                       <div className="bg-gradient-to-r from-orange-500 to-orange-600 p-2 rounded-lg text-white shadow-lg">
@@ -1355,9 +1356,9 @@ function Dashboard() {
                           <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                         </svg>
                       </div>
-                      <h2 className="text-sm font-bold text-gray-800">Ankiety</h2>
+                      <h2 className="text-sm font-bold text-gray-800 dark:text-gray-200">Ankiety</h2>
                     </div>
-                    <p className="text-xs text-gray-600 mb-4">Twoja opinia jest dla nas bardzo ważna! Pomóż nam rozwijać platformę.</p>
+                    <p className="text-xs text-gray-600 dark:text-gray-400 mb-4">Twoja opinia jest dla nas bardzo ważna! Pomóż nam rozwijać platformę.</p>
                     <div className="flex items-center gap-2 mb-4">
                       <div className="bg-gradient-to-r from-[#4067EC] to-[#5577FF] p-2 rounded-lg text-white shadow-lg">
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -1365,8 +1366,8 @@ function Dashboard() {
                         </svg>
                       </div>
                       <div>
-                        <div className="text-xs text-gray-500 font-medium">Wypełnij ankiety</div>
-                        <div className="text-sm font-semibold text-gray-800">Pomóż nam się rozwijać</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 font-medium">Wypełnij ankiety</div>
+                        <div className="text-sm font-semibold text-gray-800 dark:text-gray-200">Pomóż nam się rozwijać</div>
                       </div>
                     </div>
                   </div>
@@ -1384,7 +1385,7 @@ function Dashboard() {
             </div>
 
             {/* Top Courses (przypisane do użytkownika) */}
-            <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-lg p-6 border border-white/20">
+            <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-xl rounded-2xl shadow-lg p-6 border border-white/20 dark:border-gray-700/50">
               <Link 
                 href={user?.role === 'teacher' ? '/homelogin/teacher/courses' : '/homelogin/my-courses'}
                 className="flex items-center gap-3 mb-6 hover:opacity-80 transition-opacity duration-200 cursor-pointer"
@@ -1394,7 +1395,7 @@ function Dashboard() {
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                   </svg>
                 </div>
-                <h2 className="text-xl font-bold text-gray-800">Moje kursy</h2>
+                <h2 className="text-xl font-bold text-gray-800 dark:text-gray-200">Moje kursy</h2>
               </Link>
               
               {/* Wyszukiwarka i sortowanie kursów */}
@@ -1403,11 +1404,11 @@ function Dashboard() {
                   {/* Wyszukiwarka */}
                   <div className="relative flex-1 max-w-md">
                     <div className="relative">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
                       <input
                         type="text"
                         placeholder="Wyszukaj kursy..."
-                        className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm text-gray-900 transition-all duration-200 ease-in-out hover:border-gray-300 bg-white/80"
+                        className="w-full pl-10 pr-4 py-2 border border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400 focus:border-emerald-500 text-sm text-gray-900 dark:text-gray-200 transition-all duration-200 ease-in-out hover:border-gray-300 dark:hover:border-gray-500 bg-white/80 dark:bg-gray-700/80"
                         value={courseSearch}
                         onChange={(e) => setCourseSearch(e.target.value)}
                       />
@@ -1416,14 +1417,14 @@ function Dashboard() {
 
                   {/* Sortowanie */}
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-gray-700">Sortuj:</span>
-                    <div className="flex bg-gray-100 rounded-lg p-1 shadow-sm">
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Sortuj:</span>
+                    <div className="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1 shadow-sm">
                       <button
                         onClick={() => handleCourseSortChange('title')}
                         className={`px-3 py-1 rounded-md text-xs font-medium transition-all duration-200 ease-in-out hover:scale-105 active:scale-95 flex items-center gap-1 ${
                           courseSortBy === 'title' 
-                            ? 'bg-white text-emerald-600 shadow-md transform scale-105' 
-                            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                            ? 'bg-white dark:bg-gray-800 text-emerald-600 dark:text-emerald-400 shadow-md transform scale-105' 
+                            : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-600'
                         }`}
                       >
                         Tytuł
@@ -1435,8 +1436,8 @@ function Dashboard() {
                         onClick={() => handleCourseSortChange('category')}
                         className={`px-3 py-1 rounded-md text-xs font-medium transition-all duration-200 ease-in-out hover:scale-105 active:scale-95 flex items-center gap-1 ${
                           courseSortBy === 'category' 
-                            ? 'bg-white text-emerald-600 shadow-md transform scale-105' 
-                            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                            ? 'bg-white dark:bg-gray-800 text-emerald-600 dark:text-emerald-400 shadow-md transform scale-105' 
+                            : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-600'
                         }`}
                       >
                         Kategoria
@@ -1450,14 +1451,14 @@ function Dashboard() {
                 
                 {/* Informacja o liczbie kursów */}
                 <div className="mt-3 flex items-center justify-between">
-                  <div className="text-xs text-gray-600">
+                  <div className="text-xs text-gray-600 dark:text-gray-400">
                     {courseSearch ? (
-                      <>Znaleziono <span className="font-semibold text-emerald-600">{filteredCourses.length}</span> kursów dla &quot;<span className="font-semibold">{courseSearch}</span>&quot;</>
+                      <>Znaleziono <span className="font-semibold text-emerald-600 dark:text-emerald-400">{filteredCourses.length}</span> kursów dla &quot;<span className="font-semibold">{courseSearch}</span>&quot;</>
                     ) : (
-                      <>Wyświetlane <span className="font-semibold text-emerald-600">{filteredCourses.length}</span> z <span className="font-semibold">{assignedCourses.length}</span> kursów</>
+                      <>Wyświetlane <span className="font-semibold text-emerald-600 dark:text-emerald-400">{filteredCourses.length}</span> z <span className="font-semibold">{assignedCourses.length}</span> kursów</>
                     )}
                   </div>
-                  <div className="text-xs text-gray-500">
+                  <div className="text-xs text-gray-500 dark:text-gray-400">
                     Sortowanie: {courseSortBy === 'title' ? 'Tytuł' : 'Kategoria'} ({courseSortOrder === 'asc' ? 'A-Z' : 'Z-A'})
                   </div>
                 </div>
@@ -1491,20 +1492,20 @@ function Dashboard() {
                     const colorClass = colors[index % colors.length];
                     
                     return (
-                      <div key={course.id} className="bg-white rounded-lg p-3 border border-gray-100 hover:shadow-xl transition-all duration-300 group hover:border-gray-200">
+                      <div key={course.id} className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-100 dark:border-gray-700 hover:shadow-xl dark:hover:shadow-gray-900/50 transition-all duration-300 group hover:border-gray-200 dark:hover:border-gray-600">
                         <div className="flex items-center gap-2 mb-3">
                           <div className={`w-10 h-10 bg-gradient-to-r ${colorClass} rounded-lg flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-200`}>
                             <Image src="/thumb.png" alt={course.title} width={20} height={20} className="w-5 h-5 rounded" />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <h3 className="font-bold text-gray-800 text-sm truncate group-hover:text-gray-900 transition-colors">{course.title}</h3>
+                            <h3 className="font-bold text-gray-800 dark:text-gray-100 text-sm truncate group-hover:text-gray-900 dark:group-hover:text-white transition-colors">{course.title}</h3>
                             {course.category_name && (
-                              <p className="text-xs text-gray-500 truncate mt-1">{course.category_name}</p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-1">{course.category_name}</p>
                             )}
                           </div>
                         </div>
                         <Link href={`/courses/${course.slug || course.id}`}>
-                          <button className="w-full bg-gradient-to-r from-slate-600 to-slate-700 text-white px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer transition-all duration-200 hover:from-slate-700 hover:to-slate-800 hover:shadow-lg group-hover:scale-105 border border-slate-500/20">
+                          <button className="w-full bg-gradient-to-r from-slate-600 to-slate-700 dark:from-slate-700 dark:to-slate-800 text-white px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer transition-all duration-200 hover:from-slate-700 hover:to-slate-800 dark:hover:from-slate-800 dark:hover:to-slate-900 hover:shadow-lg group-hover:scale-105 border border-slate-500/20">
                             Otwórz kurs
                           </button>
                         </Link>
@@ -1516,14 +1517,14 @@ function Dashboard() {
             </div>
             
             {/* Kalendarz */}
-            <div className="bg-white/90 backdrop-blur-xl rounded-xl shadow-lg p-4 border border-white/20">
+            <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-xl rounded-xl shadow-lg p-4 border border-white/20 dark:border-gray-700/50">
               <div className="flex items-center gap-2 mb-4">
                 <div className="bg-gradient-to-r from-teal-500 to-teal-600 p-2 rounded-lg text-white shadow-lg">
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                   </svg>
                 </div>
-                <h2 className="text-lg font-bold text-gray-800">Kalendarz i Aktywności</h2>
+                <h2 className="text-lg font-bold text-gray-800 dark:text-gray-200">Kalendarz i Aktywności</h2>
               </div>
               <Calendar />
             </div>

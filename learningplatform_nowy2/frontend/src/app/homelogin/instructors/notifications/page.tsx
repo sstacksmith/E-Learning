@@ -1,6 +1,7 @@
 "use client";
 import Image from "next/image";
 import { ArrowLeft } from 'lucide-react';
+import ThemeToggle from '@/components/ThemeToggle';
 
 const notifications = [
   { title: "Course Update", message: "Your course has new content.", time: "2h ago" },
@@ -26,7 +27,7 @@ export default function NotificationsPage() {
             Powiadomienia
           </h1>
           
-          <div className="w-20"></div>
+          <ThemeToggle />
         </div>
       </div>
       <main className="flex-1 px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
@@ -43,3 +44,4 @@ export default function NotificationsPage() {
     </div>
   );
 } 
+

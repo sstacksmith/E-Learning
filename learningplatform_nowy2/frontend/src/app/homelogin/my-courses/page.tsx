@@ -9,6 +9,7 @@ import Link from "next/link";
 import { useRouter } from 'next/navigation';
 import Providers from '@/components/Providers';
 import { ArrowLeft, Grid3X3, List, Search, X, BookOpen, Clock, Users, Star, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import ThemeToggle from '@/components/ThemeToggle';
 
 interface Course {
   id: number;
@@ -177,6 +178,7 @@ function MyCoursesPageContent() {
           
           {/* Kontrolki widoku */}
           <div className="flex items-center gap-4">
+            <ThemeToggle />
             <div className="flex bg-gray-100 rounded-lg p-1 shadow-sm">
               <button
                 onClick={() => setViewMode('grid')}

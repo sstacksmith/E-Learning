@@ -5,6 +5,7 @@ import Link from "next/link";
 import { db } from '@/config/firebase';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { ArrowLeft } from 'lucide-react';
+import ThemeToggle from '@/components/ThemeToggle';
 
 interface Specialist {
   id: string;
@@ -163,7 +164,7 @@ export default function SpecialistsPage() {
               Specjaliści
             </h1>
             
-            <div className="w-20"></div>
+            <ThemeToggle />
           </div>
         </div>
         <main className="flex-1 px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
@@ -193,7 +194,7 @@ export default function SpecialistsPage() {
             Specjaliści
           </h1>
           
-          <div className="w-20"></div>
+          <ThemeToggle />
         </div>
       </div>
       <main className="flex-1 px-4 sm:px-6 lg:px-8 py-6 lg:py-8">

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import SocialLoginButtons from '@/components/Auth/SocialLoginButtons';
 import Providers from '@/components/Providers';
+import ThemeToggle from '@/components/ThemeToggle';
 import { doc, setDoc } from "firebase/firestore";
 
 function RegisterPageContent() {
@@ -87,7 +88,12 @@ function RegisterPageContent() {
   };
 
   return (
-    <div className="flex flex-col lg:flex-row min-h-screen w-full">
+    <div className="flex flex-col lg:flex-row min-h-screen w-full relative">
+      {/* Theme Toggle */}
+      <div className="absolute top-3 sm:top-4 right-3 sm:right-4 z-20">
+        <ThemeToggle />
+      </div>
+      
       {/* Left: Form */}
       <div className="flex flex-col w-full lg:w-1/2 bg-[#f5f7ff] min-h-[60vh] lg:min-h-screen py-8 sm:py-12 px-3 sm:px-4 lg:px-8">
         <div className="flex items-center px-2 lg:px-8 py-3 sm:py-4 lg:py-6">

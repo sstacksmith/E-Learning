@@ -5,6 +5,7 @@ import Link from "next/link";
 import { db } from '@/config/firebase';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { ArrowLeft } from 'lucide-react';
+import ThemeToggle from '@/components/ThemeToggle';
 
 interface Instructor {
   id: string;
@@ -90,6 +91,8 @@ export default function InstructorsPage() {
               Instruktorzy i Tutorzy
             </h1>
             
+            <ThemeToggle />
+            
             <div className="w-20"></div>
           </div>
         </div>
@@ -119,6 +122,8 @@ export default function InstructorsPage() {
           <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
             Instruktorzy Edukacji Domowej
           </h1>
+          
+          <ThemeToggle />
           
           <Link
             href="/homelogin/instructors/tutors"
