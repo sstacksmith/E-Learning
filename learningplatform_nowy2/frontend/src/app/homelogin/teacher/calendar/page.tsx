@@ -39,7 +39,6 @@ export default function TeacherCalendarPage() {
         <div className="h-full flex flex-col">
           {/* Create Event Section - Compact */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 lg:p-6 mb-4 lg:mb-6">
-            <h2 className="text-lg font-semibold text-gray-800 mb-4">Utwórz nowe wydarzenie</h2>
             <CreateEvent />
           </div>
 

@@ -125,43 +125,52 @@ a:hover, .link:hover {
 .fc .fc-daygrid-day-number {
   display: flex;
   align-items: center;
-  justify-content: center;
-  width: 48px;
-  height: 48px;
-  margin: 0 auto;
+  justify-content: flex-start;
+  width: 24px;
+  height: 24px;
+  margin: 4px;
   border-radius: 50%;
   transition: background 0.2s, color 0.2s;
   font-weight: 500;
-  font-size: 1.15rem;
-  color: #222 !important;
+  font-size: 0.9rem;
+  color: #374151 !important;
   background: transparent;
+  padding: 0;
 }
 .fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-number,
 .fc .fc-daygrid-day.selected-day .fc-daygrid-day-number {
-  background: #2563eb !important;
+  background: #3b82f6 !important;
   color: #fff !important;
-  font-weight: 700;
-  box-shadow: 0 2px 8px rgba(37,99,235,0.08);
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(59, 130, 246, 0.3);
 }
 .fc .fc-daygrid-day.selected-day {
   background: #e0eaff !important;
 }
 .fc .fc-daygrid-day.fc-day-other {
-  opacity: 0.4;
+  opacity: 0.3 !important;
+}
+.fc .fc-daygrid-day.fc-day-other .fc-daygrid-day-frame {
+  background: #f9fafb !important;
+}
+.fc .fc-daygrid-day.fc-day-other .add-event-btn {
+  display: none !important;
 }
 .fc .fc-col-header-cell {
-  background: transparent;
-  color: #4067EC;
-  font-weight: 500;
-  font-size: 0.95rem;
-  letter-spacing: 0.02em;
-  border: none;
+  background: transparent !important;
+  color: #4067EC !important;
+  font-weight: 500 !important;
+  font-size: 0.95rem !important;
+  letter-spacing: 0.02em !important;
+  border: none !important;
+  width: 14.2857% !important;
+  text-align: center !important;
 }
 .fc .fc-toolbar-title {
-  font-size: 1.2rem;
-  font-weight: 600;
-  color: #222;
-  letter-spacing: 0.01em;
+  font-size: 1.2rem !important;
+  font-weight: 600 !important;
+  color: #222 !important;
+  letter-spacing: 0.01em !important;
 }
 .fc .fc-button {
   background: #f3f6fa;
@@ -182,25 +191,205 @@ a:hover, .link:hover {
 }
 .fc .fc-scrollgrid, .fc .fc-scrollgrid-section {
   border: none !important;
+  border-radius: 0;
 }
-.fc .fc-daygrid-day-frame {
-  min-height: 80px;
-  min-width: 90px;
-  background: transparent;
+.fc .fc-scrollgrid-sync-table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+.fc td, .fc th {
+  border: none !important;
+}
+.fc .fc-col-header-cell {
+  border: none !important;
+}
+.fc .fc-daygrid-body {
+  border: none !important;
+}
+.fc {
+  width: 100% !important;
+  background: #f9fafb !important;
+  padding: 8px !important;
+  border-radius: 12px !important;
+}
+.fc .fc-view-harness {
+  width: 100% !important;
+}
+.fc .fc-scrollgrid {
+  width: 100% !important;
+}
+.fc .fc-scrollgrid-sync-table {
+  width: 100% !important;
+  table-layout: fixed !important;
+}
+.fc .fc-col-header {
+  width: 100% !important;
+}
+.fc .fc-daygrid-body {
+  width: 100% !important;
 }
 .fc .fc-daygrid-day {
-  background: transparent;
+  background: transparent !important;
+  height: 140px !important;
+  min-height: 140px !important;
+  max-height: 140px !important;
+  width: 14.2857% !important;
+  padding: 4px !important;
+  border: none !important;
+}
+.fc .fc-daygrid-day-frame {
+  height: 132px !important;
+  min-height: 132px !important;
+  max-height: 132px !important;
+  width: 100% !important;
+  background: #ffffff !important;
+  overflow: hidden !important;
+  border: none !important;
+  border-radius: 16px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  transition: all 0.2s ease;
+  position: relative !important;
+  box-sizing: border-box !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+}
+.fc .fc-daygrid-day-frame:hover {
+  background: #f8fafc !important;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.06) !important;
+  transform: translateY(-2px);
+}
+.fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-frame {
+  background: #eff6ff !important;
+  box-shadow: 0 4px 6px rgba(59, 130, 246, 0.15), 0 2px 4px rgba(59, 130, 246, 0.1) !important;
+}
+.fc .fc-daygrid-day-events {
+  max-height: none !important;
+  overflow: visible !important;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.fc .fc-daygrid-day-top {
+  height: 35px !important;
+  min-height: 35px !important;
+  max-height: 35px !important;
+  flex-shrink: 0 !important;
+  position: relative !important;
+}
+.fc .fc-daygrid-day-bottom {
+  height: 105px !important;
+  min-height: 105px !important;
+  max-height: 105px !important;
+  overflow: hidden !important;
+  flex: 1 !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+.fc .fc-daygrid-day-number {
+  height: 35px !important;
+  min-height: 35px !important;
+  max-height: 35px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 1rem !important;
+  font-weight: 600 !important;
+  padding: 4px !important;
+}
+.fc .fc-daygrid-day-frame {
+  display: flex !important;
+  flex-direction: column !important;
 }
 .fc .fc-daygrid-event {
-  background: #2563eb !important;
-  color: #fff !important;
-  border-radius: 6px;
-  font-size: 1rem;
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  margin: 2px 0 !important;
+}
+
+/* Style dla wskaźników wydarzeń */
+.event-indicator {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  background: rgba(59, 130, 246, 0.1);
+  transition: background-color 0.2s;
+  cursor: pointer;
+}
+.event-indicator:hover {
+  background: rgba(59, 130, 246, 0.2);
+}
+.event-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.event-title {
+  font-size: 0.7rem;
+  color: #374151;
   font-weight: 500;
-  box-shadow: none;
-  white-space: normal !important;
-  word-break: break-word;
-  padding: 4px 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+}
+
+/* Wrapper dla numeru dnia i przycisku */
+.day-cell-wrapper {
+  position: static;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 4px 8px 4px 36px;
+}
+.day-cell-wrapper .day-number {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #374151;
+  text-align: right;
+}
+
+/* Przycisk dodawania wydarzenia w kafelku */
+.add-event-btn {
+  position: absolute !important;
+  top: 3px !important;
+  left: 3px !important;
+  right: auto !important;
+  width: 28px !important;
+  height: 28px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: #4067EC !important;
+  color: white !important;
+  border: none !important;
+  outline: none !important;
+  border-radius: 6px !important;
+  cursor: pointer !important;
+  opacity: 0.85 !important;
+  transition: all 0.2s ease !important;
+  z-index: 100 !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15) !important;
+}
+.add-event-btn:hover {
+  opacity: 1 !important;
+  transform: scale(1.1) !important;
+  box-shadow: 0 4px 12px rgba(64, 103, 236, 0.5) !important;
+  background: #3155d4 !important;
+}
+.add-event-btn svg {
+  width: 18px !important;
+  height: 18px !important;
+  pointer-events: none !important;
+}
+.add-event-btn svg path {
+  pointer-events: none !important;
 }
 .fc .fc-toolbar {
   margin-bottom: 1.5rem;
@@ -209,6 +398,319 @@ a:hover, .link:hover {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+}
+
+/* Widok tygodniowy - zwiększona wysokość wierszy */
+.fc .fc-timegrid-slot {
+  height: 80px !important;
+  min-height: 80px !important;
+}
+
+.fc .fc-timegrid-slot-label {
+  vertical-align: middle !important;
+  padding: 0 8px !important;
+  font-size: 0.875rem !important;
+  color: #6b7280 !important;
+  font-weight: 500 !important;
+}
+
+.fc .fc-timegrid-event {
+  border-radius: 8px !important;
+  border-left-width: 3px !important;
+  padding: 6px 8px !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+}
+
+.fc .fc-timegrid-event:hover {
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2) !important;
+  filter: brightness(1.05) !important;
+  z-index: 100 !important;
+  border-left-width: 4px !important;
+}
+
+.fc .fc-timegrid-col {
+  border-right: 1px solid #e5e7eb !important;
+  border-left: none !important;
+}
+
+.fc .fc-timegrid-axis {
+  border-right: 2px solid #d1d5db !important;
+}
+
+.fc .fc-timegrid-slot {
+  border-bottom: 1px solid #e5e7eb !important;
+}
+
+.fc .fc-timegrid-slot-lane {
+  border-top: none !important;
+}
+
+/* Co godzinę grubsza linia */
+.fc .fc-timegrid-slot[data-time$=":00:00"] {
+  border-bottom: 2px solid #d1d5db !important;
+}
+
+/* Widok dnia - style analogiczne do widoku tygodnia */
+.fc-timeGridDay-view .fc-timegrid-col {
+  background: #ffffff !important;
+  min-width: 600px !important;
+  border-left: none !important;
+  border-right: none !important;
+}
+
+.fc-timeGridDay-view .fc-col-header-cell {
+  padding: 20px 16px !important;
+  font-size: 1.2rem !important;
+  font-weight: 700 !important;
+  text-align: center !important;
+  border-radius: 12px 12px 0 0 !important;
+}
+
+.fc-timeGridDay-view .fc-col-header-cell .fc-col-header-cell-cushion {
+  padding: 8px 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+/* Dzień jako święto w widoku dnia */
+.fc-timeGridDay-view .fc-timegrid-col.holiday-cell {
+  background: linear-gradient(to bottom, #fef3c7 0%, #fde68a 30%, #fef3c7 70%, #fde68a 100%) !important;
+  box-shadow: inset 0 0 20px rgba(245, 158, 11, 0.15) !important;
+}
+
+.fc-timeGridDay-view .fc-col-header-cell.holiday-cell {
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%) !important;
+  color: white !important;
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3) !important;
+}
+
+.fc-timeGridDay-view .fc-col-header-cell.holiday-cell .fc-col-header-cell-cushion {
+  color: white !important;
+}
+
+/* Weekend w widoku dnia */
+.fc-timeGridDay-view .fc-timegrid-col.weekend-cell {
+  background: linear-gradient(to bottom, #fafbfc 0%, #f0f4f8 30%, #fafbfc 70%, #f0f4f8 100%) !important;
+  box-shadow: inset 0 0 20px rgba(148, 163, 184, 0.1) !important;
+}
+
+.fc-timeGridDay-view .fc-col-header-cell.weekend-cell {
+  background: linear-gradient(135deg, #94a3b8 0%, #64748b 100%) !important;
+  color: white !important;
+  box-shadow: 0 4px 12px rgba(100, 116, 139, 0.25) !important;
+}
+
+.fc-timeGridDay-view .fc-col-header-cell.weekend-cell .fc-col-header-cell-cushion {
+  color: white !important;
+}
+
+/* Wydarzenia w widoku dnia - większe i bardziej widoczne */
+.fc-timeGridDay-view .fc-timegrid-event {
+  border-radius: 10px !important;
+  border-left-width: 4px !important;
+  padding: 10px 12px !important;
+  font-size: 0.95rem !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1) !important;
+  transition: all 0.2s ease !important;
+}
+
+.fc-timeGridDay-view .fc-timegrid-event:hover {
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.25) !important;
+  filter: brightness(1.05) !important;
+  z-index: 100 !important;
+  border-left-width: 5px !important;
+}
+
+/* Szerokość kontenera widoku dnia */
+.fc-timeGridDay-view .fc-timegrid {
+  min-height: 100% !important;
+}
+
+.fc-timeGridDay-view .fc-scroller {
+  overflow-x: hidden !important;
+}
+
+/* Obecny wskaźnik czasu - dla widoku dnia i tygodnia */
+.fc .fc-timegrid-now-indicator-line {
+  border-color: #ef4444 !important;
+  border-width: 2px !important;
+  z-index: 3 !important;
+}
+
+.fc .fc-timegrid-now-indicator-arrow {
+  border-color: #ef4444 !important;
+  border-width: 8px !important;
+}
+
+/* Dzisiejszy dzień w widoku tygodnia/dnia */
+.fc .fc-timegrid-col.fc-day-today {
+  background-color: rgba(59, 130, 246, 0.03) !important;
+}
+
+.fc .fc-col-header-cell.fc-day-today:not(.holiday-cell):not(.weekend-cell) {
+  background-color: rgba(59, 130, 246, 0.1) !important;
+  font-weight: 700 !important;
+}
+
+/* Style dla świąt - widok miesięczny */
+.fc .fc-daygrid-day.holiday-cell .fc-daygrid-day-frame {
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%) !important;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.25) !important;
+  position: relative !important;
+}
+
+.fc .fc-daygrid-day.holiday-cell .fc-daygrid-day-frame:hover {
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.35) !important;
+}
+
+.fc .fc-daygrid-day.holiday-cell .fc-daygrid-day-number {
+  color: #92400e !important;
+  font-weight: 700 !important;
+  font-size: 0.9rem !important;
+  opacity: 0.8 !important;
+}
+
+.fc .fc-daygrid-day.holiday-cell .fc-daygrid-day-top {
+  position: relative !important;
+  z-index: 1 !important;
+}
+
+.holiday-label {
+  position: absolute !important;
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  font-size: 0.75rem !important;
+  color: #92400e !important;
+  font-weight: 700 !important;
+  text-align: center !important;
+  padding: 8px 12px !important;
+  background: rgba(251, 191, 36, 0.4) !important;
+  border-radius: 8px !important;
+  white-space: normal !important;
+  max-width: 90% !important;
+  line-height: 1.3 !important;
+  z-index: 10 !important;
+  pointer-events: none !important;
+}
+
+/* Style dla weekendów - widok miesięczny */
+.fc .fc-daygrid-day.weekend-cell .fc-daygrid-day-frame {
+  background: linear-gradient(135deg, #fafbfc 0%, #f0f4f8 100%) !important;
+}
+
+.fc .fc-daygrid-day.weekend-cell .fc-daygrid-day-number {
+  color: #64748b !important;
+  font-weight: 500 !important;
+  opacity: 0.85 !important;
+}
+
+/* Style dla świąt - widok tygodniowy */
+.fc .fc-timegrid-col.holiday-cell {
+  background: linear-gradient(to bottom, #fef3c7 0%, #fde68a 50%, #fef3c7 100%) !important;
+}
+
+.fc .fc-col-header-cell.holiday-cell {
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%) !important;
+  color: white !important;
+  font-weight: 700 !important;
+}
+
+.fc .fc-col-header-cell.holiday-cell .fc-col-header-cell-cushion {
+  color: white !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  gap: 4px !important;
+}
+
+.holiday-header-label {
+  font-size: 0.7rem !important;
+  color: white !important;
+  font-weight: 600 !important;
+  text-align: center !important;
+  padding: 3px 8px !important;
+  background: rgba(255, 255, 255, 0.25) !important;
+  border-radius: 6px !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  max-width: 95% !important;
+  line-height: 1.2 !important;
+}
+
+/* Style dla weekendów - widok tygodniowy */
+.fc .fc-timegrid-col.weekend-cell {
+  background: linear-gradient(to bottom, #fafbfc 0%, #f0f4f8 50%, #fafbfc 100%) !important;
+}
+
+.fc .fc-col-header-cell.weekend-cell {
+  background: linear-gradient(135deg, #94a3b8 0%, #64748b 100%) !important;
+  color: white !important;
+  font-weight: 600 !important;
+}
+
+.fc .fc-col-header-cell.weekend-cell .fc-col-header-cell-cushion {
+  color: white !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  gap: 4px !important;
+}
+
+.weekend-header-label {
+  font-size: 0.65rem !important;
+  color: white !important;
+  font-weight: 500 !important;
+  text-align: center !important;
+  padding: 2px 6px !important;
+  background: rgba(255, 255, 255, 0.2) !important;
+  border-radius: 4px !important;
+  white-space: nowrap !important;
+  line-height: 1.2 !important;
+}
+
+/* Animacja pojawienia się tooltip */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Efekt glassmorphism dla tła modali */
+.glassmorphism-backdrop {
+  background: rgba(200, 200, 200, 0.5) !important;
+  backdrop-filter: blur(25px) saturate(200%) brightness(1.15) !important;
+  -webkit-backdrop-filter: blur(25px) saturate(200%) brightness(1.15) !important;
+  animation: backdropFadeIn 0.3s ease-out;
+}
+
+/* Fallback dla przeglądarek nie wspierających backdrop-filter */
+@supports not (backdrop-filter: blur(1px)) {
+  .glassmorphism-backdrop {
+    background: rgba(200, 200, 200, 0.85) !important;
+  }
+}
+
+@keyframes backdropFadeIn {
+  from {
+    opacity: 0;
+    backdrop-filter: blur(0px);
+    -webkit-backdrop-filter: blur(0px);
+  }
+  to {
+    opacity: 1;
+    backdrop-filter: blur(20px) saturate(180%) brightness(1.1);
+    -webkit-backdrop-filter: blur(20px) saturate(180%) brightness(1.1);
+  }
 }
 
 /* Wymuszenie pełnej nieprzezroczystości na dropdownie kursów */

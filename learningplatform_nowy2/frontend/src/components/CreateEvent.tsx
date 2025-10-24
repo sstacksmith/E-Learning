@@ -9,24 +9,8 @@ interface Student {
   role?: string;
 }
 
-function to24HourFormat(value: string): string {
-  // Jeśli już jest w formacie HH:mm, zwróć bez zmian
-  if (/^\d{2}:\d{2}$/.test(value)) return value;
-  // Spróbuj sparsować format 12-godzinny
-  const match = value.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
-  if (!match) return '';
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [_, h, m, ap] = match;
-  let hour = parseInt(h, 10);
-  if (ap) {
-    const apUpper = ap.toUpperCase();
-    if (apUpper === 'PM' && hour < 12) hour += 12;
-    if (apUpper === 'AM' && hour === 12) hour = 0;
-  }
-  return `${hour.toString().padStart(2, '0')}:${m}`;
-}
-
 const CreateEvent: React.FC = () => {
+  const [isExpanded, setIsExpanded] = useState(false);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [date, setDate] = useState('');
@@ -74,31 +58,29 @@ const CreateEvent: React.FC = () => {
     );
   };
 
-  const handleTimeChange = (setter: (v: string) => void, value: string) => {
-    const formatted = to24HourFormat(value);
-    if (formatted) {
-      setter(formatted);
-      setTimeError('');
-    } else {
-      setter(value);
-      setTimeError('Nieprawidłowy format godziny. Użyj HH:mm, np. 14:30');
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setSuccess('');
     setError('');
     setTimeError('');
-    // Walidacja godzin
-    if (!/^\d{2}:\d{2}$/.test(startTime) || !/^\d{2}:\d{2}$/.test(endTime)) {
-      setTimeError('Godziny muszą być w formacie HH:mm, np. 14:30');
+    // Walidacja czy godziny są wypełnione
+    if (!startTime || !endTime) {
+      setTimeError('Proszę wypełnić godzinę rozpoczęcia i zakończenia');
       setLoading(false);
       return;
     }
     try {
-      await addDoc(collection(db, 'events'), {
+      console.log('Creating event with students:', selectedStudents);
+      
+      if (selectedStudents.length === 0) {
+        setError('Musisz wybrać przynajmniej jednego ucznia!');
+        setLoading(false);
+        return;
+      }
+
+      // Utwórz wydarzenie
+      const eventRef = await addDoc(collection(db, 'events'), {
         title,
         description,
         date,
@@ -107,47 +89,100 @@ const CreateEvent: React.FC = () => {
         createdBy: 'teacher',
         assignedTo: selectedStudents,
       });
-      setSuccess('Wydarzenie zostało utworzone!');
+
+      console.log('Event created:', eventRef.id);
+
+      // Utwórz powiadomienia dla każdego przypisanego ucznia
+      const notificationPromises = selectedStudents.map(studentId => {
+        console.log('Creating notification for student:', studentId);
+        return addDoc(collection(db, 'notifications'), {
+          user_id: studentId,
+          type: 'event',
+          title: `Nowe wydarzenie: ${title}`,
+          message: description || 'Masz nowe wydarzenie w kalendarzu',
+          timestamp: new Date().toISOString(),
+          read: false,
+          event_id: eventRef.id,
+          event_date: date,
+          event_time: `${startTime} - ${endTime}`,
+          action_url: '/homelogin/student/calendar'
+        });
+      });
+
+      await Promise.all(notificationPromises);
+
+      console.log(`Created ${notificationPromises.length} notifications`);
+      setSuccess(`Wydarzenie utworzone i wysłano ${selectedStudents.length} powiadomień!`);
       setTitle('');
       setDescription('');
       setDate('');
       setStartTime('');
       setEndTime('');
       setSelectedStudents([]);
-    } catch {
-      setError('Błąd podczas tworzenia wydarzenia.');
+    } catch (error) {
+      console.error('Error creating event:', error);
+      setError('Błąd podczas tworzenia wydarzenia: ' + (error as Error).message);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      {/* Status Messages */}
-      {success && (
-        <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg flex items-center gap-2">
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-          </svg>
-          {success}
-        </div>
-      )}
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-center gap-2">
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-          {error}
-        </div>
-      )}
-      {timeError && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-center gap-2">
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-          </svg>
-          {timeError}
-        </div>
-      )}
+    <div className="space-y-4">
+      {/* Header with Toggle Button */}
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-semibold text-gray-800">Utwórz nowe wydarzenie</h3>
+        <button
+          type="button"
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="flex items-center gap-2 px-4 py-2 bg-[#4067EC] text-white rounded-lg hover:bg-[#3155d4] transition-all duration-200 font-medium"
+        >
+          {isExpanded ? (
+            <>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+              Zwiń formularz
+            </>
+          ) : (
+            <>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              </svg>
+              Rozwiń formularz
+            </>
+          )}
+        </button>
+      </div>
+
+      {/* Collapsible Form */}
+      {isExpanded && (
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Status Messages */}
+          {success && (
+            <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg flex items-center gap-2">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              {success}
+            </div>
+          )}
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-center gap-2">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+              {error}
+            </div>
+          )}
+          {timeError && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-center gap-2">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+              {timeError}
+            </div>
+          )}
 
       {/* Form Fields */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -192,11 +227,10 @@ const CreateEvent: React.FC = () => {
         <div>
           <label className="block text-sm font-semibold text-gray-700 mb-2">Godzina rozpoczęcia *</label>
           <input
-            type="text"
+            type="time"
             className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#4067EC] focus:border-[#4067EC] transition-all"
             value={startTime}
-            onChange={e => handleTimeChange(setStartTime, e.target.value)}
-            placeholder="14:30"
+            onChange={e => setStartTime(e.target.value)}
             required
           />
         </div>
@@ -205,11 +239,10 @@ const CreateEvent: React.FC = () => {
         <div>
           <label className="block text-sm font-semibold text-gray-700 mb-2">Godzina zakończenia *</label>
           <input
-            type="text"
+            type="time"
             className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#4067EC] focus:border-[#4067EC] transition-all"
             value={endTime}
-            onChange={e => handleTimeChange(setEndTime, e.target.value)}
-            placeholder="15:30"
+            onChange={e => setEndTime(e.target.value)}
             required
           />
         </div>
@@ -332,6 +365,8 @@ const CreateEvent: React.FC = () => {
         </button>
       </div>
     </form>
+      )}
+    </div>
   );
 };
 

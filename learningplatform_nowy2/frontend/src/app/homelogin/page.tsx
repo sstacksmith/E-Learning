@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { useAuth } from '@/context/AuthContext';
 import Calendar from '../../components/Calendar';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, query, where, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { Search, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 
@@ -544,61 +544,193 @@ function Dashboard() {
   // Pobierz eventy jako powiadomienia
   useEffect(() => {
     if (!user) return;
+    console.log('🔔 Dashboard notification useEffect triggered, user:', user?.uid, 'role:', user?.role);
+    
     const fetchNotifications = async () => {
-      const eventsCollection = collection(db, 'events');
-      const eventsSnapshot = await getDocs(eventsCollection);
-      let eventsList = eventsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      
-      // Student widzi tylko swoje eventy
-      if (user.role === 'student') {
-        eventsList = eventsList.filter((ev) => (ev as Notification).students && (ev as Notification).students?.includes(user.uid));
-      }
+      try {
+        const allNotificationsList: any[] = [];
+        const eventIdsFromNotifications = new Set<string>(); // Śledzenie event_id z notifications
+        const now = new Date();
+        
+        // 1. Pobierz powiadomienia z kolekcji notifications (dla studentów)
+        if (user.role === 'student') {
+          console.log('📥 Querying notifications collection for user_id:', user.uid);
+          const notificationsRef = collection(db, 'notifications');
+          const notificationsQuery = query(
+            notificationsRef, 
+            where('user_id', '==', user.uid)
+          );
+          const notificationsSnapshot = await getDocs(notificationsQuery);
+          
+          console.log('📬 Found notifications in DB:', notificationsSnapshot.size);
+          
+          for (const notificationDoc of notificationsSnapshot.docs) {
+            const notificationData = notificationDoc.data();
+            console.log('📋 Processing notification:', notificationDoc.id, notificationData);
+            
+            const eventDate = notificationData.event_date ? new Date(notificationData.event_date) : null;
+            
+            // Usuń powiadomienia z niepoprawną datą (Invalid Date)
+            if (notificationData.event_date && (!eventDate || isNaN(eventDate.getTime()))) {
+              console.log('🗑️ Deleting notification with invalid date:', notificationDoc.id);
+              await deleteDoc(doc(db, 'notifications', notificationDoc.id));
+              continue;
+            }
+            
+            // Usuń powiadomienia, które są starsze niż 7 dni PO terminie wydarzenia
+            if (eventDate) {
+              const sevenDaysAfterEvent = new Date(eventDate.getTime() + 7 * 24 * 60 * 60 * 1000);
+              if (sevenDaysAfterEvent < now) {
+                console.log('🗑️ Deleting old notification (7 days after event):', notificationDoc.id, 'Event date:', eventDate, 'Now:', now);
+                await deleteDoc(doc(db, 'notifications', notificationDoc.id));
+                continue;
+              }
+            }
+            
+            // Zapamiętaj event_id, aby uniknąć duplikatów
+            if (notificationData.event_id) {
+              eventIdsFromNotifications.add(notificationData.event_id);
+            }
+            
+            // Dodaj powiadomienie do listy
+            allNotificationsList.push({
+              id: notificationDoc.id,
+              title: notificationData.title || 'Nowe wydarzenie',
+              description: notificationData.message || '',
+              deadline: notificationData.event_date || notificationData.timestamp || new Date().toISOString(),
+              type: 'event',
+              priority: 'medium',
+              read: notificationData.read || false,
+              isOverdue: eventDate ? eventDate < now : false,
+              students: [user.uid],
+              event_id: notificationData.event_id // Zachowaj event_id dla referencji
+            });
+          }
+          
+          console.log('✅ Added', allNotificationsList.length, 'notifications from notifications collection');
+          console.log('🔖 Event IDs from notifications:', Array.from(eventIdsFromNotifications));
+        }
+        
+        // 2. Pobierz eventy jako powiadomienia
+        console.log('📅 Fetching events from DB...');
+        const eventsCollection = collection(db, 'events');
+        const eventsSnapshot = await getDocs(eventsCollection);
+        let eventsList = eventsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        
+        // Student widzi tylko swoje eventy
+        if (user.role === 'student') {
+          eventsList = eventsList.filter((ev: any) => {
+            const isAssignedTo = ev.assignedTo && ev.assignedTo.includes(user.uid);
+            const isInStudents = ev.students && ev.students.includes(user.uid);
+            
+            // Pomiń eventy, które już mają powiadomienie w notifications
+            if (eventIdsFromNotifications.has(ev.id)) {
+              console.log('⏭️ Skipping event (already in notifications):', ev.id, ev.title);
+              return false;
+            }
+            
+            return isAssignedTo || isInStudents;
+          });
+        }
+        
+        console.log('📅 Found', eventsList.length, 'events for user (after deduplication)');
 
-      // Sortuj po dacie malejąco
-      eventsList.sort((a, b) => new Date((b as Notification).deadline).getTime() - new Date((a as Notification).deadline).getTime());
-      
-      // Dodaj informację o przekroczonym terminie i wzbogac dane
-      const now = new Date();
-      eventsList = eventsList.map((ev) => {
-        const deadline = new Date((ev as Notification).deadline);
-        const isOverdue = deadline < now;
-        const timeDiff = deadline.getTime() - now.getTime();
-        const daysDiff = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
+        // Sortuj po dacie malejąco
+        eventsList.sort((a: any, b: any) => {
+          const deadlineA = a.deadline || a.date;
+          const deadlineB = b.deadline || b.date;
+          return new Date(deadlineB).getTime() - new Date(deadlineA).getTime();
+        });
         
-        // Określ priorytet na podstawie czasu do deadline
-        let priority: 'low' | 'medium' | 'high' = 'low';
-        if (isOverdue) priority = 'high';
-        else if (daysDiff <= 3) priority = 'high';
-        else if (daysDiff <= 7) priority = 'medium';
+        // Dodaj informację o przekroczonym terminie i wzbogac dane
+        eventsList = eventsList.filter((ev: any) => {
+          const eventDeadline = ev.deadline || ev.date;
+          if (!eventDeadline) {
+            console.log('⚠️ Event without deadline:', ev.id);
+            return false; // Pomiń eventy bez daty
+          }
+          
+          const deadline = new Date(eventDeadline);
+          
+          // Sprawdź czy data jest poprawna
+          if (isNaN(deadline.getTime())) {
+            console.log('⚠️ Event with invalid date:', ev.id, eventDeadline);
+            return false;
+          }
+          
+          // Usuń wydarzenia, które są starsze niż 7 dni PO terminie
+          const sevenDaysAfterEvent = new Date(deadline.getTime() + 7 * 24 * 60 * 60 * 1000);
+          if (sevenDaysAfterEvent < now) {
+            console.log('🗑️ Skipping old event (7 days after deadline):', ev.id, 'Deadline:', deadline);
+            return false;
+          }
+          
+          return true;
+        }).map((ev: any) => {
+          const deadline = new Date(ev.deadline || ev.date);
+          const isOverdue = deadline < now;
+          const timeDiff = deadline.getTime() - now.getTime();
+          const daysDiff = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
+          
+          // Określ priorytet na podstawie czasu do deadline
+          let priority: 'low' | 'medium' | 'high' = 'low';
+          if (isOverdue) priority = 'high';
+          else if (daysDiff <= 3) priority = 'high';
+          else if (daysDiff <= 7) priority = 'medium';
+          
+          // Określ typ powiadomienia na podstawie tytułu
+          let type: 'assignment' | 'exam' | 'announcement' | 'grade' | 'course' = 'announcement';
+          const title = ev.title?.toLowerCase() || '';
+          if (title.includes('zadanie') || title.includes('assignment')) type = 'assignment';
+          else if (title.includes('egzamin') || title.includes('exam') || title.includes('test')) type = 'exam';
+          else if (title.includes('ocena') || title.includes('grade')) type = 'grade';
+          else if (title.includes('kurs') || title.includes('course')) type = 'course';
+          
+          return {
+            ...ev,
+            isOverdue,
+            priority,
+            type,
+            read: false
+          };
+        });
         
-        // Określ typ powiadomienia na podstawie tytułu
-        let type: 'assignment' | 'exam' | 'announcement' | 'grade' | 'course' = 'announcement';
-        const title = (ev as Notification).title.toLowerCase();
-        if (title.includes('zadanie') || title.includes('assignment')) type = 'assignment';
-        else if (title.includes('egzamin') || title.includes('exam') || title.includes('test')) type = 'exam';
-        else if (title.includes('ocena') || title.includes('grade')) type = 'grade';
-        else if (title.includes('kurs') || title.includes('course')) type = 'course';
+        // Połącz powiadomienia z notifications i eventy
+        const combinedNotifications = [...allNotificationsList, ...eventsList];
         
-        return {
-          ...ev,
-          isOverdue,
-          priority,
-          type,
-          read: false
-        };
-      });
+        // Sortuj wszystkie powiadomienia po dacie malejąco
+        combinedNotifications.sort((a: any, b: any) => {
+          const dateA = new Date(a.deadline || a.date);
+          const dateB = new Date(b.deadline || b.date);
+          return dateB.getTime() - dateA.getTime();
+        });
+        
+        // Ogranicz do 15 najnowszych
+        const limitedNotifications = combinedNotifications.slice(0, 15);
+        
+        console.log('📊 FINAL DASHBOARD NOTIFICATIONS:');
+        console.log('  - Total notifications:', limitedNotifications.length);
+        console.log('  - Unread count:', limitedNotifications.filter(n => !n.read).length);
+        console.log('📋 All notifications:', limitedNotifications);
 
-      setNotifications(eventsList as Notification[]);
-      
-      // Sprawdź, czy są nieprzeczytane
-      const lastRead = localStorage.getItem('lastNotifRead');
-      if (!lastRead || eventsList.length > 0 && eventsList[0].id !== lastRead) {
-        setHasUnread(true);
-      } else {
-        setHasUnread(false);
+        setNotifications(limitedNotifications as Notification[]);
+        
+        // Sprawdź, czy są nieprzeczytane
+        const lastRead = localStorage.getItem('lastNotifRead');
+        if (!lastRead || limitedNotifications.length > 0 && limitedNotifications[0].id !== lastRead) {
+          setHasUnread(true);
+        } else {
+          setHasUnread(false);
+        }
+      } catch (error) {
+        console.error('❌ Error fetching dashboard notifications:', error);
       }
     };
     fetchNotifications();
+    
+    // Odświeżaj co 5 minut
+    const interval = setInterval(fetchNotifications, 5 * 60 * 1000);
+    return () => clearInterval(interval);
   }, [user]);
 
   // Obsługa wysyłki maila

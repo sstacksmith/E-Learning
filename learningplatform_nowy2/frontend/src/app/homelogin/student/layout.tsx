@@ -6,7 +6,7 @@ import StudentRoute from '@/components/StudentRoute';
 import ParentAccess from '@/components/ParentAccess';
 import { useAuth } from '@/context/AuthContext';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
-import { collection, getDocs, query, where, limit } from 'firebase/firestore';
+import { collection, getDocs, query, where, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 
 interface Notification {
@@ -30,23 +30,63 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
 
   // Pobierz powiadomienia dla ucznia
   useEffect(() => {
+    console.log('🔔 Notification useEffect triggered, user:', user?.uid, 'role:', user?.role);
+    
     const fetchNotifications = async () => {
-      if (!user || user.role !== 'student') return;
+      if (!user) {
+        console.log('❌ Not fetching notifications - user is null/undefined');
+        return;
+      }
+      
+      if (user.role !== 'student') {
+        console.log('❌ Not fetching notifications - user role is:', user.role, 'expected: student');
+        return;
+      }
+
+      console.log('✅ Fetching notifications for student:', user.uid, user.email);
 
       try {
         const allNotifications: Notification[] = [];
+        const eventIdsFromNotifications = new Set<string>(); // Śledzenie event_id
+        const now = new Date();
 
         // 1. Pobierz powiadomienia z kolekcji notifications
         const notificationsRef = collection(db, 'notifications');
         const notificationsQuery = query(
           notificationsRef, 
-          where('user_id', '==', user.uid), 
-          limit(10)
+          where('user_id', '==', user.uid)
         );
+        console.log('📥 Querying notifications for user_id:', user.uid);
         const notificationsSnapshot = await getDocs(notificationsQuery);
+        
+        console.log('📬 Found notifications in DB:', notificationsSnapshot.size);
         
         for (const notificationDoc of notificationsSnapshot.docs) {
           const notificationData = notificationDoc.data();
+          console.log('📋 Processing notification:', notificationDoc.id, notificationData);
+          const eventDate = notificationData.event_date ? new Date(notificationData.event_date) : null;
+          
+          // Usuń powiadomienia z niepoprawną datą (Invalid Date)
+          if (notificationData.event_date && (!eventDate || isNaN(eventDate.getTime()))) {
+            console.log('🗑️ Deleting notification with invalid date:', notificationDoc.id);
+            await deleteDoc(doc(db, 'notifications', notificationDoc.id));
+            continue;
+          }
+          
+          // Usuń powiadomienia, które są starsze niż 7 dni PO terminie wydarzenia
+          if (eventDate) {
+            const sevenDaysAfterEvent = new Date(eventDate.getTime() + 7 * 24 * 60 * 60 * 1000);
+            if (sevenDaysAfterEvent < now) {
+              console.log('🗑️ Deleting old notification (7 days after event):', notificationDoc.id, 'Event date:', eventDate);
+              await deleteDoc(doc(db, 'notifications', notificationDoc.id));
+              continue;
+            }
+          }
+          
+          // Zapamiętaj event_id dla deduplikacji
+          if (notificationData.event_id) {
+            eventIdsFromNotifications.add(notificationData.event_id);
+          }
           
           allNotifications.push({
             id: notificationDoc.id,
@@ -59,35 +99,89 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
             action_url: notificationData.action_url
           });
         }
+        
+        console.log('✅ Added', allNotifications.length, 'notifications from notifications collection');
+        console.log('🔖 Event IDs from notifications:', Array.from(eventIdsFromNotifications));
 
         // 2. Pobierz eventy jako powiadomienia
         const eventsRef = collection(db, 'events');
+        console.log('📅 Fetching events from DB...');
         const eventsSnapshot = await getDocs(eventsRef);
+        
+        console.log('📅 Found events in DB:', eventsSnapshot.size);
         
         for (const eventDoc of eventsSnapshot.docs) {
           const eventData = eventDoc.data();
           
-          // Sprawdź czy uczeń jest przypisany do tego eventu
-          if (eventData.students && eventData.students.includes(user.uid)) {
-            const isOverdue = new Date(eventData.deadline) < new Date();
+          // Pomiń eventy, które już mają powiadomienie w notifications
+          if (eventIdsFromNotifications.has(eventDoc.id)) {
+            console.log('⏭️ Skipping event (already in notifications):', eventDoc.id, eventData.title);
+            continue;
+          }
+          
+          // Debug: Sprawdź czy uczeń jest przypisany
+          const isAssignedTo = eventData.assignedTo && eventData.assignedTo.includes(user.uid);
+          const isInStudents = eventData.students && eventData.students.includes(user.uid);
+          
+          console.log('🔍 Checking event:', eventDoc.id, 'isAssignedTo:', isAssignedTo, 'isInStudents:', isInStudents);
+          
+          if (isAssignedTo || isInStudents) {
+            console.log('✅ Event assigned to student:', {
+              eventId: eventDoc.id,
+              title: eventData.title,
+              date: eventData.date,
+              assignedTo: eventData.assignedTo,
+              students: eventData.students
+            });
+            
+            const eventDateString = eventData.date || eventData.deadline;
+            
+            // Sprawdź czy event ma datę
+            if (!eventDateString) {
+              console.log('⚠️ Event without date:', eventDoc.id);
+              continue;
+            }
+            
+            const eventDate = new Date(eventDateString);
+            
+            // Usuń eventy z niepoprawną datą (Invalid Date)
+            if (isNaN(eventDate.getTime())) {
+              console.log('⚠️ Event with invalid date:', eventDoc.id, eventDateString);
+              continue;
+            }
+            
+            // Pomiń wydarzenia starsze niż 7 dni PO terminie
+            const sevenDaysAfterEvent = new Date(eventDate.getTime() + 7 * 24 * 60 * 60 * 1000);
+            if (sevenDaysAfterEvent < now) {
+              console.log('🗑️ Skipping old event (7 days after event):', eventDoc.id, 'Event date:', eventDate);
+              continue;
+            }
             
             allNotifications.push({
               id: `event-${eventDoc.id}`,
               type: 'event',
               title: eventData.title || 'Nowe zadanie',
               message: eventData.description || 'Masz nowe zadanie do wykonania',
-              timestamp: eventData.deadline || new Date().toISOString(),
+              timestamp: eventDateString,
               read: false,
-              action_url: eventData.action_url
+              action_url: '/homelogin/student/calendar'
             });
           }
         }
+        
+        console.log('📅 Added', allNotifications.length - eventIdsFromNotifications.size, 'events after deduplication and filtering');
 
-        // Sortuj po dacie malejąco i ogranicz do 10 najnowszych
+        // Sortuj po dacie malejąco i ogranicz do 15 najnowszych
         const sortedNotifications = allNotifications
           .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-          .slice(0, 10);
+          .slice(0, 15);
 
+        console.log('📊 FINAL STATS:');
+        console.log('  - Total notifications found:', allNotifications.length);
+        console.log('  - After sorting/limiting:', sortedNotifications.length);
+        console.log('  - Unread count:', sortedNotifications.filter(n => !n.read).length);
+        console.log('📋 All notifications:', sortedNotifications);
+        
         setNotifications(sortedNotifications);
         setUnreadCount(sortedNotifications.filter(n => !n.read).length);
       } catch (error) {
@@ -96,6 +190,10 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
     };
 
     fetchNotifications();
+    
+    // Odświeżaj powiadomienia co 5 minut
+    const interval = setInterval(fetchNotifications, 5 * 60 * 1000);
+    return () => clearInterval(interval);
   }, [user]);
 
   // Obsługa kliknięć poza powiadomieniami
@@ -139,6 +237,7 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
                 </>
               )}
                               <Link href="/homelogin/my-courses" className="text-sm text-gray-700 hover:text-[#4067EC] font-medium">Moje kursy</Link>
+              <Link href="/homelogin/student/calendar" className="text-sm text-gray-700 hover:text-[#4067EC] font-medium">Kalendarz</Link>
               <Link href="/homelogin/student/quizzes" className="text-sm text-gray-700 hover:text-[#4067EC] font-medium">Quizy</Link>
               <Link href="/homelogin/ankiety" className="text-sm text-gray-700 hover:text-[#4067EC] font-medium">Ankiety</Link>
               <Link href="/homelogin/student/grades" className="text-sm text-gray-700 hover:text-[#4067EC] font-medium">Dziennik</Link>
@@ -162,84 +261,146 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
 
                 {/* Notification Dropdown */}
                 {showNotifications && (
-                  <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+                  <div className="absolute left-1/2 transform -translate-x-1/2 top-full mt-3 w-[420px] bg-white rounded-xl shadow-2xl border border-gray-200 z-50 overflow-hidden">
                     {/* Header */}
-                    <div className="bg-green-600 text-white px-4 py-3 rounded-t-lg flex justify-between items-center">
-                      <h3 className="font-semibold text-gray-900">Powiadomienia</h3>
-                      {unreadCount > 0 && (
-                        <span className="bg-green-500 text-white text-xs px-2 py-1 rounded-full">
-                          {unreadCount} nowych
-                        </span>
-                      )}
+                    <div className="bg-gradient-to-r from-[#4067EC] to-[#5078fc] text-white px-5 py-4">
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-3">
+                          <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V4a2 2 0 10-4 0v1.341C7.67 7.165 6 9.388 6 12v2.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                          </svg>
+                          <h3 className="font-bold text-lg">Powiadomienia</h3>
+                        </div>
+                        {unreadCount > 0 && (
+                          <span className="bg-white text-[#4067EC] text-xs font-bold px-3 py-1 rounded-full">
+                            {unreadCount} {unreadCount === 1 ? 'nowe' : 'nowych'}
+                          </span>
+                        )}
+                      </div>
                     </div>
 
                     {/* Notifications List */}
-                    <div className="max-h-96 overflow-y-auto">
+                    <div className="max-h-[500px] overflow-y-auto">
                       {notifications.length > 0 ? (
-                        notifications.map((notification) => (
-                          <div key={notification.id} className="p-4 border-b border-gray-100 hover:bg-gray-50">
-                            <div className="flex items-start gap-3">
-                              <div className={`p-2 rounded-lg ${
-                                notification.type === 'grade' ? 'bg-red-100' : 
-                                notification.type === 'event' ? 'bg-blue-100' : 'bg-gray-100'
-                              }`}>
-                                {notification.type === 'grade' ? (
-                                  <svg className="w-4 h-4 text-red-600" fill="currentColor" viewBox="0 0 20 20">
-                                    <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                  </svg>
-                                ) : (
-                                  <svg className="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
-                                    <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
-                                    <path fillRule="evenodd" d="M4 5a2 2 0 012-2v1a1 1 0 001 1h6a1 1 0 001-1V3a2 2 0 012 2v6a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3z" clipRule="evenodd" />
-                                  </svg>
-                                )}
-                              </div>
-                              <div className="flex-1">
-                                <h4 className="font-medium text-gray-900">{notification.title}</h4>
-                                <p className="text-sm text-gray-600 mt-1">{notification.message}</p>
-                                <div className="flex items-center gap-2 mt-2">
-                                  <svg className="w-3 h-3 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
-                                  </svg>
-                                  <span className="text-xs text-gray-500">
-                                    {new Date(notification.timestamp).toLocaleDateString('pl-PL', { 
-                                      day: '2-digit', 
-                                      month: 'short', 
-                                      year: 'numeric',
-                                      hour: '2-digit',
-                                      minute: '2-digit'
-                                    })}
-                                  </span>
+                        notifications.map((notification) => {
+                          const eventDate = notification.timestamp ? new Date(notification.timestamp) : null;
+                          const isOverdue = eventDate && eventDate < new Date();
+                          
+                          return (
+                            <div 
+                              key={notification.id} 
+                              className={`p-4 border-b border-gray-100 hover:bg-blue-50 transition-colors cursor-pointer ${
+                                !notification.read ? 'bg-blue-50/50' : ''
+                              }`}
+                              onClick={() => {
+                                if (notification.action_url) {
+                                  window.location.href = notification.action_url;
+                                }
+                              }}
+                            >
+                              <div className="flex items-start gap-3">
+                                {/* Icon */}
+                                <div className={`flex-shrink-0 p-2.5 rounded-xl ${
+                                  notification.type === 'grade' ? 'bg-green-100' : 
+                                  notification.type === 'event' ? 'bg-blue-100' : 'bg-gray-100'
+                                }`}>
+                                  {notification.type === 'grade' ? (
+                                    <svg className="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                                      <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                  ) : notification.type === 'event' ? (
+                                    <svg className="w-5 h-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                                      <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+                                    </svg>
+                                  ) : (
+                                    <svg className="w-5 h-5 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
+                                      <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
+                                      <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
+                                    </svg>
+                                  )}
                                 </div>
-                                {notification.action_url && (
-                                  <div className="mt-2">
-                                    <a 
-                                      href={notification.action_url}
-                                      className="text-xs text-blue-600 hover:text-blue-800"
-                                    >
-                                      Kliknij aby przejść →
-                                    </a>
+                                
+                                {/* Content */}
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-start justify-between gap-2">
+                                    <h4 className="font-semibold text-gray-900 text-sm leading-snug">
+                                      {notification.title}
+                                    </h4>
+                                    {!notification.read && (
+                                      <span className="flex-shrink-0 w-2 h-2 bg-blue-600 rounded-full mt-1"></span>
+                                    )}
                                   </div>
-                                )}
+                                  
+                                  <p className="text-sm text-gray-600 mt-1 line-clamp-2">
+                                    {notification.message}
+                                  </p>
+                                  
+                                  {/* Date and Status */}
+                                  <div className="flex items-center gap-3 mt-2.5">
+                                    <div className="flex items-center gap-1.5">
+                                      <svg className="w-3.5 h-3.5 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+                                      </svg>
+                                      <span className="text-xs text-gray-500 font-medium">
+                                        {eventDate ? eventDate.toLocaleDateString('pl-PL', { 
+                                          day: '2-digit', 
+                                          month: 'short',
+                                          hour: '2-digit',
+                                          minute: '2-digit'
+                                        }) : 'Niedawno'}
+                                      </span>
+                                    </div>
+                                    
+                                    {isOverdue && notification.type === 'event' && (
+                                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-600 bg-red-50 px-2 py-0.5 rounded-full">
+                                        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                                        </svg>
+                                        Po terminie
+                                      </span>
+                                    )}
+                                  </div>
+                                  
+                                  {notification.courseTitle && (
+                                    <div className="mt-2">
+                                      <span className="inline-block text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-md">
+                                        📚 {notification.courseTitle}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        ))
+                          );
+                        })
                       ) : (
-                        <div className="p-8 text-center text-gray-500">
-                          Brak powiadomień
+                        <div className="p-12 text-center">
+                          <svg className="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                          </svg>
+                          <p className="text-gray-500 font-medium">Brak powiadomień</p>
+                          <p className="text-xs text-gray-400 mt-1">Wszystkie powiadomienia zostały przeczytane</p>
                         </div>
                       )}
                     </div>
 
                     {/* Footer */}
                     {notifications.length > 0 && (
-                      <div className="p-3 border-t border-gray-200">
+                      <div className="p-4 bg-gray-50 border-t border-gray-200 flex justify-between items-center">
+                        <Link 
+                          href="/homelogin/student/calendar"
+                          className="text-sm text-[#4067EC] hover:text-[#3155d4] font-semibold flex items-center gap-1"
+                        >
+                          Zobacz kalendarz
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                          </svg>
+                        </Link>
                         <button 
                           onClick={markAllAsRead}
-                          className="text-sm text-blue-600 hover:text-blue-800"
+                          className="text-sm text-gray-600 hover:text-gray-900 font-medium"
                         >
-                          Zaznacz wszystkie jako przeczytane
+                          Oznacz jako przeczytane
                         </button>
                       </div>
                     )}
