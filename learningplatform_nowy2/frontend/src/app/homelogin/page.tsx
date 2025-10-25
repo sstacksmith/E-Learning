@@ -1245,7 +1245,7 @@ function Dashboard() {
           {/* Main dashboard */}
           <section className="space-y-4 lg:space-y-6">
             {/* Progress & Chart */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
               {/* Shortcut/statystyka do statystyk profilu */}
               <div className="lg:col-span-1">
                 <a href="/profile/statistics" className="block bg-white/90 dark:bg-gray-800/90 backdrop-blur-xl rounded-xl shadow-lg p-4 flex flex-col justify-between hover:shadow-xl transition-all duration-300 cursor-pointer border border-white/20 dark:border-gray-700/50 hover:border-[#4067EC] dark:hover:border-blue-400 h-full group">

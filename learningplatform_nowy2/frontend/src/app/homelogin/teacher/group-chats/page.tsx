@@ -48,6 +48,19 @@ interface User {
   role: string;
 }
 
+interface Class {
+  id: string;
+  name: string;
+  description?: string;
+  grade_level: number;
+  subject?: string;
+  teacher_id: string;
+  teacher_email: string;
+  students: string[];
+  is_active: boolean;
+  academic_year: string;
+}
+
 export default function GroupChatsPage() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -67,6 +80,8 @@ export default function GroupChatsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState<'messages' | 'files'>('messages');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [availableClasses, setAvailableClasses] = useState<Class[]>([]);
+  const [selectedClasses, setSelectedClasses] = useState<string[]>([]);
 
   // Pobierz czaty grupowe nauczyciela
   useEffect(() => {
@@ -165,10 +180,26 @@ export default function GroupChatsPage() {
     return () => unsubscribe();
   }, [user]);
 
-  // Pobierz dostępnych uczniów
+  // Pobierz dostępnych uczniów i klasy
   useEffect(() => {
-    const fetchStudents = async () => {
+    const fetchStudentsAndClasses = async () => {
       try {
+        // Pobierz klasy nauczyciela
+        const classesQuery = query(
+          collection(db, 'classes'),
+          where('teacher_id', '==', user?.uid)
+        );
+        const classesSnapshot = await getDocs(classesQuery);
+        const classes: Class[] = classesSnapshot.docs
+          .map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          } as Class))
+          .filter(cls => cls.is_active);
+        
+        setAvailableClasses(classes);
+        console.log('Pobrano klasy nauczyciela:', classes);
+
         // Pobierz kursy nauczyciela
         const coursesSnapshot = await getDocs(collection(db, 'courses'));
         const teacherCourses = coursesSnapshot.docs.filter(doc => {
@@ -219,12 +250,12 @@ export default function GroupChatsPage() {
 
         setAvailableStudents(students);
       } catch (error) {
-        console.error('Error fetching students:', error);
+        console.error('Error fetching students and classes:', error);
       }
     };
 
     if (user && showCreateChat) {
-      fetchStudents();
+      fetchStudentsAndClasses();
     }
   }, [user, showCreateChat]);
 
@@ -356,16 +387,36 @@ export default function GroupChatsPage() {
   };
 
   const handleCreateChat = async () => {
-    if (!newChatName.trim() || selectedStudents.length === 0 || !user) return;
+    if (!newChatName.trim() || (selectedStudents.length === 0 && selectedClasses.length === 0) || !user) return;
 
     try {
-      const participants = [user.uid, ...selectedStudents];
+      // Zbierz wszystkich uczniów z wybranych klas
+      const studentsFromClasses = new Set<string>();
+      selectedClasses.forEach(classId => {
+        const classData = availableClasses.find(c => c.id === classId);
+        if (classData && classData.students) {
+          classData.students.forEach(studentId => studentsFromClasses.add(studentId));
+        }
+      });
+
+      // Połącz wybranych uczniów i uczniów z klas
+      const allStudents = [...new Set([...selectedStudents, ...Array.from(studentsFromClasses)])];
+      const participants = [user.uid, ...allStudents];
+      
+      // Pobierz emaile uczniów
+      const participantEmails = [user.email];
+      allStudents.forEach(studentId => {
+        const student = availableStudents.find(s => s.uid === studentId);
+        if (student?.email) {
+          participantEmails.push(student.email);
+        }
+      });
       
       await addDoc(collection(db, 'groupChats'), {
         name: newChatName.trim(),
         description: newChatDescription.trim(),
         participants,
-        participantEmails: [user.email, ...selectedStudents.map(id => availableStudents.find(s => s.uid === id)?.email || '')], // Dodaj emaile uczestników
+        participantEmails,
         createdBy: user.uid,
         createdAt: serverTimestamp()
       });
@@ -374,6 +425,7 @@ export default function GroupChatsPage() {
       setNewChatName('');
       setNewChatDescription('');
       setSelectedStudents([]);
+      setSelectedClasses([]);
       setShowCreateChat(false);
     } catch (error) {
       console.error('Error creating chat:', error);
@@ -450,6 +502,7 @@ export default function GroupChatsPage() {
                   setNewChatName('');
                   setNewChatDescription('');
                   setSelectedStudents([]);
+                  setSelectedClasses([]);
                   setSearchTerm('');
                 }}
                 className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors group"
@@ -481,8 +534,49 @@ export default function GroupChatsPage() {
                 />
               </div>
 
+              {/* Wybór klas */}
+              {availableClasses.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium mb-1">Wybierz całe klasy</label>
+                  <div className="max-h-32 overflow-y-auto border border-gray-200 rounded-lg mb-3">
+                    {availableClasses.map(classData => (
+                      <label key={classData.id} className="flex items-center p-2 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0">
+                        <input
+                          type="checkbox"
+                          checked={selectedClasses.includes(classData.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedClasses([...selectedClasses, classData.id]);
+                            } else {
+                              setSelectedClasses(selectedClasses.filter(id => id !== classData.id));
+                            }
+                          }}
+                          className="mr-3 w-4 h-4 text-blue-600"
+                        />
+                        <div className="flex-1">
+                          <span className="text-sm font-medium text-gray-900">{classData.name}</span>
+                          <span className="text-xs text-gray-500 ml-2">
+                            ({classData.students.length} uczniów)
+                          </span>
+                          {classData.subject && (
+                            <span className="text-xs text-blue-600 ml-2">• {classData.subject}</span>
+                          )}
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                  
+                  {selectedClasses.length > 0 && (
+                    <p className="text-sm text-blue-600 font-medium mb-2">
+                      ✓ Wybrano {selectedClasses.length} {selectedClasses.length === 1 ? 'klasę' : 'klas'}
+                      {' '}({availableClasses.filter(c => selectedClasses.includes(c.id)).reduce((sum, c) => sum + c.students.length, 0)} uczniów)
+                    </p>
+                  )}
+                </div>
+              )}
+
               <div>
-                <label className="block text-sm font-medium mb-1">Wybierz uczniów</label>
+                <label className="block text-sm font-medium mb-1">Lub wybierz poszczególnych uczniów</label>
                 <input
                   type="text"
                   value={searchTerm}
@@ -513,7 +607,7 @@ export default function GroupChatsPage() {
                 
                 {selectedStudents.length > 0 && (
                   <p className="text-sm text-gray-500 mt-2">
-                    Wybrano {selectedStudents.length} uczniów
+                    Wybrano dodatkowo {selectedStudents.length} {selectedStudents.length === 1 ? 'ucznia' : 'uczniów'}
                   </p>
                 )}
               </div>
@@ -526,6 +620,7 @@ export default function GroupChatsPage() {
                   setNewChatName('');
                   setNewChatDescription('');
                   setSelectedStudents([]);
+                  setSelectedClasses([]);
                   setSearchTerm('');
                 }}
                 className="flex-1 bg-gray-100 text-gray-700 py-3 px-6 rounded-xl hover:bg-gray-200 transition-all duration-200 font-medium border border-gray-200 hover:border-gray-300"
@@ -534,7 +629,7 @@ export default function GroupChatsPage() {
               </button>
               <button
                 onClick={handleCreateChat}
-                disabled={!newChatName.trim() || selectedStudents.length === 0}
+                disabled={!newChatName.trim() || (selectedStudents.length === 0 && selectedClasses.length === 0)}
                 className="flex-1 bg-blue-600 text-white py-3 px-6 rounded-xl hover:bg-blue-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
               >
                 Utwórz czat

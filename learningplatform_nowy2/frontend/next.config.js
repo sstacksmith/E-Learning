@@ -41,6 +41,9 @@ const nextConfig = {
     optimizePackageImports: ['react-icons', 'lucide-react'],
   },
   
+  // Server components external packages (for Turbopack compatibility)
+  serverExternalPackages: ['pdfjs-dist', 'canvas'],
+  
   // Webpack optimizations
   webpack: (config, { dev, isServer }) => {
     if (dev && !isServer) {
@@ -56,10 +59,23 @@ const nextConfig = {
       };
     }
     
-    // Optimize bundle size
-    config.resolve.alias = {
-      ...config.resolve.alias,
-      '@': require('path').resolve(__dirname, 'src'),
+    // Configure module resolution
+    config.resolve = config.resolve || {};
+    config.resolve.alias = config.resolve.alias || {};
+    
+    // Ignore canvas module for browser builds (required by pdfjs-dist)
+    if (!isServer) {
+      config.resolve.alias['canvas'] = require('path').resolve(__dirname, 'src/lib/canvas-stub.js');
+    }
+    
+    // Always set @ alias
+    config.resolve.alias['@'] = require('path').resolve(__dirname, 'src');
+    
+    // Fallback for node modules in browser
+    config.resolve.fallback = {
+      ...config.resolve.fallback,
+      fs: false,
+      path: false,
     };
     
     return config;
