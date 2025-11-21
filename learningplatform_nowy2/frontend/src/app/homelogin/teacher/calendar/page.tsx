@@ -1,7 +1,17 @@
 'use client';
-import CreateEvent from '../../../../components/CreateEvent';
-import Calendar from '../../../../components/Calendar';
+import dynamic from 'next/dynamic';
 import { ArrowLeft } from 'lucide-react';
+import { Suspense } from 'react';
+
+// Lazy load ciężkie komponenty
+const CreateEvent = dynamic(() => import('../../../../components/CreateEvent'), { 
+  ssr: false,
+  loading: () => <div className="h-32 bg-gray-100 animate-pulse rounded-lg" />
+});
+const Calendar = dynamic(() => import('../../../../components/Calendar'), { 
+  ssr: false,
+  loading: () => <div className="h-96 bg-gray-100 animate-pulse rounded-lg" />
+});
 
 export default function TeacherCalendarPage() {
   return (
@@ -39,14 +49,18 @@ export default function TeacherCalendarPage() {
         <div className="h-full flex flex-col">
           {/* Create Event Section - Compact */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 lg:p-6 mb-4 lg:mb-6">
-            <CreateEvent />
+            <Suspense fallback={<div className="h-32 bg-gray-100 animate-pulse rounded-lg" />}>
+              <CreateEvent />
+            </Suspense>
           </div>
 
           {/* Calendar Section - FULL WIDTH & HEIGHT */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-2 lg:p-4 flex-1 min-h-0">
             <h2 className="text-lg font-semibold text-gray-800 mb-3 lg:mb-4">Kalendarz wydarzeń</h2>
             <div className="h-full w-full flex-1">
-              <Calendar />
+              <Suspense fallback={<div className="h-96 bg-gray-100 animate-pulse rounded-lg" />}>
+                <Calendar />
+              </Suspense>
             </div>
           </div>
         </div>

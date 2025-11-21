@@ -1,16 +1,17 @@
 "use client";
+import { useState, useEffect, lazy, Suspense } from "react";
 import Image from 'next/image';
-import { useState, useEffect } from "react";
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import Notification from '@/components/Notification';
 import { useAuth } from '@/context/AuthContext';
 import { db } from '@/config/firebase';
 import { doc, getDoc } from 'firebase/firestore';
-import ThemeToggle from '@/components/ThemeToggle';
 
-import SocialLoginButtons from '@/components/Auth/SocialLoginButtons';
-import Providers from '@/components/Providers';
+// Lazy load komponenty
+const Notification = lazy(() => import('@/components/Notification'));
+const ThemeToggle = lazy(() => import('@/components/ThemeToggle'));
+const SocialLoginButtons = lazy(() => import('@/components/Auth/SocialLoginButtons'));
+const Providers = lazy(() => import('@/components/Providers'));
 
 function LoginPageContent() {
   const router = useRouter();
@@ -171,13 +172,15 @@ function LoginPageContent() {
   };
 
   return (
-    <div className="flex flex-col lg:flex-row min-h-screen w-full">
+    <div className="flex flex-col lg:flex-row min-h-screen w-full bg-white dark:bg-gray-900">
       {notification && (
-        <Notification 
-          type={notification.type} 
-          message={notification.message} 
-          onClose={() => setNotification(null)}
-        />
+        <Suspense fallback={null}>
+          <Notification 
+            type={notification.type} 
+            message={notification.message} 
+            onClose={() => setNotification(null)}
+          />
+        </Suspense>
       )}
       {/* Logo */}
       <div 
@@ -193,40 +196,42 @@ function LoginPageContent() {
             className="w-7 h-7 sm:w-8 sm:h-8 transition-transform duration-300 group-hover:scale-110"
           />
         </div>
-        <span className="ml-2 text-base sm:text-lg font-normal text-[#222] group-hover:text-[#4067EC] transition-colors duration-300">Cogito</span>
+        <span className="ml-2 text-base sm:text-lg font-normal text-[#222] dark:text-white group-hover:text-[#4067EC] dark:group-hover:text-blue-400 transition-colors duration-300">Cogito</span>
       </div>
       
       {/* Theme Toggle */}
       <div className="absolute top-3 sm:top-4 right-3 sm:right-4 z-20">
-        <ThemeToggle />
+        <Suspense fallback={<div className="w-10 h-10" />}>
+          <ThemeToggle />
+        </Suspense>
       </div>
       {/* Left: Login Form */}
-      <div className="flex flex-col justify-center items-center w-full lg:w-1/2 min-h-[60vh] lg:min-h-screen bg-[#F1F4FE] py-8 sm:py-12 px-3 sm:px-4 lg:px-8">
+      <div className="flex flex-col justify-center items-center w-full lg:w-1/2 min-h-[60vh] lg:min-h-screen bg-[#F1F4FE] dark:bg-gray-800 py-8 sm:py-12 px-3 sm:px-4 lg:px-8">
         <div className="w-full max-w-md mx-auto px-0 lg:px-8">
-          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-[#4067EC] text-center mb-2 leading-tight">Account Log In</h1>
-          <p className="text-center text-gray-500 mb-6 sm:mb-8 tracking-widest text-xs sm:text-sm">PLEASE LOGIN TO CONTINUE TO YOUR ACCOUNT</p>
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-[#4067EC] dark:text-blue-400 text-center mb-2 leading-tight">Account Log In</h1>
+          <p className="text-center text-gray-500 dark:text-gray-400 mb-6 sm:mb-8 tracking-widest text-xs sm:text-sm">PLEASE LOGIN TO CONTINUE TO YOUR ACCOUNT</p>
           <form className="space-y-3 sm:space-y-4 w-full mx-auto" onSubmit={handleLogin}>
             <div>
               <input
                 type="text"
                 placeholder="Username or Email"
-                className={`w-full px-3 sm:px-4 py-2.5 sm:py-3 border-2 ${errors.email ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:outline-none focus:border-[#4067EC] transition-colors duration-200 text-sm sm:text-base`}
+                className={`w-full px-3 sm:px-4 py-2.5 sm:py-3 border-2 ${errors.email ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'} rounded-lg focus:outline-none focus:border-[#4067EC] dark:focus:border-blue-400 transition-colors duration-200 text-sm sm:text-base bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400`}
                 value={email}
                 onChange={e => setEmail(e.target.value)}
               />
-              {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
+              {errors.email && <p className="text-red-500 dark:text-red-400 text-xs mt-1">{errors.email}</p>}
             </div>
             <div className="relative">
               <input
                 type={showPassword ? "text" : "password"}
                 placeholder="Password"
-                className={`w-full px-3 sm:px-4 py-2.5 sm:py-3 border-2 ${errors.password ? 'border-red-500' : 'border-gray-300'} rounded-lg pr-10 focus:outline-none focus:border-[#4067EC] transition-colors duration-200 text-sm sm:text-base`}
+                className={`w-full px-3 sm:px-4 py-2.5 sm:py-3 border-2 ${errors.password ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'} rounded-lg pr-10 focus:outline-none focus:border-[#4067EC] dark:focus:border-blue-400 transition-colors duration-200 text-sm sm:text-base bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400`}
                 value={password}
                 onChange={e => setPassword(e.target.value)}
               />
               <button
                 type="button"
-                className="absolute right-3 top-1/2 -translate-y-1/2 bg-[#4067EC] text-white p-1 rounded shadow hover:bg-[#3155d4] transition-colors duration-200 border border-white"
+                className="absolute right-3 top-1/2 -translate-y-1/2 bg-[#4067EC] dark:bg-blue-500 text-white p-1 rounded shadow hover:bg-[#3155d4] dark:hover:bg-blue-600 transition-colors duration-200 border border-white dark:border-gray-600"
                 onClick={() => setShowPassword(v => !v)}
               >
                 {showPassword ? (
@@ -240,27 +245,27 @@ function LoginPageContent() {
                   </svg>
                 )}
               </button>
-              {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password}</p>}
+              {errors.password && <p className="text-red-500 dark:text-red-400 text-xs mt-1">{errors.password}</p>}
             </div>
-            {firebaseError && <p className="text-red-500 text-xs">{firebaseError}</p>}
+            {firebaseError && <p className="text-red-500 dark:text-red-400 text-xs">{firebaseError}</p>}
             <div className="flex items-center justify-between">
               <label className="flex items-center">
                 <input
                   type="checkbox"
                   checked={rememberMe}
                   onChange={handleRememberMeToggle}
-                  className="w-4 h-4 text-[#4067EC] bg-gray-100 border-gray-300 rounded focus:ring-[#4067EC] focus:ring-2"
+                  className="w-4 h-4 text-[#4067EC] dark:text-blue-400 bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-[#4067EC] dark:focus:ring-blue-400 focus:ring-2"
                 />
-                <span className="ml-2 text-sm text-gray-600">Remember me</span>
+                <span className="ml-2 text-sm text-gray-600 dark:text-gray-300">Remember me</span>
               </label>
-              <Link href="/forgot-password" className="text-sm text-[#4067EC] hover:underline">
+              <Link href="/forgot-password" className="text-sm text-[#4067EC] dark:text-blue-400 hover:underline">
                 Forgot password?
               </Link>
             </div>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full bg-[#4067EC] text-white py-2.5 sm:py-3 px-4 rounded-lg font-semibold hover:bg-[#3155d4] transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
+              className="w-full bg-[#4067EC] dark:bg-blue-600 text-white py-2.5 sm:py-3 px-4 rounded-lg font-semibold hover:bg-[#3155d4] dark:hover:bg-blue-700 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
             >
               {isSubmitting ? "Logging in..." : "Log In"}
             </button>
@@ -269,22 +274,24 @@ function LoginPageContent() {
           <div className="mt-6 sm:mt-8">
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300"></div>
+                <div className="w-full border-t border-gray-300 dark:border-gray-600"></div>
               </div>
               <div className="relative flex justify-center text-xs sm:text-sm">
-                <span className="px-2 bg-[#F1F4FE] text-gray-500">Or continue with</span>
+                <span className="px-2 bg-[#F1F4FE] dark:bg-gray-800 text-gray-500 dark:text-gray-400">Or continue with</span>
               </div>
             </div>
             
             <div className="mt-4 sm:mt-6">
-              <SocialLoginButtons onSuccess={handleSocialLoginSuccess} />
+              <Suspense fallback={<div className="h-12" />}>
+                <SocialLoginButtons onSuccess={handleSocialLoginSuccess} />
+              </Suspense>
             </div>
           </div>
           
           <div className="mt-6 sm:mt-8 text-center">
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-gray-600 dark:text-gray-300">
               Don&apos;t have an account?{" "}
-              <Link href="/register" className="text-[#4067EC] hover:underline font-semibold">
+              <Link href="/register" className="text-[#4067EC] dark:text-blue-400 hover:underline font-semibold">
                 Sign up
               </Link>
             </p>
@@ -293,7 +300,7 @@ function LoginPageContent() {
       </div>
       
       {/* Right: Image */}
-      <div className="hidden lg:flex lg:w-1/2 bg-[#4067EC] items-center justify-center p-8">
+      <div className="hidden lg:flex lg:w-1/2 bg-[#4067EC] dark:bg-[#4067EC] items-center justify-center p-8 transition-colors duration-300">
         <div className="text-center text-white">
           <h2 className="text-3xl font-bold mb-4">Welcome Back!</h2>
           <p className="text-lg opacity-90">Access your learning platform and continue your educational journey.</p>
@@ -305,8 +312,10 @@ function LoginPageContent() {
 
 export default function LoginPage() {
   return (
-    <Providers>
-      <LoginPageContent />
-    </Providers>
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div></div>}>
+      <Providers>
+        <LoginPageContent />
+      </Providers>
+    </Suspense>
   );
 }

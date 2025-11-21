@@ -95,49 +95,37 @@ export default function GroupChatsPage() {
     const unsubscribe = onSnapshot(chatsQuery, async (snapshot) => {
       const chatsData: GroupChat[] = [];
       
-      for (const chatDoc of snapshot.docs) {
+      // Pobierz wszystkie dane równolegle zamiast w pętli
+      const chatPromises = snapshot.docs.map(async (chatDoc) => {
         const chatData = chatDoc.data();
         
         // Pobierz emaile uczestników
-        const participantEmails: string[] = [];
+        let participantEmails: string[] = [];
         if (chatData.participants && chatData.participants.length > 0) {
           try {
-            // Ogranicz liczbę uczestników do 10, żeby uniknąć problemów z Firestore
             const limitedParticipants = chatData.participants.slice(0, 10);
-            
             if (limitedParticipants.length > 0) {
               const usersQuery = query(
                 collection(db, 'users'),
                 where('uid', 'in', limitedParticipants)
               );
               const usersSnapshot = await getDocs(usersQuery);
-              usersSnapshot.forEach(userDoc => {
-                const userData = userDoc.data();
-                if (userData.email) {
-                  participantEmails.push(userData.email);
-                }
-              });
+              participantEmails = usersSnapshot.docs
+                .map(userDoc => userDoc.data().email)
+                .filter(Boolean);
             }
           } catch (error) {
             console.error('Error fetching participant emails:', error);
-            // W przypadku błędu, dodaj domyślne emaile
-            chatData.participants.forEach((uid: string) => {
-              if (uid === user.uid && user.email) {
-                participantEmails.push(user.email);
-              } else {
-                participantEmails.push(`Użytkownik ${uid.substring(0, 8)}...`);
-              }
-            });
+            if (user.email) participantEmails.push(user.email);
           }
         }
         
-        // Pobierz ostatnią wiadomość dla każdego czatu
+        // Pobierz ostatnią wiadomość
         const messagesQuery = query(
           collection(db, 'groupChats', chatDoc.id, 'messages'),
           orderBy('createdAt', 'desc'),
           limit(1)
         );
-        
         const messagesSnapshot = await getDocs(messagesQuery);
         let lastMessage = undefined;
         
@@ -152,7 +140,7 @@ export default function GroupChatsPage() {
           };
         }
 
-        chatsData.push({
+        return {
           id: chatDoc.id,
           name: chatData.name || 'Czat bez nazwy',
           description: chatData.description || '',
@@ -161,8 +149,11 @@ export default function GroupChatsPage() {
           createdBy: chatData.createdBy || '',
           createdAt: chatData.createdAt,
           lastMessage
-        });
-      }
+        };
+      });
+      
+      const chats = await Promise.all(chatPromises);
+      chatsData.push(...chats);
       
       // Sortuj czaty po ostatniej wiadomości
       chatsData.sort((a, b) => {

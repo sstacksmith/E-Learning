@@ -2,6 +2,37 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Płynne przejścia dla dark mode - tylko dla elementów które się zmieniają */
+/* UWAGA: Dark mode toggle ma natychmiastową zmianę - transition wyłączone podczas toggle */
+html {
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+html *,
+html *::before,
+html *::after {
+  transition-property: background-color, color, border-color, fill, stroke, box-shadow, opacity;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+/* Natychmiastowa zmiana dla dark mode - wyłącz transition podczas toggle */
+html[data-theme-changing="true"] *,
+html[data-theme-changing="true"] *::before,
+html[data-theme-changing="true"] *::after {
+  transition: none !important;
+}
+
+/* Wyłącz transition dla elementów które nie powinny mieć animacji */
+html *[class*="animate"],
+html *[class*="transition-none"],
+html svg,
+html img,
+html video,
+html canvas {
+  transition: none !important;
+}
+
 :root {
   /* Podstawowe kolory */
   --background: #ffffff;
@@ -103,6 +134,23 @@
 
 
 /* ===== GLOBALNE STYLE AUTO DARK MODE - AGRESYWNE NADPISYWANIE ===== */
+
+/* Płynne przejścia dla dark mode - skrócone dla szybszej odpowiedzi */
+html {
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+html * {
+  transition: background-color 0.15s ease, 
+              color 0.15s ease, 
+              border-color 0.15s ease,
+              box-shadow 0.15s ease;
+}
+
+/* Natychmiastowa zmiana dla dark mode toggle */
+html[data-theme-changing="true"] * {
+  transition: none !important;
+}
 
 body {
   background: var(--background);

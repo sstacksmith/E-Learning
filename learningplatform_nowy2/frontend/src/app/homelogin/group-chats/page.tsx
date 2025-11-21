@@ -97,12 +97,11 @@ export default function StudentGroupChatsPage() {
         try {
           const chatsData: GroupChat[] = [];
           
-          for (const chatDoc of snapshot.docs) {
+          // Przetwórz wszystkie czaty równolegle
+          const chatPromises = snapshot.docs.map(async (chatDoc) => {
             try {
               const chatData = chatDoc.data();
-              console.log('Przetwarzam czat:', chatData.name);
               
-              // Maksymalnie uproszczone pobieranie emaili - bez zapytań do Firestore
               const participantEmails: string[] = [];
               if (chatData.participants && chatData.participants.length > 0) {
                 chatData.participants.forEach((uid: string) => {
@@ -114,7 +113,7 @@ export default function StudentGroupChatsPage() {
                 });
               }
               
-              // Pobierz ostatnią wiadomość dla każdego czatu
+              // Pobierz ostatnią wiadomość
               let lastMessage = undefined;
               try {
                 const messagesQuery = query(
@@ -122,7 +121,6 @@ export default function StudentGroupChatsPage() {
                   orderBy('createdAt', 'desc'),
                   limit(1)
                 );
-                
                 const messagesSnapshot = await getDocs(messagesQuery);
                 
                 if (!messagesSnapshot.empty) {
@@ -137,10 +135,9 @@ export default function StudentGroupChatsPage() {
                 }
               } catch (error) {
                 console.error('Error fetching last message for chat', chatDoc.id, ':', error);
-                // W przypadku błędu, nie dodawaj lastMessage
               }
 
-              chatsData.push({
+              const chat: GroupChat = {
                 id: chatDoc.id,
                 name: chatData.name || 'Czat bez nazwy',
                 description: chatData.description || '',
@@ -149,17 +146,18 @@ export default function StudentGroupChatsPage() {
                 createdBy: chatData.createdBy || '',
                 createdAt: chatData.createdAt,
                 lastMessage
-              });
-              
-              console.log('Czat dodany do listy:', chatData.name);
-              
+              };
+              return chat;
             } catch (error) {
               console.error('Błąd podczas przetwarzania czatu:', chatDoc.id, error);
-              // Kontynuuj z następnym czatem
+              return null;
             }
-          }
+          });
           
-          console.log('Wszystkie czaty przetworzone, liczba:', chatsData.length);
+          const processedChats = await Promise.all(chatPromises);
+          // Filtruj null values
+          const validChats = processedChats.filter((chat): chat is GroupChat => chat !== null);
+          chatsData.push(...validChats);
           
           // Sortuj czaty po ostatniej wiadomości
           chatsData.sort((a, b) => {

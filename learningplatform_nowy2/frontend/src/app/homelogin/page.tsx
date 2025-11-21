@@ -1,12 +1,19 @@
 "use client";
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { useAuth } from '@/context/AuthContext';
-import Calendar from '../../components/Calendar';
-import { collection, getDocs, query, where, deleteDoc, doc } from 'firebase/firestore';
+import dynamic from 'next/dynamic';
+import { Suspense } from 'react';
+
+// Lazy load Calendar - ciężki komponent
+const Calendar = dynamic(() => import('../../components/Calendar'), { 
+  ssr: false,
+  loading: () => <div className="h-96 bg-gray-100 dark:bg-gray-800 animate-pulse rounded-lg" />
+});
+import { collection, getDocs, query, where, deleteDoc, doc, limit } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { Search, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import ThemeToggle from '@/components/ThemeToggle';
@@ -157,23 +164,15 @@ function DashboardPageContent() {
 
   useEffect(() => {
     if (!loading && user) {
-      console.log('HomeLogin useEffect - User:', user, 'Role:', user.role);
       // Przekieruj na podstawie roli użytkownika
       if (user.role === 'teacher') {
-        console.log('Redirecting teacher to /homelogin/teacher');
         router.replace('/homelogin/teacher');
       } else if (user.role === 'admin') {
-        console.log('Redirecting admin to /homelogin/superadmin');
         router.replace('/homelogin/superadmin');
       } else if (user.role === 'parent') {
-        console.log('Redirecting parent to /homelogin/parent');
         router.replace('/homelogin/parent');
-      } else {
-        // Student - zostaje na tej stronie
-        console.log('User is student, staying on dashboard');
       }
-    } else {
-      console.log('HomeLogin useEffect - Loading:', loading, 'User:', user);
+      // Student - zostaje na tej stronie
     }
   }, [user, loading, router]);
 
@@ -195,7 +194,6 @@ export default function DashboardPage() {
 function Dashboard() {
   const router = useRouter();
   const { user, logout } = useAuth();
-  console.log('user in Dashboard:', user);
   
   // Get sidebar links based on user role
   const sidebarLinks = getSidebarLinks(user?.role);
@@ -270,26 +268,25 @@ function Dashboard() {
     const fetchAssignedCourses = async () => {
       setLoadingAssigned(true);
       try {
-        // Pobierz wszystkie kursy z Firestore
-        const coursesCollection = collection(db, 'courses');
-        const coursesSnapshot = await getDocs(coursesCollection);
+        // Użyj query z where zamiast pobierania wszystkich kursów
+        const [coursesByUid, coursesByEmail] = await Promise.all([
+          getDocs(query(collection(db, 'courses'), where('assignedUsers', 'array-contains', user.uid))),
+          user.email ? getDocs(query(collection(db, 'courses'), where('assignedUsers', 'array-contains', user.email))) : Promise.resolve({ docs: [] } as any)
+        ]);
         
-        console.log('All courses from Firestore:', coursesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-        
-        // Filtruj kursy, do których użytkownik jest przypisany
-        const assigned = coursesSnapshot.docs
-          .map(doc => ({ 
-            id: doc.id, 
-            firebase_id: doc.id,
-            ...doc.data() 
-          } as unknown as Course))
-          .filter(course => {
-            const assignedUsers = course.assignedUsers || [];
-            console.log(`Course ${course.title} assignedUsers:`, assignedUsers, 'User:', user.uid, user.email);
-            return assignedUsers.includes(user.uid) || assignedUsers.includes(user.email);
+        // Połącz i deduplikuj kursy
+        const coursesMap = new Map();
+        [coursesByUid, coursesByEmail].forEach(snapshot => {
+          snapshot.docs.forEach((doc: any) => {
+            coursesMap.set(doc.id, {
+              id: doc.id,
+              firebase_id: doc.id,
+              ...doc.data()
+            });
           });
+        });
         
-        console.log('Assigned courses for user:', user.uid, assigned);
+        const assigned = Array.from(coursesMap.values()) as Course[];
         setAssignedCourses(assigned);
       } catch (error) {
         console.error('Error fetching assigned courses:', error);
@@ -301,8 +298,8 @@ function Dashboard() {
     fetchAssignedCourses();
   }, [user]);
 
-  // Funkcja sortowania kursów
-  const sortCourses = (coursesToSort: Course[]) => {
+  // Memoizuj funkcję sortowania kursów
+  const sortCourses = useCallback((coursesToSort: Course[]) => {
     return [...coursesToSort].sort((a, b) => {
       let aValue: string = '';
       let bValue: string = '';
@@ -324,10 +321,10 @@ function Dashboard() {
         return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
       }
     });
-  };
+  }, [courseSortBy, courseSortOrder]);
 
-  // Funkcja filtrowania i sortowania kursów
-  const filterAndSortCourses = () => {
+  // Memoizuj filtrowane i posortowane kursy
+  const filteredCoursesMemo = useMemo(() => {
     let filtered = assignedCourses;
     
     if (courseSearch) {
@@ -340,23 +337,23 @@ function Dashboard() {
       });
     }
     
-    setFilteredCourses(sortCourses(filtered));
-  };
+    return sortCourses(filtered);
+  }, [assignedCourses, courseSearch, sortCourses]);
 
-  // Automatyczne filtrowanie i sortowanie gdy zmienia się search, sortBy lub sortOrder
+  // Użyj memoizowanych kursów
   useEffect(() => {
-    filterAndSortCourses();
-  }, [assignedCourses, courseSearch, courseSortBy, courseSortOrder]);
+    setFilteredCourses(filteredCoursesMemo);
+  }, [filteredCoursesMemo]);
 
-  // Funkcja zmiany sortowania kursów
-  const handleCourseSortChange = (newSortBy: 'title' | 'category') => {
+  // Funkcja zmiany sortowania kursów - memoizowana
+  const handleCourseSortChange = useCallback((newSortBy: 'title' | 'category') => {
     if (courseSortBy === newSortBy) {
       setCourseSortOrder(courseSortOrder === 'asc' ? 'desc' : 'asc');
     } else {
       setCourseSortBy(newSortBy);
       setCourseSortOrder('asc');
     }
-  };
+  }, [courseSortBy, courseSortOrder]);
 
   // Pobierz nauczycieli z Firestore
   useEffect(() => {
@@ -364,25 +361,27 @@ function Dashboard() {
       setLoadingTeachers(true);
       try {
         const usersCollection = collection(db, 'users');
-        const usersSnapshot = await getDocs(usersCollection);
-        console.log('All users from Firestore:', usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        // Pobierz tylko nauczycieli i tutorów używając równoległych zapytań z where
+        const [teachersSnapshot, tutorsSnapshot] = await Promise.all([
+          getDocs(query(usersCollection, where('role', '==', 'teacher'), limit(50))),
+          getDocs(query(usersCollection, where('role', '==', 'tutor'), limit(50)))
+        ]);
         
-        const teachersList = usersSnapshot.docs
-          .map(doc => {
-            const data = doc.data();
-            return {
-              uid: doc.id,
-              displayName: data.displayName || '',
-              email: data.email || '',
-              subject: data.subject || '',
-              role: data.role || '',
-              photoURL: data.photoURL || '',
-            };
-          })
-          .filter(user => user.role === 'teacher' || user.role === 'tutor');
+        // Połącz i deduplikuj wyniki
+        const teachersMap = new Map();
+        [...teachersSnapshot.docs, ...tutorsSnapshot.docs].forEach(doc => {
+          const data = doc.data();
+          teachersMap.set(doc.id, {
+            uid: doc.id,
+            displayName: data.displayName || '',
+            email: data.email || '',
+            subject: data.subject || '',
+            role: data.role || '',
+            photoURL: data.photoURL || '',
+          });
+        });
         
-        console.log('Filtered teachers:', teachersList);
-        setTeachers(teachersList);
+        setTeachers(Array.from(teachersMap.values()));
       } catch (error) {
         console.error('Error fetching teachers:', error);
         setTeachers([]);
@@ -393,83 +392,8 @@ function Dashboard() {
     fetchTeachers();
   }, []);
 
-  // Nowa funkcja wyszukiwania - wyświetla wszystko na początku
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setSearch(value);
-    
-    // Zawsze pokazuj wyniki, nawet przy pustym polu
-    const results: SearchResult[] = [];
-    
-    if (value.length === 0) {
-      // Pokaż wszystkie kursy i nauczycieli
-      assignedCourses.forEach(course => {
-        results.push({
-          type: 'course',
-          id: course.firebase_id || course.id.toString(),
-          title: course.title,
-          subtitle: course.category_name,
-          description: course.description,
-          photoURL: course.thumbnail
-        });
-      });
-      
-      teachers.forEach(teacher => {
-        results.push({
-          type: 'teacher',
-          id: teacher.uid,
-          title: teacher.displayName,
-          subtitle: teacher.subject,
-          description: teacher.email,
-          photoURL: teacher.photoURL
-        });
-      });
-    } else {
-      // Filtruj na podstawie wyszukiwania
-      // Wyszukaj w kursach przypisanych do użytkownika
-      assignedCourses.forEach(course => {
-        const title = course.title?.toLowerCase() || '';
-        const description = course.description?.toLowerCase() || '';
-        const searchTerm = value.toLowerCase();
-        
-        if (title.includes(searchTerm) || description.includes(searchTerm)) {
-          results.push({
-            type: 'course',
-            id: course.firebase_id || course.id.toString(),
-            title: course.title,
-            subtitle: course.category_name,
-            description: course.description,
-            photoURL: course.thumbnail
-          });
-        }
-      });
-      
-      // Wyszukaj w nauczycielach/tutorach
-      teachers.forEach(teacher => {
-        const name = teacher.displayName?.toLowerCase() || '';
-        const email = teacher.email?.toLowerCase() || '';
-        const subject = teacher.subject?.toLowerCase() || '';
-        const searchTerm = value.toLowerCase();
-        
-        if (name.includes(searchTerm) || email.includes(searchTerm) || subject.includes(searchTerm)) {
-          results.push({
-            type: 'teacher',
-            id: teacher.uid,
-            title: teacher.displayName,
-            subtitle: teacher.subject,
-            description: teacher.email,
-            photoURL: teacher.photoURL
-          });
-        }
-      });
-    }
-    
-    setSearchResults(results);
-    setShowSearchResults(true);
-  };
-
-  // Funkcja do pokazania wszystkich wyników przy focusie
-  const handleSearchFocus = () => {
+  // Memoizuj wyniki wyszukiwania
+  const searchResultsMemo = useMemo(() => {
     if (search.length === 0) {
       const results: SearchResult[] = [];
       
@@ -497,35 +421,105 @@ function Dashboard() {
         });
       });
       
-      setSearchResults(results);
+      return results;
+    } else {
+      const results: SearchResult[] = [];
+      const searchTerm = search.toLowerCase();
+      
+      // Filtruj kursy
+      assignedCourses.forEach(course => {
+        const title = course.title?.toLowerCase() || '';
+        const description = course.description?.toLowerCase() || '';
+        
+        if (title.includes(searchTerm) || description.includes(searchTerm)) {
+          results.push({
+            type: 'course',
+            id: course.firebase_id || course.id.toString(),
+            title: course.title,
+            subtitle: course.category_name,
+            description: course.description,
+            photoURL: course.thumbnail
+          });
+        }
+      });
+      
+      // Filtruj nauczycieli
+      teachers.forEach(teacher => {
+        const name = teacher.displayName?.toLowerCase() || '';
+        const email = teacher.email?.toLowerCase() || '';
+        const subject = teacher.subject?.toLowerCase() || '';
+        
+        if (name.includes(searchTerm) || email.includes(searchTerm) || subject.includes(searchTerm)) {
+          results.push({
+            type: 'teacher',
+            id: teacher.uid,
+            title: teacher.displayName,
+            subtitle: teacher.subject,
+            description: teacher.email,
+            photoURL: teacher.photoURL
+          });
+        }
+      });
+      
+      return results;
+    }
+  }, [search, assignedCourses, teachers]);
+
+  // Debounced search handler - płynniejsze wyszukiwanie
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setSearch(value);
+    
+    // Clear previous timeout
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    
+    // Debounce search results update
+    searchTimeoutRef.current = setTimeout(() => {
+      setSearchResults(searchResultsMemo);
+      setShowSearchResults(true);
+    }, 150); // 150ms debounce dla płynności
+  }, [searchResultsMemo]);
+
+  // Funkcja do pokazania wszystkich wyników przy focusie - memoizowana
+  const handleSearchFocus = useCallback(() => {
+    if (search.length === 0) {
+      setSearchResults(searchResultsMemo);
       setShowSearchResults(true);
     }
-  };
+  }, [search.length, searchResultsMemo]);
 
-  // Funkcja nawigacji do kursu
-  const handleCourseClick = (courseId: string) => {
-    console.log('Navigating to course:', courseId);
+  // Funkcja nawigacji do kursu - memoizowana
+  const handleCourseClick = useCallback((courseId: string) => {
     // Sprawdź czy kurs ma slug, jeśli nie użyj ID
     const course = assignedCourses.find(c => (c.firebase_id || c.id.toString()) === courseId);
     if (course && course.slug) {
-      console.log('Using slug for navigation:', course.slug);
       router.push(`/courses/${course.slug}`);
     } else {
-      console.log('Using ID for navigation:', courseId);
       router.push(`/courses/${courseId}`);
     }
     setSearch('');
     setShowSearchResults(false);
-  };
+  }, [assignedCourses, router]);
 
-  // Funkcja nawigacji do profilu nauczyciela
-  const handleTeacherClick = (teacherId: string) => {
-    console.log('Navigating to teacher:', teacherId);
+  // Funkcja nawigacji do profilu nauczyciela - memoizowana
+  const handleTeacherClick = useCallback((teacherId: string) => {
     // Przejdź do strony nauczycieli z możliwością filtrowania
     router.push(`/homelogin/instructors/tutors?teacher=${teacherId}`);
     setSearch('');
     setShowSearchResults(false);
-  };
+  }, [router]);
+
+  // Cleanup dla search timeout
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Obsługa kliknięć poza wyszukiwarką
   useEffect(() => {
@@ -544,7 +538,6 @@ function Dashboard() {
   // Pobierz eventy jako powiadomienia
   useEffect(() => {
     if (!user) return;
-    console.log('🔔 Dashboard notification useEffect triggered, user:', user?.uid, 'role:', user?.role);
     
     const fetchNotifications = async () => {
       try {
@@ -552,88 +545,85 @@ function Dashboard() {
         const eventIdsFromNotifications = new Set<string>(); // Śledzenie event_id z notifications
         const now = new Date();
         
-        // 1. Pobierz powiadomienia z kolekcji notifications (dla studentów)
+        // 1. Pobierz powiadomienia z kolekcji notifications (dla studentów) - zoptymalizowane
         if (user.role === 'student') {
-          console.log('📥 Querying notifications collection for user_id:', user.uid);
           const notificationsRef = collection(db, 'notifications');
           const notificationsQuery = query(
             notificationsRef, 
-            where('user_id', '==', user.uid)
+            where('user_id', '==', user.uid),
+            limit(50) // Ogranicz do 50 najnowszych
           );
           const notificationsSnapshot = await getDocs(notificationsQuery);
           
-          console.log('📬 Found notifications in DB:', notificationsSnapshot.size);
-          
-          for (const notificationDoc of notificationsSnapshot.docs) {
+          // Przetwórz powiadomienia równolegle zamiast w pętli
+          const notificationPromises = notificationsSnapshot.docs.map(async (notificationDoc) => {
             const notificationData = notificationDoc.data();
-            console.log('📋 Processing notification:', notificationDoc.id, notificationData);
-            
             const eventDate = notificationData.event_date ? new Date(notificationData.event_date) : null;
             
-            // Usuń powiadomienia z niepoprawną datą (Invalid Date)
+            // Usuń powiadomienia z niepoprawną datą lub stare
             if (notificationData.event_date && (!eventDate || isNaN(eventDate.getTime()))) {
-              console.log('🗑️ Deleting notification with invalid date:', notificationDoc.id);
               await deleteDoc(doc(db, 'notifications', notificationDoc.id));
-              continue;
+              return null;
             }
             
-            // Usuń powiadomienia, które są starsze niż 7 dni PO terminie wydarzenia
             if (eventDate) {
               const sevenDaysAfterEvent = new Date(eventDate.getTime() + 7 * 24 * 60 * 60 * 1000);
               if (sevenDaysAfterEvent < now) {
-                console.log('🗑️ Deleting old notification (7 days after event):', notificationDoc.id, 'Event date:', eventDate, 'Now:', now);
                 await deleteDoc(doc(db, 'notifications', notificationDoc.id));
-                continue;
+                return null;
               }
             }
             
-            // Zapamiętaj event_id, aby uniknąć duplikatów
             if (notificationData.event_id) {
               eventIdsFromNotifications.add(notificationData.event_id);
             }
             
-            // Dodaj powiadomienie do listy
-            allNotificationsList.push({
+            return {
               id: notificationDoc.id,
               title: notificationData.title || 'Nowe wydarzenie',
               description: notificationData.message || '',
               deadline: notificationData.event_date || notificationData.timestamp || new Date().toISOString(),
-              type: 'event',
-              priority: 'medium',
+              type: 'event' as const,
+              priority: 'medium' as const,
               read: notificationData.read || false,
               isOverdue: eventDate ? eventDate < now : false,
               students: [user.uid],
-              event_id: notificationData.event_id // Zachowaj event_id dla referencji
-            });
-          }
-          
-          console.log('✅ Added', allNotificationsList.length, 'notifications from notifications collection');
-          console.log('🔖 Event IDs from notifications:', Array.from(eventIdsFromNotifications));
-        }
-        
-        // 2. Pobierz eventy jako powiadomienia
-        console.log('📅 Fetching events from DB...');
-        const eventsCollection = collection(db, 'events');
-        const eventsSnapshot = await getDocs(eventsCollection);
-        let eventsList = eventsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        
-        // Student widzi tylko swoje eventy
-        if (user.role === 'student') {
-          eventsList = eventsList.filter((ev: any) => {
-            const isAssignedTo = ev.assignedTo && ev.assignedTo.includes(user.uid);
-            const isInStudents = ev.students && ev.students.includes(user.uid);
-            
-            // Pomiń eventy, które już mają powiadomienie w notifications
-            if (eventIdsFromNotifications.has(ev.id)) {
-              console.log('⏭️ Skipping event (already in notifications):', ev.id, ev.title);
-              return false;
-            }
-            
-            return isAssignedTo || isInStudents;
+              event_id: notificationData.event_id
+            };
           });
+          
+          const processedNotifications = await Promise.all(notificationPromises);
+          allNotificationsList.push(...processedNotifications.filter(Boolean));
         }
         
-        console.log('📅 Found', eventsList.length, 'events for user (after deduplication)');
+        // 2. Pobierz eventy jako powiadomienia - zoptymalizowane z where i limit
+        const eventsCollection = collection(db, 'events');
+        let eventsList: any[] = [];
+        
+        // Student widzi tylko swoje eventy - użyj zapytań z where zamiast pobierania wszystkich
+        if (user.role === 'student') {
+          // Firestore nie obsługuje OR w jednym zapytaniu, więc użyj dwóch równoległych zapytań
+          const [assignedEventsSnapshot, studentsEventsSnapshot] = await Promise.all([
+            getDocs(query(eventsCollection, where('assignedTo', 'array-contains', user.uid), limit(50))),
+            getDocs(query(eventsCollection, where('students', 'array-contains', user.uid), limit(50)))
+          ]);
+          
+          // Połącz i deduplikuj eventy
+          const eventsMap = new Map();
+          [...assignedEventsSnapshot.docs, ...studentsEventsSnapshot.docs].forEach(doc => {
+            const ev = { id: doc.id, ...doc.data() };
+            // Pomiń eventy, które już mają powiadomienie w notifications
+            if (!eventIdsFromNotifications.has(ev.id)) {
+              eventsMap.set(ev.id, ev);
+            }
+          });
+          
+          eventsList = Array.from(eventsMap.values());
+        } else {
+          // Dla innych ról pobierz wszystkie eventy (ale z limitem)
+          const eventsSnapshot = await getDocs(query(eventsCollection, limit(100)));
+          eventsList = eventsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        }
 
         // Sortuj po dacie malejąco
         eventsList.sort((a: any, b: any) => {
@@ -646,7 +636,6 @@ function Dashboard() {
         eventsList = eventsList.filter((ev: any) => {
           const eventDeadline = ev.deadline || ev.date;
           if (!eventDeadline) {
-            console.log('⚠️ Event without deadline:', ev.id);
             return false; // Pomiń eventy bez daty
           }
           
@@ -654,14 +643,12 @@ function Dashboard() {
           
           // Sprawdź czy data jest poprawna
           if (isNaN(deadline.getTime())) {
-            console.log('⚠️ Event with invalid date:', ev.id, eventDeadline);
             return false;
           }
           
           // Usuń wydarzenia, które są starsze niż 7 dni PO terminie
           const sevenDaysAfterEvent = new Date(deadline.getTime() + 7 * 24 * 60 * 60 * 1000);
           if (sevenDaysAfterEvent < now) {
-            console.log('🗑️ Skipping old event (7 days after deadline):', ev.id, 'Deadline:', deadline);
             return false;
           }
           
@@ -707,11 +694,6 @@ function Dashboard() {
         
         // Ogranicz do 15 najnowszych
         const limitedNotifications = combinedNotifications.slice(0, 15);
-        
-        console.log('📊 FINAL DASHBOARD NOTIFICATIONS:');
-        console.log('  - Total notifications:', limitedNotifications.length);
-        console.log('  - Unread count:', limitedNotifications.filter(n => !n.read).length);
-        console.log('📋 All notifications:', limitedNotifications);
 
         setNotifications(limitedNotifications as Notification[]);
         
@@ -723,7 +705,7 @@ function Dashboard() {
           setHasUnread(false);
         }
       } catch (error) {
-        console.error('❌ Error fetching dashboard notifications:', error);
+        console.error('Error fetching dashboard notifications:', error);
       }
     };
     fetchNotifications();
@@ -769,18 +751,18 @@ function Dashboard() {
     }
   };
 
-  // Funkcja do obsługi kliknięcia w powiadomienie
-  const handleNotificationClick = (notification: Notification) => {
+  // Funkcja do obsługi kliknięcia w powiadomienie - memoizowana
+  const handleNotificationClick = useCallback((notification: Notification) => {
     // Zaznacz jako przeczytane
-    setNotifications(prev => 
-      prev.map(n => 
+    setNotifications(prev => {
+      const updated = prev.map(n => 
         n.id === notification.id ? { ...n, read: true } : n
-      )
-    );
-    
-    // Sprawdź czy są nieprzeczytane powiadomienia
-    const unreadCount = notifications.filter(n => !n.read).length;
-    setHasUnread(unreadCount > 1);
+      );
+      // Sprawdź czy są nieprzeczytane powiadomienia
+      const unreadCount = updated.filter(n => !n.read).length;
+      setHasUnread(unreadCount > 1);
+      return updated;
+    });
     
     // Nawiguj do odpowiedniej strony
     if (notification.actionUrl) {
@@ -801,16 +783,16 @@ function Dashboard() {
     
     // Zamknij dropdown powiadomień
     setShowNotifications(false);
-  };
+  }, [assignedCourses, router]);
 
-  // Zaznacz powiadomienia jako przeczytane po otwarciu
-  const handleNotifClick = () => {
+  // Zaznacz powiadomienia jako przeczytane po otwarciu - memoizowana
+  const handleNotifClick = useCallback(() => {
     setShowNotifications((prev) => !prev);
     if (notifications.length > 0) {
       localStorage.setItem('lastNotifRead', notifications[0].id);
       setHasUnread(false);
     }
-  };
+  }, [notifications]);
 
   useEffect(() => {
     if (!showNotifications) return;
@@ -1410,7 +1392,9 @@ function Dashboard() {
                         placeholder="Wyszukaj kursy..."
                         className="w-full pl-10 pr-4 py-2 border border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400 focus:border-emerald-500 text-sm text-gray-900 dark:text-gray-200 transition-all duration-200 ease-in-out hover:border-gray-300 dark:hover:border-gray-500 bg-white/80 dark:bg-gray-700/80"
                         value={courseSearch}
-                        onChange={(e) => setCourseSearch(e.target.value)}
+                        onChange={useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+                          setCourseSearch(e.target.value);
+                        }, [])}
                       />
                     </div>
                   </div>
@@ -1481,6 +1465,7 @@ function Dashboard() {
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   {filteredCourses.map((course, index) => {
+                    // Kolory - stała tablica poza komponentem dla lepszej wydajności
                     const colors = [
                       'from-emerald-500 to-emerald-600',
                       'from-orange-500 to-orange-600', 
@@ -1495,7 +1480,7 @@ function Dashboard() {
                       <div key={course.id} className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-100 dark:border-gray-700 hover:shadow-xl dark:hover:shadow-gray-900/50 transition-all duration-300 group hover:border-gray-200 dark:hover:border-gray-600">
                         <div className="flex items-center gap-2 mb-3">
                           <div className={`w-10 h-10 bg-gradient-to-r ${colorClass} rounded-lg flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-200`}>
-                            <Image src="/thumb.png" alt={course.title} width={20} height={20} className="w-5 h-5 rounded" />
+                            <Image src="/thumb.png" alt={course.title} width={20} height={20} className="w-5 h-5 rounded" loading="lazy" />
                           </div>
                           <div className="flex-1 min-w-0">
                             <h3 className="font-bold text-gray-800 dark:text-gray-100 text-sm truncate group-hover:text-gray-900 dark:group-hover:text-white transition-colors">{course.title}</h3>
@@ -1526,7 +1511,9 @@ function Dashboard() {
                 </div>
                 <h2 className="text-lg font-bold text-gray-800 dark:text-gray-200">Kalendarz i Aktywności</h2>
               </div>
-              <Calendar />
+              <Suspense fallback={<div className="h-96 bg-gray-100 dark:bg-gray-800 animate-pulse rounded-lg" />}>
+                <Calendar />
+              </Suspense>
             </div>
           </section>
         </div>

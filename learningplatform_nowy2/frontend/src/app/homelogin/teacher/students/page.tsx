@@ -239,37 +239,18 @@ export default function StudentsPage() {
   };
 
   const fetchAllStudents = async () => {
-    if (!user || !user.uid) {
-      console.error('❌ Brak użytkownika lub UID w fetchAllStudents');
-      return;
-    }
+    if (!user || !user.uid) return;
     
     try {
-      const usersRef = collection(db, 'users');
-      const usersSnapshot = await getDocs(usersRef);
+      // Użyj query z where zamiast pobierania wszystkich użytkowników
+      const studentsQuery = query(
+        collection(db, 'users'),
+        where('role', '==', 'student')
+      );
+      const studentsSnapshot = await getDocs(studentsQuery);
       
-      console.log('🔍 fetchAllStudents - Wszyscy użytkownicy:', usersSnapshot.docs.length);
-      console.log('🔍 fetchAllStudents - Nauczyciel UID:', user.uid);
-      
-      // Loguj wszystkich użytkowników
-      usersSnapshot.docs.forEach(doc => {
-        const data = doc.data();
-        console.log(`👤 Użytkownik: ${data.email || data.displayName || doc.id}, rola: ${data.role}, assignedToTeacher: ${data.assignedToTeacher}, uid: ${doc.id}`);
-      });
-      
-      const allUsers = usersSnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserData));
-      const studentsOnly = allUsers.filter(userData => userData.role === 'student');
-      const unassignedStudents = studentsOnly.filter(userData => userData.assignedToTeacher !== user.uid);
-      
-      console.log('🔍 fetchAllStudents - Wszyscy użytkownicy:', allUsers.length);
-      console.log('🔍 fetchAllStudents - Tylko uczniowie (role=student):', studentsOnly.length);
-      console.log('🔍 fetchAllStudents - Uczniowie nieprzypisani do tego nauczyciela:', unassignedStudents.length);
-      console.log('🔍 fetchAllStudents - Uczniowie już przypisani do tego nauczyciela:', studentsOnly.filter(userData => userData.assignedToTeacher === user.uid).length);
-      
-      // Loguj szczegóły uczniów
-      studentsOnly.forEach(student => {
-        console.log(`🎓 Uczeń: ${student.email || student.displayName}, assignedToTeacher: ${student.assignedToTeacher}, nauczyciel: ${user.uid}`);
-      });
+      const allUsers = studentsSnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserData));
+      const unassignedStudents = allUsers.filter(userData => userData.assignedToTeacher !== user.uid);
       
       setAllStudents(unassignedStudents);
     } catch (error) {

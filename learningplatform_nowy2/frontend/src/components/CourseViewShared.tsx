@@ -692,15 +692,16 @@ export const CourseViewShared: React.FC<CourseViewProps> = ({
                                                 alt={block.title || 'Obraz'}
                                                 className="absolute top-0 left-0 w-full h-full object-contain"
                                                 loading="lazy"
+                                                decoding="async"
                                                 onError={(e) => {
-                                                  console.error('Image failed to load:', {
-                                                    src: block.fileUrl,
-                                                    fileName: fileName,
-                                                    blockId: block.id
-                                                  });
-                                                }}
-                                                onLoad={() => {
-                                                  console.log('Image loaded successfully:', block.fileUrl);
+                                                  // Silent error handling - no console in production
+                                                  if (process.env.NODE_ENV === 'development') {
+                                                    console.error('Image failed to load:', {
+                                                      src: block.fileUrl,
+                                                      fileName: fileName,
+                                                      blockId: block.id
+                                                    });
+                                                  }
                                                 }}
                                               />
                                             </div>

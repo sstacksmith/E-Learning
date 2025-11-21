@@ -133,24 +133,30 @@ export default function ParentLayout({
 
         const gradeNotifications: Notification[] = [];
         
-        for (const gradeDoc of gradesSnapshot.docs) {
+        // Zbierz unikalne course_id
+        const courseIds = new Set<string>();
+        gradesSnapshot.docs.forEach(gradeDoc => {
           const gradeData = gradeDoc.data();
-          let courseTitle = 'Nieznany kurs';
-          
-          // Pobierz tytuł kursu
-          if (gradeData.course_id) {
-            try {
-              const coursesRef = collection(db, 'courses');
-              const courseQuery = query(coursesRef, where('__name__', '==', gradeData.course_id));
-              const courseSnapshot = await getDocs(courseQuery);
-              if (!courseSnapshot.empty) {
-                courseTitle = courseSnapshot.docs[0].data().title || 'Nieznany kurs';
-              }
-            } catch (err) {
-              console.log('Could not fetch course for notification:', err);
-            }
+          if (gradeData.course_id) courseIds.add(gradeData.course_id);
+        });
+        
+        // Pobierz wszystkie kursy jednocześnie (batch query)
+        const { doc, getDoc } = await import('firebase/firestore');
+        const courseQueries = Array.from(courseIds).slice(0, 20).map(courseId => 
+          getDoc(doc(db, 'courses', courseId))
+        );
+        const courseDocs = await Promise.all(courseQueries);
+        const coursesMap = new Map<string, string>();
+        courseDocs.forEach(doc => {
+          if (doc.exists()) {
+            coursesMap.set(doc.id, doc.data().title || 'Nieznany kurs');
           }
-
+        });
+        
+        // Przetwórz oceny
+        gradesSnapshot.docs.forEach(gradeDoc => {
+          const gradeData = gradeDoc.data();
+          const courseTitle = gradeData.course_id ? (coursesMap.get(gradeData.course_id) || 'Nieznany kurs') : 'Nieznany kurs';
           const gradeValue = gradeData.value || gradeData.grade || 0;
           const gradeDate = gradeData.date || gradeData.graded_at;
           
@@ -163,7 +169,7 @@ export default function ParentLayout({
             read: false,
             courseTitle
           });
-        }
+        });
 
         // Dodaj przykładowe powiadomienia (można rozszerzyć o inne typy)
         const mockNotifications: Notification[] = [

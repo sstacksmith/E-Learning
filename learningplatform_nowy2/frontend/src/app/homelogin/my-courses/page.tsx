@@ -3,7 +3,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useAuth } from '../../../context/AuthContext';
 import Image from "next/image";
 import { HiOutlineDotsVertical } from "react-icons/hi";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "../../../config/firebase";
 import Link from "next/link";
 import { useRouter } from 'next/navigation';
@@ -42,18 +42,35 @@ function MyCoursesPageContent() {
     if (!user) return;
     setLoading(true);
     const fetchCourses = async () => {
-      const coursesCollection = collection(db, "courses");
-      const snapshot = await getDocs(coursesCollection);
-      const allCourses = snapshot.docs.map(doc => ({ 
-        id: doc.id, 
-        firebase_id: doc.id,
-        ...doc.data() 
-      } as unknown as Course));
-      // Filtruj kursy, gdzie assignedUsers istnieje i zawiera user.uid lub user.email
-      const filtered = allCourses.filter(c => Array.isArray(c.assignedUsers) && (c.assignedUsers.includes(user.uid) || c.assignedUsers.includes(user.email)));
-      setCourses(filtered);
-      setFilteredCourses(filtered);
-      setLoading(false);
+      try {
+        const coursesCollection = collection(db, "courses");
+        
+        // Użyj query z where zamiast pobierania wszystkich kursów
+        const [coursesByUid, coursesByEmail] = await Promise.all([
+          getDocs(query(coursesCollection, where('assignedUsers', 'array-contains', user.uid))),
+          user.email ? getDocs(query(coursesCollection, where('assignedUsers', 'array-contains', user.email))) : Promise.resolve({ docs: [] } as any)
+        ]);
+        
+        // Połącz i deduplikuj kursy
+        const coursesMap = new Map();
+        [...coursesByUid.docs, ...coursesByEmail.docs].forEach(doc => {
+          coursesMap.set(doc.id, {
+            id: doc.id,
+            firebase_id: doc.id,
+            ...doc.data()
+          } as unknown as Course);
+        });
+        
+        const filtered = Array.from(coursesMap.values());
+        setCourses(filtered);
+        setFilteredCourses(filtered);
+      } catch (error) {
+        console.error('Error fetching courses:', error);
+        setCourses([]);
+        setFilteredCourses([]);
+      } finally {
+        setLoading(false);
+      }
     };
     fetchCourses();
   }, [user]);

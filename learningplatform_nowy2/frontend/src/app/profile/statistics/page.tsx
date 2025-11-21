@@ -4,8 +4,9 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { ArrowLeft, TrendingUp, Award, Clock, Calendar, Star, Trophy, Target } from 'lucide-react';
-import { doc, getDoc, collection, getDocs, query, where } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, query, where, limit } from 'firebase/firestore';
 import { db } from '@/config/firebase';
+// Import Recharts bezpośrednio - lazy loading powodował problemy z typami
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import ThemeToggle from '@/components/ThemeToggle';
 
@@ -48,6 +49,20 @@ export default function StatisticsPage() {
   const [learningData, setLearningData] = useState<UserLearningData | null>(null);
   const [grades, setGrades] = useState<Grade[]>([]);
   const [gradesLoading, setGradesLoading] = useState(true);
+  const [isDark, setIsDark] = useState(false);
+
+  useEffect(() => {
+    const checkDarkMode = () => {
+      setIsDark(document.documentElement.classList.contains('dark'));
+    };
+    checkDarkMode();
+    const observer = new MutationObserver(checkDarkMode);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class']
+    });
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     const fetchLearningData = async () => {
@@ -87,43 +102,24 @@ export default function StatisticsPage() {
       }
 
       try {
-        console.log('🔄 Fetching grades for user:', user.uid, user.email);
-        
-      // Pobierz oceny przez user_id
-      const gradesQuery1 = query(collection(db, 'grades'), where('user_id', '==', user.uid));
-      const gradesSnapshot1 = await getDocs(gradesQuery1);
-      const gradesList1 = gradesSnapshot1.docs.map(doc => ({ id: doc.id, ...doc.data() } as Grade));
-      console.log('📊 Grades by user_id:', gradesList1);
+        // Pobierz wszystkie oceny równolegle zamiast sekwencyjnie
+        const [gradesByUid, gradesByEmail, gradesByStudentId] = await Promise.all([
+          getDocs(query(collection(db, 'grades'), where('user_id', '==', user.uid), limit(100))),
+          user.email ? getDocs(query(collection(db, 'grades'), where('studentEmail', '==', user.email), limit(100))) : Promise.resolve({ docs: [] } as any),
+          getDocs(query(collection(db, 'grades'), where('studentId', '==', user.uid), limit(100)))
+        ]);
 
-      // Pobierz oceny przez studentEmail
-      const gradesQuery2 = query(collection(db, 'grades'), where('studentEmail', '==', user.email));
-      const gradesSnapshot2 = await getDocs(gradesQuery2);
-      const gradesList2 = gradesSnapshot2.docs.map(doc => ({ id: doc.id, ...doc.data() } as Grade));
-      console.log('📊 Grades by email:', gradesList2);
+        // Połącz wszystkie listy i usuń duplikaty
+        const allGrades = [
+          ...gradesByUid.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as Grade)),
+          ...gradesByEmail.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as Grade)),
+          ...gradesByStudentId.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as Grade))
+        ];
+        const uniqueGrades = allGrades.filter((grade, index, self) =>
+          index === self.findIndex(g => g.id === grade.id)
+        );
 
-      // Pobierz oceny przez studentId
-      const gradesQuery3 = query(collection(db, 'grades'), where('studentId', '==', user.uid));
-      const gradesSnapshot3 = await getDocs(gradesQuery3);
-      const gradesList3 = gradesSnapshot3.docs.map(doc => ({ id: doc.id, ...doc.data() } as Grade));
-      console.log('📊 Grades by studentId:', gradesList3);
-
-      // Połącz wszystkie listy i usuń duplikaty
-      const allGrades = [...gradesList1, ...gradesList2, ...gradesList3];
-      const uniqueGrades = allGrades.filter((grade, index, self) =>
-        index === self.findIndex(g => g.id === grade.id)
-      );
-
-      console.log('📊 All unique grades:', uniqueGrades);
-      console.log('📊 Grades details:', uniqueGrades.map(g => ({
-        id: g.id,
-        subject: g.subject,
-        value: g.value || g.value_grade || g.grade,
-        quiz_title: g.quiz_title,
-        percentage: g.percentage,
-        graded_at: g.graded_at || g.date
-      })));
-
-      setGrades(uniqueGrades);
+        setGrades(uniqueGrades);
       } catch (error) {
         console.error('Error fetching grades:', error);
       } finally {
@@ -371,7 +367,7 @@ export default function StatisticsPage() {
   };
 
     return (
-    <div className="min-h-screen bg-gradient-to-br from-[#F4F6FB] via-white to-[#E8ECFF] py-8 px-4">
+    <div className="min-h-screen bg-gradient-to-br from-[#F4F6FB] via-white to-[#E8ECFF] dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 py-8 px-4">
       {/* Theme Toggle */}
       <div className="absolute top-4 right-4 z-50">
         <ThemeToggle />
@@ -383,13 +379,13 @@ export default function StatisticsPage() {
           <div className="flex items-center gap-4">
       <button
               onClick={() => router.back()}
-              className="p-2 hover:bg-white rounded-lg transition-colors"
+              className="p-2 hover:bg-white dark:hover:bg-gray-700 rounded-lg transition-colors"
       >
-              <ArrowLeft className="w-6 h-6 text-gray-600" />
+              <ArrowLeft className="w-6 h-6 text-gray-600 dark:text-gray-300" />
       </button>
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Statystyki nauki</h1>
-              <p className="text-gray-600 mt-1">Przegląd Twojego postępu w nauce</p>
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Statystyki nauki</h1>
+              <p className="text-gray-600 dark:text-gray-300 mt-1">Przegląd Twojego postępu w nauce</p>
             </div>
               </div>
               </div>
@@ -403,94 +399,95 @@ export default function StatisticsPage() {
             {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {/* Card 1 - Całkowity czas nauki */}
-              <div className="bg-white rounded-xl shadow-lg p-6 border border-white/20 hover:shadow-xl transition-all">
+              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border border-white/20 dark:border-gray-700 hover:shadow-xl transition-all">
                 <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 bg-blue-100 rounded-lg">
-                    <Clock className="w-6 h-6 text-blue-600" />
+                  <div className="p-3 bg-blue-100 dark:bg-blue-900 rounded-lg">
+                    <Clock className="w-6 h-6 text-blue-600 dark:text-blue-300" />
           </div>
-                  <span className="text-sm text-gray-500">Łącznie</span>
+                  <span className="text-sm text-gray-500 dark:text-gray-400">Łącznie</span>
         </div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-1">
+                <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
                   {learningData ? formatMinutes(learningData.totalMinutes) : '0m'}
                 </h3>
-                <p className="text-sm text-gray-600">Całkowity czas nauki</p>
+                <p className="text-sm text-gray-600 dark:text-gray-300">Całkowity czas nauki</p>
       </div>
 
               {/* Card 2 - Dzisiejszy czas */}
-              <div className="bg-white rounded-xl shadow-lg p-6 border border-white/20 hover:shadow-xl transition-all">
+              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border border-white/20 dark:border-gray-700 hover:shadow-xl transition-all">
                 <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 bg-green-100 rounded-lg">
-                    <Clock className="w-6 h-6 text-green-600" />
+                  <div className="p-3 bg-green-100 dark:bg-green-900 rounded-lg">
+                    <Clock className="w-6 h-6 text-green-600 dark:text-green-300" />
           </div>
-                  <span className="text-sm text-gray-500">Dzisiaj</span>
+                  <span className="text-sm text-gray-500 dark:text-gray-400">Dzisiaj</span>
         </div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-1">
+                <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
                   {formatMinutes(getTodayMinutes())}
                 </h3>
-                <p className="text-sm text-gray-600">Czas nauki dzisiaj</p>
+                <p className="text-sm text-gray-600 dark:text-gray-300">Czas nauki dzisiaj</p>
               </div>
 
               {/* Card 3 - Liczba dni */}
-              <div className="bg-white rounded-xl shadow-lg p-6 border border-white/20 hover:shadow-xl transition-all">
+              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border border-white/20 dark:border-gray-700 hover:shadow-xl transition-all">
                 <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 bg-purple-100 rounded-lg">
-                    <Award className="w-6 h-6 text-purple-600" />
+                  <div className="p-3 bg-purple-100 dark:bg-purple-900 rounded-lg">
+                    <Award className="w-6 h-6 text-purple-600 dark:text-purple-300" />
           </div>
-                  <span className="text-sm text-gray-500">Aktywność</span>
+                  <span className="text-sm text-gray-500 dark:text-gray-400">Aktywność</span>
           </div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-1">
+                <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
                   {learningData ? Object.keys(learningData.dailyStats).length : 0}
                 </h3>
-                <p className="text-sm text-gray-600">Dni nauki</p>
+                <p className="text-sm text-gray-600 dark:text-gray-300">Dni nauki</p>
         </div>
 
               {/* Card 4 - Średni czas dziennie */}
-              <div className="bg-white rounded-xl shadow-lg p-6 border border-white/20 hover:shadow-xl transition-all">
+              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border border-white/20 dark:border-gray-700 hover:shadow-xl transition-all">
                 <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 bg-orange-100 rounded-lg">
-                    <TrendingUp className="w-6 h-6 text-orange-600" />
+                  <div className="p-3 bg-orange-100 dark:bg-orange-900 rounded-lg">
+                    <TrendingUp className="w-6 h-6 text-orange-600 dark:text-orange-300" />
           </div>
-                  <span className="text-sm text-gray-500">Średnia</span>
+                  <span className="text-sm text-gray-500 dark:text-gray-400">Średnia</span>
                   </div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-1">
+                <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
                   {learningData && Object.keys(learningData.dailyStats).length > 0
                     ? formatMinutes(Math.round(learningData.totalMinutes / Object.keys(learningData.dailyStats).length))
                     : '0m'}
                 </h3>
-                <p className="text-sm text-gray-600">Średnio dziennie</p>
+                <p className="text-sm text-gray-600 dark:text-gray-300">Średnio dziennie</p>
                 </div>
             </div>
 
             {/* Wykres tygodniowy */}
-            <div className="bg-white rounded-xl shadow-lg p-8 border border-white/20 mb-8">
-              <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
-                <Calendar className="w-5 h-5 text-[#4067EC]" />
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 border border-white/20 dark:border-gray-700 mb-8">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-[#4067EC] dark:text-blue-400" />
                 Aktywność w ciągu tygodnia
               </h2>
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={getWeeklyData()}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#374151' : '#f0f0f0'} />
                     <XAxis 
                       dataKey="day" 
                       axisLine={false}
                       tickLine={false}
-                      tick={{ fontSize: 12, fill: '#666' }}
+                      tick={{ fontSize: 12, fill: isDark ? '#9ca3af' : '#666' }}
                     />
                     <YAxis 
                       axisLine={false}
                       tickLine={false}
-                      tick={{ fontSize: 12, fill: '#666' }}
+                      tick={{ fontSize: 12, fill: isDark ? '#9ca3af' : '#666' }}
                       tickFormatter={(value: number) => formatMinutes(value)}
                     />
                     <Tooltip 
                       formatter={(value: number) => [formatMinutes(value), 'Czas nauki']}
                       labelFormatter={(label) => `Dzień: ${label}`}
                       contentStyle={{
-                        backgroundColor: 'white',
-                        border: '1px solid #e5e7eb',
+                        backgroundColor: isDark ? '#1f2937' : 'white',
+                        border: isDark ? '1px solid #374151' : '1px solid #e5e7eb',
                         borderRadius: '8px',
-                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                        color: isDark ? '#f3f4f6' : '#111827'
                       }}
                     />
                     <Bar 
@@ -504,35 +501,36 @@ export default function StatisticsPage() {
       </div>
 
             {/* Wykres miesięczny */}
-            <div className="bg-white rounded-xl shadow-lg p-8 border border-white/20 mb-8">
-              <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
-                <Calendar className="w-5 h-5 text-[#4067EC]" />
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 border border-white/20 dark:border-gray-700 mb-8">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-[#4067EC] dark:text-blue-400" />
                 Aktywność w ciągu miesiąca
               </h2>
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={getMonthlyData()}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#374151' : '#f0f0f0'} />
                     <XAxis 
                       dataKey="day" 
                       axisLine={false}
                       tickLine={false}
-                      tick={{ fontSize: 12, fill: '#666' }}
+                      tick={{ fontSize: 12, fill: isDark ? '#9ca3af' : '#666' }}
                     />
                     <YAxis 
                       axisLine={false}
                       tickLine={false}
-                      tick={{ fontSize: 12, fill: '#666' }}
+                      tick={{ fontSize: 12, fill: isDark ? '#9ca3af' : '#666' }}
                       tickFormatter={(value: number) => formatMinutes(value)}
                     />
                     <Tooltip 
                       formatter={(value: number) => [formatMinutes(value), 'Czas nauki']}
                       labelFormatter={(label) => `Dzień: ${label}`}
                       contentStyle={{
-                        backgroundColor: 'white',
-                        border: '1px solid #e5e7eb',
+                        backgroundColor: isDark ? '#1f2937' : 'white',
+                        border: isDark ? '1px solid #374151' : '1px solid #e5e7eb',
                         borderRadius: '8px',
-                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                        color: isDark ? '#f3f4f6' : '#111827'
                       }}
                     />
                     <Bar 
@@ -543,39 +541,40 @@ export default function StatisticsPage() {
                   </BarChart>
                 </ResponsiveContainer>
           </div>
-              <p className="text-sm text-gray-500 mt-2 text-center">Ostatnie 30 dni</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-2 text-center">Ostatnie 30 dni</p>
         </div>
 
             {/* Wykres roczny */}
-            <div className="bg-white rounded-xl shadow-lg p-8 border border-white/20">
-              <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
-                <TrendingUp className="w-5 h-5 text-[#4067EC]" />
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 border border-white/20 dark:border-gray-700">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-[#4067EC] dark:text-blue-400" />
                 Aktywność w ciągu roku
               </h2>
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={getYearlyData()}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#374151' : '#f0f0f0'} />
                     <XAxis 
                       dataKey="month" 
                       axisLine={false}
                       tickLine={false}
-                      tick={{ fontSize: 12, fill: '#666' }}
+                      tick={{ fontSize: 12, fill: isDark ? '#9ca3af' : '#666' }}
                     />
                     <YAxis 
                       axisLine={false}
                       tickLine={false}
-                      tick={{ fontSize: 12, fill: '#666' }}
+                      tick={{ fontSize: 12, fill: isDark ? '#9ca3af' : '#666' }}
                       tickFormatter={(value: number) => `${Math.round(value)}h`}
                     />
                     <Tooltip 
                       formatter={(value: number) => [formatMinutes(value), 'Czas nauki']}
                       labelFormatter={(label) => `Miesiąc: ${label}`}
                       contentStyle={{
-                        backgroundColor: 'white',
-                        border: '1px solid #e5e7eb',
+                        backgroundColor: isDark ? '#1f2937' : 'white',
+                        border: isDark ? '1px solid #374151' : '1px solid #e5e7eb',
                         borderRadius: '8px',
-                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                        color: isDark ? '#f3f4f6' : '#111827'
                       }}
                     />
                     <Bar 
@@ -590,21 +589,21 @@ export default function StatisticsPage() {
                 
             {/* All Daily Stats */}
             {learningData && Object.keys(learningData.dailyStats).length > 7 && (
-              <div className="bg-white rounded-xl shadow-lg p-8 border border-white/20">
-                <h2 className="text-xl font-bold text-gray-900 mb-6">Wszystkie dni nauki</h2>
+              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 border border-white/20 dark:border-gray-700">
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">Wszystkie dni nauki</h2>
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                   {Object.entries(learningData.dailyStats)
                     .sort(([dateA], [dateB]) => dateB.localeCompare(dateA))
                     .map(([date, minutes]) => (
-                      <div key={date} className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-4 border border-blue-200">
-                        <div className="text-xs text-gray-600 mb-1">
+                      <div key={date} className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900 dark:to-blue-800 rounded-lg p-4 border border-blue-200 dark:border-blue-700">
+                        <div className="text-xs text-gray-600 dark:text-gray-300 mb-1">
                           {new Date(date).toLocaleDateString('pl-PL', { 
                             day: '2-digit', 
                             month: 'short',
                             year: 'numeric'
                           })}
                     </div>
-                        <div className="text-2xl font-bold text-blue-600">
+                        <div className="text-2xl font-bold text-blue-600 dark:text-blue-300">
                           {formatMinutes(minutes)}
                     </div>
                   </div>
@@ -614,14 +613,14 @@ export default function StatisticsPage() {
             )}
 
             {/* Sekcja ocen */}
-            <div className="bg-white rounded-xl shadow-lg p-8 border border-white/20 mt-8">
-              <h2 className="text-3xl font-bold text-gray-900 mb-8 text-center">Średnia Ocen</h2>
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 border border-white/20 dark:border-gray-700 mt-8">
+              <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-8 text-center">Średnia Ocen</h2>
               
               {/* Debug info */}
               {process.env.NODE_ENV === 'development' && (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-                  <h3 className="font-semibold text-yellow-800 mb-2">Debug Info:</h3>
-                  <p className="text-sm text-yellow-700">
+                <div className="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700 rounded-lg p-4 mb-6">
+                  <h3 className="font-semibold text-yellow-800 dark:text-yellow-200 mb-2">Debug Info:</h3>
+                  <p className="text-sm text-yellow-700 dark:text-yellow-300">
                     Ładowanie ocen: {gradesLoading ? 'TAK' : 'NIE'}<br/>
                     Liczba ocen: {grades.length}<br/>
                     Użytkownik: {user?.uid}<br/>
@@ -629,8 +628,8 @@ export default function StatisticsPage() {
                   </p>
                   {grades.length > 0 && (
                     <details className="mt-2">
-                      <summary className="text-sm text-yellow-700 cursor-pointer">Pokaż szczegóły ocen</summary>
-                      <pre className="text-xs text-yellow-600 mt-2 bg-yellow-100 p-2 rounded overflow-auto max-h-32">
+                      <summary className="text-sm text-yellow-700 dark:text-yellow-300 cursor-pointer">Pokaż szczegóły ocen</summary>
+                      <pre className="text-xs text-yellow-600 dark:text-yellow-400 mt-2 bg-yellow-100 dark:bg-yellow-900/50 p-2 rounded overflow-auto max-h-32">
                         {JSON.stringify(grades, null, 2)}
                       </pre>
                     </details>
@@ -664,10 +663,10 @@ export default function StatisticsPage() {
                     />
                       </svg>
                   <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="text-4xl font-bold text-gray-900">
+                    <span className="text-4xl font-bold text-gray-900 dark:text-white">
                       {gradeStats.averageGrade > 0 ? gradeStats.averageGrade.toFixed(1) : '0.0'}
                       </span>
-                    <span className="text-sm text-gray-500">średnia</span>
+                    <span className="text-sm text-gray-500 dark:text-gray-400">średnia</span>
                     </div>
                     </div>
                   </div>
@@ -675,69 +674,69 @@ export default function StatisticsPage() {
               {/* Karty statystyk ocen */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                 {/* Liczba ocen */}
-                <div className="bg-blue-50 rounded-xl p-6 border border-blue-200">
+                <div className="bg-blue-50 dark:bg-blue-900/30 rounded-xl p-6 border border-blue-200 dark:border-blue-700">
                   <div className="flex items-center justify-between mb-4">
                     <div className="p-3 bg-blue-500 rounded-full">
                       <Star className="w-6 h-6 text-white" />
                     </div>
                 </div>
-                  <h3 className="text-3xl font-bold text-blue-600 mb-1">
+                  <h3 className="text-3xl font-bold text-blue-600 dark:text-blue-300 mb-1">
                     {gradeStats.totalGrades}
                   </h3>
-                  <p className="text-sm text-gray-600">Liczba ocen</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-300">Liczba ocen</p>
               </div>
 
                 {/* Średnia ocen */}
-                <div className="bg-green-50 rounded-xl p-6 border border-green-200">
+                <div className="bg-green-50 dark:bg-green-900/30 rounded-xl p-6 border border-green-200 dark:border-green-700">
                   <div className="flex items-center justify-between mb-4">
                     <div className="p-3 bg-green-500 rounded-full">
                       <Award className="w-6 h-6 text-white" />
           </div>
           </div>
-                  <h3 className="text-3xl font-bold text-green-600 mb-1">
+                  <h3 className="text-3xl font-bold text-green-600 dark:text-green-300 mb-1">
                     {gradeStats.averageGrade > 0 ? gradeStats.averageGrade.toFixed(1) : '0.0'}
                   </h3>
-                  <p className="text-sm text-gray-600">Średnia ocen</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-300">Średnia ocen</p>
       </div>
 
                 {/* Najlepsza ocena */}
-                <div className="bg-yellow-50 rounded-xl p-6 border border-yellow-200">
+                <div className="bg-yellow-50 dark:bg-yellow-900/30 rounded-xl p-6 border border-yellow-200 dark:border-yellow-700">
                   <div className="flex items-center justify-between mb-4">
                     <div className="p-3 bg-yellow-500 rounded-full">
                       <Trophy className="w-6 h-6 text-white" />
           </div>
         </div>
-                  <h3 className="text-3xl font-bold text-yellow-600 mb-1">
+                  <h3 className="text-3xl font-bold text-yellow-600 dark:text-yellow-300 mb-1">
                     {gradeStats.bestGrade > 0 ? gradeStats.bestGrade : '0'}
                   </h3>
-                  <p className="text-sm text-gray-600">Najlepsza ocena</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-300">Najlepsza ocena</p>
       </div>
 
                 {/* Postęp */}
-                <div className="bg-purple-50 rounded-xl p-6 border border-purple-200">
+                <div className="bg-purple-50 dark:bg-purple-900/30 rounded-xl p-6 border border-purple-200 dark:border-purple-700">
                   <div className="flex items-center justify-between mb-4">
                     <div className="p-3 bg-purple-500 rounded-full">
                       <Target className="w-6 h-6 text-white" />
           </div>
               </div>
-                  <h3 className="text-3xl font-bold text-purple-600 mb-1">
+                  <h3 className="text-3xl font-bold text-purple-600 dark:text-purple-300 mb-1">
                     {gradeStats.progress > 0 ? '+' : ''}{gradeStats.progress.toFixed(1)}
                   </h3>
-                  <p className="text-sm text-gray-600">Postęp</p>
-                  <p className="text-xs text-gray-500">vs poprzednie oceny</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-300">Postęp</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">vs poprzednie oceny</p>
           </div>
         </div>
 
               {/* Rozkład ocen */}
               <div className="mb-8">
-                <h3 className="text-xl font-bold text-gray-900 mb-6 text-center">Rozkład ocen</h3>
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-6 text-center">Rozkład ocen</h3>
                 <div className="space-y-4">
                   {getGradeDistributionData().map((item) => (
                     <div key={item.grade} className="flex items-center gap-4">
-                      <div className="w-8 text-sm font-medium text-gray-700">
+                      <div className="w-8 text-sm font-medium text-gray-700 dark:text-gray-300">
                         {item.grade}
           </div>
-                      <div className="flex-1 bg-gray-200 rounded-full h-8 relative overflow-hidden">
+                      <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-8 relative overflow-hidden">
                         <div 
                           className="h-full rounded-full transition-all duration-500 flex items-center justify-end pr-3"
                           style={{ 
@@ -752,7 +751,7 @@ export default function StatisticsPage() {
                           )}
                       </div>
                     </div>
-                      <div className="w-8 text-sm font-semibold text-gray-700 text-right">
+                      <div className="w-8 text-sm font-semibold text-gray-700 dark:text-gray-300 text-right">
                         {item.count}
                   </div>
                   </div>
@@ -762,14 +761,14 @@ export default function StatisticsPage() {
 
               {/* Wiadomość motywacyjna */}
               {gradeStats.averageGrade > 0 && gradeStats.averageGrade < 3 && (
-                <div className="bg-purple-50 rounded-xl p-6 border border-purple-200 text-center">
+                <div className="bg-purple-50 dark:bg-purple-900/30 rounded-xl p-6 border border-purple-200 dark:border-purple-700 text-center">
                   <div className="flex items-center justify-center gap-3 mb-3">
-                    <Target className="w-6 h-6 text-purple-600" />
-                    <h4 className="text-lg font-semibold text-gray-900">
+                    <Target className="w-6 h-6 text-purple-600 dark:text-purple-300" />
+                    <h4 className="text-lg font-semibold text-gray-900 dark:text-white">
                       Możesz lepiej - Pracuj nad poprawą ocen!
                     </h4>
           </div>
-                  <p className="text-sm text-gray-600">
+                  <p className="text-sm text-gray-600 dark:text-gray-300">
                     Twoja średnia wynosi {gradeStats.averageGrade.toFixed(1)}. 
                     Skup się na nauce i regularnym powtarzaniu materiału.
                   </p>
@@ -777,14 +776,14 @@ export default function StatisticsPage() {
         )}
 
               {gradeStats.averageGrade >= 3 && (
-                <div className="bg-green-50 rounded-xl p-6 border border-green-200 text-center">
+                <div className="bg-green-50 dark:bg-green-900/30 rounded-xl p-6 border border-green-200 dark:border-green-700 text-center">
                   <div className="flex items-center justify-center gap-3 mb-3">
-                    <Trophy className="w-6 h-6 text-green-600" />
-                    <h4 className="text-lg font-semibold text-gray-900">
+                    <Trophy className="w-6 h-6 text-green-600 dark:text-green-300" />
+                    <h4 className="text-lg font-semibold text-gray-900 dark:text-white">
                       Świetna robota! Kontynuuj w tym samym tempie!
                     </h4>
           </div>
-                  <p className="text-sm text-gray-600">
+                  <p className="text-sm text-gray-600 dark:text-gray-300">
                     Twoja średnia wynosi {gradeStats.averageGrade.toFixed(1)}. 
                     To doskonały wynik!
                   </p>
@@ -792,14 +791,14 @@ export default function StatisticsPage() {
               )}
 
               {gradeStats.totalGrades === 0 && (
-                <div className="bg-gray-50 rounded-xl p-6 border border-gray-200 text-center">
+                <div className="bg-gray-50 dark:bg-gray-700 rounded-xl p-6 border border-gray-200 dark:border-gray-600 text-center">
                   <div className="flex items-center justify-center gap-3 mb-3">
-                    <Star className="w-6 h-6 text-gray-500" />
-                    <h4 className="text-lg font-semibold text-gray-900">
+                    <Star className="w-6 h-6 text-gray-500 dark:text-gray-400" />
+                    <h4 className="text-lg font-semibold text-gray-900 dark:text-white">
                       Brak ocen
                     </h4>
           </div>
-                  <p className="text-sm text-gray-600">
+                  <p className="text-sm text-gray-600 dark:text-gray-300">
                     Jeszcze nie masz żadnych ocen. Zacznij naukę, aby zobaczyć swoje statystyki!
                   </p>
                       </div>

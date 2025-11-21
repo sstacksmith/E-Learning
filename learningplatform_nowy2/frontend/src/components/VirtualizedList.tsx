@@ -42,10 +42,27 @@ export function VirtualizedList<T>({
   // Memoized offset styles
   const offsetY = useMemo(() => startIndex * itemHeight, [startIndex, itemHeight]);
 
-  // Scroll handler with throttling
+  // Scroll handler with throttling dla płynności
+  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastScrollTop = useRef(0);
+  
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     const target = e.target as HTMLDivElement;
-    setScrollTop(target.scrollTop);
+    const currentScrollTop = target.scrollTop;
+    
+    // Throttle scroll updates - aktualizuj tylko co 16ms (60fps)
+    if (scrollTimeoutRef.current === null) {
+      lastScrollTop.current = currentScrollTop;
+      setScrollTop(currentScrollTop);
+      
+      scrollTimeoutRef.current = setTimeout(() => {
+        scrollTimeoutRef.current = null;
+        // Final update jeśli scroll się zmienił
+        if (Math.abs(target.scrollTop - lastScrollTop.current) > 1) {
+          setScrollTop(target.scrollTop);
+        }
+      }, 16);
+    }
   }, []);
 
   // Auto-scroll to top when items change

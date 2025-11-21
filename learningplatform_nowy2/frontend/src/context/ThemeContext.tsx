@@ -32,6 +32,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     setIsDarkMode(prev => {
       const newMode = !prev;
       
+      // Natychmiastowa zmiana - wyłącz transition podczas toggle
+      document.documentElement.setAttribute('data-theme-changing', 'true');
+      
       if (newMode) {
         document.documentElement.classList.add('dark');
         localStorage.setItem('theme', 'dark');
@@ -39,6 +42,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         document.documentElement.classList.remove('dark');
         localStorage.setItem('theme', 'light');
       }
+      
+      // Przywróć transition po zakończeniu zmiany (natychmiast)
+      requestAnimationFrame(() => {
+        document.documentElement.removeAttribute('data-theme-changing');
+      });
       
       return newMode;
     });

@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import Providers from '@/components/Providers';
 import Image from 'next/image';
@@ -36,25 +36,39 @@ function StudentCoursesContent() {
       try {
         setLoading(true);
         
-        // Pobierz kursy przypisane do ucznia
+        // Pobierz kursy przypisane do ucznia - użyj query z where zamiast pobierania wszystkich
         const coursesCollection = collection(db, 'courses');
-        const coursesSnapshot = await getDocs(coursesCollection);
         
-        const userCourses = coursesSnapshot.docs
-          .map(doc => ({ id: doc.id, ...doc.data() }))
-          .filter((course: any) => {
-            // Sprawdź czy kurs jest przypisany bezpośrednio do użytkownika
-            const isDirectlyAssigned = course.assignedUsers && 
-              (course.assignedUsers.includes(user.uid) || course.assignedUsers.includes(user.email));
-            
-            // 🆕 NOWE - Sprawdź czy użytkownik jest w klasie, która ma przypisane kursy
-            const isInAssignedClass = course.assignedClasses && course.assignedClasses.length > 0 &&
-              (user as any).classes && (user as any).classes.some((classId: string) => 
-                course.assignedClasses.includes(classId)
-              );
-            
-            return isDirectlyAssigned || isInAssignedClass;
-          })
+        // Firestore nie obsługuje OR w jednym zapytaniu, więc użyj dwóch równoległych zapytań
+        const [coursesByUid, coursesByEmail] = await Promise.all([
+          getDocs(query(coursesCollection, where('assignedUsers', 'array-contains', user.uid))),
+          user.email ? getDocs(query(coursesCollection, where('assignedUsers', 'array-contains', user.email))) : Promise.resolve({ docs: [] } as any)
+        ]);
+        
+        // Połącz i deduplikuj kursy
+        const coursesMap = new Map();
+        [...coursesByUid.docs, ...coursesByEmail.docs].forEach(doc => {
+          coursesMap.set(doc.id, { id: doc.id, ...doc.data() });
+        });
+        
+        // Sprawdź kursy przypisane do klas (jeśli użytkownik ma klasy)
+        let classCourses: any[] = [];
+        if ((user as any).classes && Array.isArray((user as any).classes) && (user as any).classes.length > 0) {
+          // Pobierz kursy dla każdej klasy równolegle
+          const classQueries = (user as any).classes.map((classId: string) =>
+            getDocs(query(coursesCollection, where('assignedClasses', 'array-contains', classId)))
+          );
+          const classSnapshots = await Promise.all(classQueries);
+          classSnapshots.forEach(snapshot => {
+            snapshot.docs.forEach((doc: any) => {
+              if (!coursesMap.has(doc.id)) {
+                coursesMap.set(doc.id, { id: doc.id, ...doc.data() });
+              }
+            });
+          });
+        }
+        
+        const userCourses = Array.from(coursesMap.values())
           .map((course: any) => ({
             id: course.id,
             title: course.title || 'Brak tytułu',

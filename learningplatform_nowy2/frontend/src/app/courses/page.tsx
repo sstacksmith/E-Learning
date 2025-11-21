@@ -273,7 +273,7 @@ export default function CoursesPage() {
                 href="/register" 
                 className="px-8 py-4 bg-white text-blue-600 font-bold rounded-xl hover:bg-blue-50 transition-all duration-200 shadow-lg"
               >
-                Zarejestruj się za darmo
+                Zarejestruj się
               </Link>
               <Link 
                 href="/login" 

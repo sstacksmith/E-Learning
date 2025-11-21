@@ -264,16 +264,6 @@ export default function ContactPage() {
             
             <div className="bg-white/80 backdrop-blur-sm rounded-xl p-6 border border-slate-200/50">
               <h3 className="text-lg font-semibold text-slate-800 mb-3">
-                Czy platforma jest darmowa?
-              </h3>
-              <p className="text-slate-600">
-                Tak! Podstawowe funkcje platformy COGITO są całkowicie darmowe. 
-                Oferujemy również premium funkcje dla zaawansowanych użytkowników.
-              </p>
-            </div>
-            
-            <div className="bg-white/80 backdrop-blur-sm rounded-xl p-6 border border-slate-200/50">
-              <h3 className="text-lg font-semibold text-slate-800 mb-3">
                 Jak mogę uzyskać pomoc techniczną?
               </h3>
               <p className="text-slate-600">
@@ -308,7 +298,7 @@ export default function ContactPage() {
                 href="/register" 
                 className="px-8 py-4 bg-white text-blue-600 font-bold rounded-xl hover:bg-blue-50 transition-all duration-200 shadow-lg"
               >
-                Zarejestruj się za darmo
+                Zarejestruj się
               </Link>
               <Link 
                 href="/login" 

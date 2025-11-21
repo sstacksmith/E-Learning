@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Award, TrendingUp, Users, Star, BarChart3, Clock, Plus, Edit, Trash2, Eye } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, limit } from 'firebase/firestore';
 import { db } from '../../../../config/firebase';
 import { useAuth } from '../../../../context/AuthContext';
 import { SurveyEditor } from '../../../../components/SurveyEditor';
@@ -309,29 +309,24 @@ export default function TeacherSurveysPage() {
 
         console.log(`👥 [Student Evaluation] Total unique students: ${allStudentIds.size}`);
 
-        // Pobierz dane uczniów
-        const studentsData: any[] = [];
-        for (const studentId of Array.from(allStudentIds)) {
-          try {
-            const usersQuery = query(
-              collection(db, 'users'),
-              where('uid', '==', studentId)
-            );
-            const userSnapshot = await getDocs(usersQuery);
-            
-            if (!userSnapshot.empty) {
-              const userData = userSnapshot.docs[0].data();
-              studentsData.push({
-                id: studentId,
-                email: userData.email,
-                displayName: userData.displayName || userData.email,
-                ...userData
-              });
-            }
-          } catch (error) {
-            console.error(`❌ [Student Evaluation] Error fetching student ${studentId}:`, error);
-          }
-        }
+        // Pobierz dane uczniów - batch query zamiast pętli for
+        const studentIdsArray = Array.from(allStudentIds);
+        const studentQueries = studentIdsArray.slice(0, 30).map(studentId => 
+          getDocs(query(collection(db, 'users'), where('uid', '==', studentId), limit(1)))
+        );
+        const studentSnapshots = await Promise.all(studentQueries);
+        
+        const studentsData = studentSnapshots
+          .filter(snapshot => !snapshot.empty)
+          .map((snapshot, idx) => {
+            const userData = snapshot.docs[0].data();
+            return {
+              id: studentIdsArray[idx],
+              email: userData.email,
+              displayName: userData.displayName || userData.email,
+              ...userData
+            };
+          });
 
         console.log(`✅ [Student Evaluation] Fetched ${studentsData.length} student profiles`);
         setStudents(studentsData);

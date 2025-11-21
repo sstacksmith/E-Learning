@@ -62,44 +62,44 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
         
         console.log('📬 Found notifications in DB:', notificationsSnapshot.size);
         
-        for (const notificationDoc of notificationsSnapshot.docs) {
+        // Przetwórz powiadomienia równolegle
+        const notificationPromises = notificationsSnapshot.docs.map(async (notificationDoc) => {
           const notificationData = notificationDoc.data();
-          console.log('📋 Processing notification:', notificationDoc.id, notificationData);
           const eventDate = notificationData.event_date ? new Date(notificationData.event_date) : null;
           
-          // Usuń powiadomienia z niepoprawną datą (Invalid Date)
           if (notificationData.event_date && (!eventDate || isNaN(eventDate.getTime()))) {
-            console.log('🗑️ Deleting notification with invalid date:', notificationDoc.id);
             await deleteDoc(doc(db, 'notifications', notificationDoc.id));
-            continue;
+            return null;
           }
           
-          // Usuń powiadomienia, które są starsze niż 7 dni PO terminie wydarzenia
           if (eventDate) {
             const sevenDaysAfterEvent = new Date(eventDate.getTime() + 7 * 24 * 60 * 60 * 1000);
             if (sevenDaysAfterEvent < now) {
-              console.log('🗑️ Deleting old notification (7 days after event):', notificationDoc.id, 'Event date:', eventDate);
               await deleteDoc(doc(db, 'notifications', notificationDoc.id));
-              continue;
+              return null;
             }
           }
           
-          // Zapamiętaj event_id dla deduplikacji
           if (notificationData.event_id) {
             eventIdsFromNotifications.add(notificationData.event_id);
           }
           
-          allNotifications.push({
+          const notification: Notification = {
             id: notificationDoc.id,
-            type: notificationData.type || 'message',
+            type: (notificationData.type || 'message') as 'grade' | 'event' | 'message',
             title: notificationData.title || 'Powiadomienie',
             message: notificationData.message || 'Masz nowe powiadomienie',
             timestamp: notificationData.timestamp || new Date().toISOString(),
             read: notificationData.read || false,
             courseTitle: notificationData.course_title,
             action_url: notificationData.action_url
-          });
-        }
+          };
+          return notification;
+        });
+        
+        const processedNotifications = await Promise.all(notificationPromises);
+        const validNotifications = processedNotifications.filter((notif): notif is Notification => notif !== null);
+        allNotifications.push(...validNotifications);
         
         console.log('✅ Added', allNotifications.length, 'notifications from notifications collection');
         console.log('🔖 Event IDs from notifications:', Array.from(eventIdsFromNotifications));
@@ -111,64 +111,41 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
         
         console.log('📅 Found events in DB:', eventsSnapshot.size);
         
-        for (const eventDoc of eventsSnapshot.docs) {
-          const eventData = eventDoc.data();
-          
-          // Pomiń eventy, które już mają powiadomienie w notifications
-          if (eventIdsFromNotifications.has(eventDoc.id)) {
-            console.log('⏭️ Skipping event (already in notifications):', eventDoc.id, eventData.title);
-            continue;
-          }
-          
-          // Debug: Sprawdź czy uczeń jest przypisany
-          const isAssignedTo = eventData.assignedTo && eventData.assignedTo.includes(user.uid);
-          const isInStudents = eventData.students && eventData.students.includes(user.uid);
-          
-          console.log('🔍 Checking event:', eventDoc.id, 'isAssignedTo:', isAssignedTo, 'isInStudents:', isInStudents);
-          
-          if (isAssignedTo || isInStudents) {
-            console.log('✅ Event assigned to student:', {
-              eventId: eventDoc.id,
-              title: eventData.title,
-              date: eventData.date,
-              assignedTo: eventData.assignedTo,
-              students: eventData.students
-            });
+        // Przetwórz eventy równolegle
+        const eventPromises = eventsSnapshot.docs
+          .filter(eventDoc => !eventIdsFromNotifications.has(eventDoc.id))
+          .map(async (eventDoc) => {
+            const eventData = eventDoc.data();
+            const isAssignedTo = eventData.assignedTo && eventData.assignedTo.includes(user.uid);
+            const isInStudents = eventData.students && eventData.students.includes(user.uid);
+            
+            if (!isAssignedTo && !isInStudents) return null;
             
             const eventDateString = eventData.date || eventData.deadline;
             
-            // Sprawdź czy event ma datę
-            if (!eventDateString) {
-              console.log('⚠️ Event without date:', eventDoc.id);
-              continue;
-            }
+            if (!eventDateString) return null;
             
             const eventDate = new Date(eventDateString);
+            if (isNaN(eventDate.getTime())) return null;
             
-            // Usuń eventy z niepoprawną datą (Invalid Date)
-            if (isNaN(eventDate.getTime())) {
-              console.log('⚠️ Event with invalid date:', eventDoc.id, eventDateString);
-              continue;
-            }
-            
-            // Pomiń wydarzenia starsze niż 7 dni PO terminie
             const sevenDaysAfterEvent = new Date(eventDate.getTime() + 7 * 24 * 60 * 60 * 1000);
-            if (sevenDaysAfterEvent < now) {
-              console.log('🗑️ Skipping old event (7 days after event):', eventDoc.id, 'Event date:', eventDate);
-              continue;
-            }
+            if (sevenDaysAfterEvent < now) return null;
             
-            allNotifications.push({
+            const eventNotification: Notification = {
               id: `event-${eventDoc.id}`,
-              type: 'event',
+              type: 'event' as const,
               title: eventData.title || 'Nowe zadanie',
               message: eventData.description || 'Masz nowe zadanie do wykonania',
               timestamp: eventDateString,
               read: false,
               action_url: '/homelogin/student/calendar'
-            });
-          }
-        }
+            };
+            return eventNotification;
+          });
+          
+          const processedEvents = await Promise.all(eventPromises);
+          const validEvents = processedEvents.filter((event): event is Notification => event !== null);
+          allNotifications.push(...validEvents);
         
         console.log('📅 Added', allNotifications.length - eventIdsFromNotifications.size, 'events after deduplication and filtering');
 

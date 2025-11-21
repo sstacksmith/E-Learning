@@ -6,6 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import { ArrowLeft, TrendingUp, Award, Clock, Calendar, Star, Trophy, Target } from 'lucide-react';
 import { doc, getDoc, collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '@/config/firebase';
+// Import Recharts bezpośrednio - lazy loading powodował problemy z typami
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface DailyStats {

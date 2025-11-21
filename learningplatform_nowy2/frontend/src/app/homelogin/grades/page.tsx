@@ -1,6 +1,6 @@
 'use client';
 import React, { useEffect, useState } from 'react';
-import { collection, getDocs, query, where, doc, getDoc, updateDoc } from 'firebase/firestore';
+import { collection, getDocs, query, where, doc, getDoc, updateDoc, limit } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
 import { useAuth } from '../../../context/AuthContext';
 import Providers from '@/components/Providers';
@@ -90,32 +90,30 @@ function GradesPageContent() {
         const coursesByEmailList = coursesByEmailSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         console.log('📚 Courses by Email:', coursesByEmailList);
 
-        // 🆕 DODATKOWO: Pobierz wszystkie kursy i sprawdź które mają oceny dla tego użytkownika
-        const allCoursesSnapshot = await getDocs(collection(db, 'courses'));
-        const allCoursesList: Course[] = allCoursesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        console.log('📚 All courses in database:', allCoursesList.length);
-
-        // Sprawdź które kursy mają oceny dla tego użytkownika
-        const gradesQuery = query(
-          collection(db, 'grades'),
-          where('user_id', '==', user.uid)
+        // Pobierz oceny i znajdź kursy z ocenami (używając batch query)
+        const [gradesByUid, gradesByEmail, gradesByStudentId] = await Promise.all([
+          getDocs(query(collection(db, 'grades'), where('user_id', '==', user.uid), limit(100))),
+          user.email ? getDocs(query(collection(db, 'grades'), where('studentEmail', '==', user.email), limit(100))) : Promise.resolve({ docs: [] } as any),
+          getDocs(query(collection(db, 'grades'), where('studentId', '==', user.uid), limit(100)))
+        ]);
+        
+        const allGrades = [...gradesByUid.docs, ...gradesByEmail.docs, ...gradesByStudentId.docs]
+          .map(doc => ({ id: doc.id, ...doc.data() } as Grade));
+        
+        // Zbierz unikalne course_id z ocen
+        const courseIdsFromGrades = new Set<string>();
+        allGrades.forEach(grade => {
+          if (grade.course_id) courseIdsFromGrades.add(grade.course_id);
+        });
+        
+        // Pobierz tylko kursy z ocenami (batch query)
+        const courseQueries = Array.from(courseIdsFromGrades).slice(0, 20).map(courseId => 
+          getDoc(doc(db, 'courses', courseId))
         );
-        const gradesSnapshot = await getDocs(gradesQuery);
-        const userGrades = gradesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Grade));
-        console.log('📊 User grades:', userGrades);
-
-        // Znajdź kursy z ocenami
-        const coursesWithGrades: Course[] = [];
-        for (const grade of userGrades) {
-          if (grade.course_id) {
-            const courseWithGrade = allCoursesList.find(course => course.id === grade.course_id);
-            if (courseWithGrade && !coursesWithGrades.find(c => c.id === courseWithGrade.id)) {
-              coursesWithGrades.push(courseWithGrade);
-              console.log('📚 Found course with grade:', courseWithGrade.title || courseWithGrade.name, 'for grade:', grade.value);
-            }
-          }
-        }
-        console.log('📚 Courses with grades:', coursesWithGrades);
+        const courseDocs = await Promise.all(courseQueries);
+        const coursesWithGrades = courseDocs
+          .filter(doc => doc.exists())
+          .map(doc => ({ id: doc.id, ...doc.data() } as Course));
 
         // Połącz wszystkie kursy: assigned + z ocenami
         const allCourses = [...coursesByUidList, ...coursesByEmailList, ...coursesWithGrades];
@@ -325,7 +323,7 @@ function GradesPageContent() {
       {/* Header - pełna szerokość */}
       <div className="w-full bg-white/80 backdrop-blur-lg border-b border-white/20 shadow-sm">
         <div className="w-full px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between relative">
             <button
               onClick={() => router.push('/homelogin')}
               className="flex items-center gap-2 px-4 py-2 bg-white/60 backdrop-blur-sm text-gray-700 rounded-lg hover:bg-white hover:shadow-lg transition-all duration-200 ease-in-out border border-white/20"
@@ -334,26 +332,11 @@ function GradesPageContent() {
               Powrót do strony głównej
             </button>
             
-            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+            <h1 className="absolute left-1/2 transform -translate-x-1/2 text-xl sm:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
               Dziennik ocen
             </h1>
             
-            <div className="flex gap-2">
-              <button
-                onClick={() => handleManualCourseAssignment('uJOSNq2Yn6IxkLmSvsgN')}
-                className="px-3 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors text-sm"
-                title="Przypisz do kursu 'czekolada'"
-              >
-                🔧 Czekolada
-              </button>
-              <button
-                onClick={fetchGrades}
-                disabled={loading}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
-              >
-                {loading ? 'Ładowanie...' : 'Odśwież'}
-              </button>
-            </div>
+            <div className="w-[180px]"></div>
           </div>
         </div>
       </div>
@@ -469,11 +452,6 @@ function GradesPageContent() {
                               
                               return (
                                 <div key={grade.id} className="relative group">
-      {/* Theme Toggle */}
-      <div className="absolute top-4 right-4 z-50">
-        <ThemeToggle />
-      </div>
-
                                   <button
                                     className={`px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg font-bold text-xs sm:text-sm shadow-sm transition-all duration-200 hover:scale-105 hover:shadow-md ${getGradeColor(gradeValue)}`}
                                   >
@@ -578,11 +556,6 @@ function GradesPageContent() {
                               
                               return (
                                 <div key={grade.id} className="relative group">
-      {/* Theme Toggle */}
-      <div className="absolute top-4 right-4 z-50">
-        <ThemeToggle />
-      </div>
-
                                   <button
                                     className={`px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg font-bold text-xs sm:text-sm shadow-sm transition-all duration-200 hover:scale-105 hover:shadow-md ${getGradeColor(gradeValue)}`}
                                   >

@@ -176,7 +176,7 @@ export default function TeacherCourses() {
       console.log('[DEBUG] Fetching courses from Firestore...');
       
       // Pobierz kursy bezpośrednio z Firestore
-      const { collection, getDocs } = await import('firebase/firestore');
+      const { collection, getDocs, query, where } = await import('firebase/firestore');
       const coursesCollection = collection(db, 'courses');
       
       // Pobierz tylko kursy przypisane do zalogowanego nauczyciela
@@ -189,13 +189,18 @@ export default function TeacherCourses() {
         return;
       }
       
-      // Filtruj kursy po teacherEmail
-      const coursesSnapshot = await getDocs(coursesCollection);
+      // Użyj query z where zamiast pobierania wszystkich kursów
+      const [coursesByEmail, coursesByCreatedBy] = await Promise.all([
+        getDocs(query(coursesCollection, where('teacherEmail', '==', teacherEmail))),
+        getDocs(query(coursesCollection, where('created_by', '==', teacherEmail)))
+      ]);
       
-      const firestoreCourses = coursesSnapshot.docs
-        .map(doc => {
+      // Połącz i deduplikuj kursy
+      const coursesMap = new Map();
+      [coursesByEmail, coursesByCreatedBy].forEach(snapshot => {
+        snapshot.docs.forEach(doc => {
           const data = doc.data();
-          return {
+          coursesMap.set(doc.id, {
             id: data.id || doc.id,
             title: data.title || '',
             description: data.description || '',
@@ -211,10 +216,12 @@ export default function TeacherCourses() {
             teacherEmail: data.teacherEmail || '',
             assignedUsers: data.assignedUsers || [],
             sections: data.sections || [],
-            courseType: data.courseType || 'obowiązkowy' // 🆕 DODANE - pole courseType
-          };
-        })
-        .filter(course => (course.teacherEmail || '') === (teacherEmail || '')); // Filtruj tylko kursy nauczyciela
+            courseType: data.courseType || 'obowiązkowy'
+          });
+        });
+      });
+      
+      const firestoreCourses = Array.from(coursesMap.values());
       
       console.log('📥 [DEBUG] Firestore courses loaded:', firestoreCourses.length);
       console.log('📥 [DEBUG] Teacher courses with courseType:', firestoreCourses.map(c => ({ 

@@ -439,17 +439,23 @@ const Calendar: React.FC = () => {
     return classes;
   }
 
-  // Obsługa kliknięcia w dzień - dla ucznia pokazuje aktywności
+  // Obsługa kliknięcia w dzień - dla nauczyciela otwiera modal dodawania wydarzenia
   function handleDateClick(arg: any) {
     const dateStr = arg.dateStr;
+    
+    // Dla nauczyciela - otwórz modal do dodawania wydarzenia
+    if (user?.role === 'teacher') {
+      setQuickEventDate(dateStr);
+      setShowQuickEventModal(true);
+      return;
+    }
+    
     // Dla ucznia - pokaż aktywności
-    if (user?.role !== 'teacher') {
     if (eventDates.has(dateStr)) {
       setSelectedDate(dateStr);
     } else {
       setSelectedDate(null);
     }
-  }
   }
 
   // Dodaj etykiety dni wolnych i świąt
@@ -556,6 +562,7 @@ const Calendar: React.FC = () => {
   const [quickEndTime, setQuickEndTime] = useState('');
   const [quickDescription, setQuickDescription] = useState('');
   const [quickLoading, setQuickLoading] = useState(false);
+  const [quickSelectedStudents, setQuickSelectedStudents] = useState<string[]>([]);
 
   // Obsługa szybkiego tworzenia wydarzenia
   const handleQuickEventSubmit = async () => {
@@ -566,16 +573,34 @@ const Calendar: React.FC = () => {
     
     setQuickLoading(true);
     try {
-      const { addDoc, collection } = await import('firebase/firestore');
       await addDoc(collection(db, 'events'), {
         title: quickTitle,
         description: quickDescription,
         date: quickEventDate,
         startTime: quickStartTime,
         endTime: quickEndTime,
-        createdBy: 'teacher',
-        assignedTo: [],
+        createdBy: user?.uid || user?.email || 'teacher',
+        assignedTo: quickSelectedStudents.length > 0 ? quickSelectedStudents : [],
+        students: quickSelectedStudents.length > 0 ? quickSelectedStudents : [],
       });
+      
+      // Utwórz powiadomienia dla wybranych uczniów
+      if (quickSelectedStudents.length > 0) {
+        const notificationPromises = quickSelectedStudents.map(studentId => {
+          return addDoc(collection(db, 'notifications'), {
+            user_id: studentId,
+            type: 'event',
+            title: `Nowe wydarzenie: ${quickTitle}`,
+            message: quickDescription || 'Masz nowe wydarzenie w kalendarzu',
+            timestamp: new Date().toISOString(),
+            read: false,
+            event_date: quickEventDate,
+            event_time: `${quickStartTime} - ${quickEndTime}`,
+            action_url: '/homelogin/schedule'
+          });
+        });
+        await Promise.all(notificationPromises);
+      }
       
       // Odśwież listę wydarzeń
       const eventsCollection = collection(db, 'events');
@@ -590,6 +615,11 @@ const Calendar: React.FC = () => {
       setQuickStartTime('');
       setQuickEndTime('');
       setQuickEventDate('');
+      setQuickSelectedStudents([]);
+      
+      alert(quickSelectedStudents.length > 0 
+        ? `Wydarzenie utworzone i wysłano ${quickSelectedStudents.length} powiadomień!`
+        : 'Wydarzenie utworzone!');
     } catch (err) {
       alert('Błąd podczas tworzenia wydarzenia');
       console.error(err);
@@ -643,13 +673,13 @@ const Calendar: React.FC = () => {
 
       {/* Modal szybkiego tworzenia wydarzenia */}
       {showQuickEventModal && (
-        <div className="fixed inset-0 bg-gray-900/20 backdrop-blur-sm flex items-center justify-center z-50" onClick={() => setShowQuickEventModal(false)}>
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-gray-900/20 dark:bg-gray-900/50 backdrop-blur-sm flex items-center justify-center z-50" onClick={() => setShowQuickEventModal(false)}>
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold text-gray-800">Szybkie dodanie wydarzenia</h3>
+              <h3 className="text-xl font-bold text-gray-800 dark:text-white">Szybkie dodanie wydarzenia</h3>
               <button
                 onClick={() => setShowQuickEventModal(false)}
-                className="text-gray-400 hover:text-gray-600 transition-colors"
+                className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -658,28 +688,28 @@ const Calendar: React.FC = () => {
             </div>
 
             <div className="mb-4">
-              <p className="text-sm text-gray-600 mb-4">
-                Data: <span className="font-semibold text-[#4067EC]">{new Date(quickEventDate).toLocaleDateString('pl-PL')}</span>
+              <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
+                Data: <span className="font-semibold text-[#4067EC] dark:text-blue-400">{new Date(quickEventDate).toLocaleDateString('pl-PL')}</span>
               </p>
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Tytuł *</label>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Tytuł *</label>
                   <input
                     type="text"
                     value={quickTitle}
                     onChange={(e) => setQuickTitle(e.target.value)}
-                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4067EC] focus:border-[#4067EC]"
+                    className="w-full px-4 py-2 border-2 border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4067EC] dark:focus:ring-blue-400 focus:border-[#4067EC] dark:focus:border-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
                     placeholder="np. Sprawdzian z matematyki"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Opis (opcjonalnie)</label>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Opis (opcjonalnie)</label>
                   <textarea
                     value={quickDescription}
                     onChange={(e) => setQuickDescription(e.target.value)}
-                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4067EC] focus:border-[#4067EC] resize-none"
+                    className="w-full px-4 py-2 border-2 border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4067EC] dark:focus:ring-blue-400 focus:border-[#4067EC] dark:focus:border-blue-400 resize-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
                     rows={2}
                     placeholder="Dodatkowe informacje..."
                   />
@@ -687,38 +717,78 @@ const Calendar: React.FC = () => {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Od *</label>
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Od *</label>
                     <input
                       type="time"
                       value={quickStartTime}
                       onChange={(e) => setQuickStartTime(e.target.value)}
-                      className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4067EC] focus:border-[#4067EC]"
+                      className="w-full px-4 py-2 border-2 border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4067EC] dark:focus:ring-blue-400 focus:border-[#4067EC] dark:focus:border-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Do *</label>
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Do *</label>
                     <input
                       type="time"
                       value={quickEndTime}
                       onChange={(e) => setQuickEndTime(e.target.value)}
-                      className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4067EC] focus:border-[#4067EC]"
+                      className="w-full px-4 py-2 border-2 border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4067EC] dark:focus:ring-blue-400 focus:border-[#4067EC] dark:focus:border-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                     />
                   </div>
                 </div>
+
+                {/* Wybór uczniów */}
+                {students.length > 0 && (
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                      Uczniowie (opcjonalnie)
+                    </label>
+                    <div className="max-h-32 overflow-y-auto border-2 border-gray-200 dark:border-gray-600 rounded-lg p-2 bg-gray-50 dark:bg-gray-800">
+                      {students.map(student => (
+                        <label key={student.uid} className="flex items-center gap-2 p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={quickSelectedStudents.includes(student.uid)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setQuickSelectedStudents([...quickSelectedStudents, student.uid]);
+                              } else {
+                                setQuickSelectedStudents(quickSelectedStudents.filter(id => id !== student.uid));
+                              }
+                            }}
+                            className="w-4 h-4 text-[#4067EC] dark:text-blue-400 border-gray-300 dark:border-gray-600 rounded focus:ring-[#4067EC] dark:focus:ring-blue-400"
+                          />
+                          <span className="text-sm text-gray-700 dark:text-gray-300">{student.displayName || 'Brak nazwy'}</span>
+                        </label>
+                      ))}
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      {quickSelectedStudents.length > 0 
+                        ? `Wybrano ${quickSelectedStudents.length} ${quickSelectedStudents.length === 1 ? 'ucznia' : 'uczniów'}`
+                        : 'Brak wybranych uczniów - wydarzenie będzie widoczne dla wszystkich'}
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
 
             <div className="flex gap-3 mt-6">
               <button
-                onClick={() => setShowQuickEventModal(false)}
-                className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+                onClick={() => {
+                  setShowQuickEventModal(false);
+                  setQuickTitle('');
+                  setQuickDescription('');
+                  setQuickStartTime('');
+                  setQuickEndTime('');
+                  setQuickSelectedStudents([]);
+                }}
+                className="flex-1 px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors font-medium"
               >
                 Anuluj
               </button>
               <button
                 onClick={handleQuickEventSubmit}
                 disabled={quickLoading}
-                className="flex-1 px-4 py-2 bg-[#4067EC] text-white rounded-lg hover:bg-[#3155d4] transition-colors font-medium disabled:bg-gray-400 disabled:cursor-not-allowed"
+                className="flex-1 px-4 py-2 bg-[#4067EC] dark:bg-blue-600 text-white rounded-lg hover:bg-[#3155d4] dark:hover:bg-blue-700 transition-colors font-medium disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed"
               >
                 {quickLoading ? 'Tworzenie...' : 'Utwórz'}
               </button>

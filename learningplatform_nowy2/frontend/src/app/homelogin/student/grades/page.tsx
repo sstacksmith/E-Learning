@@ -1,6 +1,6 @@
 'use client';
 import React, { useEffect, useState } from 'react';
-import { collection, getDocs, query, where, doc, getDoc } from 'firebase/firestore';
+import { collection, getDocs, query, where, doc, getDoc, limit } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { useAuth } from '@/context/AuthContext';
 import Providers from '@/components/Providers';
@@ -74,27 +74,27 @@ function GradesPageContent() {
   const fetchGrades = async () => {
     if (!user) return;
     setLoading(true);
-    console.log('🔄 Fetching grades for user:', user.uid);
     
-    // Pobierz wszystkie oceny użytkownika
-    const gradesQuery = query(collection(db, 'grades'), where('user_id', '==', user.uid));
-    const gradesSnapshot = await getDocs(gradesQuery);
-    const gradesList = gradesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Grade));
-    console.log('📊 Fetched grades:', gradesList);
-    
-    // Pobierz również oceny gdzie studentEmail jest równy email użytkownika
-    const gradesByEmailQuery = query(collection(db, 'grades'), where('studentEmail', '==', user.email));
-    const gradesByEmailSnapshot = await getDocs(gradesByEmailQuery);
-    const gradesByEmailList = gradesByEmailSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Grade));
-    console.log('📊 Fetched grades by email:', gradesByEmailList);
+    // Pobierz wszystkie oceny równolegle zamiast sekwencyjnie
+    const gradeQueries: Promise<any>[] = [
+      getDocs(query(collection(db, 'grades'), where('user_id', '==', user.uid), limit(100)))
+    ];
+    if (user.email) {
+      gradeQueries.push(getDocs(query(collection(db, 'grades'), where('studentEmail', '==', user.email), limit(100))));
+    }
+    const results = await Promise.all(gradeQueries);
+    const gradesByUid = results[0];
+    const gradesByEmail = results[1] || { docs: [] };
     
     // Połącz obie listy i usuń duplikaty
-    const allGrades = [...gradesList, ...gradesByEmailList];
+    const snapshots = user.email ? [gradesByUid, gradesByEmail] : [gradesByUid];
+    const allGrades = snapshots.flatMap(snapshot => 
+      snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as Grade))
+    );
     const uniqueGrades = allGrades.filter((grade, index, self) => 
       index === self.findIndex(g => g.id === grade.id)
     );
     
-    console.log('📊 All unique grades:', uniqueGrades);
     setGrades(uniqueGrades);
     setLoading(false);
   };
