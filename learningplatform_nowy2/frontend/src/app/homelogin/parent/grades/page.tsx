@@ -1,287 +1,565 @@
 'use client';
-
-// Force dynamic rendering to prevent SSR issues with client-side hooks
-export const dynamic = 'force-dynamic';
-
-import { useState, useEffect } from 'react';
-import { useAuth } from '@/context/AuthContext';
+import React, { useEffect, useState } from 'react';
+import { collection, getDocs, query, where, doc, getDoc } from 'firebase/firestore';
 import { db } from '@/config/firebase';
-import { collection, getDocs, query, where } from 'firebase/firestore';
-import { ArrowLeft } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
+import { ArrowLeft, BookOpen, Award, Calendar, User } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 interface Grade {
   id: string;
-  value: number;
-  date: string;
-  course: {
-    id: string;
-    title: string;
-  };
+  subject: string;
+  grade?: string;
+  value?: string | number;
+  value_grade?: string | number;
   description?: string;
+  comment?: string;
+  date?: string;
+  graded_at?: string;
+  teacherId?: string;
+  gradeType?: string;
+  grade_type?: string;
+  quiz_title?: string;
+  percentage?: number;
+  quiz_id?: string;
+  course_id?: string;
 }
 
-interface AssignedStudent {
+interface GroupedGrades {
+  [subject: string]: Grade[];
+}
+
+interface Course {
   id: string;
-  name: string;
-  email: string;
-  grades: Grade[];
+  title?: string;
+  name?: string;
+  [key: string]: any;
 }
 
 export default function ParentGrades() {
   const { user } = useAuth();
-  const [assignedStudent, setAssignedStudent] = useState<AssignedStudent | null>(null);
+  const router = useRouter();
+  const [grades, setGrades] = useState<Grade[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [displayName, setDisplayName] = useState<string>('');
+  const [userCourses, setUserCourses] = useState<any[]>([]);
+  const [studentId, setStudentId] = useState<string | null>(null);
+  const [studentEmail, setStudentEmail] = useState<string | null>(null);
 
-  const fetchAssignedStudentData = async () => {
+  useEffect(() => {
     if (!user) return;
+    
+    // Znajdź przypisanego ucznia
+    const fetchStudent = async () => {
+      try {
+        const parentStudentsRef = collection(db, 'parent_students');
+        const parentStudentsQuery = query(parentStudentsRef, where('parent', '==', user.uid));
+        const parentStudentsSnapshot = await getDocs(parentStudentsQuery);
 
-    try {
-      console.log('Fetching grades for parent:', user.uid, user.email);
-      
-      // 1. Znajdź przypisanego ucznia
-      const parentStudentsRef = collection(db, 'parent_students');
-      const parentStudentsQuery = query(parentStudentsRef, where('parent', '==', user.uid));
-      const parentStudentsSnapshot = await getDocs(parentStudentsQuery);
+        if (parentStudentsSnapshot.empty) {
+          setLoading(false);
+          return;
+        }
 
-      if (parentStudentsSnapshot.empty) {
-        setError('Nie masz przypisanego żadnego ucznia.');
+        const foundStudentId = parentStudentsSnapshot.docs[0].data().student;
+        setStudentId(foundStudentId);
+
+        // Pobierz dane ucznia
+        const studentDoc = await getDoc(doc(db, 'users', foundStudentId));
+        if (studentDoc.exists()) {
+          const studentData = studentDoc.data();
+          setStudentEmail(studentData.email);
+          setDisplayName(studentData.displayName || `${studentData.firstName || ''} ${studentData.lastName || ''}`.trim() || studentData.email || '');
+        }
+      } catch (err) {
+        console.error('Error fetching student:', err);
         setLoading(false);
-        return;
       }
+    };
 
-      const studentId = parentStudentsSnapshot.docs[0].data().student;
-      console.log('Found assigned student ID for grades:', studentId);
+    fetchStudent();
+  }, [user]);
 
-      // 2. Pobierz dane ucznia
-      const usersRef = collection(db, 'users');
-      const studentQuery = query(usersRef, where('uid', '==', studentId));
-      const studentSnapshot = await getDocs(studentQuery);
+  // Pobierz kursy ucznia
+  useEffect(() => {
+    const fetchUserCourses = async () => {
+      if (!studentId) return;
       
-      if (studentSnapshot.empty) {
-        setError('Nie znaleziono danych ucznia.');
-        setLoading(false);
-        return;
-      }
+      try {
+        // Pobierz kursy gdzie assignedUsers zawiera studentId
+        const coursesByUidQuery = query(
+          collection(db, 'courses'),
+          where('assignedUsers', 'array-contains', studentId)
+        );
+        const coursesByUidSnapshot = await getDocs(coursesByUidQuery);
+        const coursesByUidList = coursesByUidSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-      const studentData = studentSnapshot.docs[0].data();
+        // Pobierz kursy gdzie assignedUsers zawiera studentEmail
+        let coursesByEmailList: any[] = [];
+        if (studentEmail) {
+          const coursesByEmailQuery = query(
+            collection(db, 'courses'),
+            where('assignedUsers', 'array-contains', studentEmail)
+          );
+          const coursesByEmailSnapshot = await getDocs(coursesByEmailQuery);
+          coursesByEmailList = coursesByEmailSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        }
 
-      // 3. Pobierz oceny ucznia z Firebase
-      console.log('Fetching grades for student:', studentId);
-      const gradesRef = collection(db, 'grades');
-      const gradesQuery = query(gradesRef, where('studentId', '==', studentId));
-      const gradesSnapshot = await getDocs(gradesQuery);
-      
-      console.log('Total grades found in Firebase:', gradesSnapshot.docs.length);
-      
-      const firebaseGrades = [];
-      for (const gradeDoc of gradesSnapshot.docs) {
-        const gradeData = gradeDoc.data();
-        console.log('Grade data:', gradeData);
-        
-        // Pobierz dane kursu jeśli course_id istnieje
-        let courseData = { title: 'Nieznany kurs' };
-        if (gradeData.course_id) {
-          try {
-            const coursesRef = collection(db, 'courses');
-            const courseQuery = query(coursesRef, where('__name__', '==', gradeData.course_id));
-            const courseSnapshot = await getDocs(courseQuery);
-            if (!courseSnapshot.empty) {
-              courseData = courseSnapshot.docs[0].data() as any;
+        // DODATKOWO: Pobierz wszystkie kursy i sprawdź które mają oceny dla tego użytkownika
+        const allCoursesSnapshot = await getDocs(collection(db, 'courses'));
+        const allCoursesList: Course[] = allCoursesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+        // Sprawdź które kursy mają oceny dla tego użytkownika
+        const gradesQuery = query(
+          collection(db, 'grades'),
+          where('user_id', '==', studentId)
+        );
+        const gradesSnapshot = await getDocs(gradesQuery);
+        const userGrades = gradesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Grade));
+
+        // Znajdź kursy z ocenami
+        const coursesWithGrades: Course[] = [];
+        for (const grade of userGrades) {
+          if (grade.course_id) {
+            const courseWithGrade = allCoursesList.find(course => course.id === grade.course_id);
+            if (courseWithGrade && !coursesWithGrades.find(c => c.id === courseWithGrade.id)) {
+              coursesWithGrades.push(courseWithGrade);
             }
-          } catch (err) {
-            console.log('Could not fetch course for grade:', err);
           }
         }
+
+        // Połącz wszystkie kursy: assigned + z ocenami
+        const allCourses = [...coursesByUidList, ...coursesByEmailList, ...coursesWithGrades];
+        const uniqueCourses = allCourses.filter((course, index, self) =>
+          index === self.findIndex(c => c.id === course.id)
+        );
         
-        firebaseGrades.push({
-          id: gradeDoc.id,
-          value: gradeData.value || gradeData.grade || 0,
-          date: gradeData.date || gradeData.graded_at || new Date().toISOString(),
-          course: {
-            id: gradeData.course_id || '',
-            title: courseData.title || gradeData.subject || 'Nieznany kurs'
-          },
-          description: gradeData.description || gradeData.comment || ''
-        });
+        setUserCourses(uniqueCourses);
+      } catch (error) {
+        console.error('❌ Error fetching user courses:', error);
+        setUserCourses([]);
       }
-      
-      // Jeśli nie ma ocen w Firebase, użyj mock data dla demonstracji
-      const finalGrades = firebaseGrades.length > 0 ? firebaseGrades : [
-        {
-          id: 'mock1',
-          value: 5,
-          date: '2024-01-15',
-          course: { id: '1', title: 'Matematyka' },
-          description: 'Sprawdzian z algebry (demo)'
-        },
-        {
-          id: 'mock2', 
-          value: 4,
-          date: '2024-01-12',
-          course: { id: '2', title: 'Język Polski' },
-          description: 'Kartkówka z gramatyki (demo)'
-        },
-        {
-          id: 'mock3',
-          value: 5,
-          date: '2024-01-10', 
-          course: { id: '3', title: 'Historia' },
-          description: 'Odpowiedź ustna (demo)'
-        }
-      ];
-      
-      console.log('Final grades to display:', finalGrades.length);
+    };
 
-      setAssignedStudent({
-        id: studentId,
-        name: studentData.displayName || studentData.email || 'Nieznany uczeń',
-        email: studentData.email || '',
-        grades: finalGrades
-      });
+    fetchUserCourses();
+  }, [studentId, studentEmail]);
 
-    } catch (err) {
-      console.error('Error fetching student grades:', err);
-      setError('Wystąpił błąd podczas pobierania ocen: ' + (err as any).message);
-    } finally {
-      setLoading(false);
+  const fetchGrades = async () => {
+    if (!studentId) return;
+    setLoading(true);
+
+    // Pobierz wszystkie oceny użytkownika
+    const gradesQuery = query(collection(db, 'grades'), where('user_id', '==', studentId));
+    const gradesSnapshot = await getDocs(gradesQuery);
+    const gradesList = gradesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Grade));
+
+    // Pobierz również oceny gdzie studentEmail jest równy email użytkownika
+    let gradesByEmailList: Grade[] = [];
+    if (studentEmail) {
+      const gradesByEmailQuery = query(collection(db, 'grades'), where('studentEmail', '==', studentEmail));
+      const gradesByEmailSnapshot = await getDocs(gradesByEmailQuery);
+      gradesByEmailList = gradesByEmailSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Grade));
     }
+
+    // Pobierz również oceny gdzie studentId jest równy studentId
+    const gradesByStudentIdQuery = query(collection(db, 'grades'), where('studentId', '==', studentId));
+    const gradesByStudentIdSnapshot = await getDocs(gradesByStudentIdQuery);
+    const gradesByStudentIdList = gradesByStudentIdSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Grade));
+
+    // Połącz obie listy i usuń duplikaty
+    const allGrades = [...gradesList, ...gradesByEmailList, ...gradesByStudentIdList];
+    const uniqueGrades = allGrades.filter((grade, index, self) =>
+      index === self.findIndex(g => g.id === grade.id)
+    );
+
+    setGrades(uniqueGrades);
+    setLoading(false);
   };
 
   useEffect(() => {
-    fetchAssignedStudentData();
-  }, [user]);
+    if (!studentId) return;
+    fetchGrades();
+  }, [studentId, studentEmail]);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#4067EC]"></div>
-      </div>
-    );
-  }
+  // Grupowanie ocen po przedmiocie i sortowanie po dacie rosnąco
+  const groupedGrades: GroupedGrades = grades.reduce((acc, grade) => {
+    const subject = grade.subject || 'Inne';
+    if (!acc[subject]) acc[subject] = [];
+    acc[subject].push(grade);
+    return acc;
+  }, {} as GroupedGrades);
 
-  if (error) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex flex-col items-center justify-center">
-        <div className="text-center">
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-            {error}
-          </div>
-          <button 
-            onClick={() => window.location.href = '/homelogin'}
-            className="flex items-center gap-2 px-4 py-2 bg-white/60 backdrop-blur-sm text-gray-700 rounded-lg hover:bg-white hover:shadow-lg transition-all duration-200 ease-in-out border border-white/20"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Powrót do strony głównej
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (!assignedStudent) {
-    return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded">
-          Nie masz jeszcze przypisanego ucznia.
-        </div>
-      </div>
-    );
-  }
-
-  const getGradeColor = (grade: number) => {
-    if (grade >= 5) return "bg-green-100 text-green-800 border-green-200";
-    if (grade >= 4) return "bg-blue-100 text-blue-800 border-blue-200";
-    if (grade >= 3) return "bg-yellow-100 text-yellow-800 border-yellow-200";
-    if (grade >= 2) return "bg-orange-100 text-orange-800 border-orange-200";
-    return "bg-red-100 text-red-800 border-red-200";
+  // Funkcja do określania typu kursu (obowiązkowy/fakultatywny)
+  const getCourseType = (subject: string): 'obowiązkowy' | 'fakultatywny' => {
+    const course = userCourses.find(c => c.title === subject);
+    return course?.courseType || 'obowiązkowy'; // domyślnie obowiązkowy
   };
 
+  // Rozdzielenie kursów na obowiązkowe i fakultatywne (włączając kursy bez ocen)
+  const allCourses = [...Object.entries(groupedGrades)];
+  
+  // Dodaj kursy bez ocen do listy
+  userCourses.forEach(course => {
+    const courseTitle = course.title || course.name || 'Nieznany kurs';
+    if (!groupedGrades[courseTitle]) {
+      allCourses.push([courseTitle, []]);
+    }
+  });
+
+  const mandatoryCourses = allCourses.filter(([subject]) => 
+    getCourseType(subject) === 'obowiązkowy'
+  );
+  const electiveCourses = allCourses.filter(([subject]) => 
+    getCourseType(subject) === 'fakultatywny'
+  );
+
+  
+  // Sortuj oceny w każdym przedmiocie po dacie rosnąco
+  Object.keys(groupedGrades).forEach(subject => {
+    groupedGrades[subject].sort((a, b) => {
+      // Jeśli data nie istnieje, traktuj jako najstarszą
+      if (!a.date) return -1;
+      if (!b.date) return 1;
+      return new Date(a.date).getTime() - new Date(b.date).getTime();
+    });
+  });
+
+  // Funkcja do określania koloru badge na podstawie oceny
+  function getGradeColor(grade: string | number | undefined) {
+    const gradeStr = String(grade || '');
+    if (gradeStr === '5' || gradeStr === '6') return 'bg-green-500 text-white shadow-green-200';
+    if (gradeStr === '4') return 'bg-emerald-500 text-white shadow-emerald-200';
+    if (gradeStr === '3') return 'bg-yellow-500 text-white shadow-yellow-200';
+    if (gradeStr === '2') return 'bg-orange-500 text-white shadow-orange-200';
+    if (gradeStr === '1') return 'bg-red-500 text-white shadow-red-200';
+    if (gradeStr === '+') return 'bg-blue-500 text-white shadow-blue-200';
+    if (gradeStr === '-') return 'bg-gray-500 text-white shadow-gray-200';
+    // inne przypadki, np. opisowe
+    return 'bg-gray-400 text-white shadow-gray-200';
+  }
+
+  // Funkcja do liczenia średniej ocen (tylko liczbowych)
+  function calculateAverage(grades: Grade[]): string {
+    const numericGrades = grades
+      .map(g => {
+        const gradeValue = g.grade || g.value || g.value_grade;
+        if (!gradeValue) return NaN;
+        return parseFloat(String(gradeValue).replace(',', '.'));
+      })
+      .filter(n => !isNaN(n));
+    if (numericGrades.length === 0) return '-';
+    const avg = numericGrades.reduce((a, b) => a + b, 0) / numericGrades.length;
+    return avg.toFixed(2);
+  }
+
+  // Oblicz ogólną średnią tylko z przedmiotów obowiązkowych, które mają oceny
+  const mandatoryCoursesWithGrades = mandatoryCourses.filter(([subject, subjectGrades]) => 
+    subjectGrades.length > 0
+  );
+  const overallAverage = mandatoryCoursesWithGrades.reduce((total, [subject, subjectGrades]) => {
+    const avg = calculateAverage(subjectGrades);
+    return avg !== '-' ? total + parseFloat(avg) : total;
+  }, 0) / (mandatoryCoursesWithGrades.length || 1);
+
+  // Oblicz statystyki
+  const mandatorySubjectsCount = mandatoryCourses.length;
+  const electiveSubjectsCount = electiveCourses.length;
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 w-full">
-      {/* Header z przyciskiem powrotu */}
-      <div className="bg-white/80 backdrop-blur-lg border-b border-white/20 px-4 sm:px-6 lg:px-8 py-4">
-        <div className="flex items-center justify-between">
-          <button
-            onClick={() => window.location.href = '/homelogin'}
-            className="flex items-center gap-2 px-4 py-2 bg-white/60 backdrop-blur-sm text-gray-700 rounded-lg hover:bg-white hover:shadow-lg transition-all duration-200 ease-in-out border border-white/20"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Powrót do strony głównej
-          </button>
-
-          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-            Dziennik Ocen
-          </h1>
-
-          <div className="w-20"></div>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+      {/* Header - pełna szerokość */}
+      <div className="w-full bg-white/80 backdrop-blur-lg border-b border-white/20 shadow-sm">
+        <div className="w-full px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex items-center justify-between">
+            <button
+              onClick={() => router.push('/homelogin')}
+              className="flex items-center gap-2 px-4 py-2 bg-white/60 backdrop-blur-sm text-gray-700 rounded-lg hover:bg-white hover:shadow-lg transition-all duration-200 ease-in-out border border-white/20"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Powrót do strony głównej
+            </button>
+            
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              Dziennik ocen
+            </h1>
+            
+            <button
+              onClick={fetchGrades}
+              disabled={loading}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+            >
+              {loading ? 'Ładowanie...' : 'Odśwież'}
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className="px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
-        <div className="space-y-6">
-          <div>
-            <h2 className="text-2xl font-bold mb-4 text-gray-900">Dziennik Ocen</h2>
-            <p className="text-gray-600 mb-6">
-              Wszystkie oceny i osiągnięcia {assignedStudent?.name || 'ucznia'}
-            </p>
+      {/* Główny kontener - pełna szerokość */}
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-8">
+        {/* User Profile Section - pełna szerokość */}
+        <div className="w-full bg-white rounded-2xl shadow-lg p-6 mb-8 border border-white/20">
+          <div className="flex items-center gap-6">
+            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-2xl font-bold text-white shadow-lg">
+              {displayName ? displayName.split(' ').map(n => n[0]).join('').toUpperCase() : <User className="w-8 h-8" />}
+            </div>
+            <div className="flex-1">
+              <h2 className="text-2xl font-bold text-gray-800 mb-1">{displayName || 'Uczeń'}</h2>
+              <p className="text-gray-600">Dziennik ocen i postępów</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Statistics Cards - skalowalne */}
+        <div className="w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-3 gap-4 sm:gap-6 mb-8">
+          <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6 border border-white/20 hover:shadow-xl transition-shadow">
+            <div className="flex items-center gap-3 sm:gap-4">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-blue-100 flex items-center justify-center">
+                <BookOpen className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs sm:text-sm text-gray-600">Przedmioty obowiązkowe</p>
+                <p className="text-lg sm:text-2xl font-bold text-gray-800">{mandatorySubjectsCount}</p>
+              </div>
+            </div>
           </div>
 
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900">Ostatnie Oceny</h3>
-          <p className="text-sm text-gray-600">Najnowsze oceny z wszystkich przedmiotów</p>
-        </div>
-        
-        {assignedStudent?.grades.length === 0 ? (
-          <div className="px-6 py-8 text-center">
-            <p className="text-gray-500">Brak ocen do wyświetlenia</p>
+          <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6 border border-white/20 hover:shadow-xl transition-shadow">
+            <div className="flex items-center gap-3 sm:gap-4">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-green-100 flex items-center justify-center">
+                <Award className="w-5 h-5 sm:w-6 sm:h-6 text-green-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs sm:text-sm text-gray-600">Przedmioty fakultatywne</p>
+                <p className="text-lg sm:text-2xl font-bold text-gray-800">{electiveSubjectsCount}</p>
+              </div>
+            </div>
           </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full">
-              <thead>
-                <tr className="bg-gray-50">
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Data
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Przedmiot
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Ocena
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Opis
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {assignedStudent?.grades.map((grade) => (
-                  <tr key={grade.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(grade.date).toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\./g, '/')}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {grade.course.title}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium border ${getGradeColor(grade.value)}`}>
-                        {grade.value}
+
+          <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6 border border-white/20 hover:shadow-xl transition-shadow">
+            <div className="flex items-center gap-3 sm:gap-4">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-orange-100 flex items-center justify-center">
+                <Calendar className="w-5 h-5 sm:w-6 sm:h-6 text-orange-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs sm:text-sm text-gray-600">Średnia ogólna</p>
+                <p className="text-lg sm:text-2xl font-bold text-gray-800">{overallAverage.toFixed(2)}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Grades Table - dwie kolumny */}
+        <div className="w-full grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Przedmioty obowiązkowe */}
+          <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-white/20">
+            <div className="px-4 sm:px-6 py-4 bg-gradient-to-r from-blue-600 to-blue-700">
+              <h2 className="text-lg sm:text-xl font-bold text-white">Przedmioty obowiązkowe</h2>
+            </div>
+          
+          {/* Dodatkowy odstęp aby tooltip nie był przykrywany */}
+          <div className="h-8"></div>
+          
+          {loading ? (
+            <div className="p-8 text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <p className="text-gray-600">Ładowanie ocen...</p>
+            </div>
+          ) : mandatoryCourses.length === 0 ? (
+            <div className="p-8 text-center">
+              <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
+                <Award className="w-8 h-8 text-gray-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-800 mb-2">Brak przedmiotów obowiązkowych</h3>
+              <p className="text-gray-600">Nie masz jeszcze żadnych przedmiotów obowiązkowych.</p>
+            </div>
+          ) : (
+            <div className="w-full overflow-x-auto">
+              <table className="w-full min-w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-semibold text-gray-700">Przedmiot</th>
+                    <th className="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-semibold text-gray-700">Oceny</th>
+                    <th className="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-semibold text-gray-700">Średnia</th>
+              </tr>
+            </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {mandatoryCourses.map(([subject, subjectGrades], idx) => (
+                    <tr key={subject} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-3 sm:px-6 py-3 sm:py-4">
+                        <div className="flex items-center gap-2 sm:gap-3">
+                          <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+                            <BookOpen className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
+                          </div>
+                          <span className="font-semibold text-gray-800 text-sm sm:text-base truncate">{subject}</span>
+                        </div>
+                      </td>
+                      <td className="px-3 sm:px-6 py-3 sm:py-4">
+                        {subjectGrades.length > 0 ? (
+                          <div className="flex flex-wrap gap-1 sm:gap-2">
+                            {subjectGrades.map((grade, gradeIdx) => {
+                              const gradeValue = grade.grade || grade.value || grade.value_grade;
+                              const gradeDescription = grade.description || grade.comment || '';
+                              const gradeDate = grade.date || grade.graded_at || '';
+                              const gradeType = grade.gradeType || grade.grade_type || '';
+                              
+                              return (
+                                <div key={grade.id} className="relative group">
+                                  <button
+                                    className={`px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg font-bold text-xs sm:text-sm shadow-sm transition-all duration-200 hover:scale-105 hover:shadow-md ${getGradeColor(gradeValue)}`}
+                                  >
+                                    {gradeValue}
+                                  </button>
+                                  
+                                  {/* Tooltip */}
+                                  <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50 min-w-[250px] max-w-[350px]">
+                                    <div className="space-y-1">
+                                      <div className="font-semibold">Ocena: {gradeValue}</div>
+                                      {gradeType && (
+                                        <div><span className="font-medium">Typ:</span> {gradeType}</div>
+                                      )}
+                                      {grade.quiz_title && (
+                                        <div><span className="font-medium">Quiz:</span> {grade.quiz_title}</div>
+                                      )}
+                                      {grade.percentage !== undefined && (
+                                        <div><span className="font-medium">Wynik:</span> {grade.percentage}%</div>
+                                      )}
+                                      {gradeDescription && (
+                                        <div><span className="font-medium">Opis:</span> {gradeDescription}</div>
+                                      )}
+                                      {gradeDate && (
+                                        <div><span className="font-medium">Data:</span> {new Date(gradeDate).toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\./g, '/')}</div>
+                                      )}
+                                    </div>
+                                    {/* Arrow */}
+                                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-b-4 border-transparent border-b-gray-900"></div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <span className="text-xs sm:text-sm text-gray-500">Brak ocen w tym przedmiocie</span>
+                        )}
+                      </td>
+                      <td className="px-3 sm:px-6 py-3 sm:py-4">
+                        <span className="inline-flex items-center px-2 py-1 sm:px-3 sm:py-1 rounded-full text-xs sm:text-sm font-semibold bg-blue-100 text-blue-800">
+                          {subjectGrades.length > 0 ? calculateAverage(subjectGrades) : 'Brak ocen'}
                       </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-500">
-                      {grade.description || '-'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                      </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+            </div>
+          )}
           </div>
-        )}
-      </div>
+
+          {/* Przedmioty fakultatywne */}
+          <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-white/20">
+            <div className="px-4 sm:px-6 py-4 bg-gradient-to-r from-green-600 to-green-700">
+              <h2 className="text-lg sm:text-xl font-bold text-white">Przedmioty fakultatywne</h2>
+            </div>
+          
+          {/* Dodatkowy odstęp aby tooltip nie był przykrywany */}
+          <div className="h-8"></div>
+          
+          {loading ? (
+            <div className="p-8 text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto mb-4"></div>
+              <p className="text-gray-600">Ładowanie ocen...</p>
+            </div>
+          ) : electiveCourses.length === 0 ? (
+            <div className="p-8 text-center">
+              <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
+                <Award className="w-8 h-8 text-gray-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-800 mb-2">Brak przedmiotów fakultatywnych</h3>
+              <p className="text-gray-600">Nie masz jeszcze żadnych przedmiotów fakultatywnych.</p>
+            </div>
+          ) : (
+            <div className="w-full overflow-x-auto">
+              <table className="w-full min-w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-semibold text-gray-700">Przedmiot</th>
+                    <th className="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-semibold text-gray-700">Oceny</th>
+                    <th className="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-semibold text-gray-700">Średnia</th>
+              </tr>
+            </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {electiveCourses.map(([subject, subjectGrades], idx) => (
+                    <tr key={subject} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-3 sm:px-6 py-3 sm:py-4">
+                        <div className="flex items-center gap-2 sm:gap-3">
+                          <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg bg-green-100 flex items-center justify-center">
+                            <BookOpen className="w-3 h-3 sm:w-4 sm:h-4 text-green-600" />
+                          </div>
+                          <span className="font-semibold text-gray-800 text-sm sm:text-base truncate">{subject}</span>
+                        </div>
+                      </td>
+                      <td className="px-3 sm:px-6 py-3 sm:py-4">
+                        {subjectGrades.length > 0 ? (
+                          <div className="flex flex-wrap gap-1 sm:gap-2">
+                            {subjectGrades.map((grade, gradeIdx) => {
+                              const gradeValue = grade.grade || grade.value || grade.value_grade;
+                              const gradeDescription = grade.description || grade.comment || '';
+                              const gradeDate = grade.date || grade.graded_at || '';
+                              const gradeType = grade.gradeType || grade.grade_type || '';
+                              
+                              return (
+                                <div key={grade.id} className="relative group">
+                                  <button
+                                    className={`px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg font-bold text-xs sm:text-sm shadow-sm transition-all duration-200 hover:scale-105 hover:shadow-md ${getGradeColor(gradeValue)}`}
+                                  >
+                                    {gradeValue}
+                                  </button>
+                                  
+                                  {/* Tooltip */}
+                                  <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50 min-w-[250px] max-w-[350px]">
+                                    <div className="space-y-1">
+                                      <div className="font-semibold">Ocena: {gradeValue}</div>
+                                      {gradeType && (
+                                        <div><span className="font-medium">Typ:</span> {gradeType}</div>
+                                      )}
+                                      {grade.quiz_title && (
+                                        <div><span className="font-medium">Quiz:</span> {grade.quiz_title}</div>
+                                      )}
+                                      {grade.percentage !== undefined && (
+                                        <div><span className="font-medium">Wynik:</span> {grade.percentage}%</div>
+                                      )}
+                                      {gradeDescription && (
+                                        <div><span className="font-medium">Opis:</span> {gradeDescription}</div>
+                                      )}
+                                      {gradeDate && (
+                                        <div><span className="font-medium">Data:</span> {new Date(gradeDate).toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\./g, '/')}</div>
+                                      )}
+                                    </div>
+                                    {/* Arrow */}
+                                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-b-4 border-transparent border-b-gray-900"></div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <span className="text-xs sm:text-sm text-gray-500">Brak ocen w tym przedmiocie</span>
+                        )}
+                      </td>
+                      <td className="px-3 sm:px-6 py-3 sm:py-4">
+                        <span className="inline-flex items-center px-2 py-1 sm:px-3 sm:py-1 rounded-full text-xs sm:text-sm font-semibold bg-green-100 text-green-800">
+                          {subjectGrades.length > 0 ? calculateAverage(subjectGrades) : 'Brak ocen'}
+                      </span>
+                      </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+            </div>
+          )}
+          </div>
         </div>
       </div>
+
     </div>
   );
-} 
+}

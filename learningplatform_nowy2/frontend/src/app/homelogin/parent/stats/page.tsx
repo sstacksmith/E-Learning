@@ -1,373 +1,408 @@
 'use client';
 
-// Force dynamic rendering to prevent SSR issues with client-side hooks
-export const dynamic = 'force-dynamic';
-
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import {
-  GraduationCap,
-  BookOpen,
-  Award,
-  TrendingUp,
-  ArrowLeft,
-} from 'lucide-react';
+import { ArrowLeft, TrendingUp, Award, Clock, Calendar, Star, Trophy, Target } from 'lucide-react';
+import { doc, getDoc, collection, getDocs, query, where } from 'firebase/firestore';
+import { db } from '@/config/firebase';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
-interface StatCard {
-  title: string;
-  value: string;
-  description: string;
-  icon: React.ComponentType<{ className?: string }>;
-  trend?: string;
+interface DailyStats {
+  [date: string]: number;
 }
 
-interface SubjectProgress {
-  subject: string;
-  progress: number;
-  color: string;
-  courseId: string;
-  totalLessons: number;
-  completedLessons: number;
-  averageScore?: number;
+interface UserLearningData {
+  userId: string;
+  totalMinutes: number;
+  dailyStats: DailyStats;
+  createdAt: any;
+  lastUpdated: any;
 }
 
-interface Achievement {
-  title: string;
-  description: string;
-  date: string;
-  icon: string;
+interface Grade {
+  id: string;
+  user_id?: string;
+  studentId?: string;
+  studentEmail?: string;
+  course_id?: string;
+  value?: number;
+  value_grade?: number;
+  grade?: string | number;
+  comment?: string;
+  graded_by?: string;
+  graded_at?: string;
+  date?: string;
+  quiz_id?: string;
+  quiz_title?: string;
+  subject?: string;
+  grade_type?: string;
+  percentage?: number;
 }
 
 export default function ParentStats() {
+  const router = useRouter();
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
+  const [learningData, setLearningData] = useState<UserLearningData | null>(null);
+  const [grades, setGrades] = useState<Grade[]>([]);
+  const [gradesLoading, setGradesLoading] = useState(true);
   const [assignedStudent, setAssignedStudent] = useState<{ id: string; name: string; email: string } | null>(null);
-  const [realStatCards, setRealStatCards] = useState<StatCard[]>([]);
-  const [realSubjectProgress, setRealSubjectProgress] = useState<SubjectProgress[]>([]);
-  const [error, setError] = useState('');
 
+  // Pobierz przypisanego ucznia
   useEffect(() => {
-    fetchRealStatistics();
-  }, [user]);
+    const fetchAssignedStudent = async () => {
+      if (!user) return;
 
-  const fetchRealStatistics = async () => {
-    if (!user) return;
-    
-    setLoading(true);
-    setError('');
-    
-    try {
-      const { collection, getDocs, query, where } = await import('firebase/firestore');
-      const { db } = await import('@/config/firebase');
+      try {
+        const parentStudentsRef = collection(db, 'parent_students');
+        const parentStudentsQuery = query(parentStudentsRef, where('parent', '==', user.uid));
+        const parentStudentsSnapshot = await getDocs(parentStudentsQuery);
 
-      // 1. Znajdź przypisanego ucznia
-      console.log('Fetching assigned student for parent:', user.uid);
-      const parentStudentsRef = collection(db, 'parent_students');
-      const parentStudentsQuery = query(parentStudentsRef, where('parent', '==', user.uid));
-      const parentStudentsSnapshot = await getDocs(parentStudentsQuery);
-      
-      if (parentStudentsSnapshot.empty) {
-        setError('Nie masz przypisanego żadnego ucznia.');
-        setLoading(false);
-        return;
-      }
+        if (parentStudentsSnapshot.empty) {
+          setLoading(false);
+          return;
+        }
 
-      const studentId = parentStudentsSnapshot.docs[0].data().student;
-      console.log('Found assigned student:', studentId);
+        const studentId = parentStudentsSnapshot.docs[0].data().student;
 
-      // 2. Pobierz dane ucznia
-      const usersRef = collection(db, 'users');
-      const studentQuery = query(usersRef, where('uid', '==', studentId));
-      const studentSnapshot = await getDocs(studentQuery);
-      
-      if (studentSnapshot.empty) {
-        setError('Nie znaleziono danych ucznia.');
-        setLoading(false);
-        return;
-      }
-
-      const studentData = studentSnapshot.docs[0].data();
-      setAssignedStudent({
-        id: studentId,
-        name: studentData.displayName || studentData.email || 'Nieznany uczeń',
-        email: studentData.email || ''
-      });
-
-      // 3. Pobierz kursy przypisane do ucznia
-      console.log('Fetching courses for student:', studentId);
-      const coursesRef = collection(db, 'courses');
-      const coursesSnapshot = await getDocs(coursesRef);
-      const studentCourses = [];
-
-      for (const courseDoc of coursesSnapshot.docs) {
-        const courseData = courseDoc.data();
-        const isAssignedByUID = courseData.assignedUsers && courseData.assignedUsers.includes(studentId);
-        const isAssignedByEmail = courseData.assignedUsers && courseData.assignedUsers.includes(studentData.email);
-
-        if (isAssignedByUID || isAssignedByEmail) {
-          studentCourses.push({
-            id: courseDoc.id,
-            ...courseData
+        // Pobierz dane ucznia
+        const usersRef = collection(db, 'users');
+        const studentQuery = query(usersRef, where('uid', '==', studentId));
+        const studentSnapshot = await getDocs(studentQuery);
+        
+        if (!studentSnapshot.empty) {
+          const studentData = studentSnapshot.docs[0].data();
+          setAssignedStudent({
+            id: studentId,
+            name: studentData.displayName || `${studentData.firstName || ''} ${studentData.lastName || ''}`.trim() || studentData.email || 'Uczeń',
+            email: studentData.email || ''
           });
         }
+      } catch (error) {
+        console.error('Error fetching assigned student:', error);
+      }
+    };
+
+    fetchAssignedStudent();
+  }, [user]);
+
+  // Pobierz dane nauki przypisanego ucznia
+  useEffect(() => {
+    const fetchLearningData = async () => {
+      if (!assignedStudent?.id) {
+        setLoading(false);
+        return;
       }
 
-      console.log('Found courses for student:', studentCourses.length);
+      try {
+        const userTimeDoc = doc(db, 'userLearningTime', assignedStudent.id);
+        const docSnap = await getDoc(userTimeDoc);
 
-      // 4. Dla każdego kursu, oblicz statystyki
-      const courseProgressData = [];
-      let totalLessonsOverall = 0;
-      let totalCompletedOverall = 0;
-      let totalGradesSum = 0;
-      let totalGradesCount = 0;
+        if (docSnap.exists()) {
+          const data = docSnap.data() as UserLearningData;
+          setLearningData(data);
+          console.log('📊 Loaded learning data for student:', data);
+        } else {
+          console.log('No learning data found for student');
+          setLearningData(null);
+        }
+      } catch (error) {
+        console.error('Error fetching learning data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-      for (const course of studentCourses) {
-        const courseStats = await calculateCourseStatistics(studentId, course.id);
-        courseProgressData.push({
-          courseId: course.id,
-          subject: (course as any).title || 'Nieznany kurs',
-          progress: courseStats.progressPercentage,
-          color: getRandomColor(courseProgressData.length),
-          totalLessons: courseStats.totalLessons,
-          completedLessons: courseStats.completedLessons,
-          averageScore: courseStats.averageScore
-        });
+    fetchLearningData();
+  }, [assignedStudent]);
 
-        // Sumuj ogólne statystyki
-        totalLessonsOverall += courseStats.totalLessons;
-        totalCompletedOverall += courseStats.completedLessons;
+  // Pobierz oceny przypisanego ucznia
+  useEffect(() => {
+    const fetchGrades = async () => {
+      if (!assignedStudent?.id || !assignedStudent?.email) {
+        setGradesLoading(false);
+        return;
+      }
+
+      try {
+        console.log('🔄 Fetching grades for student:', assignedStudent.id, assignedStudent.email);
         
-        if (courseStats.averageScore !== undefined && courseStats.averageScore !== null) {
-          totalGradesSum += courseStats.averageScore;
-          totalGradesCount++;
-        }
-      }
+        // Pobierz oceny przez user_id
+        const gradesQuery1 = query(collection(db, 'grades'), where('user_id', '==', assignedStudent.id));
+        const gradesSnapshot1 = await getDocs(gradesQuery1);
+        const gradesList1 = gradesSnapshot1.docs.map(doc => ({ id: doc.id, ...doc.data() } as Grade));
 
-      // 5. Oblicz ogólne statystyki
-      const overallAverage = totalGradesCount > 0 ? totalGradesSum / totalGradesCount : 0;
-      const progressPercentage = totalLessonsOverall > 0 ? (totalCompletedOverall / totalLessonsOverall) * 100 : 0;
+        // Pobierz oceny przez studentEmail
+        const gradesQuery2 = query(collection(db, 'grades'), where('studentEmail', '==', assignedStudent.email));
+        const gradesSnapshot2 = await getDocs(gradesQuery2);
+        const gradesList2 = gradesSnapshot2.docs.map(doc => ({ id: doc.id, ...doc.data() } as Grade));
 
-      // 6. Utwórz karty statystyk
-      const statCards: StatCard[] = [
-        {
-          title: "Średnia Ogólna",
-          value: overallAverage > 0 ? overallAverage.toFixed(2) : "Brak",
-          description: totalGradesCount > 0 ? `z ${totalGradesCount} kursów` : "Brak ocen",
-          icon: GraduationCap,
-          trend: overallAverage > 4 ? "up" : undefined
-        },
-        {
-          title: "Ukończone Lekcje",
-          value: totalCompletedOverall.toString(),
-          description: `z ${totalLessonsOverall} zaplanowanych`,
-          icon: BookOpen,
-        },
-        {
-          title: "Postęp Ogólny",
-          value: `${Math.round(progressPercentage)}%`,
-          description: `średnio we wszystkich kursach`,
-          icon: TrendingUp,
-        },
-        {
-          title: "Aktywne Kursy",
-          value: studentCourses.length.toString(),
-          description: "przypisanych kursów",
-          icon: Award,
-        },
-      ];
+        // Pobierz oceny przez studentId
+        const gradesQuery3 = query(collection(db, 'grades'), where('studentId', '==', assignedStudent.id));
+        const gradesSnapshot3 = await getDocs(gradesQuery3);
+        const gradesList3 = gradesSnapshot3.docs.map(doc => ({ id: doc.id, ...doc.data() } as Grade));
 
-      setRealStatCards(statCards);
-      setRealSubjectProgress(courseProgressData);
-
-    } catch (error) {
-      console.error('Error fetching statistics:', error);
-      setError('Wystąpił błąd podczas pobierania statystyk.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const calculateCourseStatistics = async (studentId: string, courseId: string) => {
-    try {
-      const { collection, getDocs, query, where } = await import('firebase/firestore');
-      const { db } = await import('@/config/firebase');
-
-      // Pobierz moduły kursu
-      const modulesRef = collection(db, 'modules');
-      let modulesQuery = query(modulesRef, where('courseId', '==', courseId));
-      let modulesSnapshot = await getDocs(modulesQuery);
-      
-      if (modulesSnapshot.empty) {
-        modulesQuery = query(modulesRef, where('course_id', '==', courseId));
-        modulesSnapshot = await getDocs(modulesQuery);
-      }
-
-      // Pobierz wszystkie lekcje dla tych modułów
-      const allLessonsRef = collection(db, 'lessons');
-      const allLessonsSnapshot = await getDocs(allLessonsRef);
-      const courseLessons = allLessonsSnapshot.docs.filter(lessonDoc => {
-        const lessonData = lessonDoc.data();
-        return modulesSnapshot.docs.some(moduleDoc => 
-          lessonData.moduleId === moduleDoc.id || 
-          lessonData.module_id === moduleDoc.id || 
-          lessonData.module === moduleDoc.id
+        // Połącz wszystkie listy i usuń duplikaty
+        const allGrades = [...gradesList1, ...gradesList2, ...gradesList3];
+        const uniqueGrades = allGrades.filter((grade, index, self) =>
+          index === self.findIndex(g => g.id === grade.id)
         );
-      });
 
-      // Pobierz postęp ucznia
-      const progressRef = collection(db, 'progress');
-      let progressQuery = query(progressRef, where('studentId', '==', studentId));
-      let progressSnapshot = await getDocs(progressQuery);
+        console.log('📊 All unique grades for student:', uniqueGrades);
+        setGrades(uniqueGrades);
+      } catch (error) {
+        console.error('Error fetching grades:', error);
+      } finally {
+        setGradesLoading(false);
+      }
+    };
+
+    fetchGrades();
+  }, [assignedStudent]);
+
+  // Formatuj minuty na godziny i minuty
+  const formatMinutes = (minutes: number) => {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    if (hours > 0) {
+      return `${hours}h ${mins}m`;
+    }
+    return `${mins}m`;
+  };
+
+  // Pobierz dzisiejsze minuty
+  const getTodayMinutes = () => {
+    if (!learningData?.dailyStats) return 0;
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    const dateKey = `${year}-${month}-${day}`;
+    return learningData.dailyStats[dateKey] || 0;
+  };
+
+  // Przygotuj dane dla wykresu tygodniowego (ostatnie 7 dni)
+  const getWeeklyData = () => {
+    if (!learningData?.dailyStats) return [];
+    
+    const data = [];
+    const today = new Date();
+    
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date(today);
+      date.setDate(date.getDate() - i);
       
-      if (progressSnapshot.empty) {
-        progressQuery = query(progressRef, where('user_id', '==', studentId));
-        progressSnapshot = await getDocs(progressQuery);
-      }
-
-      const progressMap = new Map();
-      progressSnapshot.docs.forEach(doc => {
-        const progressData = doc.data();
-        const lessonId = progressData.lessonId || progressData.lesson_id || progressData.lesson;
-        if (lessonId) {
-          progressMap.set(lessonId, progressData);
-        }
-      });
-
-      // Oblicz statystyki
-      const totalLessons = courseLessons.length;
-      let completedLessons = 0;
-      let totalTimeSpent = 0;
-
-      courseLessons.forEach(lessonDoc => {
-        const progressData = progressMap.get(lessonDoc.id);
-        if (progressData) {
-          if (progressData.completed) completedLessons++;
-          totalTimeSpent += progressData.timeSpent || progressData.time_spent || 0;
-        }
-      });
-
-      // Pobierz oceny z kursu
-      const gradesRef = collection(db, 'grades');
-      let gradesQuery = query(gradesRef, where('studentId', '==', studentId));
-      let gradesSnapshot = await getDocs(gradesQuery);
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const dateKey = `${year}-${month}-${day}`;
       
-      if (gradesSnapshot.empty) {
-        gradesQuery = query(gradesRef, where('user_id', '==', studentId));
-        gradesSnapshot = await getDocs(gradesQuery);
+      const minutes = learningData.dailyStats[dateKey] || 0;
+      
+      let label;
+      if (i === 0) label = 'Dzisiaj';
+      else if (i === 1) label = 'Wczoraj';
+      else {
+        label = date.toLocaleDateString('pl-PL', { day: '2-digit', month: 'short' });
       }
-
-      const courseGrades = gradesSnapshot.docs.filter(doc => {
-        const gradeData = doc.data();
-        return gradeData.course_id === courseId || gradeData.courseId === courseId;
+      
+      data.push({
+        day: label,
+        minutes: minutes,
+        formatted: formatMinutes(minutes)
       });
+    }
+    
+    return data;
+  };
 
-      let averageScore = undefined;
-      if (courseGrades.length > 0) {
-        const gradesSum = courseGrades.reduce((sum, doc) => {
-          const gradeData = doc.data();
-          const value = gradeData.value || gradeData.grade || 0;
-          return sum + parseFloat(value);
-        }, 0);
-        averageScore = gradesSum / courseGrades.length;
-      }
+  // Przygotuj dane dla wykresu miesięcznego (ostatnie 30 dni)
+  const getMonthlyData = () => {
+    if (!learningData?.dailyStats) return [];
+    
+    const data = [];
+    const today = new Date();
+    
+    for (let i = 29; i >= 0; i--) {
+      const date = new Date(today);
+      date.setDate(date.getDate() - i);
+      
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const dateKey = `${year}-${month}-${day}`;
+      
+      const minutes = learningData.dailyStats[dateKey] || 0;
+      
+      // Pokaż tylko co 5 dni lub jeśli są dane
+      const showLabel = i % 5 === 0 || minutes > 0;
+      
+      data.push({
+        day: showLabel ? date.getDate().toString() : '',
+        minutes: minutes,
+        formatted: formatMinutes(minutes)
+      });
+    }
+    
+    return data;
+  };
 
-      const progressPercentage = totalLessons > 0 ? (completedLessons / totalLessons) * 100 : 0;
+  // Przygotuj dane dla wykresu rocznego (ostatnie 12 miesięcy)
+  const getYearlyData = () => {
+    if (!learningData?.dailyStats) return [];
+    
+    const data = [];
+    const today = new Date();
+    
+    // Grupuj dane po miesiącach
+    const monthlyData: { [key: string]: number } = {};
+    
+    Object.entries(learningData.dailyStats).forEach(([dateKey, minutes]) => {
+      const date = new Date(dateKey);
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      monthlyData[monthKey] = (monthlyData[monthKey] || 0) + minutes;
+    });
+    
+    // Utwórz dane dla ostatnich 12 miesięcy
+    for (let i = 11; i >= 0; i--) {
+      const date = new Date(today);
+      date.setMonth(date.getMonth() - i);
+      
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const monthKey = `${year}-${month}`;
+      
+      const minutes = monthlyData[monthKey] || 0;
+      
+      data.push({
+        month: date.toLocaleDateString('pl-PL', { month: 'short' }),
+        minutes: minutes,
+        hours: minutes / 60,
+        formatted: formatMinutes(minutes)
+      });
+    }
+    
+    return data;
+  };
 
+  // Funkcje do obliczania statystyk ocen
+  const getGradeStatistics = () => {
+    if (!grades || grades.length === 0) {
       return {
-        totalLessons,
-        completedLessons,
-        progressPercentage: Math.round(progressPercentage),
-        totalTimeSpent,
-        averageScore
-      };
-
-    } catch (error) {
-      console.error('Error calculating course statistics:', error);
-      return {
-        totalLessons: 0,
-        completedLessons: 0,
-        progressPercentage: 0,
-        totalTimeSpent: 0,
-        averageScore: undefined
+        totalGrades: 0,
+        averageGrade: 0,
+        bestGrade: 0,
+        progress: 0,
+        gradeDistribution: { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 }
       };
     }
-  };
 
-  const getRandomColor = (index: number) => {
-    const colors = [
-      'bg-green-500',
-      'bg-blue-500', 
-      'bg-purple-500',
-      'bg-orange-500',
-      'bg-yellow-500',
-      'bg-red-500',
-      'bg-indigo-500',
-      'bg-pink-500',
-      'bg-teal-500',
-      'bg-gray-500'
-    ];
-    return colors[index % colors.length];
-  };
+    // Normalizuj dane ocen - obsłuż różne formaty
+    const normalizedGrades = grades.map(grade => {
+      let value = 0;
+      
+      // Spróbuj różne pola dla wartości oceny
+      if (typeof grade.value === 'number') {
+        value = grade.value;
+      } else if (typeof grade.value_grade === 'number') {
+        value = grade.value_grade;
+      } else if (typeof grade.grade === 'number') {
+        value = grade.grade;
+      } else if (typeof grade.grade === 'string') {
+        value = parseFloat(grade.grade);
+      } else if (typeof grade.value === 'string') {
+        value = parseFloat(grade.value);
+      }
 
-  // Używamy rzeczywistych danych zamiast mock data
-  const statCards = realStatCards;
-  const subjectProgress = realSubjectProgress;
+      // Jeśli mamy procent, skonwertuj na ocenę (1-5)
+      if (grade.percentage && value === 0) {
+        const percentage = typeof grade.percentage === 'number' ? grade.percentage : parseFloat(grade.percentage);
+        if (percentage >= 90) value = 5;
+        else if (percentage >= 75) value = 4;
+        else if (percentage >= 60) value = 3;
+        else if (percentage >= 45) value = 2;
+        else value = 1;
+      }
 
-  const achievements: Achievement[] = [
-    {
-      title: "Mistrz Matematyki",
-      description: "Za rozwiązanie 50 zadań z algebry",
-      date: "14.01.2024",
-      icon: "🏆",
-    },
-    {
-      title: "Ekspert Gramatyki",
-      description: "Za bezbłędne wypracowanie",
-      date: "12.01.2024",
-      icon: "📝",
-    },
-    {
-      title: "Poliglota",
-      description: "Za ukończenie poziomu B1 z angielskiego",
-      date: "10.01.2024",
-      icon: "🌍",
-    },
-    {
-      title: "Badacz Przyrody",
-      description: "Za projekt o ekosystemach",
-      date: "08.01.2024",
-      icon: "🔬",
-    },
-  ];
+      // Upewnij się, że wartość jest w zakresie 1-5
+      value = Math.max(1, Math.min(5, Math.round(value)));
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
+      return {
+        ...grade,
+        normalizedValue: value,
+        date: grade.graded_at || grade.date || new Date().toISOString()
+      };
+    });
+
+    console.log('📊 Normalized grades:', normalizedGrades);
+
+    const totalGrades = normalizedGrades.length;
+    const sum = normalizedGrades.reduce((acc, grade) => acc + grade.normalizedValue, 0);
+    const averageGrade = totalGrades > 0 ? sum / totalGrades : 0;
+    const bestGrade = totalGrades > 0 ? Math.max(...normalizedGrades.map(g => g.normalizedValue)) : 0;
+    
+    // Oblicz rozkład ocen
+    const distribution = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
+    normalizedGrades.forEach(grade => {
+      if (grade.normalizedValue >= 1 && grade.normalizedValue <= 5) {
+        distribution[grade.normalizedValue as keyof typeof distribution]++;
+      }
+    });
+
+    // Oblicz postęp (różnica między ostatnimi a wcześniejszymi ocenami)
+    const sortedGrades = [...normalizedGrades].sort((a, b) => 
+      new Date(a.date).getTime() - new Date(b.date).getTime()
     );
-  }
+    
+    let progress = 0;
+    if (sortedGrades.length >= 4) {
+      const recentGrades = sortedGrades.slice(-3); // Ostatnie 3 oceny
+      const olderGrades = sortedGrades.slice(0, -3); // Wcześniejsze oceny
+      
+      if (recentGrades.length > 0 && olderGrades.length > 0) {
+        const recentAvg = recentGrades.reduce((acc, g) => acc + g.normalizedValue, 0) / recentGrades.length;
+        const olderAvg = olderGrades.reduce((acc, g) => acc + g.normalizedValue, 0) / olderGrades.length;
+        progress = recentAvg - olderAvg;
+      }
+    }
 
-  if (error) {
+    console.log('📊 Grade statistics:', {
+      totalGrades,
+      averageGrade: averageGrade.toFixed(2),
+      bestGrade,
+      progress: progress.toFixed(2),
+      distribution
+    });
+
+    return {
+      totalGrades,
+      averageGrade,
+      bestGrade,
+      progress,
+      gradeDistribution: distribution
+    };
+  };
+
+  const gradeStats = getGradeStatistics();
+
+  // Przygotuj dane dla wykresu rozkładu ocen
+  const getGradeDistributionData = () => {
+    return [
+      { grade: '5', count: gradeStats.gradeDistribution[5], color: '#10B981' },
+      { grade: '4', count: gradeStats.gradeDistribution[4], color: '#3B82F6' },
+      { grade: '3', count: gradeStats.gradeDistribution[3], color: '#F59E0B' },
+      { grade: '2', count: gradeStats.gradeDistribution[2], color: '#EF4444' },
+      { grade: '1', count: gradeStats.gradeDistribution[1], color: '#DC2626' }
+    ];
+  };
+
+  if (!assignedStudent) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex flex-col items-center justify-center">
-        <div className="text-center">
-          <div className="text-red-600 text-lg font-semibold mb-2">Błąd</div>
-          <div className="text-gray-600 mb-4">{error}</div>
-          <div className="flex gap-4">
-            <button 
-              onClick={fetchRealStatistics}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-            >
-              Spróbuj ponownie
-            </button>
-            <button 
-              onClick={() => window.location.href = '/homelogin'}
-              className="flex items-center gap-2 px-4 py-2 bg-white/60 backdrop-blur-sm text-gray-700 rounded-lg hover:bg-white hover:shadow-lg transition-all duration-200 ease-in-out border border-white/20"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              Powrót do strony głównej
-            </button>
+      <div className="min-h-screen bg-gradient-to-br from-[#F4F6FB] via-white to-[#E8ECFF] py-8 px-4">
+        <div className="max-w-7xl mx-auto">
+          <div className="bg-white rounded-xl shadow-lg p-8 border border-white/20 text-center">
+            <p className="text-gray-600">Nie masz przypisanego żadnego ucznia.</p>
           </div>
         </div>
       </div>
@@ -375,134 +410,419 @@ export default function ParentStats() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 w-full">
-      {/* Header z przyciskiem powrotu */}
-      <div className="bg-white/80 backdrop-blur-lg border-b border-white/20 px-4 sm:px-6 lg:px-8 py-4">
-        <div className="flex items-center justify-between">
-          <button
-            onClick={() => window.location.href = '/homelogin'}
-            className="flex items-center gap-2 px-4 py-2 bg-white/60 backdrop-blur-sm text-gray-700 rounded-lg hover:bg-white hover:shadow-lg transition-all duration-200 ease-in-out border border-white/20"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Powrót do strony głównej
-          </button>
-
-          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-            Statystyki i Postępy
-          </h1>
-
-          <div className="w-20"></div>
-        </div>
-      </div>
-
-      <div className="px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
-        <div className="space-y-6">
-          <div>
-            <h2 className="text-2xl font-bold mb-4 text-gray-900">Statystyki i Postępy</h2>
-            <p className="text-gray-600 mb-6">
-              {assignedStudent ? 
-                `Analiza postępów w nauce ${assignedStudent.name}` : 
-                'Analiza postępów w nauce'
-              }
-            </p>
-          </div>
-
-      {/* Stat Cards */}
-      <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {statCards.map((stat, index) => {
-          const Icon = stat.icon;
-          return (
-            <div key={index} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-medium text-gray-500">{stat.title}</h3>
-                <Icon className="h-4 w-4 text-gray-400" />
-              </div>
-              <div className="text-2xl font-bold text-gray-900 mb-1">{stat.value}</div>
-              <p className="text-xs text-gray-600 flex items-center">
-                {stat.trend === "up" && <TrendingUp className="inline h-3 w-3 mr-1 text-green-500" />}
-                {stat.description}
+    <div className="min-h-screen bg-gradient-to-br from-[#F4F6FB] via-white to-[#E8ECFF] dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 py-8 px-4">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => router.back()}
+              className="p-2 hover:bg-white dark:hover:bg-gray-700 rounded-lg transition-colors"
+            >
+              <ArrowLeft className="w-6 h-6 text-gray-600 dark:text-gray-300" />
+            </button>
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Statystyki nauki</h1>
+              <p className="text-gray-600 dark:text-gray-300 mt-1">
+                Postęp {assignedStudent.name} w nauce
               </p>
             </div>
-          );
-        })}
-      </div>
-
-      <div className="grid md:grid-cols-2 gap-6">
-        {/* Subject Progress */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-900">Postęp w Kursach</h3>
-            <p className="text-sm text-gray-600">Procentowy postęp w każdym kursie</p>
           </div>
-          <div className="p-6 space-y-6">
-            {subjectProgress.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                <BookOpen className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                <p>Brak przypisanych kursów</p>
+        </div>
+
+        {loading ? (
+          <div className="flex items-center justify-center py-20">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#4067EC]"></div>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {/* Card 1 - Całkowity czas nauki */}
+              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border border-white/20 dark:border-gray-700 hover:shadow-xl transition-all">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                    <Clock className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <span className="text-sm text-gray-500 dark:text-gray-400">Łącznie</span>
+                </div>
+                <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
+                  {learningData ? formatMinutes(learningData.totalMinutes) : '0m'}
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-300">Całkowity czas nauki</p>
               </div>
-            ) : (
-              subjectProgress.map((item, index) => (
-                <div key={index} className="space-y-3 pb-4 border-b border-gray-100 last:border-b-0 last:pb-0">
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <h4 className="text-sm font-medium text-gray-900">{item.subject}</h4>
-                      <div className="flex items-center gap-4 mt-1 text-xs text-gray-500">
-                        <span>
-                          {item.completedLessons} / {item.totalLessons} lekcji
-                        </span>
-                        {item.averageScore !== undefined && (
-                          <span>
-                            Średnia: {item.averageScore.toFixed(1)}
-                          </span>
-                        )}
+
+              {/* Card 2 - Dzisiejszy czas */}
+              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border border-white/20 dark:border-gray-700 hover:shadow-xl transition-all">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                    <Clock className="w-6 h-6 text-green-600 dark:text-green-400" />
+                  </div>
+                  <span className="text-sm text-gray-500 dark:text-gray-400">Dzisiaj</span>
+                </div>
+                <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
+                  {formatMinutes(getTodayMinutes())}
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-300">Czas nauki dzisiaj</p>
+              </div>
+
+              {/* Card 3 - Liczba dni */}
+              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border border-white/20 dark:border-gray-700 hover:shadow-xl transition-all">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+                    <Award className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+                  </div>
+                  <span className="text-sm text-gray-500 dark:text-gray-400">Aktywność</span>
+                </div>
+                <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
+                  {learningData ? Object.keys(learningData.dailyStats).length : 0}
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-300">Dni nauki</p>
+              </div>
+
+              {/* Card 4 - Średni czas dziennie */}
+              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border border-white/20 dark:border-gray-700 hover:shadow-xl transition-all">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-3 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
+                    <TrendingUp className="w-6 h-6 text-orange-600 dark:text-orange-400" />
+                  </div>
+                  <span className="text-sm text-gray-500 dark:text-gray-400">Średnia</span>
+                </div>
+                <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
+                  {learningData && Object.keys(learningData.dailyStats).length > 0
+                    ? formatMinutes(Math.round(learningData.totalMinutes / Object.keys(learningData.dailyStats).length))
+                    : '0m'}
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-300">Średnio dziennie</p>
+              </div>
+            </div>
+
+            {/* Wykres tygodniowy */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 border border-white/20 dark:border-gray-700 mb-8">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-[#4067EC] dark:text-blue-400" />
+                Aktywność w ciągu tygodnia
+              </h2>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={getWeeklyData()}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <XAxis 
+                      dataKey="day" 
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fontSize: 12, fill: '#666' }}
+                    />
+                    <YAxis 
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fontSize: 12, fill: '#666' }}
+                      tickFormatter={(value: number) => formatMinutes(value)}
+                    />
+                    <Tooltip 
+                      formatter={(value: number) => [formatMinutes(value), 'Czas nauki']}
+                      labelFormatter={(label) => `Dzień: ${label}`}
+                      contentStyle={{
+                        backgroundColor: 'white',
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '8px',
+                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                      }}
+                    />
+                    <Bar 
+                      dataKey="minutes" 
+                      fill="#4067EC"
+                      radius={[4, 4, 0, 0]}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* Wykres miesięczny */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 border border-white/20 dark:border-gray-700 mb-8">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-[#4067EC] dark:text-blue-400" />
+                Aktywność w ciągu miesiąca
+              </h2>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={getMonthlyData()}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <XAxis 
+                      dataKey="day" 
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fontSize: 12, fill: '#666' }}
+                    />
+                    <YAxis 
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fontSize: 12, fill: '#666' }}
+                      tickFormatter={(value: number) => formatMinutes(value)}
+                    />
+                    <Tooltip 
+                      formatter={(value: number) => [formatMinutes(value), 'Czas nauki']}
+                      labelFormatter={(label) => `Dzień: ${label}`}
+                      contentStyle={{
+                        backgroundColor: 'white',
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '8px',
+                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                      }}
+                    />
+                    <Bar 
+                      dataKey="minutes" 
+                      fill="#4067EC"
+                      radius={[4, 4, 0, 0]}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-2 text-center">Ostatnie 30 dni</p>
+            </div>
+
+            {/* Wykres roczny */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 border border-white/20 dark:border-gray-700">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-[#4067EC] dark:text-blue-400" />
+                Aktywność w ciągu roku
+              </h2>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={getYearlyData()}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <XAxis 
+                      dataKey="month" 
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fontSize: 12, fill: '#666' }}
+                    />
+                    <YAxis 
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fontSize: 12, fill: '#666' }}
+                      tickFormatter={(value: number) => `${Math.round(value)}h`}
+                    />
+                    <Tooltip 
+                      formatter={(value: number) => [formatMinutes(value), 'Czas nauki']}
+                      labelFormatter={(label) => `Miesiąc: ${label}`}
+                      contentStyle={{
+                        backgroundColor: 'white',
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '8px',
+                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                      }}
+                    />
+                    <Bar 
+                      dataKey="hours" 
+                      fill="#4067EC"
+                      radius={[4, 4, 0, 0]}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+            
+            {/* All Daily Stats */}
+            {learningData && Object.keys(learningData.dailyStats).length > 7 && (
+              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 border border-white/20 dark:border-gray-700">
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">Wszystkie dni nauki</h2>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {Object.entries(learningData.dailyStats)
+                    .sort(([dateA], [dateB]) => dateB.localeCompare(dateA))
+                    .map(([date, minutes]) => (
+                      <div key={date} className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/30 rounded-lg p-4 border border-blue-200 dark:border-blue-700">
+                        <div className="text-xs text-gray-600 dark:text-gray-300 mb-1">
+                          {new Date(date).toLocaleDateString('pl-PL', { 
+                            day: '2-digit', 
+                            month: 'short',
+                            year: 'numeric'
+                          })}
+                        </div>
+                        <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                          {formatMinutes(minutes)}
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
+
+            {/* Sekcja ocen */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 border border-white/20 dark:border-gray-700 mt-8">
+              <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-8 text-center">Średnia Ocen</h2>
+              
+              {/* Główny wskaźnik średniej */}
+              <div className="flex justify-center mb-8">
+                <div className="relative w-48 h-48">
+                  <svg className="w-48 h-48 transform -rotate-90" viewBox="0 0 100 100">
+                    {/* Tło okręgu */}
+                    <circle
+                      cx="50"
+                      cy="50"
+                      r="40"
+                      stroke="#E5E7EB"
+                      className="dark:stroke-gray-600"
+                      strokeWidth="8"
+                      fill="none"
+                    />
+                    {/* Wypełnienie na podstawie średniej */}
+                    <circle
+                      cx="50"
+                      cy="50"
+                      r="40"
+                      stroke={gradeStats.averageGrade >= 3 ? "#10B981" : gradeStats.averageGrade >= 2 ? "#F59E0B" : "#EF4444"}
+                      strokeWidth="8"
+                      fill="none"
+                      strokeLinecap="round"
+                      strokeDasharray={`${(gradeStats.averageGrade / 5) * 251.2} 251.2`}
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <span className="text-4xl font-bold text-gray-900 dark:text-white">
+                      {gradeStats.averageGrade > 0 ? gradeStats.averageGrade.toFixed(1) : '0.0'}
+                    </span>
+                    <span className="text-sm text-gray-500 dark:text-gray-400">średnia</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Karty statystyk ocen */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                {/* Liczba ocen */}
+                <div className="bg-blue-50 rounded-xl p-6 border border-blue-200">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="p-3 bg-blue-500 rounded-full">
+                      <Star className="w-6 h-6 text-white" />
+                    </div>
+                  </div>
+                  <h3 className="text-3xl font-bold text-blue-600 mb-1">
+                    {gradeStats.totalGrades}
+                  </h3>
+                  <p className="text-sm text-gray-600">Liczba ocen</p>
+                </div>
+
+                {/* Średnia ocen */}
+                <div className="bg-green-50 rounded-xl p-6 border border-green-200">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="p-3 bg-green-500 rounded-full">
+                      <Award className="w-6 h-6 text-white" />
+                    </div>
+                  </div>
+                  <h3 className="text-3xl font-bold text-green-600 mb-1">
+                    {gradeStats.averageGrade > 0 ? gradeStats.averageGrade.toFixed(1) : '0.0'}
+                  </h3>
+                  <p className="text-sm text-gray-600">Średnia ocen</p>
+                </div>
+
+                {/* Najlepsza ocena */}
+                <div className="bg-yellow-50 rounded-xl p-6 border border-yellow-200">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="p-3 bg-yellow-500 rounded-full">
+                      <Trophy className="w-6 h-6 text-white" />
+                    </div>
+                  </div>
+                  <h3 className="text-3xl font-bold text-yellow-600 mb-1">
+                    {gradeStats.bestGrade > 0 ? gradeStats.bestGrade : '0'}
+                  </h3>
+                  <p className="text-sm text-gray-600">Najlepsza ocena</p>
+                </div>
+
+                {/* Postęp */}
+                <div className="bg-purple-50 rounded-xl p-6 border border-purple-200">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="p-3 bg-purple-500 rounded-full">
+                      <Target className="w-6 h-6 text-white" />
+                    </div>
+                  </div>
+                  <h3 className="text-3xl font-bold text-purple-600 mb-1">
+                    {gradeStats.progress > 0 ? '+' : ''}{gradeStats.progress.toFixed(1)}
+                  </h3>
+                  <p className="text-sm text-gray-600">Postęp</p>
+                  <p className="text-xs text-gray-500">vs poprzednie oceny</p>
+                </div>
+              </div>
+
+              {/* Rozkład ocen */}
+              <div className="mb-8">
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-6 text-center">Rozkład ocen</h3>
+                <div className="space-y-4">
+                  {getGradeDistributionData().map((item) => (
+                    <div key={item.grade} className="flex items-center gap-4">
+                      <div className="w-8 text-sm font-medium text-gray-700 dark:text-gray-300">
+                        {item.grade}
+                      </div>
+                      <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-8 relative overflow-hidden">
+                        <div 
+                          className="h-full rounded-full transition-all duration-500 flex items-center justify-end pr-3"
+                          style={{ 
+                            width: `${gradeStats.totalGrades > 0 ? (item.count / gradeStats.totalGrades) * 100 : 0}%`,
+                            backgroundColor: item.color
+                          }}
+                        >
+                          {item.count > 0 && (
+                            <span className="text-white text-xs font-semibold">
+                              {item.count}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="w-8 text-sm font-semibold text-gray-700 dark:text-gray-300 text-right">
+                        {item.count}
                       </div>
                     </div>
-                    <span className="font-semibold text-sm text-gray-900 ml-4">
-                      {item.progress}%
-                    </span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-3">
-                    <div
-                      className={`h-3 rounded-full transition-all duration-500 ${item.color}`}
-                      style={{ width: `${item.progress}%` }}
-                    />
-                  </div>
-                  <div className="flex justify-between text-xs text-gray-500">
-                    <span>Rozpoczęty</span>
-                    <span>
-                      {item.progress === 100 ? 'Ukończony' : 
-                       item.progress > 0 ? 'W trakcie' : 'Nierozpoczęty'}
-                    </span>
-                  </div>
+                  ))}
                 </div>
-              ))
-            )}
-          </div>
-        </div>
+              </div>
 
-        {/* Achievements */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-900">Ostatnie Osiągnięcia</h3>
-            <p className="text-sm text-gray-600">Najnowsze zdobyte odznaki i certyfikaty</p>
-          </div>
-          <div className="p-6">
-            <div className="space-y-4">
-              {achievements.map((achievement, index) => (
-                <div key={index} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-                  <div className="text-2xl">{achievement.icon}</div>
-                  <div className="flex-1">
-                    <h4 className="font-medium text-gray-900">{achievement.title}</h4>
-                    <p className="text-sm text-gray-600">{achievement.description}</p>
-                    <p className="text-xs text-gray-500 mt-1">{achievement.date}</p>
+              {/* Wiadomość motywacyjna */}
+              {gradeStats.averageGrade > 0 && gradeStats.averageGrade < 3 && (
+                <div className="bg-purple-50 dark:bg-purple-900/30 rounded-xl p-6 border border-purple-200 dark:border-purple-700 text-center">
+                  <div className="flex items-center justify-center gap-3 mb-3">
+                    <Target className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+                    <h4 className="text-lg font-semibold text-gray-900 dark:text-white">
+                      Możesz lepiej - Pracuj nad poprawą ocen!
+                    </h4>
                   </div>
+                  <p className="text-sm text-gray-600 dark:text-gray-300">
+                    Średnia wynosi {gradeStats.averageGrade.toFixed(1)}. 
+                    Skup się na nauce i regularnym powtarzaniu materiału.
+                  </p>
                 </div>
-              ))}
+              )}
+
+              {gradeStats.averageGrade >= 3 && (
+                <div className="bg-green-50 dark:bg-green-900/30 rounded-xl p-6 border border-green-200 dark:border-green-700 text-center">
+                  <div className="flex items-center justify-center gap-3 mb-3">
+                    <Trophy className="w-6 h-6 text-green-600 dark:text-green-400" />
+                    <h4 className="text-lg font-semibold text-gray-900 dark:text-white">
+                      Świetna robota! Kontynuuj w tym samym tempie!
+                    </h4>
+                  </div>
+                  <p className="text-sm text-gray-600 dark:text-gray-300">
+                    Średnia wynosi {gradeStats.averageGrade.toFixed(1)}. 
+                    To doskonały wynik!
+                  </p>
+                </div>
+              )}
+
+              {gradeStats.totalGrades === 0 && (
+                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-6 border border-gray-200 dark:border-gray-600 text-center">
+                  <div className="flex items-center justify-center gap-3 mb-3">
+                    <Star className="w-6 h-6 text-gray-500 dark:text-gray-400" />
+                    <h4 className="text-lg font-semibold text-gray-900 dark:text-white">
+                      Brak ocen
+                    </h4>
+                  </div>
+                  <p className="text-sm text-gray-600 dark:text-gray-300">
+                    Uczeń jeszcze nie ma żadnych ocen. Zacznij naukę, aby zobaczyć statystyki!
+                  </p>
+                </div>
+              )}
             </div>
           </div>
-        </div>
-      </div>
-        </div>
+        )}
       </div>
     </div>
   );
