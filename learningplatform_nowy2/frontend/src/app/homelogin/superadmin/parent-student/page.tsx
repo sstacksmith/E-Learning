@@ -471,6 +471,7 @@ export default function ParentStudentManagement() {
         </div>
       </div>
     </div>
+    </div>
   );
-} 
+}
 
