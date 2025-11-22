@@ -1375,6 +1375,7 @@ def get_bug_reports(request):
         
         # Sprawdź rolę również z tokenu Firebase (fallback)
         user_role = None
+        firestore_role = None
         try:
             auth_header = request.headers.get('Authorization', '')
             if auth_header and auth_header.startswith('Bearer '):
@@ -1382,26 +1383,47 @@ def get_bug_reports(request):
                 from learningplatform.firebase_config import verify_firebase_token
                 decoded_token = verify_firebase_token(token)
                 if decoded_token:
+                    uid = decoded_token.get('uid')
                     # Sprawdź custom claims
-                    from firebase_utils import auth
-                    firebase_user = auth.get_user(decoded_token['uid'])
-                    custom_claims = firebase_user.custom_claims or {}
-                    user_role = custom_claims.get('role', decoded_token.get('role'))
-                    logger.info(f"🔍 Firebase role from token: {user_role}")
+                    try:
+                        from firebase_utils import auth
+                        firebase_user = auth.get_user(uid)
+                        custom_claims = firebase_user.custom_claims or {}
+                        user_role = custom_claims.get('role', decoded_token.get('role'))
+                        logger.info(f"🔍 Firebase role from custom claims: {user_role}")
+                    except Exception as e:
+                        logger.warning(f"⚠️ Could not get custom claims: {e}")
+                        user_role = decoded_token.get('role')
+                        logger.info(f"🔍 Firebase role from token: {user_role}")
+                    
+                    # Sprawdź rolę również w Firestore jako fallback
+                    try:
+                        db = firestore.client()
+                        user_doc = db.collection('users').document(uid).get()
+                        if user_doc.exists:
+                            user_data = user_doc.to_dict()
+                            firestore_role = user_data.get('role')
+                            logger.info(f"🔍 Firestore role: {firestore_role}")
+                    except Exception as e:
+                        logger.warning(f"⚠️ Could not get role from Firestore: {e}")
         except Exception as e:
             logger.warning(f"⚠️ Could not get role from token: {e}")
+        
+        # Sprawdź uprawnienia - użyj roli z custom claims, Firestore lub Django user
+        final_role = user_role or firestore_role
+        logger.info(f"🔍 Final role check - is_superuser: {getattr(user, 'is_superuser', None)}, is_administrator: {getattr(user, 'is_administrator', None)}, custom_claims_role: {user_role}, firestore_role: {firestore_role}, final_role: {final_role}")
         
         is_authorized = (
             (hasattr(user, 'is_superuser') and user.is_superuser) or
             (hasattr(user, 'is_administrator') and user.is_administrator) or
-            (user_role == 'admin') or
-            (user_role == 'administrator')
+            (final_role == 'admin') or
+            (final_role == 'administrator')
         )
         
         logger.info(f"🔍 Authorization result: {is_authorized}")
         
         if not is_authorized:
-            logger.warning(f"❌ Access denied for user: {user.email if hasattr(user, 'email') else 'Unknown'}, role: {user_role}")
+            logger.warning(f"❌ Access denied for user: {user.email if hasattr(user, 'email') else 'Unknown'}, role: {final_role}")
             return Response(
                 {'error': 'Brak uprawnień. Wymagana rola: Administrator'}, 
                 status=status.HTTP_403_FORBIDDEN
@@ -1543,6 +1565,7 @@ def update_bug_report_status(request, report_id):
         
         # Sprawdź rolę również z tokenu Firebase (fallback)
         user_role = None
+        firestore_role = None
         try:
             auth_header = request.headers.get('Authorization', '')
             if auth_header and auth_header.startswith('Bearer '):
@@ -1550,26 +1573,47 @@ def update_bug_report_status(request, report_id):
                 from learningplatform.firebase_config import verify_firebase_token
                 decoded_token = verify_firebase_token(token)
                 if decoded_token:
+                    uid = decoded_token.get('uid')
                     # Sprawdź custom claims
-                    from firebase_utils import auth
-                    firebase_user = auth.get_user(decoded_token['uid'])
-                    custom_claims = firebase_user.custom_claims or {}
-                    user_role = custom_claims.get('role', decoded_token.get('role'))
-                    logger.info(f"🔍 Firebase role from token: {user_role}")
+                    try:
+                        from firebase_utils import auth
+                        firebase_user = auth.get_user(uid)
+                        custom_claims = firebase_user.custom_claims or {}
+                        user_role = custom_claims.get('role', decoded_token.get('role'))
+                        logger.info(f"🔍 Firebase role from custom claims: {user_role}")
+                    except Exception as e:
+                        logger.warning(f"⚠️ Could not get custom claims: {e}")
+                        user_role = decoded_token.get('role')
+                        logger.info(f"🔍 Firebase role from token: {user_role}")
+                    
+                    # Sprawdź rolę również w Firestore jako fallback
+                    try:
+                        db = firestore.client()
+                        user_doc = db.collection('users').document(uid).get()
+                        if user_doc.exists:
+                            user_data = user_doc.to_dict()
+                            firestore_role = user_data.get('role')
+                            logger.info(f"🔍 Firestore role: {firestore_role}")
+                    except Exception as e:
+                        logger.warning(f"⚠️ Could not get role from Firestore: {e}")
         except Exception as e:
             logger.warning(f"⚠️ Could not get role from token: {e}")
+        
+        # Sprawdź uprawnienia - użyj roli z custom claims, Firestore lub Django user
+        final_role = user_role or firestore_role
+        logger.info(f"🔍 Final role check - is_superuser: {getattr(user, 'is_superuser', None)}, is_administrator: {getattr(user, 'is_administrator', None)}, custom_claims_role: {user_role}, firestore_role: {firestore_role}, final_role: {final_role}")
         
         is_authorized = (
             (hasattr(user, 'is_superuser') and user.is_superuser) or
             (hasattr(user, 'is_administrator') and user.is_administrator) or
-            (user_role == 'admin') or
-            (user_role == 'administrator')
+            (final_role == 'admin') or
+            (final_role == 'administrator')
         )
         
         logger.info(f"🔍 Authorization result: {is_authorized}")
         
         if not is_authorized:
-            logger.warning(f"❌ Access denied for user: {user.email if hasattr(user, 'email') else 'Unknown'}, role: {user_role}")
+            logger.warning(f"❌ Access denied for user: {user.email if hasattr(user, 'email') else 'Unknown'}, role: {final_role}")
             return Response(
                 {'error': 'Brak uprawnień. Wymagana rola: Administrator'}, 
                 status=status.HTTP_403_FORBIDDEN

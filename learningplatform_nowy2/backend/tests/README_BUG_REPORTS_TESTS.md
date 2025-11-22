@@ -64,3 +64,4 @@ python -m unittest tests.test_bug_reports -v
 - Testy sprawdzają zarówno pozytywne, jak i negatywne scenariusze
 - Wszystkie testy są izolowane i nie wpływają na siebie nawzajem
 
+

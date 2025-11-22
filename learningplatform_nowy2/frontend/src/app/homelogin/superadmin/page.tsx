@@ -275,10 +275,16 @@ function SuperAdminDashboardContent() {
         throw new Error('Brak użytkownika zalogowanego');
       }
 
-      const token = await currentUser.getIdToken();
+      // Odśwież token, aby uzyskać najnowsze custom claims
+      // forceRefresh: true wymusza odświeżenie tokenu z Firebase
+      console.log('🔍 Fetching bug reports - refreshing token...');
+      const token = await currentUser.getIdToken(true); // forceRefresh = true
       if (!token) {
         throw new Error('Brak tokenu autoryzacyjnego');
       }
+
+      console.log('🔍 Token obtained, user role from context:', user?.role);
+      console.log('🔍 User email:', currentUser.email);
 
       let url = '/api/bug-reports?';
       if (statusFilter !== 'all') {
@@ -288,6 +294,8 @@ function SuperAdminDashboardContent() {
         url += `category=${encodeURIComponent(categoryFilter)}&`;
       }
 
+      console.log('🔍 Fetching from URL:', url);
+
       const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -295,25 +303,35 @@ function SuperAdminDashboardContent() {
         },
       });
 
+      console.log('🔍 Response status:', response.status);
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
+        console.error('❌ Error response:', errorData);
         if (response.status === 403) {
-          throw new Error('Brak uprawnień. Wymagana rola: Administrator');
+          const errorMsg = errorData.error || 'Brak uprawnień. Wymagana rola: Administrator';
+          console.error('❌ 403 Forbidden - User role:', user?.role, 'User email:', currentUser.email);
+          // Dodaj pomocny komunikat jeśli użytkownik ma rolę admin w kontekście, ale nie w tokenie
+          if (user?.role === 'admin') {
+            throw new Error(`${errorMsg}\n\nTwoje konto ma rolę administratora, ale token nie zawiera zaktualizowanych uprawnień. Proszę wyloguj się i zaloguj ponownie, aby odświeżyć token.`);
+          }
+          throw new Error(errorMsg);
         }
         const errorMessage = errorData.error || errorData.detail || 'Błąd podczas pobierania zgłoszeń';
-        console.error('Error response:', errorData);
         throw new Error(errorMessage);
       }
 
       const data = await response.json();
+      console.log('✅ Bug reports fetched successfully:', data.count || 0, 'reports');
       setBugReports(data.reports || []);
     } catch (err: any) {
-      setBugReportsError(err.message || 'Wystąpił błąd podczas pobierania zgłoszeń');
-      console.error('Error fetching bug reports:', err);
+      const errorMessage = err.message || 'Wystąpił błąd podczas pobierania zgłoszeń';
+      setBugReportsError(errorMessage);
+      console.error('❌ Error fetching bug reports:', err);
     } finally {
       setBugReportsLoading(false);
     }
-  }, [statusFilter, categoryFilter]);
+  }, [statusFilter, categoryFilter, user]);
 
   // Pobierz zgłoszenia gdy zakładka jest aktywna
   useEffect(() => {
