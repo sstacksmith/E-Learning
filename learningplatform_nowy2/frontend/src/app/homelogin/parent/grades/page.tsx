@@ -270,7 +270,33 @@ export default function ParentGrades() {
       {/* Header - pełna szerokość */}
       <div className="w-full bg-white/80 backdrop-blur-lg border-b border-white/20 shadow-sm">
         <div className="w-full px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
+          {/* Mobile Layout - Vertical Stack */}
+          <div className="flex flex-col gap-3 sm:hidden">
+            <div className="flex items-center justify-between">
+              <button
+                onClick={() => router.push('/homelogin')}
+                className="flex items-center gap-2 px-3 py-2 bg-white/60 backdrop-blur-sm text-gray-700 rounded-lg hover:bg-white hover:shadow-lg transition-all duration-200 ease-in-out border border-white/20"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span className="text-sm">Powrót</span>
+              </button>
+              
+              <button
+                onClick={fetchGrades}
+                disabled={loading}
+                className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors text-sm"
+              >
+                {loading ? 'Ładowanie...' : 'Odśwież'}
+              </button>
+            </div>
+            
+            <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              Dziennik ocen
+            </h1>
+          </div>
+
+          {/* Desktop Layout - Horizontal */}
+          <div className="hidden sm:flex items-center justify-between">
             <button
               onClick={() => router.push('/homelogin')}
               className="flex items-center gap-2 px-4 py-2 bg-white/60 backdrop-blur-sm text-gray-700 rounded-lg hover:bg-white hover:shadow-lg transition-all duration-200 ease-in-out border border-white/20"

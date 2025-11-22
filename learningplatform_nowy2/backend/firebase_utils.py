@@ -28,25 +28,72 @@ client_email = os.getenv('FIREBASE_CLIENT_EMAIL')
 client_id = os.getenv('FIREBASE_CLIENT_ID')
 client_cert_url = os.getenv('FIREBASE_CLIENT_CERT_URL')
 
-# Debug private key format
+# Debug private key format (only first/last 50 chars for security)
 if private_key:
-    print("Private key format check:")
+    print("=== Firebase Private Key Debug ===")
+    print(f"Key exists: True")
+    print(f"Key length: {len(private_key)}")
+    print(f"First 50 chars: {private_key[:50]}")
+    print(f"Last 50 chars: {private_key[-50:]}")
     print(f"Starts with BEGIN: {private_key.strip().startswith('-----BEGIN PRIVATE KEY-----')}")
     print(f"Ends with END: {private_key.strip().endswith('-----END PRIVATE KEY-----')}")
-    contains_newlines = '\n' in private_key
-    print(f"Contains newlines: {contains_newlines}")
-    print(f"Length: {len(private_key)}")
+    print(f"Contains literal newlines (\\n): {'\\n' in private_key}")
+    print(f"Contains escaped newlines (\\\\n): {'\\\\n' in private_key}")
+    print(f"Contains actual newlines: {'\n' in private_key}")
+    print("==================================")
+else:
+    print("⚠️ FIREBASE_PRIVATE_KEY is not set in environment variables!")
 
 # Initialize Firebase Admin SDK
 if not firebase_admin._apps:
     try:
-        # Process private key
+        # Process private key - handle different formats from hosting environments
         if private_key:
-            # Remove any extra quotes if present
+            original_key = private_key
+            print("Processing private key...")
+            
+            # Step 1: Remove any extra quotes if present (common in env vars)
             private_key = private_key.strip('"\'')
-            # Ensure proper line breaks
-            if '\\n' in private_key:
+            
+            # Step 2: Handle different newline formats
+            # Case 1: Escaped newlines (\\n) - most common on hosting
+            if '\\n' in private_key and '\n' not in private_key:
+                print("Converting escaped newlines (\\n) to actual newlines")
                 private_key = private_key.replace('\\n', '\n')
+            
+            # Case 2: Double-escaped newlines (\\\\n) - sometimes in JSON
+            if '\\\\n' in private_key:
+                print("Converting double-escaped newlines (\\\\n) to actual newlines")
+                private_key = private_key.replace('\\\\n', '\n')
+            
+            # Case 3: Key in one line (no newlines at all) - needs formatting
+            if '\n' not in private_key and 'BEGIN PRIVATE KEY' in private_key:
+                print("Key is in one line, formatting with proper line breaks")
+                begin_marker = '-----BEGIN PRIVATE KEY-----'
+                end_marker = '-----END PRIVATE KEY-----'
+                
+                if begin_marker in private_key and end_marker in private_key:
+                    # Extract the key content
+                    start_idx = private_key.find(begin_marker) + len(begin_marker)
+                    end_idx = private_key.find(end_marker)
+                    key_content = private_key[start_idx:end_idx].strip()
+                    
+                    # Reformat with proper line breaks
+                    private_key = f"{begin_marker}\n{key_content}\n{end_marker}"
+                    print("Key reformatted with proper line breaks")
+            
+            # Step 3: Final validation and cleanup
+            private_key = private_key.strip()
+            
+            # Validate format
+            if not private_key.startswith('-----BEGIN PRIVATE KEY-----'):
+                raise ValueError(f"Private key does not start with BEGIN marker. First 50 chars: {private_key[:50]}")
+            if not private_key.endswith('-----END PRIVATE KEY-----'):
+                raise ValueError(f"Private key does not end with END marker. Last 50 chars: {private_key[-50:]}")
+            
+            print("✅ Private key processed successfully")
+            print(f"Final key length: {len(private_key)}")
+            print(f"Final key has newlines: {'\n' in private_key}")
         
         cred = credentials.Certificate({
             "type": "service_account",
@@ -60,19 +107,134 @@ if not firebase_admin._apps:
             "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
             "client_x509_cert_url": client_cert_url
         })
-        firebase_admin.initialize_app(cred)
+        
+        # Try to initialize Firebase Admin SDK
+        try:
+            firebase_admin.initialize_app(cred)
+            print("✅ Firebase Admin SDK initialized successfully")
+        except Exception as init_error:
+            # If initialization fails, it might be due to JWT signature error
+            error_str = str(init_error)
+            if 'invalid_grant' in error_str or 'JWT' in error_str or 'signature' in error_str.lower():
+                print(f"❌ Firebase Admin SDK initialization failed with JWT Signature error: {error_str}")
+                print("⚠️ This is likely due to an invalid or expired FIREBASE_PRIVATE_KEY")
+                print("⚠️ The app will continue, but set_user_role will not work")
+                # Don't raise - allow app to continue
+            else:
+                # Re-raise other errors
+                raise
+    except ValueError as e:
+        # Invalid key format - don't crash, but log the error
+        print(f"❌ Błąd formatu klucza prywatnego Firebase: {str(e)}")
+        print("⚠️ Sprawdź format FIREBASE_PRIVATE_KEY w zmiennych środowiskowych")
+        print("⚠️ Klucz powinien zawierać znaki nowej linii (\\n) lub być w formacie wieloliniowym")
+        # Don't raise - allow app to continue, but set_user_role will fail gracefully
+        print("⚠️ Aplikacja będzie działać, ale ustawianie ról użytkowników może nie działać")
     except Exception as e:
-        raise Exception(f"Błąd inicjalizacji Firebase: {str(e)}")
+        error_msg = str(e)
+        print(f"❌ Błąd inicjalizacji Firebase: {error_msg}")
+        print(f"Error type: {type(e).__name__}")
+        
+        # Check if it's a JWT/credential error
+        if 'invalid_grant' in error_msg or 'JWT' in error_msg or 'signature' in error_msg.lower():
+            print("⚠️ Błąd JWT Signature - problem z kluczem prywatnym Firebase")
+            print("⚠️ INSTRUKCJA NAPRAWY:")
+            print("   1. Pobierz nowy klucz prywatny z Firebase Console")
+            print("   2. W zmiennych środowiskowych hostingu ustaw FIREBASE_PRIVATE_KEY jako:")
+            print("      - Wieloliniowy format (zalecane):")
+            print('        FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\\nMIIE...\\n-----END PRIVATE KEY-----\\n"')
+            print("      - Lub w jednej linii (automatycznie sformatowane przez kod)")
+            print("   3. Upewnij się, że wszystkie znaki są poprawnie escapowane")
+        
+        import traceback
+        traceback.print_exc()
+        # Don't raise - allow app to continue, but log the error
+        print("⚠️ Aplikacja będzie działać, ale niektóre funkcje Firebase Admin mogą nie działać")
 
 def set_user_role(uid, role):
     """Set custom claims for a user to define their role."""
     try:
-        auth.set_custom_user_claims(uid, {'role': role})
-        print(f"Set role {role} for UID {uid}")
-        return True
-    except Exception as e:
-        print(f"Error setting user role: {str(e)}")
+        # Verify that Firebase Admin is initialized
+        if not firebase_admin._apps:
+            print("⚠️ Firebase Admin SDK not initialized, cannot set user role")
+            return False
+        
+        # Check if user exists
+        try:
+            user = auth.get_user(uid)
+            print(f"✅ User {uid} exists, setting role {role}")
+        except Exception as e:
+            print(f"⚠️ User {uid} does not exist in Firebase Auth: {str(e)}")
+            return False
+        
+        # Set custom claims
+        try:
+            auth.set_custom_user_claims(uid, {'role': role})
+            print(f"✅ Set role {role} for UID {uid}")
+            return True
+        except Exception as claims_error:
+            error_str = str(claims_error)
+            # Check if it's a JWT signature error during claims setting
+            if 'invalid_grant' in error_str or 'Invalid JWT Signature' in error_str or 'JWT' in error_str:
+                print(f"❌ JWT Signature error while setting custom claims: {error_str}")
+                print("⚠️ This indicates the FIREBASE_PRIVATE_KEY is invalid or expired")
+                print("⚠️ Solution: Generate a new private key in Firebase Console and update FIREBASE_PRIVATE_KEY in hosting environment variables")
+                # Don't raise - return False to indicate failure
+                return False
+            else:
+                # Re-raise other errors
+                raise
+    except ValueError as e:
+        # Invalid UID format
+        print(f"❌ Invalid UID format: {str(e)}")
         return False
+    except firebase_admin.exceptions.NotFoundError as e:
+        # User not found
+        print(f"❌ User {uid} not found: {str(e)}")
+        return False
+    except Exception as e:
+        error_str = str(e)
+        print(f"❌ Error setting user role: {error_str}")
+        print(f"Error type: {type(e).__name__}")
+        
+        # Check if it's a JWT signature error
+        if 'invalid_grant' in error_str or 'Invalid JWT Signature' in error_str:
+            print("⚠️ JWT Signature error - this may indicate a problem with Firebase credentials")
+            print("⚠️ Check FIREBASE_PRIVATE_KEY format in environment variables")
+            print("ℹ️ NOTE: This error does NOT block calendar event creation (events are created directly in Firestore)")
+            print("ℹ️ NOTE: This only affects setting user roles during login - app will continue to work")
+        
+        # Only print full traceback in debug mode, otherwise just log the error
+        import os
+        if os.getenv('DEBUG', 'False').lower() == 'true':
+            import traceback
+            traceback.print_exc()
+        
+        return False
+
+def get_firestore_client():
+    """
+    Get Firestore client, ensuring Firebase Admin SDK is initialized.
+    Returns None if initialization failed.
+    """
+    try:
+        # Check if Firebase Admin SDK is initialized
+        if not firebase_admin._apps:
+            print("⚠️ Firebase Admin SDK not initialized, cannot get Firestore client")
+            print("⚠️ This usually means FIREBASE_PRIVATE_KEY is invalid or missing")
+            return None
+        
+        from firebase_admin import firestore
+        return firestore.client()
+    except Exception as e:
+        error_str = str(e)
+        print(f"❌ Error getting Firestore client: {error_str}")
+        
+        if 'invalid_grant' in error_str or 'JWT' in error_str or 'signature' in error_str.lower():
+            print("⚠️ JWT Signature error - FIREBASE_PRIVATE_KEY is invalid or expired")
+            print("⚠️ Solution: Generate a new private key in Firebase Console and update FIREBASE_PRIVATE_KEY")
+        
+        return None
 
 def verify_token(token: str):
     """

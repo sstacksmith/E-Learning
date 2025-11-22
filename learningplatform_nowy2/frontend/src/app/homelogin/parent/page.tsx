@@ -170,7 +170,7 @@ export default function ParentDashboard() {
 
     // Pobierz wydarzenia dla tego dnia
     const dayEvents = events.filter(event => {
-      // Sprawdź czy wydarzenie jest w tym dniu
+      // PRZYPADEK 1: Wydarzenie ma konkretną datę
       let eventDate: string | null = null;
       if (event.date) {
         eventDate = event.date;
@@ -178,28 +178,50 @@ export default function ParentDashboard() {
         eventDate = new Date(event.deadline).toISOString().split('T')[0];
       }
 
-      if (!eventDate || eventDate !== dateStr) return false;
+      // Jeśli wydarzenie ma datę, sprawdź czy pasuje do tego dnia
+      if (eventDate) {
+        if (eventDate !== dateStr) return false;
 
-      // Sprawdź czy wydarzenie pasuje do slotu czasowego
-      if (event.startTime) {
-        const parseTime = (timeStr: string) => {
-          const parts = timeStr.split(':');
-          if (parts.length === 2) {
-            return parseInt(parts[0]) * 60 + parseInt(parts[1]);
-          }
-          return 0;
-        };
+        // Sprawdź czy wydarzenie pasuje do slotu czasowego
+        if (event.startTime) {
+          const parseTime = (timeStr: string) => {
+            const parts = timeStr.split(':');
+            if (parts.length === 2) {
+              return parseInt(parts[0]) * 60 + parseInt(parts[1]);
+            }
+            return 0;
+          };
 
-        const eventStartMinutes = parseTime(event.startTime);
-        const slotStartMinutes = parseTime(slot.startTime);
-        const slotEndMinutes = parseTime(slot.endTime);
+          const eventStartMinutes = parseTime(event.startTime);
+          const slotStartMinutes = parseTime(slot.startTime);
+          const slotEndMinutes = parseTime(slot.endTime);
 
-        return eventStartMinutes >= slotStartMinutes && eventStartMinutes < slotEndMinutes;
+          return eventStartMinutes >= slotStartMinutes && eventStartMinutes < slotEndMinutes;
+        }
+        
+        return true; // Wydarzenie ma datę ale nie ma godziny - pokaż je
       }
 
-      // Jeśli wydarzenie ma dzień tygodnia, sprawdź czy pasuje
+      // PRZYPADEK 2: Wydarzenie ma tylko dzień tygodnia (powtarzające się zajęcia)
       if (event.day && event.day === dayName) {
-        return true;
+        // Sprawdź slot czasowy jeśli jest dostępny
+        if (event.startTime) {
+          const parseTime = (timeStr: string) => {
+            const parts = timeStr.split(':');
+            if (parts.length === 2) {
+              return parseInt(parts[0]) * 60 + parseInt(parts[1]);
+            }
+            return 0;
+          };
+
+          const eventStartMinutes = parseTime(event.startTime);
+          const slotStartMinutes = parseTime(slot.startTime);
+          const slotEndMinutes = parseTime(slot.endTime);
+
+          return eventStartMinutes >= slotStartMinutes && eventStartMinutes < slotEndMinutes;
+        }
+        
+        return true; // Wydarzenie ma dzień tygodnia ale nie ma godziny - pokaż je
       }
 
       return false;
@@ -227,7 +249,23 @@ export default function ParentDashboard() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 w-full">
       {/* Header z przyciskiem powrotu */}
       <div className="bg-white/80 backdrop-blur-lg border-b border-white/20 px-4 sm:px-6 lg:px-8 py-4">
-        <div className="flex items-center justify-between">
+        {/* Mobile Layout - Vertical Stack */}
+        <div className="flex flex-col gap-3 sm:hidden">
+          <button
+            onClick={() => window.location.href = '/homelogin'}
+            className="flex items-center gap-2 px-3 py-2 bg-white/60 backdrop-blur-sm text-gray-700 rounded-lg hover:bg-white hover:shadow-lg transition-all duration-200 ease-in-out border border-white/20 w-fit"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span className="text-sm">Powrót</span>
+          </button>
+          
+          <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+            Plan zajęć
+          </h1>
+        </div>
+
+        {/* Desktop Layout - Horizontal */}
+        <div className="hidden sm:flex items-center justify-between">
           <button
             onClick={() => window.location.href = '/homelogin'}
             className="flex items-center gap-2 px-4 py-2 bg-white/60 backdrop-blur-sm text-gray-700 rounded-lg hover:bg-white hover:shadow-lg transition-all duration-200 ease-in-out border border-white/20"
@@ -237,7 +275,7 @@ export default function ParentDashboard() {
           </button>
           
           <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-            Panel Rodzica
+            Plan zajęć
           </h1>
           
           <div className="w-20"></div>
@@ -254,42 +292,41 @@ export default function ParentDashboard() {
 
           <div className="w-full">
             {/* Enhanced Navigation Header */}
-            <div className="flex items-center justify-between mb-8 p-6 bg-gradient-to-r from-slate-50 to-blue-50 rounded-2xl border border-slate-200/50">
+            <div className="flex items-center justify-between mb-4 sm:mb-8 p-3 sm:p-6 bg-gradient-to-r from-slate-50 to-blue-50 rounded-2xl border border-slate-200/50">
               <button 
                 onClick={prevWeek} 
-                className="p-4 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200 shadow-md"
+                className="p-2 sm:p-4 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200 shadow-md flex-shrink-0"
               >
-                <ChevronLeft className="w-6 h-6" />
+                <ChevronLeft className="w-4 h-4 sm:w-6 sm:h-6" />
               </button>
               
-              <div className="text-center">
-                <div className="font-bold text-slate-900 text-2xl mb-2">
+              <div className="text-center flex-1 px-2">
+                <div className="font-bold text-slate-900 text-base sm:text-2xl mb-1 sm:mb-2">
                   {monthsPl[currentWeek.getMonth()]} {currentWeek.getFullYear()}
                 </div>
-                <div className="text-sm text-slate-600 bg-white px-6 py-3 rounded-full shadow-sm border border-slate-200">
+                <div className="text-xs sm:text-sm text-slate-600 bg-white px-3 sm:px-6 py-1.5 sm:py-3 rounded-full shadow-sm border border-slate-200">
                   {formatDateRange(currentWeek)}
                 </div>
               </div>
               
               <button 
                 onClick={nextWeek} 
-                className="p-4 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200 shadow-md"
+                className="p-2 sm:p-4 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200 shadow-md flex-shrink-0"
               >
-                <ChevronRight className="w-6 h-6" />
+                <ChevronRight className="w-4 h-4 sm:w-6 sm:h-6" />
               </button>
             </div>
 
-            {/* Full Width Schedule Grid */}
-            <div className="w-full border border-slate-200 rounded-3xl overflow-x-auto shadow-xl bg-white">
-              <div className="grid grid-cols-6 min-h-[600px] min-w-[800px]">
+            {/* Desktop View - Schedule Grid */}
+            <div className="hidden md:block w-full border border-slate-200 rounded-3xl overflow-hidden shadow-xl bg-white">
+              <div className="grid grid-cols-6 min-h-[600px]">
                 {/* Enhanced Headers */}
-                <div className="font-bold p-2 sm:p-4 md:p-6 h-16 sm:h-20 text-center border-b border-r bg-gradient-to-r from-blue-600 to-indigo-600 text-white flex items-center justify-center">
-                  <span className="text-xs sm:text-sm md:text-base lg:text-xl">Godzina</span>
+                <div className="font-bold p-4 md:p-6 h-16 sm:h-20 text-center border-b border-r bg-gradient-to-r from-blue-600 to-indigo-600 text-white flex items-center justify-center">
+                  <span className="text-sm md:text-base lg:text-xl">Godzina</span>
                 </div>
                 {daysOfWeek.map((day, index) => (
-                  <div key={index} className="font-bold p-2 sm:p-4 md:p-6 h-16 sm:h-20 text-center border-b border-r bg-gradient-to-r from-blue-600 to-indigo-600 text-white flex items-center justify-center">
-                    <span className="hidden md:inline text-xs sm:text-sm md:text-base lg:text-xl">{day}</span>
-                    <span className="md:hidden text-xs sm:text-sm">{daysOfWeekShort[index]}</span>
+                  <div key={index} className="font-bold p-4 md:p-6 h-16 sm:h-20 text-center border-b border-r bg-gradient-to-r from-blue-600 to-indigo-600 text-white flex items-center justify-center">
+                    <span className="text-sm md:text-base lg:text-xl">{day}</span>
                   </div>
                 ))}
 
@@ -298,11 +335,11 @@ export default function ParentDashboard() {
                   {timeSlots.map((slot, index) => (
                     <React.Fragment key={index}>
                       {/* Enhanced Time Column */}
-                      <div className="bg-gradient-to-br from-slate-50 to-blue-50 border-r border-b border-slate-200 p-2 sm:p-3 md:p-4 lg:p-6 flex flex-col justify-center hover:bg-gradient-to-br hover:from-blue-50 hover:to-indigo-50 transition-all duration-200">
-                        <div className="text-[10px] sm:text-xs md:text-sm lg:text-lg font-bold text-blue-600 mb-1 sm:mb-2 whitespace-nowrap">
+                      <div className="bg-gradient-to-br from-slate-50 to-blue-50 border-r border-b border-slate-200 p-3 md:p-4 lg:p-6 flex flex-col justify-center hover:bg-gradient-to-br hover:from-blue-50 hover:to-indigo-50 transition-all duration-200">
+                        <div className="text-xs md:text-sm lg:text-lg font-bold text-blue-600 mb-1 sm:mb-2 whitespace-nowrap">
                           {slot.startTime} - {slot.endTime}
                         </div>
-                        <div className="text-[9px] sm:text-xs md:text-sm text-slate-500 font-medium whitespace-nowrap">
+                        <div className="text-xs md:text-sm text-slate-500 font-medium whitespace-nowrap">
                           Lekcja {slot.label}
                         </div>
                       </div>
@@ -313,33 +350,33 @@ export default function ParentDashboard() {
                         return (
                           <div 
                             key={`${index}-${dayIndex}`} 
-                            className="border-r border-b border-slate-200 p-1 sm:p-2 md:p-3 lg:p-6 bg-white hover:bg-gradient-to-br hover:from-slate-50 hover:to-blue-50 transition-all duration-200 group relative"
+                            className="border-r border-b border-slate-200 p-2 md:p-3 lg:p-6 bg-white hover:bg-gradient-to-br hover:from-slate-50 hover:to-blue-50 transition-all duration-200 group relative"
                           >
                             {lessons.length > 0 ? (
                               <div className="space-y-1 sm:space-y-2">
                                 {lessons.map((lesson) => (
                                   <div 
                                     key={lesson.id}
-                                    className="bg-blue-100 text-blue-800 p-1 sm:p-2 md:p-3 rounded-lg border border-blue-200 hover:bg-blue-200 transition-colors"
+                                    className="bg-blue-100 text-blue-800 p-2 md:p-3 rounded-lg border border-blue-200 hover:bg-blue-200 transition-colors"
                                   >
-                                    <div className="font-semibold text-[9px] sm:text-[10px] md:text-xs lg:text-sm mb-0.5 sm:mb-1 break-words">{lesson.subject}</div>
+                                    <div className="font-semibold text-[10px] md:text-xs lg:text-sm mb-0.5 sm:mb-1 break-words">{lesson.subject}</div>
                                     {lesson.time && (
-                                      <div className="text-[8px] sm:text-[9px] md:text-xs text-blue-600 mb-0.5 sm:mb-1 whitespace-nowrap overflow-hidden text-ellipsis">{lesson.time}</div>
+                                      <div className="text-[9px] md:text-xs text-blue-600 mb-0.5 sm:mb-1 whitespace-nowrap overflow-hidden text-ellipsis">{lesson.time}</div>
                                     )}
                                     {lesson.room && (
-                                      <div className="text-[8px] sm:text-[9px] md:text-xs text-blue-500 whitespace-nowrap overflow-hidden text-ellipsis">Sala: {lesson.room}</div>
+                                      <div className="text-[9px] md:text-xs text-blue-500 whitespace-nowrap overflow-hidden text-ellipsis">Sala: {lesson.room}</div>
                                     )}
                                     {lesson.teacher && (
-                                      <div className="text-[8px] sm:text-[9px] md:text-xs text-blue-500 mt-0.5 sm:mt-1 break-words line-clamp-2">{lesson.teacher}</div>
+                                      <div className="text-[9px] md:text-xs text-blue-500 mt-0.5 sm:mt-1 break-words line-clamp-2">{lesson.teacher}</div>
                                     )}
                                   </div>
                                 ))}
                               </div>
                             ) : (
                               <>
-                                <div className="text-[9px] sm:text-xs md:text-sm text-slate-400 mb-1 sm:mb-3 font-medium whitespace-nowrap">{slot.startTime}</div>
+                                <div className="text-xs md:text-sm text-slate-400 mb-1 sm:mb-3 font-medium whitespace-nowrap">{slot.startTime}</div>
                                 <div className="flex items-center justify-between">
-                                  <div className="text-[8px] sm:text-[10px] md:text-xs text-slate-300 group-hover:text-slate-400 transition-colors duration-200 whitespace-nowrap">
+                                  <div className="text-[10px] md:text-xs text-slate-300 group-hover:text-slate-400 transition-colors duration-200 whitespace-nowrap">
                                     Brak zajęć
                                   </div>
                                 </div>
@@ -354,12 +391,72 @@ export default function ParentDashboard() {
               </div>
             </div>
 
-            {/* Enhanced Legend */}
-            <div className="mt-8 bg-gradient-to-r from-slate-50 to-blue-50 rounded-2xl p-8 border border-slate-200 shadow-lg">
-              <h3 className="font-bold text-slate-900 text-xl mb-6 flex items-center gap-3">
-                <div className="w-6 h-6 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-lg"></div>
-                Plan zajęć - {assignedStudent?.name || 'Uczeń'}
-              </h3>
+            {/* Mobile View - Day Cards */}
+            <div className="md:hidden space-y-4">
+              {[0, 1, 2, 3, 4].map((dayIndex) => {
+                const monday = new Date(currentWeek);
+                const dayOfWeek = (monday.getDay() + 6) % 7;
+                monday.setDate(monday.getDate() - dayOfWeek);
+                const currentDate = new Date(monday);
+                currentDate.setDate(monday.getDate() + dayIndex);
+                const dateStr = `${currentDate.getDate()} ${monthsPl[currentDate.getMonth()]}`;
+
+                return (
+                  <div key={dayIndex} className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
+                    {/* Day Header */}
+                    <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-4">
+                      <h3 className="text-lg font-bold">{daysOfWeek[dayIndex]}</h3>
+                      <p className="text-sm opacity-90">{dateStr}</p>
+                    </div>
+
+                    {/* Lessons for this day */}
+                    <div className="p-4 space-y-3">
+                      {timeSlots.map((slot, slotIndex) => {
+                        const lessons = getLessonsForSlot(dayIndex, slot);
+                        
+                        if (lessons.length === 0) return null;
+
+                        return (
+                          <div key={slotIndex} className="border-l-4 border-blue-500 pl-4 py-2 bg-slate-50 rounded-r-lg">
+                            <div className="flex items-start justify-between mb-2">
+                              <div>
+                                <div className="text-sm font-bold text-blue-600">
+                                  {slot.startTime} - {slot.endTime}
+                                </div>
+                                <div className="text-xs text-slate-500">
+                                  Lekcja {slot.label}
+                                </div>
+                              </div>
+                            </div>
+                            
+                            {lessons.map((lesson) => (
+                              <div key={lesson.id} className="mt-2 bg-blue-50 p-3 rounded-lg border border-blue-200">
+                                <div className="font-semibold text-blue-900 mb-1">{lesson.subject}</div>
+                                {lesson.room && (
+                                  <div className="text-sm text-blue-700 flex items-center gap-1">
+                                    <span>📍</span>
+                                    <span>Sala: {lesson.room}</span>
+                                  </div>
+                                )}
+                                {lesson.teacher && (
+                                  <div className="text-sm text-slate-600 mt-1">{lesson.teacher}</div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })}
+                      
+                      {/* If no lessons for this day */}
+                      {timeSlots.every(slot => getLessonsForSlot(dayIndex, slot).length === 0) && (
+                        <div className="text-center py-8 text-slate-400">
+                          <p className="text-sm">Brak zajęć w tym dniu</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>

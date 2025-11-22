@@ -9,7 +9,12 @@ import {
   Save,
   Eye,
   EyeOff,
-  ArrowLeft
+  ArrowLeft,
+  Award,
+  FileText,
+  TrendingUp,
+  CheckCircle,
+  MessageSquare
 } from 'lucide-react';
 
 interface NotificationSettings {
@@ -316,7 +321,25 @@ export default function ParentSettings() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 w-full">
       {/* Header z przyciskiem powrotu */}
       <div className="bg-white/80 backdrop-blur-lg border-b border-white/20 px-4 sm:px-6 lg:px-8 py-4">
-        <div className="flex items-center justify-between">
+        {/* Mobile Layout */}
+        <div className="flex flex-col gap-3 sm:hidden">
+          <div className="flex items-center justify-between">
+            <button
+              onClick={() => window.location.href = '/homelogin'}
+              className="flex items-center gap-2 px-3 py-2 bg-white/60 backdrop-blur-sm text-gray-700 rounded-lg hover:bg-white hover:shadow-lg transition-all duration-200 ease-in-out border border-white/20"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span className="text-sm">Powrót</span>
+            </button>
+            <SettingsIcon className="w-6 h-6 text-blue-600" />
+          </div>
+          <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+            Ustawienia
+          </h1>
+        </div>
+
+        {/* Desktop Layout */}
+        <div className="hidden sm:flex items-center justify-between">
           <button
             onClick={() => window.location.href = '/homelogin'}
             className="flex items-center gap-2 px-4 py-2 bg-white/60 backdrop-blur-sm text-gray-700 rounded-lg hover:bg-white hover:shadow-lg transition-all duration-200 ease-in-out border border-white/20"
@@ -329,25 +352,33 @@ export default function ParentSettings() {
             Ustawienia
           </h1>
 
-          <div className="w-20"></div>
+          <SettingsIcon className="w-8 h-8 text-blue-600" />
         </div>
       </div>
 
-      <div className="flex flex-col h-full">
-        {/* Header */}
-        <div className="bg-white/90 backdrop-blur-xl shadow-sm border-b border-white/20">
-          <div className="flex items-center justify-between p-6">
-            <div>
-              <h2 className="text-2xl font-bold text-gray-900">Ustawienia</h2>
-              <p className="text-gray-600 mt-1">Zarządzaj swoim kontem i preferencjami</p>
-            </div>
-            <SettingsIcon className="w-8 h-8 text-blue-600" />
+      <div className="flex flex-col lg:flex-row">
+        {/* Mobile Tabs - Grid Layout */}
+        <div className="lg:hidden bg-white border-b border-gray-200 p-3">
+          <div className="grid grid-cols-3 gap-2">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as 'profile' | 'notifications' | 'security')}
+                className={`flex flex-col items-center justify-center py-3 px-2 rounded-lg transition-all ${
+                  activeTab === tab.id
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'text-gray-700 bg-gray-50 hover:bg-gray-100'
+                }`}
+              >
+                <tab.icon className="w-5 h-5 mb-1" />
+                <span className="text-xs font-medium text-center">{tab.name}</span>
+              </button>
+            ))}
           </div>
         </div>
 
-      <div className="flex flex-1">
-        {/* Sidebar */}
-        <div className="w-64 bg-white shadow-sm">
+        {/* Desktop Sidebar */}
+        <div className="hidden lg:block lg:w-64 bg-white shadow-sm">
           <nav className="p-4">
             {tabs.map((tab) => (
               <button
@@ -367,7 +398,7 @@ export default function ParentSettings() {
         </div>
 
         {/* Main Content */}
-        <div className="flex-1 p-6">
+        <div className="flex-1 p-4 sm:p-6">
           {saveMessage && (
             <div className={`mb-4 p-4 rounded-lg ${
               saveMessage.includes('Błąd') ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
@@ -377,10 +408,10 @@ export default function ParentSettings() {
           )}
 
           {activeTab === 'profile' && (
-            <div className="bg-white rounded-lg shadow-sm p-6">
-              <h2 className="text-xl font-semibold mb-6">Informacje o profilu</h2>
+            <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
+              <h2 className="text-lg sm:text-xl font-semibold mb-4 sm:mb-6">Informacje o profilu</h2>
               
-              <div className="space-y-6">
+              <div className="space-y-4 sm:space-y-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Imię i nazwisko
@@ -389,8 +420,9 @@ export default function ParentSettings() {
                     type="text"
                     value={profile.displayName}
                     onChange={(e) => setProfile(prev => ({ ...prev, displayName: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-base"
                     placeholder="Wprowadź imię i nazwisko"
+                    style={{ fontSize: '16px' }}
                   />
                 </div>
 
@@ -402,8 +434,9 @@ export default function ParentSettings() {
                     type="email"
                     value={profile.email}
                     onChange={(e) => setProfile(prev => ({ ...prev, email: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-base"
                     placeholder="Wprowadź email"
+                    style={{ fontSize: '16px' }}
                   />
                 </div>
 
@@ -415,8 +448,9 @@ export default function ParentSettings() {
                     type="tel"
                     value={profile.phone}
                     onChange={(e) => setProfile(prev => ({ ...prev, phone: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-base"
                     placeholder="Wprowadź numer telefonu"
+                    style={{ fontSize: '16px' }}
                   />
                 </div>
 
@@ -427,7 +461,8 @@ export default function ParentSettings() {
                   <select
                     value={profile.relationship}
                     onChange={(e) => setProfile(prev => ({ ...prev, relationship: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-base"
+                    style={{ fontSize: '16px' }}
                   >
                     <option value="matka">Matka</option>
                     <option value="ojciec">Ojciec</option>
@@ -441,7 +476,7 @@ export default function ParentSettings() {
                 <button
                   onClick={handleSaveProfile}
                   disabled={loading}
-                  className="flex items-center px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full sm:w-auto flex items-center justify-center px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   <Save className="w-4 h-4 mr-2" />
                   {loading ? 'Zapisywanie...' : 'Zapisz zmiany'}
@@ -451,24 +486,26 @@ export default function ParentSettings() {
           )}
 
           {activeTab === 'notifications' && (
-            <div className="bg-white rounded-lg shadow-sm p-6">
-              <h2 className="text-xl font-semibold mb-6">Ustawienia powiadomień</h2>
+            <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
+              <h2 className="text-lg sm:text-xl font-semibold mb-4 sm:mb-6">Ustawienia powiadomień</h2>
               
-              <div className="space-y-6">
+              <div className="space-y-4 sm:space-y-6">
                 <div>
-                  <h3 className="font-medium text-gray-900 mb-4">Powiadomienia o aktywności ucznia</h3>
-                  <div className="space-y-3">
+                  <h3 className="font-medium text-gray-900 mb-3 sm:mb-4 text-sm sm:text-base">Powiadomienia o aktywności ucznia</h3>
+                  <div className="space-y-2 sm:space-y-3">
                     {[
-                      { key: 'grades', label: 'Nowe oceny', icon: '📊' },
-                      { key: 'assignments', label: 'Nowe zadania', icon: '📝' },
-                      { key: 'progress', label: 'Postęp w nauce', icon: '📈' },
-                      { key: 'attendance', label: 'Frekwencja', icon: '✅' },
-                      { key: 'messages', label: 'Wiadomości od nauczycieli', icon: '💬' }
+                      { key: 'grades', label: 'Nowe oceny', Icon: Award, color: 'text-blue-600' },
+                      { key: 'assignments', label: 'Nowe zadania', Icon: FileText, color: 'text-purple-600' },
+                      { key: 'progress', label: 'Postęp w nauce', Icon: TrendingUp, color: 'text-green-600' },
+                      { key: 'attendance', label: 'Frekwencja', Icon: CheckCircle, color: 'text-emerald-600' },
+                      { key: 'messages', label: 'Wiadomości od nauczycieli', Icon: MessageSquare, color: 'text-indigo-600' }
                     ].map((item) => (
-                      <label key={item.key} className="flex items-center justify-between p-3 border rounded-lg">
-                        <div className="flex items-center">
-                          <span className="text-xl mr-3">{item.icon}</span>
-                          <span className="text-gray-700">{item.label}</span>
+                      <label key={item.key} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50 transition-colors cursor-pointer">
+                        <div className="flex items-center gap-2 sm:gap-3">
+                          <div className={`p-2 rounded-lg bg-gray-50 ${item.color}`}>
+                            <item.Icon className="w-4 h-4 sm:w-5 sm:h-5" />
+                          </div>
+                          <span className="text-gray-700 text-sm sm:text-base">{item.label}</span>
                         </div>
                         <input
                           type="checkbox"
@@ -477,19 +514,17 @@ export default function ParentSettings() {
                             ...prev, 
                             [item.key]: e.target.checked 
                           }))}
-                          className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
+                          className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
                         />
                       </label>
                     ))}
                   </div>
                 </div>
 
-
-
                 <button
                   onClick={handleSaveNotifications}
                   disabled={loading}
-                  className="flex items-center px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full sm:w-auto flex items-center justify-center px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   <Save className="w-4 h-4 mr-2" />
                   {loading ? 'Zapisywanie...' : 'Zapisz ustawienia'}
@@ -501,20 +536,20 @@ export default function ParentSettings() {
 
 
           {activeTab === 'security' && (
-            <div className="bg-white rounded-lg shadow-sm p-6">
-              <h2 className="text-xl font-semibold mb-6">Bezpieczeństwo</h2>
+            <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
+              <h2 className="text-lg sm:text-xl font-semibold mb-4 sm:mb-6">Bezpieczeństwo</h2>
               
-              <div className="space-y-6">
+              <div className="space-y-4 sm:space-y-6">
                 <div>
-                  <h3 className="font-medium text-gray-900 mb-4">Zmiana hasła</h3>
+                  <h3 className="font-medium text-gray-900 mb-3 sm:mb-4 text-sm sm:text-base">Zmiana hasła</h3>
                   
                   {/* Ponowne uwierzytelnienie */}
                   {showReauth && (
-                    <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                      <h4 className="text-sm font-medium text-yellow-800 mb-3">
+                    <div className="mb-4 sm:mb-6 p-3 sm:p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                      <h4 className="text-sm font-medium text-yellow-800 mb-2 sm:mb-3">
                         Wymagane ponowne uwierzytelnienie
                       </h4>
-                      <p className="text-sm text-yellow-700 mb-4">
+                      <p className="text-xs sm:text-sm text-yellow-700 mb-3 sm:mb-4">
                         Ze względów bezpieczeństwa, wprowadź aktualne hasło aby kontynuować.
                       </p>
                       <div className="space-y-3">
@@ -526,15 +561,16 @@ export default function ParentSettings() {
                             type="password"
                             value={currentPassword}
                             onChange={(e) => setCurrentPassword(e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-base"
                             placeholder="Wprowadź aktualne hasło"
+                            style={{ fontSize: '16px' }}
                           />
                         </div>
-                        <div className="flex gap-3">
+                        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
                           <button
                             onClick={handleReauthentication}
                             disabled={loading || !currentPassword}
-                            className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                           >
                             <Save className="w-4 h-4 mr-2" />
                             {loading ? 'Uwierzytelnianie...' : 'Potwierdź'}
@@ -544,7 +580,7 @@ export default function ParentSettings() {
                               setShowReauth(false);
                               setCurrentPassword('');
                             }}
-                            className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400"
+                            className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors"
                           >
                             Anuluj
                           </button>
@@ -553,7 +589,7 @@ export default function ParentSettings() {
                     </div>
                   )}
                   
-                  <div className="space-y-4">
+                  <div className="space-y-3 sm:space-y-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Nowe hasło
@@ -563,9 +599,10 @@ export default function ParentSettings() {
                           type={showPassword ? 'text' : 'password'}
                           value={newPassword}
                           onChange={(e) => setNewPassword(e.target.value)}
-                          className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-base"
                           placeholder="Wprowadź nowe hasło"
                           disabled={showReauth}
+                          style={{ fontSize: '16px' }}
                         />
                         <button
                           type="button"
@@ -589,16 +626,17 @@ export default function ParentSettings() {
                         type={showPassword ? 'text' : 'password'}
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-base"
                         placeholder="Potwierdź nowe hasło"
                         disabled={showReauth}
+                        style={{ fontSize: '16px' }}
                       />
                     </div>
 
                     <button
                       onClick={handleChangePassword}
                       disabled={loading || !newPassword || !confirmPassword || showReauth}
-                      className="flex items-center px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="w-full sm:w-auto flex items-center justify-center px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
                       <Save className="w-4 h-4 mr-2" />
                       {loading ? 'Zmienianie...' : 'Zmień hasło'}
@@ -606,15 +644,15 @@ export default function ParentSettings() {
                   </div>
                 </div>
 
-                <div className="border-t pt-6">
-                  <h3 className="font-medium text-gray-900 mb-4">Sesje logowania</h3>
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <div className="flex items-center justify-between">
+                <div className="border-t pt-4 sm:pt-6">
+                  <h3 className="font-medium text-gray-900 mb-3 sm:mb-4 text-sm sm:text-base">Sesje logowania</h3>
+                  <div className="bg-gray-50 p-3 sm:p-4 rounded-lg">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                       <div>
-                        <div className="font-medium text-gray-700">Bieżąca sesja</div>
-                        <div className="text-sm text-gray-500">Windows • Chrome • Aktywna teraz</div>
+                        <div className="font-medium text-gray-700 text-sm sm:text-base">Bieżąca sesja</div>
+                        <div className="text-xs sm:text-sm text-gray-500">Windows • Chrome • Aktywna teraz</div>
                       </div>
-                      <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-sm">
+                      <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs sm:text-sm w-fit">
                         Aktywna
                       </span>
                     </div>
@@ -622,7 +660,7 @@ export default function ParentSettings() {
                   
                   <button
                     onClick={logout}
-                    className="mt-4 px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                    className="mt-3 sm:mt-4 w-full sm:w-auto px-6 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
                   >
                     Wyloguj się
                   </button>
@@ -630,7 +668,6 @@ export default function ParentSettings() {
               </div>
             </div>
           )}
-        </div>
         </div>
       </div>
     </div>

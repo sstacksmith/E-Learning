@@ -338,32 +338,53 @@ class CourseDetailBySlugView(APIView):
 @csrf_exempt
 def set_student_role(request):
     if request.method == 'POST':
-        data = json.loads(request.body)
-        uid = data.get('uid')
-        if not uid:
-            return JsonResponse({'error': 'No UID provided'}, status=400)
-        set_user_role(uid, 'student')
-        return JsonResponse({'status': 'student role set'})
+        try:
+            data = json.loads(request.body)
+            uid = data.get('uid')
+            if not uid:
+                return JsonResponse({'error': 'No UID provided'}, status=400)
+            success = set_user_role(uid, 'student')
+            if success:
+                return JsonResponse({'status': 'student role set'})
+            else:
+                return JsonResponse({'error': 'Failed to set student role - check Firebase credentials'}, status=500)
+        except Exception as e:
+            print(f"Error in set_student_role endpoint: {str(e)}")
+            return JsonResponse({'error': f'Internal server error: {str(e)}'}, status=500)
 
 @csrf_exempt
 def set_teacher_role(request):
     if request.method == 'POST':
-        data = json.loads(request.body)
-        uid = data.get('uid')
-        if not uid:
-            return JsonResponse({'error': 'No UID provided'}, status=400)
-        set_user_role(uid, 'teacher')
-        return JsonResponse({'status': 'teacher role set'})
+        try:
+            data = json.loads(request.body)
+            uid = data.get('uid')
+            if not uid:
+                return JsonResponse({'error': 'No UID provided'}, status=400)
+            success = set_user_role(uid, 'teacher')
+            if success:
+                return JsonResponse({'status': 'teacher role set'})
+            else:
+                return JsonResponse({'error': 'Failed to set teacher role - check Firebase credentials'}, status=500)
+        except Exception as e:
+            print(f"Error in set_teacher_role endpoint: {str(e)}")
+            return JsonResponse({'error': f'Internal server error: {str(e)}'}, status=500)
 
 @csrf_exempt
 def set_admin_role(request):
     if request.method == 'POST':
-        data = json.loads(request.body)
-        uid = data.get('uid')
-        if not uid:
-            return JsonResponse({'error': 'No UID provided'}, status=400)
-        set_user_role(uid, 'admin')
-        return JsonResponse({'status': 'admin role set'})
+        try:
+            data = json.loads(request.body)
+            uid = data.get('uid')
+            if not uid:
+                return JsonResponse({'error': 'No UID provided'}, status=400)
+            success = set_user_role(uid, 'admin')
+            if success:
+                return JsonResponse({'status': 'admin role set'})
+            else:
+                return JsonResponse({'error': 'Failed to set admin role - check Firebase credentials'}, status=500)
+        except Exception as e:
+            print(f"Error in set_admin_role endpoint: {str(e)}")
+            return JsonResponse({'error': f'Internal server error: {str(e)}'}, status=500)
 
 @staff_member_required
 @csrf_exempt

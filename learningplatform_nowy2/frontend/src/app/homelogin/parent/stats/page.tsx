@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { ArrowLeft, TrendingUp, Award, Clock, Calendar, Star, Trophy, Target } from 'lucide-react';
+import { ArrowLeft, TrendingUp, Award, Clock, Calendar, Star, Trophy, Target, ChevronDown, ChevronUp } from 'lucide-react';
 import { doc, getDoc, collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 // Import Recharts bezpośrednio - lazy loading powodował problemy z typami
@@ -48,6 +48,8 @@ export default function ParentStats() {
   const [learningData, setLearningData] = useState<UserLearningData | null>(null);
   const [grades, setGrades] = useState<Grade[]>([]);
   const [gradesLoading, setGradesLoading] = useState(true);
+  const [showAllDays, setShowAllDays] = useState(false);
+  const [showGrades, setShowGrades] = useState(false);
   const [assignedStudent, setAssignedStudent] = useState<{ id: string; name: string; email: string } | null>(null);
 
   // Pobierz przypisanego ucznia
@@ -625,37 +627,82 @@ export default function ParentStats() {
               </div>
             </div>
             
-            {/* All Daily Stats */}
+            {/* All Daily Stats - Collapsible */}
             {learningData && Object.keys(learningData.dailyStats).length > 7 && (
-              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 border border-white/20 dark:border-gray-700">
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">Wszystkie dni nauki</h2>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {Object.entries(learningData.dailyStats)
-                    .sort(([dateA], [dateB]) => dateB.localeCompare(dateA))
-                    .map(([date, minutes]) => (
-                      <div key={date} className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/30 rounded-lg p-4 border border-blue-200 dark:border-blue-700">
-                        <div className="text-xs text-gray-600 dark:text-gray-300 mb-1">
-                          {new Date(date).toLocaleDateString('pl-PL', { 
-                            day: '2-digit', 
-                            month: 'short',
-                            year: 'numeric'
-                          })}
-                        </div>
-                        <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                          {formatMinutes(minutes)}
-                        </div>
-                      </div>
-                    ))}
-                </div>
+              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-white/20 dark:border-gray-700 overflow-hidden">
+                {/* Header - Clickable */}
+                <button
+                  onClick={() => setShowAllDays(!showAllDays)}
+                  className="w-full p-6 sm:p-8 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                >
+                  <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">
+                    Wszystkie dni nauki
+                  </h2>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">
+                      {showAllDays ? 'Zwiń' : 'Rozwiń'}
+                    </span>
+                    {showAllDays ? (
+                      <ChevronUp className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                    ) : (
+                      <ChevronDown className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                    )}
+                  </div>
+                </button>
+
+                {/* Content - Collapsible */}
+                {showAllDays && (
+                  <div className="px-4 sm:px-8 pb-6 sm:pb-8 pt-0">
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+                      {Object.entries(learningData.dailyStats)
+                        .sort(([dateA], [dateB]) => dateB.localeCompare(dateA))
+                        .map(([date, minutes]) => (
+                          <div key={date} className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/30 rounded-lg p-3 sm:p-4 border border-blue-200 dark:border-blue-700">
+                            <div className="text-[10px] sm:text-xs text-gray-600 dark:text-gray-300 mb-1">
+                              {new Date(date).toLocaleDateString('pl-PL', { 
+                                day: '2-digit', 
+                                month: 'short',
+                                year: 'numeric'
+                              })}
+                            </div>
+                            <div className="text-xl sm:text-2xl font-bold text-blue-600 dark:text-blue-400">
+                              {formatMinutes(minutes)}
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
-            {/* Sekcja ocen */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 border border-white/20 dark:border-gray-700 mt-8">
-              <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-8 text-center">Średnia Ocen</h2>
-              
-              {/* Główny wskaźnik średniej */}
-              <div className="flex justify-center mb-8">
+            {/* Sekcja ocen - Collapsible */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-white/20 dark:border-gray-700 mt-8 overflow-hidden">
+              {/* Header - Clickable */}
+              <button
+                onClick={() => setShowGrades(!showGrades)}
+                className="w-full p-6 sm:p-8 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+              >
+                <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
+                  Średnia Ocen
+                </h2>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">
+                    {showGrades ? 'Zwiń' : 'Rozwiń'}
+                  </span>
+                  {showGrades ? (
+                    <ChevronUp className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                  ) : (
+                    <ChevronDown className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                  )}
+                </div>
+              </button>
+
+              {/* Content - Collapsible */}
+              {showGrades && (
+                <div className="px-4 sm:px-8 pb-6 sm:pb-8 pt-0">
+                  {/* Główny wskaźnik średniej */}
+                  <div className="flex justify-center mb-8">
                 <div className="relative w-48 h-48">
                   <svg className="w-48 h-48 transform -rotate-90" viewBox="0 0 100 100">
                     {/* Tło okręgu */}
@@ -819,6 +866,8 @@ export default function ParentStats() {
                   <p className="text-sm text-gray-600 dark:text-gray-300">
                     Uczeń jeszcze nie ma żadnych ocen. Zacznij naukę, aby zobaczyć statystyki!
                   </p>
+                </div>
+              )}
                 </div>
               )}
             </div>

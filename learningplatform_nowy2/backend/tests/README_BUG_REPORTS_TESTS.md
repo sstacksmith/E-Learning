@@ -65,3 +65,4 @@ python -m unittest tests.test_bug_reports -v
 - Wszystkie testy są izolowane i nie wpływają na siebie nawzajem
 
 
+
