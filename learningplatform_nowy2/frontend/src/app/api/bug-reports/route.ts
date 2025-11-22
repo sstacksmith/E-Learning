@@ -46,7 +46,8 @@ export async function GET(request: NextRequest) {
     
     // Przekaż parametry query do backendu
     const queryString = searchParams.toString();
-    const url = `${BACKEND_URL}/api/bug-reports${queryString ? `?${queryString}` : ''}`;
+    // WAŻNE: Django wymaga trailing slash!
+    const url = `${BACKEND_URL}/api/bug-reports/${queryString ? `?${queryString}` : ''}`;
     
     console.log('🔍 Fetching from backend URL:', url);
     

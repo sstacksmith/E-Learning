@@ -1370,10 +1370,14 @@ def get_bug_reports(request):
     try:
         logger.info(f"🔍 Bug reports - fetching all reports")
         
-        # Pobierz parametry filtrowania
-        status_filter = request.query_params.get('status', None) if hasattr(request, 'query_params') else request.GET.get('status', None)
-        category_filter = request.query_params.get('category', None) if hasattr(request, 'query_params') else request.GET.get('category', None)
-        limit = int(request.query_params.get('limit', 50) if hasattr(request, 'query_params') else request.GET.get('limit', 50))
+        # Pobierz parametry filtrowania - DRF używa request.query_params
+        status_filter = request.query_params.get('status', None)
+        category_filter = request.query_params.get('category', None)
+        limit_param = request.query_params.get('limit', '50')
+        try:
+            limit = int(limit_param)
+        except (ValueError, TypeError):
+            limit = 50
         
         # Pobierz zgłoszenia z Firestore
         db = firestore.client()
@@ -1389,74 +1393,54 @@ def get_bug_reports(request):
         # Sprawdź czy są jakieś filtry
         has_filters = (status_filter and status_filter != 'all') or (category_filter and category_filter != 'all')
         
+        # Pobierz dokumenty z Firestore - prosto i bez komplikacji
         try:
-            if not has_filters:
-                # Brak filtrów - możemy sortować w Firestore (nie wymaga indeksu)
-                try:
-                    docs = bug_reports_ref.order_by('created_at', direction=Query.DESCENDING).limit(fetch_limit).stream()
-                except Exception as sort_error:
-                    logger.warning(f"⚠️ Cannot sort in Firestore, fetching without sort: {sort_error}")
-                    docs = bug_reports_ref.limit(fetch_limit).stream()
-            else:
-                # Są filtry - NIE używamy where() aby uniknąć problemów z indeksami
-                # Pobieramy wszystkie dane i filtrujemy w pamięci
-                logger.info("🔄 Filters applied - fetching all and filtering in memory to avoid index requirements")
-                docs = bug_reports_ref.limit(fetch_limit).stream()
+            # Pobierz tylko limit dokumentów, nie więcej
+            docs = bug_reports_ref.limit(limit).stream()
         except Exception as query_error:
-            logger.error(f"❌ Error building query: {query_error}")
-            # Fallback - pobierz wszystko bez filtrów
-            logger.info("🔄 Falling back to fetch all without filters")
-            docs = bug_reports_ref.limit(fetch_limit).stream()
+            logger.error(f"❌ Error fetching from Firestore: {query_error}")
+            return Response(
+                {'error': 'Błąd podczas pobierania zgłoszeń z bazy danych', 'reports': []}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
         
         bug_reports = []
         doc_count = 0
         
-        for doc in docs:
-            doc_count += 1
-            report_data = doc.to_dict()
-            report_data['id'] = doc.id
-            
-            # Konwertuj timestampy na ISO format dla wyświetlania i sortowania
-            sort_timestamp = None
-            
-            if 'created_at' in report_data:
-                if isinstance(report_data['created_at'], (int, float)):
-                    # Timestamp Unix (milisekundy) -> ISO string
-                    from datetime import datetime as dt
-                    report_data['created_at'] = dt.fromtimestamp(report_data['created_at'] / 1000).isoformat()
-                    sort_timestamp = report_data['created_at']
-                elif hasattr(report_data['created_at'], 'isoformat'):
-                    report_data['created_at'] = report_data['created_at'].isoformat()
-                    sort_timestamp = report_data['created_at']
-                else:
-                    # String - użyj jako jest
-                    sort_timestamp = report_data.get('created_at', '')
-                    
-            if 'updated_at' in report_data:
-                if isinstance(report_data['updated_at'], (int, float)):
-                    from datetime import datetime as dt
-                    report_data['updated_at'] = dt.fromtimestamp(report_data['updated_at'] / 1000).isoformat()
-                elif hasattr(report_data['updated_at'], 'isoformat'):
-                    report_data['updated_at'] = report_data['updated_at'].isoformat()
-            
-            # Użyj created_at_iso jeśli istnieje (nowe dane)
-            if 'created_at_iso' in report_data:
-                report_data['created_at'] = report_data['created_at_iso']
-                sort_timestamp = report_data['created_at_iso']
-            if 'updated_at_iso' in report_data:
-                report_data['updated_at'] = report_data['updated_at_iso']
-            
-            # Zastosuj filtry w pamięci
-            if status_filter and status_filter != 'all':
-                if report_data.get('status') != status_filter:
-                    continue
-            if category_filter and category_filter != 'all':
-                if report_data.get('category') != category_filter:
-                    continue
-            
-            # Dodaj timestamp do sortowania
-            report_data['_sort_timestamp'] = sort_timestamp or ''
-            bug_reports.append(report_data)
+        try:
+            for doc in docs:
+                doc_count += 1
+                report_data = doc.to_dict()
+                report_data['id'] = doc.id
+                
+                # Zastosuj filtry
+                if status_filter and status_filter != 'all':
+                    if report_data.get('status') != status_filter:
+                        continue
+                if category_filter and category_filter != 'all':
+                    if report_data.get('category') != category_filter:
+                        continue
+                
+                # Konwertuj timestampy na ISO format
+                if 'created_at' in report_data:
+                    if isinstance(report_data['created_at'], (int, float)):
+                        from datetime import datetime as dt
+                        report_data['created_at'] = dt.fromtimestamp(report_data['created_at'] / 1000).isoformat()
+                    elif hasattr(report_data['created_at'], 'isoformat'):
+                        report_data['created_at'] = report_data['created_at'].isoformat()
+                
+                if 'updated_at' in report_data:
+                    if isinstance(report_data['updated_at'], (int, float)):
+                        from datetime import datetime as dt
+                        report_data['updated_at'] = dt.fromtimestamp(report_data['updated_at'] / 1000).isoformat()
+                    elif hasattr(report_data['updated_at'], 'isoformat'):
+                        report_data['updated_at'] = report_data['updated_at'].isoformat()
+                
+                bug_reports.append(report_data)
+        except Exception as iter_error:
+            logger.error(f"❌ Error iterating documents: {iter_error}")
+            # Zwróć to co udało się pobrać
+            pass
         
         # Sortuj w pamięci po dacie (najnowsze pierwsze)
         try:
@@ -1473,10 +1457,6 @@ def get_bug_reports(request):
                 del report['_sort_timestamp']
         
         logger.info(f"✅ Bug reports retrieved by {user.email}: {len(bug_reports)} reports (processed {doc_count} documents)")
-        
-        # Jeśli nie ma zgłoszeń, ale nie było błędu, zwróć pustą listę
-        if len(bug_reports) == 0:
-            logger.info(f"ℹ️ No bug reports found with filters: status={status_filter}, category={category_filter}")
         
         return Response({
             'success': True,
