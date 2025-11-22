@@ -19,14 +19,32 @@ export default function SocialLoginButtons({ onSuccess, onError }: SocialLoginBu
 
   const handleLogin = async (provider: AuthProvider) => {
     try {
-      console.log('Starting social login with provider:', provider.providerId);
+      console.log('🔐 Starting social login with provider:', provider.providerId);
+      
       const result = await signInWithPopup(auth, provider);
-      console.log('Firebase auth successful, getting token...');
+      console.log('✅ Firebase auth successful');
+      
+      const userEmail = result.user.email;
+      console.log('📧 User email:', userEmail);
+      
+      // Walidacja domeny @cogitowroclaw.pl
+      if (!userEmail || !userEmail.endsWith('@cogitowroclaw.pl')) {
+        console.error('❌ Invalid domain:', userEmail);
+        // Wyloguj użytkownika z Firebase
+        await auth.signOut();
+        const errorMessage = 'Tylko adresy email z domeny @cogitowroclaw.pl są dozwolone';
+        if (onError) {
+          onError(errorMessage);
+        }
+        throw new Error(errorMessage);
+      }
+      
+      console.log('✅ Domain validation passed');
       const userToken = await result.user.getIdToken();
       
       // Send token to Django backend
-      console.log('Sending token to backend...');
-              const response = await fetch('/api/auth/firebase-login/', {
+      console.log('📤 Sending token to backend...');
+      const response = await fetch('/api/auth/firebase-login/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -37,12 +55,13 @@ export default function SocialLoginButtons({ onSuccess, onError }: SocialLoginBu
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        console.error('Backend response error:', errorData);
-        throw new Error(errorData.detail || 'Failed to authenticate with backend');
+        console.error('❌ Backend response error:', errorData);
+        await auth.signOut();
+        throw new Error(errorData.detail || 'Nie udało się uwierzytelnić z backendem');
       }
 
       const data = await response.json();
-      console.log('Backend authentication successful:', data);
+      console.log('✅ Backend authentication successful:', data);
       
       // Store tokens in sessionStorage (bezpieczniejsze)
       sessionStorage.setItem('accessToken', data.access);
@@ -62,24 +81,19 @@ export default function SocialLoginButtons({ onSuccess, onError }: SocialLoginBu
       }
       
     } catch (err: unknown) {
-      console.error('Social login error:', err);
+      console.error('❌ Social login error:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Wystąpił błąd podczas logowania';
       if (onError) {
-        onError(err instanceof Error ? err.message : 'An error occurred during social login');
+        onError(errorMessage);
+      } else {
+        // Pokaż alert jeśli nie ma handlera błędów
+        alert(errorMessage);
       }
     }
   };
 
   return (
     <div className="w-full">
-      <div className="relative my-6">
-        <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t border-gray-300"></div>
-        </div>
-        <div className="relative flex justify-center text-sm">
-          <span className="px-2 bg-white text-gray-500">lub kontynuuj z</span>
-        </div>
-      </div>
-
       <div className="grid grid-cols-2 gap-4">
         <button
           onClick={() => handleLogin(googleProvider)}

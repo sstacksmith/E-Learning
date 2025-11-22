@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { renderHook, act } from '@testing-library/react'
 import { useState } from 'react'
 import { collection, addDoc, updateDoc, getDocs, query, where } from 'firebase/firestore'

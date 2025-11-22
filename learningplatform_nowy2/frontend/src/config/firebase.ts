@@ -37,9 +37,20 @@ if (typeof window !== 'undefined') {
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 
-// Initialize providers
+// Initialize providers with domain restriction
 export const googleProvider = new GoogleAuthProvider();
+// Ogranicz do domeny cogitowroclaw.pl
+googleProvider.setCustomParameters({
+  hd: 'cogitowroclaw.pl', // Hosted domain - ogranicza do tej domeny
+  prompt: 'select_account' // Zawsze pokazuj wybór konta
+});
+
 export const microsoftProvider = new OAuthProvider('microsoft.com');
+// Microsoft nie wspiera hd parameter, więc walidacja jest po stronie aplikacji
+microsoftProvider.setCustomParameters({
+  prompt: 'select_account',
+  tenant: 'common' // Możesz zmienić na konkretny tenant ID jeśli masz
+});
 
 // Initialize Analytics only on client side
 let analytics = null;

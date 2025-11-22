@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { render, screen, waitFor } from '@testing-library/react'
 import { collection, getDocs, query, where, addDoc, updateDoc } from 'firebase/firestore'
 import ParentCourseDetails from '@/app/homelogin/parent/courses/[id]/page'

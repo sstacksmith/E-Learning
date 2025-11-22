@@ -1,68 +1,79 @@
 "use client";
-import { useState } from "react";
+import { useState, lazy, Suspense } from "react";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { auth, db } from "@/config/firebase";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import SocialLoginButtons from '@/components/Auth/SocialLoginButtons';
-import Providers from '@/components/Providers';
-import ThemeToggle from '@/components/ThemeToggle';
 import { doc, setDoc } from "firebase/firestore";
+import Image from 'next/image';
+import Link from 'next/link';
+import { motion } from 'framer-motion';
+import { BookOpen, Mail, Lock, Eye, EyeOff, User } from 'lucide-react';
+
+// Lazy load komponenty
+const Notification = lazy(() => import('@/components/Notification'));
+const ThemeToggle = lazy(() => import('@/components/ThemeToggle'));
+const SocialLoginButtons = lazy(() => import('@/components/Auth/SocialLoginButtons'));
+const Providers = lazy(() => import('@/components/Providers'));
+const RealisticGlobe = lazy(() => import('@/components/Auth/RealisticGlobe'));
 
 function RegisterPageContent() {
+  const router = useRouter();
+  const { } = useAuth();
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [acceptTerms, setAcceptTerms] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const [errors, setErrors] = useState<{[key: string]: string}>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const router = useRouter();
-  const { } = useAuth();
+  const [notification, setNotification] = useState<{
+    type: 'success' | 'error' | 'info';
+    message: string;
+  } | null>(null);
 
-  const validate = () => {
-    if (!firstName.trim()) {
-      setError("First name is required.");
-      return false;
-    }
-    if (!lastName.trim()) {
-      setError("Last name is required.");
-      return false;
-    }
-    if (!email.match(/^[^@]+@[^@]+\.[^@]+$/)) {
-      setError("Enter a valid email address.");
-      return false;
-    }
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters.");
-      return false;
-    }
-    if (password !== confirmPassword) {
-      setError("Passwords do not match.");
-      return false;
-    }
-    if (!acceptTerms) {
-      setError("You must accept the terms and conditions.");
-      return false;
-    }
-    return true;
+  // Function to show notifications
+  const showNotification = (type: 'success' | 'error' | 'info', message: string) => {
+    setNotification({ type, message });
+    
+    // Automatically hide notification after 5 seconds
+    setTimeout(() => {
+      setNotification(null);
+    }, 5000);
   };
 
+  // Handle form submission
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError("");
-    setSuccess("");
-    if (!validate()) return;
+    setErrors({});
     setIsSubmitting(true);
+    
+    // Basic client-side validation
+    const tempErrors: {[key: string]: string} = {};
+    if (!firstName.trim()) tempErrors.firstName = "Imię jest wymagane";
+    if (!lastName.trim()) tempErrors.lastName = "Nazwisko jest wymagane";
+    if (!email) tempErrors.email = "Email jest wymagany";
+    if (!email.endsWith('@cogitowroclaw.pl')) {
+      tempErrors.email = "Tylko adresy email z domeny @cogitowroclaw.pl są dozwolone";
+    }
+    if (password.length < 6) tempErrors.password = "Hasło musi mieć minimum 6 znaków";
+    if (password !== confirmPassword) tempErrors.confirmPassword = "Hasła nie są identyczne";
+    if (!acceptTerms) tempErrors.terms = "Musisz zaakceptować regulamin";
+    
+    if (Object.keys(tempErrors).length > 0) {
+      setErrors(tempErrors);
+      setIsSubmitting(false);
+      return;
+    }
+    
     try {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const _ = `${firstName} ${lastName}`.trim();
+      console.log('🔄 Rozpoczynam rejestrację...');
       // Tworzymy użytkownika w Auth
       const userCred = await createUserWithEmailAndPassword(auth, email, password);
+      
       // Zapisujemy dane w Firestore
       await setDoc(doc(db, "users", userCred.user.uid), {
         email,
@@ -73,181 +84,330 @@ function RegisterPageContent() {
         createdAt: new Date(),
         role: "student"
       });
-      setSuccess("Rejestracja przebiegła pomyślnie. Poczekaj na zatwierdzenie przez administratora.");
-      await auth.signOut(); // NIE loguj automatycznie!
+      
+      console.log('✅ Rejestracja zakończona pomyślnie');
+      showNotification('success', 'Rejestracja przebiegła pomyślnie! Poczekaj na zatwierdzenie przez administratora.');
+      
+      // Wyloguj użytkownika (nie loguj automatycznie)
+      await auth.signOut();
+      
+      // Przekieruj do logowania po 2 sekundach
+      setTimeout(() => {
+        router.push('/login');
+      }, 2000);
+      
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Wystąpił błąd podczas rejestracji');
+      console.error('❌ Błąd rejestracji:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Wystąpił błąd podczas rejestracji';
+      showNotification('error', errorMessage);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const handleSocialLoginSuccess = (_: unknown) => {
-    router.push('/dashboard');
+  const handleSocialLoginSuccess = () => {
+    router.push('/homelogin');
   };
 
   return (
-    <div className="flex flex-col lg:flex-row min-h-screen w-full relative">
-      {/* Theme Toggle */}
-      <div className="absolute top-3 sm:top-4 right-3 sm:right-4 z-20">
-        <ThemeToggle />
-      </div>
+    <div className="flex min-h-screen w-full overflow-hidden">
+      {notification && (
+        <Suspense fallback={null}>
+          <Notification 
+            type={notification.type} 
+            message={notification.message} 
+            onClose={() => setNotification(null)}
+          />
+        </Suspense>
+      )}
       
-      {/* Left: Form */}
-      <div className="flex flex-col w-full lg:w-1/2 bg-[#f5f7ff] min-h-[60vh] lg:min-h-screen py-8 sm:py-12 px-3 sm:px-4 lg:px-8">
-        <div className="flex items-center px-2 lg:px-8 py-3 sm:py-4 lg:py-6">
-          <span className="font-bold text-base sm:text-lg"><span role="img" aria-label="logo">🧩</span> Cogito</span>
+      {/* Left Side - Register Form */}
+      <motion.div 
+        initial={{ opacity: 0, x: -50 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.6 }}
+        className="flex flex-col justify-center items-center w-full lg:w-1/2 min-h-screen bg-gradient-to-br from-white via-blue-50/30 to-indigo-50/50 py-8 px-4 sm:px-6 lg:px-12 relative"
+      >
+        {/* Logo */}
+        <div 
+          className="absolute top-6 left-6 flex items-center z-20 cursor-pointer group transition-all duration-300" 
+          onClick={() => router.push('/')}
+        >
+          <div className="relative overflow-hidden rounded-full">
+            <Image 
+              src="/puzzleicon.png" 
+              alt="Puzzle Icon" 
+              width={32} 
+              height={32} 
+              className="w-8 h-8 transition-transform duration-300 group-hover:scale-110"
+            />
+          </div>
+          <span className="ml-2 text-lg font-semibold text-gray-800 group-hover:text-[#4067EC] transition-colors duration-300">Cogito</span>
         </div>
-        <div className="flex flex-col items-center justify-center flex-1">
-          <h1 className="text-2xl sm:text-3xl lg:text-4xl xl:text-5xl font-bold text-[#4a6cf7] mb-6 sm:mb-8 lg:mb-10 mt-4 text-center leading-tight">Sign up as:</h1>
-          <form onSubmit={handleRegister} className="w-full max-w-md space-y-4 sm:space-y-5">
-            <div>
-              <label htmlFor="firstName" className="block mb-1 text-gray-700 font-medium text-sm sm:text-base">Imię</label>
-              <input
-                id="firstName"
-                type="text"
-                placeholder="Wpisz imię"
-                className="w-full px-3 sm:px-4 py-2.5 sm:py-3 border-2 border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-[#4a6cf7] text-gray-900 text-sm sm:text-base transition-colors duration-200"
-                value={firstName}
-                onChange={e => setFirstName(e.target.value)}
-                required
-              />
+        
+        {/* Theme Toggle */}
+        <div className="absolute top-6 right-6 z-20">
+          <Suspense fallback={<div className="w-10 h-10" />}>
+            <ThemeToggle />
+          </Suspense>
+        </div>
+
+        {/* Register Form Card */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.2 }}
+          className="w-full max-w-md bg-white/80 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/20 p-8 sm:p-10"
+        >
+          {/* Icon */}
+          <motion.div 
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ duration: 0.5, delay: 0.3, type: "spring" }}
+            className="flex justify-center mb-6"
+          >
+            <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg">
+              <BookOpen className="w-8 h-8 text-white" />
             </div>
-            <div>
-              <label htmlFor="lastName" className="block mb-1 text-gray-700 font-medium text-sm sm:text-base">Nazwisko</label>
-              <input
-                id="lastName"
-                type="text"
-                placeholder="Wpisz nazwisko"
-                className="w-full px-3 sm:px-4 py-2.5 sm:py-3 border-2 border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-[#4a6cf7] text-gray-900 text-sm sm:text-base transition-colors duration-200"
-                value={lastName}
-                onChange={e => setLastName(e.target.value)}
-                required
-              />
-            </div>
-            <div>
-              <label htmlFor="email" className="block mb-1 text-gray-700 font-medium text-sm sm:text-base">Email</label>
-              <input
-                id="email"
-                type="email"
-                placeholder="Wpisz email"
-                className="w-full px-3 sm:px-4 py-2.5 sm:py-3 border-2 border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-[#4a6cf7] text-gray-900 text-sm sm:text-base transition-colors duration-200"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                required
-                autoComplete="email"
-              />
-            </div>
-            <div>
-              <label htmlFor="password" className="block mb-1 text-gray-700 font-medium text-sm sm:text-base">Hasło</label>
+          </motion.div>
+
+          {/* Title */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.6, delay: 0.4 }}
+          >
+            <h1 className="text-3xl font-bold text-center mb-2 bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+              Dołącz do Cogito!
+            </h1>
+            <p className="text-center text-gray-500 text-sm mb-8">
+              Rozpocznij swoją edukacyjną przygodę
+            </p>
+          </motion.div>
+
+          {/* Form */}
+          <form className="space-y-5" onSubmit={handleRegister}>
+            {/* First Name Input */}
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.5, delay: 0.5 }}
+            >
               <div className="relative">
+                <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <input
-                  id="password"
+                  type="text"
+                  placeholder="Imię"
+                  style={{ fontSize: '16px' }}
+                  className={`w-full pl-12 pr-4 py-3 border-2 ${errors.firstName ? 'border-red-500' : 'border-gray-200'} rounded-xl focus:outline-none focus:border-blue-500 transition-all duration-200 text-gray-900 placeholder-gray-400 bg-white/50`}
+                  value={firstName}
+                  onChange={e => setFirstName(e.target.value)}
+                />
+              </div>
+              {errors.firstName && <p className="text-red-500 text-xs mt-1 ml-1">{errors.firstName}</p>}
+            </motion.div>
+
+            {/* Last Name Input */}
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.5, delay: 0.55 }}
+            >
+              <div className="relative">
+                <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Nazwisko"
+                  style={{ fontSize: '16px' }}
+                  className={`w-full pl-12 pr-4 py-3 border-2 ${errors.lastName ? 'border-red-500' : 'border-gray-200'} rounded-xl focus:outline-none focus:border-blue-500 transition-all duration-200 text-gray-900 placeholder-gray-400 bg-white/50`}
+                  value={lastName}
+                  onChange={e => setLastName(e.target.value)}
+                />
+              </div>
+              {errors.lastName && <p className="text-red-500 text-xs mt-1 ml-1">{errors.lastName}</p>}
+            </motion.div>
+
+            {/* Email Input */}
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.5, delay: 0.6 }}
+            >
+              <div className="relative">
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type="email"
+                  placeholder="Email (@cogitowroclaw.pl)"
+                  style={{ fontSize: '16px' }}
+                  className={`w-full pl-12 pr-4 py-3 border-2 ${errors.email ? 'border-red-500' : 'border-gray-200'} rounded-xl focus:outline-none focus:border-blue-500 transition-all duration-200 text-gray-900 placeholder-gray-400 bg-white/50`}
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                />
+              </div>
+              {errors.email && <p className="text-red-500 text-xs mt-1 ml-1">{errors.email}</p>}
+            </motion.div>
+
+            {/* Password Input */}
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.5, delay: 0.65 }}
+            >
+              <div className="relative">
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
                   type={showPassword ? "text" : "password"}
-                  placeholder="Wpisz hasło"
-                  className="w-full px-3 sm:px-4 py-2.5 sm:py-3 border-2 border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-[#4a6cf7] text-gray-900 text-sm sm:text-base transition-colors duration-200 pr-10"
+                  placeholder="Hasło"
+                  style={{ fontSize: '16px' }}
+                  className={`w-full pl-12 pr-12 py-3 border-2 ${errors.password ? 'border-red-500' : 'border-gray-200'} rounded-xl focus:outline-none focus:border-blue-500 transition-all duration-200 text-gray-900 placeholder-gray-400 bg-white/50`}
                   value={password}
                   onChange={e => setPassword(e.target.value)}
-                  required
-                  autoComplete="new-password"
                 />
                 <button
                   type="button"
-                  className="absolute right-3 top-1/2 -translate-y-1/2 bg-[#4a6cf7] text-white p-1 rounded shadow hover:bg-blue-700 transition-colors duration-200 border border-white"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
                   onClick={() => setShowPassword(v => !v)}
-                  tabIndex={-1}
                 >
-                  <svg width="18" height="18" fill="none" viewBox="0 0 24 24" className="w-4 h-4 sm:w-5 sm:h-5">
-                    <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                    <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
               </div>
-            </div>
-            <div>
-              <label htmlFor="confirmPassword" className="block mb-1 text-gray-700 font-medium text-sm sm:text-base">Powtórz hasło</label>
+              {errors.password && <p className="text-red-500 text-xs mt-1 ml-1">{errors.password}</p>}
+            </motion.div>
+
+            {/* Confirm Password Input */}
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.5, delay: 0.7 }}
+            >
               <div className="relative">
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <input
-                  id="confirmPassword"
-                  type={showConfirm ? "text" : "password"}
+                  type={showConfirmPassword ? "text" : "password"}
                   placeholder="Powtórz hasło"
-                  className="w-full px-3 sm:px-4 py-2.5 sm:py-3 border-2 border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-[#4a6cf7] text-gray-900 text-sm sm:text-base transition-colors duration-200 pr-10"
+                  style={{ fontSize: '16px' }}
+                  className={`w-full pl-12 pr-12 py-3 border-2 ${errors.confirmPassword ? 'border-red-500' : 'border-gray-200'} rounded-xl focus:outline-none focus:border-blue-500 transition-all duration-200 text-gray-900 placeholder-gray-400 bg-white/50`}
                   value={confirmPassword}
                   onChange={e => setConfirmPassword(e.target.value)}
-                  required
-                  autoComplete="new-password"
                 />
                 <button
                   type="button"
-                  className="absolute right-3 top-1/2 -translate-y-1/2 bg-[#4a6cf7] text-white p-1 rounded shadow hover:bg-blue-700 transition-colors duration-200 border border-white"
-                  onClick={() => setShowConfirm(v => !v)}
-                  tabIndex={-1}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                  onClick={() => setShowConfirmPassword(v => !v)}
                 >
-                  <svg width="18" height="18" fill="none" viewBox="0 0 24 24" className="w-4 h-4 sm:w-5 sm:h-5">
-                    <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                    <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
+                  {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
               </div>
-            </div>
-            <div className="flex items-center gap-2 mt-2">
-              <input
-                id="acceptTerms"
-                type="checkbox"
-                checked={acceptTerms}
-                onChange={() => setAcceptTerms(v => !v)}
-                className="mr-2 accent-blue-600 scale-110 sm:scale-125"
-                required
-              />
-              <label htmlFor="acceptTerms" className="text-xs sm:text-sm select-none cursor-pointer text-gray-700">Akceptuję regulamin</label>
-            </div>
-            <button
-              type="submit"
-              className="w-full py-2.5 sm:py-3 bg-[#4a6cf7] text-white font-bold rounded-lg mt-2 transition-all duration-300 hover:bg-blue-700 hover:shadow-md cursor-pointer disabled:bg-gray-400 disabled:cursor-not-allowed text-sm sm:text-base"
-              disabled={isSubmitting}
+              {errors.confirmPassword && <p className="text-red-500 text-xs mt-1 ml-1">{errors.confirmPassword}</p>}
+            </motion.div>
+
+            {/* Accept Terms */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.5, delay: 0.75 }}
+              className="flex items-center text-sm"
             >
-              {isSubmitting ? "Rejestracja..." : "Zarejestruj się"}
-            </button>
-            <div className="text-center mt-2">
-              <a href="/login" className="text-[#4a6cf7] hover:underline text-xs sm:text-sm transition-colors duration-200">Masz już konto? Zaloguj się</a>
-            </div>
-            {error && <div className="text-red-600 mt-2 text-center text-xs sm:text-sm">{error}</div>}
-            {success && <div className="text-green-600 mt-2 text-center text-xs sm:text-sm">{success}</div>}
+              <label className="flex items-center cursor-pointer group">
+                <input
+                  type="checkbox"
+                  checked={acceptTerms}
+                  onChange={() => setAcceptTerms(v => !v)}
+                  className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2 cursor-pointer"
+                />
+                <span className="ml-2 text-gray-600 group-hover:text-gray-800 transition-colors">
+                  Akceptuję regulamin
+                </span>
+              </label>
+              {errors.terms && <p className="text-red-500 text-xs ml-2">{errors.terms}</p>}
+            </motion.div>
+
+            {/* Register Button */}
+            <motion.button
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.8 }}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3.5 px-4 rounded-xl font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl"
+            >
+              {isSubmitting ? "Rejestracja..." : "ZAREJESTRUJ SIĘ"}
+            </motion.button>
           </form>
           
-          <div className="mt-6 sm:mt-8">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300"></div>
-              </div>
-              <div className="relative flex justify-center text-xs sm:text-sm">
-                <span className="px-2 bg-[#f5f7ff] text-gray-500">Or continue with</span>
-              </div>
-            </div>
-            
-            <div className="mt-4 sm:mt-6">
-              <SocialLoginButtons onSuccess={handleSocialLoginSuccess} />
-            </div>
-          </div>
-        </div>
-      </div>
+          {/* Social Login */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5, delay: 0.9 }}
+            className="mt-6"
+          >
+            <Suspense fallback={<div className="h-12" />}>
+              <SocialLoginButtons 
+                onSuccess={handleSocialLoginSuccess}
+                onError={(error) => {
+                  console.error('Social login error:', error);
+                  showNotification('error', error);
+                }}
+              />
+            </Suspense>
+          </motion.div>
+          
+          {/* Login Link */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5, delay: 1 }}
+            className="mt-6 text-center"
+          >
+            <p className="text-sm text-gray-600">
+              Masz już konto?{" "}
+              <Link href="/login" className="text-blue-600 hover:text-blue-700 font-semibold transition-colors">
+                Zaloguj się
+              </Link>
+            </p>
+          </motion.div>
+        </motion.div>
+      </motion.div>
       
-      {/* Right: Image */}
-      <div className="hidden lg:flex lg:w-1/2 bg-[#4a6cf7] items-center justify-center p-8">
-        <div className="text-center text-white">
-          <h2 className="text-3xl font-bold mb-4">Join COGITO!</h2>
-          <p className="text-lg opacity-90">Start your educational journey with our comprehensive learning platform.</p>
+      {/* Right Side - 3D Globe Animation */}
+      <motion.div 
+        initial={{ opacity: 0, x: 50 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.6 }}
+        className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-[#1a2a6c] via-[#0f1b4c] to-[#0a1238] items-center justify-center relative overflow-hidden"
+      >
+        {/* 3D Globe */}
+        <div className="relative z-10 w-full h-full flex items-center justify-center">
+          <Suspense fallback={
+            <div className="flex items-center justify-center">
+              <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-blue-400"></div>
+            </div>
+          }>
+            <RealisticGlobe />
+          </Suspense>
         </div>
-      </div>
+
+        {/* Decorative Elements */}
+        <div className="absolute top-10 right-10 w-20 h-20 bg-blue-500/20 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute bottom-20 left-20 w-32 h-32 bg-purple-500/20 rounded-full blur-3xl animate-pulse delay-1000"></div>
+      </motion.div>
     </div>
   );
 }
 
 export default function RegisterPage() {
   return (
-    <Providers>
-      <RegisterPageContent />
-    </Providers>
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-white to-blue-50">
+        <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-600"></div>
+      </div>
+    }>
+      <Providers>
+        <RegisterPageContent />
+      </Providers>
+    </Suspense>
   );
 }
