@@ -226,8 +226,36 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // Logout user
   const logout = async () => {
     try {
+      // Wyloguj z Firebase
       await signOut(auth);
+      
+      // Wyczyść wszystkie dane z localStorage związane z autoryzacją
+      localStorage.removeItem('firebaseToken');
+      localStorage.removeItem('token');
+      localStorage.removeItem('rememberedEmail');
+      localStorage.removeItem('rememberedPassword');
+      
+      // Wyczyść cache danych użytkownika
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('userData_')) {
+          localStorage.removeItem(key);
+        }
+      });
+      
+      // Wyczyść token expiry
+      localStorage.removeItem('tokenExpiry');
+      
+      // Resetuj stan użytkownika
+      setUser(null);
+      setIsAuthenticated(false);
+      
+      // Przekieruj do strony logowania
       router.push('/login');
+      
+      // Wymuś odświeżenie strony aby wyczyścić wszystkie cache
+      if (typeof window !== 'undefined') {
+        window.location.href = '/login';
+      }
     } catch (error) {
       console.error('Logout error:', error);
       throw error;

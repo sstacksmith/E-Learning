@@ -5,7 +5,7 @@
   "main": "manage.py",
   "scripts": {
     "start": "concurrently \"python manage.py migrate --settings=learning_platform.settings && python manage.py runserver 0.0.0.0:8000 --settings=learning_platform.settings\" \"cd learningplatform_nowy\\ 2/frontend && npm start\"",
-    "build": "python manage.py collectstatic --noinput --settings=learning_platform.settings && cd learningplatform_nowy2/frontend && npm run build"
+    "build": ".\\venv\\Scripts\\python.exe manage.py collectstatic --noinput --settings=learning_platform.settings && cd learningplatform_nowy2/frontend && npm run build"
   },
   "engines": {
     "node": "18.x"

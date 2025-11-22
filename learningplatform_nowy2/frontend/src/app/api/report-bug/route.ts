@@ -23,6 +23,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Zapisz do Firestore przez backend API
+    try {
+      const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const backendResponse = await fetch(`${backendUrl}/api/report-bug/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(bugReport),
+      });
+
+      if (backendResponse.ok) {
+        console.log('Bug report saved to Firestore via backend API');
+      } else {
+        console.error('Failed to save bug report to Firestore:', await backendResponse.text());
+      }
+    } catch (backendError) {
+      console.error('Error saving to Firestore via backend:', backendError);
+      // Kontynuuj wysyłanie emaila nawet jeśli zapis do Firestore się nie powiódł
+    }
+
     // Check if email credentials are configured
     if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
       console.log('Email credentials not configured, saving to console instead');

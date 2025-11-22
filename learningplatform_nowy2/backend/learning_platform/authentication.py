@@ -10,17 +10,14 @@ class FirebaseAuthentication(BaseAuthentication):
         print(f"Request path: {request.path}")
         print(f"Request method: {request.method}")
         
-        # Pomiń uwierzytelnianie dla health check endpointu
-        if request.path == '/health/':
-            print("Skipping authentication for /health/ endpoint")
-            return None
-        
         auth_header = request.headers.get('Authorization')
         print(f"Authorization header: {auth_header}")
         
         if not auth_header:
-            print("No Authorization header")
-            raise AuthenticationFailed('No authorization header')
+            print("No Authorization header - returning None (allows AllowAny endpoints)")
+            # Zwróć None zamiast rzucać wyjątek - pozwoli to na dostęp do endpointów z AllowAny
+            # DRF sprawdzi permission_classes i pozwoli na dostęp jeśli jest AllowAny
+            return None
             
         if not auth_header.startswith('Bearer '):
             print("Invalid Authorization format")
@@ -72,6 +69,7 @@ class FirebaseAuthentication(BaseAuthentication):
                 is_terapeuta = role == 'terapeuta'
                 is_bibliotekarz = role == 'bibliotekarz'
                 is_administrator = role == 'administrator'
+                is_it_support = role == 'it_support'
                 
             except Exception as e:
                 print(f"❌ Error getting Firebase custom claims: {e}")
@@ -90,7 +88,8 @@ class FirebaseAuthentication(BaseAuthentication):
                 is_terapeuta = False
                 is_bibliotekarz = False
                 is_administrator = False
-            
+                is_it_support = False
+                
             # Create Firebase user object
             user = FirebaseUser(
                 uid=decoded_token['uid'],
@@ -110,6 +109,7 @@ class FirebaseAuthentication(BaseAuthentication):
                 is_terapeuta=is_terapeuta,
                 is_bibliotekarz=is_bibliotekarz,
                 is_administrator=is_administrator,
+                is_it_support=is_it_support,
                 is_active=True
             )
             

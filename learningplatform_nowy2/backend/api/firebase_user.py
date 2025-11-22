@@ -36,6 +36,7 @@ class FirebaseUser:
         self.is_terapeuta = kwargs.get('is_terapeuta', False)
         self.is_bibliotekarz = kwargs.get('is_bibliotekarz', False)
         self.is_administrator = kwargs.get('is_administrator', False)
+        self.is_it_support = kwargs.get('is_it_support', False)
         
         # Django compatibility
         self.pk = uid
@@ -91,6 +92,8 @@ class FirebaseUser:
             return 'bibliotekarz'
         elif self.is_administrator:
             return 'administrator'
+        elif self.is_it_support:
+            return 'it_support'
         else:
             return 'student'
 

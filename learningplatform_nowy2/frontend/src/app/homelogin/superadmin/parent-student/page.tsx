@@ -4,6 +4,9 @@ import { useState, useEffect } from 'react';
 import { db } from '@/config/firebase';
 import { collection, getDocs, doc, query, where } from 'firebase/firestore';
 import ThemeToggle from '@/components/ThemeToggle';
+import Link from 'next/link';
+import { ArrowLeft } from 'lucide-react';
+import Image from 'next/image';
 
 interface ParentStudent {
   id: string;
@@ -149,16 +152,44 @@ export default function ParentStudentManagement() {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      {/* Theme Toggle */}
-      <div className="absolute top-4 right-4 z-50">
-        <ThemeToggle />
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 w-full overflow-x-hidden">
+      {/* Header z przyciskiem powrotu - Responsywny */}
+      <div className="bg-white/90 backdrop-blur-lg border-b border-gray-200 shadow-sm sticky top-0 z-40">
+        <div className="px-4 sm:px-6 lg:px-8 py-3 sm:py-4">
+          <div className="flex items-center justify-between gap-4">
+            {/* Lewa strona - Logo i przycisk powrotu */}
+            <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
+              <Link
+                href="/homelogin/superadmin"
+                className="flex items-center gap-2 px-3 py-2 sm:px-4 bg-white/80 backdrop-blur-sm text-gray-700 rounded-lg hover:bg-white hover:shadow-md transition-all duration-200 border border-gray-200 flex-shrink-0"
+                aria-label="Powrót do panelu superadministratora"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span className="hidden sm:inline">Powrót</span>
+              </Link>
+              
+              <div className="flex items-center gap-2 min-w-0">
+                <Image src="/puzzleicon.png" alt="Logo" width={28} height={28} className="flex-shrink-0" />
+                <span className="text-lg sm:text-xl font-bold text-[#4067EC] truncate">COGITO</span>
+              </div>
+            </div>
+
+            {/* Prawa strona - Theme toggle */}
+            <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
+              <div className="relative">
+                <ThemeToggle />
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2 text-gray-900">Zarządzanie Przypisaniami Rodzic-Uczeń</h1>
-        <p className="text-gray-600">Przypisuj uczniów do rodziców i zarządzaj istniejącymi relacjami</p>
-      </div>
+      {/* Main Content */}
+      <div className="w-full max-w-[1920px] mx-auto p-4 sm:p-6 lg:p-8 box-border">
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold mb-2 sm:mb-4 text-gray-900">Zarządzanie Przypisaniami Rodzic-Uczeń</h1>
+          <p className="text-sm sm:text-base text-gray-600">Przypisuj uczniów do rodziców i zarządzaj istniejącymi relacjami</p>
+        </div>
 
       {/* Statistics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">

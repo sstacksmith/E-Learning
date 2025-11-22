@@ -20,6 +20,7 @@ from rest_framework.decorators import api_view, permission_classes
 from django.utils import timezone
 import firebase_admin
 from firebase_admin import firestore
+from google.cloud.firestore import Query
 import logging
 import time
 from rest_framework import viewsets, status
@@ -1296,4 +1297,328 @@ def remove_student_from_class(request):
         
     except Exception as e:
         logger.error(f"Error removing student from class: {e}")
-        return Response({'error': f'Błąd podczas usuwania studenta: {str(e)}'}, status=500) 
+        return Response({'error': f'Błąd podczas usuwania studenta: {str(e)}'}, status=500)
+
+
+# ==================== BUG REPORTS ====================
+
+@api_view(['POST'])
+@permission_classes([AllowAny])  # Allow anonymous bug reports
+def report_bug(request):
+    """
+    Endpoint do zgłaszania błędów. Dostępny dla wszystkich użytkowników (anonimowo).
+    """
+    try:
+        data = request.data
+        
+        # Walidacja wymaganych pól
+        required_fields = ['category', 'description']
+        for field in required_fields:
+            if not data.get(field):
+                return Response(
+                    {'error': f'Pole {field} jest wymagane'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
+        # Przygotuj dane zgłoszenia
+        # Używamy timestamp Unix (liczba) dla poprawnego sortowania w Firestore
+        now = datetime.utcnow()
+        now_timestamp = int(now.timestamp() * 1000)  # milisekundy
+        
+        bug_report = {
+            'category': data.get('category'),
+            'description': data.get('description'),
+            'steps': data.get('steps', ''),
+            'expected': data.get('expected', ''),
+            'actual': data.get('actual', ''),
+            'browser': data.get('browser', ''),
+            'url': data.get('url', ''),
+            'status': 'new',  # new, in_progress, resolved, closed
+            'created_at': now_timestamp,  # Timestamp Unix w milisekundach
+            'updated_at': now_timestamp,
+            'created_at_iso': now.isoformat(),  # ISO format dla wyświetlania
+            'updated_at_iso': now.isoformat(),
+        }
+        
+        # Zapisz w Firestore
+        db = firestore.client()
+        bug_reports_ref = db.collection('bug_reports')
+        doc_ref = bug_reports_ref.add(bug_report)[1]
+        
+        logger.info(f"Bug report created: {doc_ref.id}")
+        
+        return Response({
+            'success': True,
+            'message': 'Zgłoszenie zostało wysłane pomyślnie',
+            'id': doc_ref.id
+        }, status=status.HTTP_201_CREATED)
+        
+    except Exception as e:
+        logger.error(f"Error creating bug report: {e}")
+        return Response(
+            {'error': f'Błąd podczas zapisywania zgłoszenia: {str(e)}'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_bug_reports(request):
+    """
+    Endpoint do pobierania zgłoszeń błędów. Tylko dla Administratora.
+    """
+    try:
+        # Sprawdź czy użytkownik ma rolę admin/superuser (tylko super admin)
+        user = request.user
+        logger.info(f"🔍 Bug reports access check - User: {user.email if hasattr(user, 'email') else 'Unknown'}")
+        logger.info(f"🔍 User attributes - is_superuser: {getattr(user, 'is_superuser', None)}, is_administrator: {getattr(user, 'is_administrator', None)}")
+        
+        # Sprawdź rolę również z tokenu Firebase (fallback)
+        user_role = None
+        try:
+            auth_header = request.headers.get('Authorization', '')
+            if auth_header and auth_header.startswith('Bearer '):
+                token = auth_header.split('Bearer ')[1]
+                from learningplatform.firebase_config import verify_firebase_token
+                decoded_token = verify_firebase_token(token)
+                if decoded_token:
+                    # Sprawdź custom claims
+                    from firebase_utils import auth
+                    firebase_user = auth.get_user(decoded_token['uid'])
+                    custom_claims = firebase_user.custom_claims or {}
+                    user_role = custom_claims.get('role', decoded_token.get('role'))
+                    logger.info(f"🔍 Firebase role from token: {user_role}")
+        except Exception as e:
+            logger.warning(f"⚠️ Could not get role from token: {e}")
+        
+        is_authorized = (
+            (hasattr(user, 'is_superuser') and user.is_superuser) or
+            (hasattr(user, 'is_administrator') and user.is_administrator) or
+            (user_role == 'admin') or
+            (user_role == 'administrator')
+        )
+        
+        logger.info(f"🔍 Authorization result: {is_authorized}")
+        
+        if not is_authorized:
+            logger.warning(f"❌ Access denied for user: {user.email if hasattr(user, 'email') else 'Unknown'}, role: {user_role}")
+            return Response(
+                {'error': 'Brak uprawnień. Wymagana rola: Administrator'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Pobierz parametry filtrowania
+        status_filter = request.query_params.get('status', None)
+        category_filter = request.query_params.get('category', None)
+        limit = int(request.query_params.get('limit', 50))
+        
+        # Pobierz zgłoszenia z Firestore
+        db = firestore.client()
+        bug_reports_ref = db.collection('bug_reports')
+        
+        logger.info(f"🔍 Fetching bug reports - status_filter: {status_filter}, category_filter: {category_filter}, limit: {limit}")
+        
+        # Firestore wymaga indeksów dla kombinacji where + order_by
+        # Aby całkowicie uniknąć problemów z indeksami, zawsze filtrujemy i sortujemy w pamięci
+        # Pobierz więcej dokumentów niż limit, aby mieć zapas do filtrowania
+        fetch_limit = min(limit * 3, 200)  # Pobierz max 200 dokumentów
+        
+        # Sprawdź czy są jakieś filtry
+        has_filters = (status_filter and status_filter != 'all') or (category_filter and category_filter != 'all')
+        
+        try:
+            if not has_filters:
+                # Brak filtrów - możemy sortować w Firestore (nie wymaga indeksu)
+                try:
+                    docs = bug_reports_ref.order_by('created_at', direction=Query.DESCENDING).limit(fetch_limit).stream()
+                except Exception as sort_error:
+                    logger.warning(f"⚠️ Cannot sort in Firestore, fetching without sort: {sort_error}")
+                    docs = bug_reports_ref.limit(fetch_limit).stream()
+            else:
+                # Są filtry - NIE używamy where() aby uniknąć problemów z indeksami
+                # Pobieramy wszystkie dane i filtrujemy w pamięci
+                logger.info("🔄 Filters applied - fetching all and filtering in memory to avoid index requirements")
+                docs = bug_reports_ref.limit(fetch_limit).stream()
+        except Exception as query_error:
+            logger.error(f"❌ Error building query: {query_error}")
+            # Fallback - pobierz wszystko bez filtrów
+            logger.info("🔄 Falling back to fetch all without filters")
+            docs = bug_reports_ref.limit(fetch_limit).stream()
+        
+        bug_reports = []
+        doc_count = 0
+        
+        for doc in docs:
+            doc_count += 1
+            report_data = doc.to_dict()
+            report_data['id'] = doc.id
+            
+            # Konwertuj timestampy na ISO format dla wyświetlania i sortowania
+            sort_timestamp = None
+            
+            if 'created_at' in report_data:
+                if isinstance(report_data['created_at'], (int, float)):
+                    # Timestamp Unix (milisekundy) -> ISO string
+                    from datetime import datetime as dt
+                    report_data['created_at'] = dt.fromtimestamp(report_data['created_at'] / 1000).isoformat()
+                    sort_timestamp = report_data['created_at']
+                elif hasattr(report_data['created_at'], 'isoformat'):
+                    report_data['created_at'] = report_data['created_at'].isoformat()
+                    sort_timestamp = report_data['created_at']
+                else:
+                    # String - użyj jako jest
+                    sort_timestamp = report_data.get('created_at', '')
+                    
+            if 'updated_at' in report_data:
+                if isinstance(report_data['updated_at'], (int, float)):
+                    from datetime import datetime as dt
+                    report_data['updated_at'] = dt.fromtimestamp(report_data['updated_at'] / 1000).isoformat()
+                elif hasattr(report_data['updated_at'], 'isoformat'):
+                    report_data['updated_at'] = report_data['updated_at'].isoformat()
+            
+            # Użyj created_at_iso jeśli istnieje (nowe dane)
+            if 'created_at_iso' in report_data:
+                report_data['created_at'] = report_data['created_at_iso']
+                sort_timestamp = report_data['created_at_iso']
+            if 'updated_at_iso' in report_data:
+                report_data['updated_at'] = report_data['updated_at_iso']
+            
+            # Zastosuj filtry w pamięci
+            if status_filter and status_filter != 'all':
+                if report_data.get('status') != status_filter:
+                    continue
+            if category_filter and category_filter != 'all':
+                if report_data.get('category') != category_filter:
+                    continue
+            
+            # Dodaj timestamp do sortowania
+            report_data['_sort_timestamp'] = sort_timestamp or ''
+            bug_reports.append(report_data)
+        
+        # Sortuj w pamięci po dacie (najnowsze pierwsze)
+        try:
+            bug_reports.sort(key=lambda x: x.get('_sort_timestamp', x.get('created_at', '')), reverse=True)
+        except Exception as sort_err:
+            logger.warning(f"⚠️ Error sorting in memory: {sort_err}")
+        
+        # Ogranicz do limitu
+        bug_reports = bug_reports[:limit]
+        
+        # Usuń pomocnicze pole sortowania przed zwróceniem
+        for report in bug_reports:
+            if '_sort_timestamp' in report:
+                del report['_sort_timestamp']
+        
+        logger.info(f"✅ Bug reports retrieved by {user.email}: {len(bug_reports)} reports (processed {doc_count} documents)")
+        
+        # Jeśli nie ma zgłoszeń, ale nie było błędu, zwróć pustą listę
+        if len(bug_reports) == 0:
+            logger.info(f"ℹ️ No bug reports found with filters: status={status_filter}, category={category_filter}")
+        
+        return Response({
+            'success': True,
+            'count': len(bug_reports),
+            'reports': bug_reports
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        logger.error(f"Error retrieving bug reports: {e}")
+        return Response(
+            {'error': f'Błąd podczas pobierania zgłoszeń: {str(e)}'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated])
+def update_bug_report_status(request, report_id):
+    """
+    Endpoint do aktualizacji statusu zgłoszenia. Tylko dla Administratora.
+    """
+    try:
+        # Sprawdź czy użytkownik ma rolę admin/superuser (tylko super admin)
+        user = request.user
+        logger.info(f"🔍 Bug reports access check - User: {user.email if hasattr(user, 'email') else 'Unknown'}")
+        logger.info(f"🔍 User attributes - is_superuser: {getattr(user, 'is_superuser', None)}, is_administrator: {getattr(user, 'is_administrator', None)}")
+        
+        # Sprawdź rolę również z tokenu Firebase (fallback)
+        user_role = None
+        try:
+            auth_header = request.headers.get('Authorization', '')
+            if auth_header and auth_header.startswith('Bearer '):
+                token = auth_header.split('Bearer ')[1]
+                from learningplatform.firebase_config import verify_firebase_token
+                decoded_token = verify_firebase_token(token)
+                if decoded_token:
+                    # Sprawdź custom claims
+                    from firebase_utils import auth
+                    firebase_user = auth.get_user(decoded_token['uid'])
+                    custom_claims = firebase_user.custom_claims or {}
+                    user_role = custom_claims.get('role', decoded_token.get('role'))
+                    logger.info(f"🔍 Firebase role from token: {user_role}")
+        except Exception as e:
+            logger.warning(f"⚠️ Could not get role from token: {e}")
+        
+        is_authorized = (
+            (hasattr(user, 'is_superuser') and user.is_superuser) or
+            (hasattr(user, 'is_administrator') and user.is_administrator) or
+            (user_role == 'admin') or
+            (user_role == 'administrator')
+        )
+        
+        logger.info(f"🔍 Authorization result: {is_authorized}")
+        
+        if not is_authorized:
+            logger.warning(f"❌ Access denied for user: {user.email if hasattr(user, 'email') else 'Unknown'}, role: {user_role}")
+            return Response(
+                {'error': 'Brak uprawnień. Wymagana rola: Administrator'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        new_status = request.data.get('status')
+        if not new_status:
+            return Response(
+                {'error': 'Pole status jest wymagane'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        valid_statuses = ['new', 'in_progress', 'resolved', 'closed']
+        if new_status not in valid_statuses:
+            return Response(
+                {'error': f'Nieprawidłowy status. Dozwolone: {", ".join(valid_statuses)}'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Aktualizuj status w Firestore
+        db = firestore.client()
+        report_ref = db.collection('bug_reports').document(report_id)
+        
+        if not report_ref.get().exists:
+            return Response(
+                {'error': 'Zgłoszenie nie zostało znalezione'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        now = datetime.utcnow()
+        now_timestamp = int(now.timestamp() * 1000)  # milisekundy
+        
+        report_ref.update({
+            'status': new_status,
+            'updated_at': now_timestamp,  # Timestamp Unix w milisekundach
+            'updated_at_iso': now.isoformat(),  # ISO format dla wyświetlania
+            'updated_by': user.email
+        })
+        
+        logger.info(f"Bug report {report_id} status updated to {new_status} by {user.email}")
+        
+        return Response({
+            'success': True,
+            'message': 'Status zgłoszenia został zaktualizowany'
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        logger.error(f"Error updating bug report status: {e}")
+        return Response(
+            {'error': f'Błąd podczas aktualizacji statusu: {str(e)}'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        ) 

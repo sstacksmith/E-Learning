@@ -28,7 +28,13 @@ import {
   UserPlus,
   Group,
   GraduationCap,
-  ArrowLeft
+  ArrowLeft,
+  Bug,
+  Filter,
+  AlertCircle,
+  RefreshCw,
+  Menu,
+  X
 } from 'lucide-react';
 
 // Typ użytkownika Firestore
@@ -92,6 +98,11 @@ function SuperAdminDashboardContent() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("users");
+  const [bugReports, setBugReports] = useState<any[]>([]);
+  const [bugReportsLoading, setBugReportsLoading] = useState(false);
+  const [bugReportsError, setBugReportsError] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [showResetPasswordModal, setShowResetPasswordModal] = useState(false);
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
@@ -126,6 +137,7 @@ function SuperAdminDashboardContent() {
   const [editCourseTeacher, setEditCourseTeacher] = useState("");
   const [editCourseStudents, setEditCourseStudents] = useState<string[]>([]);
   const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -251,6 +263,115 @@ function SuperAdminDashboardContent() {
     fetchCourses();
     fetchGroups();
   }, [fetchUsers, fetchCourses, fetchGroups]);
+
+  // Funkcja do pobierania zgłoszeń błędów
+  const fetchBugReports = useCallback(async () => {
+    try {
+      setBugReportsLoading(true);
+      setBugReportsError('');
+
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        throw new Error('Brak użytkownika zalogowanego');
+      }
+
+      const token = await currentUser.getIdToken();
+      if (!token) {
+        throw new Error('Brak tokenu autoryzacyjnego');
+      }
+
+      let url = '/api/bug-reports?';
+      if (statusFilter !== 'all') {
+        url += `status=${statusFilter}&`;
+      }
+      if (categoryFilter !== 'all') {
+        url += `category=${encodeURIComponent(categoryFilter)}&`;
+      }
+
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        if (response.status === 403) {
+          throw new Error('Brak uprawnień. Wymagana rola: Administrator');
+        }
+        const errorMessage = errorData.error || errorData.detail || 'Błąd podczas pobierania zgłoszeń';
+        console.error('Error response:', errorData);
+        throw new Error(errorMessage);
+      }
+
+      const data = await response.json();
+      setBugReports(data.reports || []);
+    } catch (err: any) {
+      setBugReportsError(err.message || 'Wystąpił błąd podczas pobierania zgłoszeń');
+      console.error('Error fetching bug reports:', err);
+    } finally {
+      setBugReportsLoading(false);
+    }
+  }, [statusFilter, categoryFilter]);
+
+  // Pobierz zgłoszenia gdy zakładka jest aktywna
+  useEffect(() => {
+    if (activeTab === 'bug-reports' && user) {
+      fetchBugReports();
+    }
+  }, [activeTab, user, fetchBugReports]);
+
+  // Funkcja do aktualizacji statusu zgłoszenia
+  const updateBugReportStatus = async (reportId: string, newStatus: string) => {
+    try {
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        throw new Error('Brak użytkownika zalogowanego');
+      }
+
+      const token = await currentUser.getIdToken();
+      if (!token) {
+        throw new Error('Brak tokenu autoryzacyjnego');
+      }
+
+      const response = await fetch(`/api/bug-reports/${reportId}/status/`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: newStatus }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Błąd podczas aktualizacji statusu');
+      }
+
+      // Odśwież listę zgłoszeń
+      await fetchBugReports();
+      setSuccess('Status zgłoszenia został zaktualizowany');
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err: any) {
+      setBugReportsError(err.message || 'Wystąpił błąd podczas aktualizacji statusu');
+      console.error('Error updating status:', err);
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleString('pl-PL', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    } catch {
+      return dateString;
+    }
+  };
 
   useEffect(() => {
     if (users.length > 0 && courses.length > 0 && groups.length > 0) {
@@ -879,12 +1000,7 @@ function SuperAdminDashboardContent() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-64">
-      {/* Theme Toggle */}
-      <div className="absolute top-4 right-4 z-50">
-        <ThemeToggle />
-      </div>
-
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#4067EC]"></div>
       </div>
     );
   }
@@ -922,68 +1038,77 @@ function SuperAdminDashboardContent() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 w-full">
-      {/* Theme Toggle */}
-      <div className="absolute top-4 right-4 z-50">
-        <ThemeToggle />
-      </div>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 w-full overflow-x-hidden">
+      {/* Header z przyciskiem powrotu - Responsywny */}
+      <div className="bg-white/90 backdrop-blur-lg border-b border-gray-200 shadow-sm sticky top-0 z-40">
+        <div className="px-4 sm:px-6 lg:px-8 py-3 sm:py-4">
+          <div className="flex items-center justify-between gap-4">
+            {/* Lewa strona - Logo i przycisk powrotu */}
+            <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
+              <button
+                onClick={() => window.location.href = '/homelogin'}
+                className="flex items-center gap-2 px-3 py-2 sm:px-4 bg-white/80 backdrop-blur-sm text-gray-700 rounded-lg hover:bg-white hover:shadow-md transition-all duration-200 border border-gray-200 flex-shrink-0"
+                aria-label="Powrót do strony głównej"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span className="hidden sm:inline">Powrót</span>
+              </button>
+              
+              <div className="flex items-center gap-2 min-w-0">
+                <Image src="/puzzleicon.png" alt="Logo" width={28} height={28} className="flex-shrink-0" />
+                <span className="text-lg sm:text-xl font-bold text-[#4067EC] truncate">COGITO</span>
+              </div>
+            </div>
 
-      {/* Header z przyciskiem powrotu */}
-      <div className="bg-white/80 backdrop-blur-lg border-b border-white/20 px-4 sm:px-6 lg:px-8 py-4">
-        <div className="flex items-center justify-between">
-          <button
-            onClick={() => window.location.href = '/homelogin'}
-            className="flex items-center gap-2 px-4 py-2 bg-white/60 backdrop-blur-sm text-gray-700 rounded-lg hover:bg-white hover:shadow-lg transition-all duration-200 ease-in-out border border-white/20"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Powrót do strony głównej
-          </button>
-
-          <div className="flex items-center">
-            <Image src="/puzzleicon.png" alt="Logo" width={32} height={32} />
-            <span className="ml-2 text-xl font-bold text-[#4067EC]">COGITO</span>
-          </div>
-
-          <div className="flex items-center space-x-4">
-            <span className="text-gray-600">Super Administrator</span>
-            <Link href="/login" className="text-[#4067EC] hover:underline">Logout</Link>
+            {/* Prawa strona - User info i akcje */}
+            <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
+              <span className="hidden sm:inline text-sm text-gray-600">Super Administrator</span>
+              <div className="relative">
+                <ThemeToggle />
+              </div>
+              <Link 
+                href="/login" 
+                className="px-3 py-2 text-sm text-[#4067EC] hover:bg-blue-50 rounded-lg transition-colors font-medium"
+              >
+                <span className="hidden sm:inline">Wyloguj</span>
+                <span className="sm:hidden">Exit</span>
+              </Link>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Main Content */}
-      <main className="w-full p-6">
-        {/* Header z powitaniem */}
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold mb-4 text-gray-900">
-            Witaj z powrotem, {(user as any)?.displayName || user?.email || 'Administratorze'}!
+      {/* Main Content - Responsywny padding z max-width i jednakową szerokością */}
+      <main className="w-full max-w-[1920px] mx-auto p-4 sm:p-6 lg:p-8 box-border">
+        {/* Header z powitaniem - Responsywny */}
+        <div className="mb-6 sm:mb-8">
+          <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold mb-2 sm:mb-4 text-gray-900">
+            Witaj z powrotem, <span className="text-[#4067EC]">{(user as any)?.displayName || user?.email?.split('@')[0] || 'Administratorze'}</span>!
           </h2>
-          <p className="text-gray-600 mb-6">
+          <p className="text-sm sm:text-base text-gray-600">
             Przegląd systemu edukacyjnego i zarządzanie użytkownikami
           </p>
         </div>
 
-        {/* Karty statystyk */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        {/* Karty statystyk - Responsywne */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
           {statCards.map((stat, index) => {
             const Icon = stat.icon;
             return (
-              <div key={index} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-      {/* Theme Toggle */}
-      <div className="absolute top-4 right-4 z-50">
-        <ThemeToggle />
-      </div>
-
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-medium text-gray-500">{stat.title}</h3>
-                  <div className={`p-2 rounded-lg ${stat.color}`}>
-                    <Icon className="h-4 w-4 text-white" />
+              <div 
+                key={index} 
+                className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6 hover:shadow-md transition-shadow duration-200"
+              >
+                <div className="flex items-center justify-between mb-3 sm:mb-4">
+                  <h3 className="text-xs sm:text-sm font-medium text-gray-500 truncate pr-2">{stat.title}</h3>
+                  <div className={`p-2 sm:p-2.5 rounded-lg ${stat.color} flex-shrink-0`}>
+                    <Icon className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
                   </div>
                 </div>
-                <div className="text-2xl font-bold text-gray-900 mb-1">{stat.value}</div>
+                <div className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1">{stat.value}</div>
                 <p className="text-xs text-gray-600 flex items-center">
-                  {stat.trend === "up" && <TrendingUp className="inline h-3 w-3 mr-1 text-green-500" />}
-                  {stat.description}
+                  {stat.trend === "up" && <TrendingUp className="inline h-3 w-3 mr-1 text-green-500 flex-shrink-0" />}
+                  <span className="truncate">{stat.description}</span>
                 </p>
               </div>
             );
@@ -992,21 +1117,79 @@ function SuperAdminDashboardContent() {
 
 
 
-        {/* Główny layout z zakładkami po lewej i akcjami po prawej */}
-        <div className="grid lg:grid-cols-4 gap-6">
+        {/* Główny layout z zakładkami po lewej i akcjami po prawej - jednakowa szerokość */}
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6 w-full max-w-full">
           {/* Lewa strona - zakładki i zawartość */}
-          <div className="lg:col-span-3">
-            {/* Tabs */}
-            <div className="mb-8">
-              <div className="border-b border-gray-200">
-                <nav className="-mb-px flex space-x-8">
+          <div className="lg:col-span-3 w-full max-w-full overflow-hidden">
+            {/* Tabs - Responsywne z mobile menu */}
+            <div className="mb-6 sm:mb-8">
+              {/* Mobile Menu Button */}
+              <div className="lg:hidden mb-4">
+                <button
+                  onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                  className="flex items-center gap-2 px-4 py-2 bg-white rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors w-full justify-between"
+                >
+                  <span className="font-medium">
+                    {activeTab === "users" && "User Management"}
+                    {activeTab === "pending" && `Pending Users (${users.filter(u => !u.approved).length})`}
+                    {activeTab === "groups" && "Group Management"}
+                    {activeTab === "courses" && "Course Management"}
+                    {activeTab === "assignments" && "Course Assignments"}
+                    {activeTab === "bug-reports" && "Zgłoszenia błędów"}
+                  </span>
+                  {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+                </button>
+                
+                {/* Mobile Dropdown Menu */}
+                {mobileMenuOpen && (
+                  <div className="mt-2 bg-white rounded-lg border border-gray-200 shadow-lg overflow-hidden">
+                    {[
+                      { id: "users", label: "User Management", icon: Users },
+                      { id: "pending", label: `Pending Users (${users.filter(u => !u.approved).length})`, icon: Clock },
+                      { id: "groups", label: "Group Management", icon: Group },
+                      { id: "courses", label: "Course Management", icon: BookOpen },
+                      { id: "assignments", label: "Course Assignments", icon: ClipboardList },
+                      { id: "bug-reports", label: "Zgłoszenia błędów", icon: Bug },
+                    ].map((tab) => {
+                      const Icon = tab.icon;
+                      return (
+                        <button
+                          key={tab.id}
+                          onClick={() => {
+                            setActiveTab(tab.id);
+                            setMobileMenuOpen(false);
+                          }}
+                          className={`w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors ${
+                            activeTab === tab.id ? "bg-blue-50 text-[#4067EC] border-l-4 border-[#4067EC]" : "text-gray-700"
+                          }`}
+                        >
+                          <Icon className="w-5 h-5 flex-shrink-0" />
+                          <span className="font-medium">{tab.label}</span>
+                        </button>
+                      );
+                    })}
+                    <Link
+                      href="/homelogin/superadmin/parent-student"
+                      className="flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors text-gray-700 border-t border-gray-200"
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      <UserPlus className="w-5 h-5 flex-shrink-0" />
+                      <span className="font-medium">Rodzic-Uczeń</span>
+                    </Link>
+                  </div>
+                )}
+              </div>
+
+              {/* Desktop Tabs */}
+              <div className="hidden lg:block border-b border-gray-200">
+                <nav className="-mb-px flex space-x-6 overflow-x-auto">
                   <button
                     onClick={() => setActiveTab("users")}
                     className={`${
                       activeTab === "users"
                         ? "border-[#4067EC] text-[#4067EC]"
                         : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                    } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                    } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors`}
                   >
                     User Management
                   </button>
@@ -1016,7 +1199,7 @@ function SuperAdminDashboardContent() {
                       activeTab === "pending"
                         ? "border-[#4067EC] text-[#4067EC]"
                         : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                    } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                    } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors`}
                   >
                     Pending Users ({users.filter(u => !u.approved).length})
                   </button>
@@ -1026,7 +1209,7 @@ function SuperAdminDashboardContent() {
                       activeTab === "groups"
                         ? "border-[#4067EC] text-[#4067EC]"
                         : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                    } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                    } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors`}
                   >
                     Group Management
                   </button>
@@ -1036,7 +1219,7 @@ function SuperAdminDashboardContent() {
                       activeTab === "courses"
                         ? "border-[#4067EC] text-[#4067EC]"
                         : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                    } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                    } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors`}
                   >
                     Course Management
                   </button>
@@ -1046,13 +1229,24 @@ function SuperAdminDashboardContent() {
                       activeTab === "assignments"
                         ? "border-[#4067EC] text-[#4067EC]"
                         : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                    } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                    } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors`}
                   >
                     Course Assignments
                   </button>
+                  <button
+                    onClick={() => setActiveTab("bug-reports")}
+                    className={`${
+                      activeTab === "bug-reports"
+                        ? "border-[#4067EC] text-[#4067EC]"
+                        : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                    } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2 transition-colors`}
+                  >
+                    <Bug className="w-4 h-4" />
+                    Zgłoszenia błędów
+                  </button>
                   <Link
                     href="/homelogin/superadmin/parent-student"
-                    className={`border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                    className={`border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors`}
                   >
                     Rodzic-Uczeń
                   </Link>
@@ -1062,40 +1256,43 @@ function SuperAdminDashboardContent() {
 
             {/* Content based on active tab */}
             {activeTab === "users" && (
-              <div className="bg-white rounded-lg shadow">
-                <div className="p-6">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-semibold text-gray-800">User Management</h2>
-                <div className="flex items-center space-x-4">
-                  <div className="text-sm text-gray-600">
-                    <span className="font-medium text-green-600">{users.filter(u => u.approved).length}</span> zatwierdzonych, 
-                    <span className="font-medium text-yellow-600"> {users.filter(u => !u.approved).length}</span> oczekuje na zatwierdzenie
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden w-full">
+                <div className="p-4 sm:p-6">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                    <h2 className="text-lg sm:text-xl font-semibold text-gray-800">User Management</h2>
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 w-full sm:w-auto">
+                      <div className="text-xs sm:text-sm text-gray-600 text-center sm:text-left">
+                        <span className="font-medium text-green-600">{users.filter(u => u.approved).length}</span> zatwierdzonych, 
+                        <span className="font-medium text-yellow-600"> {users.filter(u => !u.approved).length}</span> oczekuje
+                      </div>
+                      <button 
+                        onClick={() => setShowCreateUserModal(true)}
+                        className="bg-[#4067EC] text-white px-4 py-2 rounded-lg hover:bg-[#3155d4] transition-colors text-sm font-medium flex items-center justify-center gap-2"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>Add New User</span>
+                      </button>
+                    </div>
                   </div>
-                  <button 
-                    onClick={() => setShowCreateUserModal(true)}
-                    className="bg-[#4067EC] text-white px-4 py-2 rounded-lg hover:bg-[#3155d4] transition"
-                  >
-                    Add New User
-                  </button>
-                </div>
-              </div>
-              {success && (
-                <div className="mb-4 bg-green-50 border border-green-200 text-green-600 px-4 py-3 rounded relative">
-                  {success}
-                </div>
-              )}
-              {error && (
-                <div className="mb-4 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded relative">
-                  {error}
-                </div>
-              )}
-              {resetPasswordSuccess && (
-                <div className="mb-4 bg-green-50 border border-green-200 text-green-600 px-4 py-3 rounded relative">
-                  {resetPasswordSuccess}
-                </div>
-              )}
-              <div className="overflow-x-auto">
-                <table className="w-full table-fixed divide-y divide-gray-200">
+                  {success && (
+                    <div className="mb-4 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm">
+                      {success}
+                    </div>
+                  )}
+                  {error && (
+                    <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+                      {error}
+                    </div>
+                  )}
+                  {resetPasswordSuccess && (
+                    <div className="mb-4 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm">
+                      {resetPasswordSuccess}
+                    </div>
+                  )}
+                  {/* Responsywna tabela - mobile: cards, desktop: table */}
+                  <div className="hidden md:block overflow-x-auto -mx-4 sm:mx-0">
+                <div className="inline-block min-w-full align-middle">
+                  <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="w-1/6 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -1212,7 +1409,7 @@ function SuperAdminDashboardContent() {
                             )}
                             <button 
                               onClick={() => deleteUser(user.id)}
-                                                              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-red-700 bg-red-100 border border-red-300 rounded-md hover:bg-red-200 transition-colors"
+                              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-red-700 bg-red-100 border border-red-300 rounded-md hover:bg-red-200 transition-colors"
                               title="Usuń użytkownika"
                             >
                               <Trash2 className="h-3 w-3" />
@@ -1225,13 +1422,84 @@ function SuperAdminDashboardContent() {
                     ))}
                   </tbody>
                 </table>
+                  </div>
+                </div>
+              
+              {/* Mobile View - Cards */}
+              <div className="md:hidden space-y-4 mt-4">
+                {users.map((user) => (
+                  <div key={user.id} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-sm font-semibold text-gray-900 truncate">
+                          {user.firstName} {user.lastName}
+                        </h3>
+                        <p className="text-xs text-gray-600 truncate mt-1">{user.email}</p>
+                      </div>
+                      <div className="ml-2 flex-shrink-0">
+                        {user.approved ? (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            ✅ Zatwierdzony
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                            ⏳ Oczekuje
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-xs text-gray-500">Rola:</span>
+                      <span className="text-xs font-medium text-gray-700">
+                        {user.role === 'admin' ? 'Admin' : 
+                         user.role === 'teacher' ? 'Teacher' : 
+                         user.role === 'parent' ? 'Rodzic' : 'Student'}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {!user.approved ? (
+                        <button 
+                          onClick={() => approveUser(user.id)}
+                          className="flex-1 min-w-[100px] inline-flex items-center justify-center gap-1 px-3 py-2 text-xs font-medium text-green-700 bg-green-100 border border-green-300 rounded-md hover:bg-green-200 transition-colors"
+                        >
+                          <CheckCircle className="h-3 w-3" />
+                          Zatwierdź
+                        </button>
+                      ) : (
+                        <button 
+                          onClick={() => rejectUser(user.id)}
+                          className="flex-1 min-w-[100px] inline-flex items-center justify-center gap-1 px-3 py-2 text-xs font-medium text-red-700 bg-red-100 border border-red-300 rounded-md hover:bg-red-200 transition-colors"
+                        >
+                          <XCircle className="h-3 w-3" />
+                          Odrzuć
+                        </button>
+                      )}
+                      {user.role !== 'teacher' && (
+                        <button 
+                          onClick={() => setTeacherRole(user.email || '')}
+                          className="flex-1 min-w-[100px] inline-flex items-center justify-center gap-1 px-3 py-2 text-xs font-medium text-blue-700 bg-blue-100 border border-blue-300 rounded-md hover:bg-blue-200 transition-colors"
+                        >
+                          <GraduationCap className="h-3 w-3" />
+                          Nauczyciel
+                        </button>
+                      )}
+                      <button 
+                        onClick={() => deleteUser(user.id)}
+                        className="flex-1 min-w-[100px] inline-flex items-center justify-center gap-1 px-3 py-2 text-xs font-medium text-red-700 bg-red-100 border border-red-300 rounded-md hover:bg-red-200 transition-colors"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                        Usuń
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
-            </div>
-          </div>
-        )}
+                </div>
+              </div>
+            )}
 
             {activeTab === "pending" && (
-              <div className="bg-white rounded-lg shadow">
+              <div className="bg-white rounded-lg shadow w-full">
             <div className="p-6">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xl font-semibold text-gray-800">Pending Users - Oczekujący na zatwierdzenie</h2>
@@ -1336,7 +1604,7 @@ function SuperAdminDashboardContent() {
         )}
 
             {activeTab === "groups" && (
-              <div className="bg-white rounded-lg shadow">
+              <div className="bg-white rounded-lg shadow w-full">
             <div className="p-6">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xl font-semibold text-gray-800">Group Management</h2>
@@ -1415,7 +1683,7 @@ function SuperAdminDashboardContent() {
         )}
 
             {activeTab === "courses" && (
-              <div className="bg-white rounded-lg shadow">
+              <div className="bg-white rounded-lg shadow w-full">
             <div className="p-6">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xl font-semibold text-gray-800">Course Management</h2>
@@ -1514,7 +1782,7 @@ function SuperAdminDashboardContent() {
         )}
 
             {activeTab === "assignments" && (
-              <div className="bg-white rounded-lg shadow">
+              <div className="bg-white rounded-lg shadow w-full">
             <div className="p-6">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xl font-semibold text-gray-800">Course Assignments</h2>
@@ -1588,6 +1856,310 @@ function SuperAdminDashboardContent() {
             </div>
           </div>
         )}
+
+            {activeTab === "bug-reports" && (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden w-full">
+                <div className="p-4 sm:p-6">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                    <h2 className="text-lg sm:text-xl font-semibold text-gray-800 flex items-center gap-2">
+                      <Bug className="w-5 h-5 sm:w-6 sm:h-6" />
+                      Zgłoszenia błędów
+                    </h2>
+                    <button
+                      onClick={() => fetchBugReports()}
+                      className="flex items-center gap-2 px-4 py-2 bg-[#4067EC] text-white rounded-lg hover:bg-[#3155d4] transition-colors text-sm font-medium"
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                      Odśwież
+                    </button>
+                  </div>
+
+                  {success && (
+                    <div className="mb-4 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm">
+                      {success}
+                    </div>
+                  )}
+                  {bugReportsError && (
+                    <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+                      {bugReportsError}
+                    </div>
+                  )}
+
+                  {/* Filtry */}
+                  <div className="mb-6 flex flex-col sm:flex-row gap-4">
+                    <div className="flex-1">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        <Filter className="w-4 h-4 inline mr-1" />
+                        Status
+                      </label>
+                      <select
+                        value={statusFilter}
+                        onChange={(e) => setStatusFilter(e.target.value)}
+                        className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        <option value="all">Wszystkie</option>
+                        <option value="new">Nowe</option>
+                        <option value="in_progress">W trakcie</option>
+                        <option value="resolved">Rozwiązane</option>
+                        <option value="closed">Zamknięte</option>
+                      </select>
+                    </div>
+
+                    <div className="flex-1">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Kategoria
+                      </label>
+                      <select
+                        value={categoryFilter}
+                        onChange={(e) => setCategoryFilter(e.target.value)}
+                        className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        <option value="all">Wszystkie</option>
+                        {Array.from(new Set(bugReports.map(r => r.category))).map((cat) => (
+                          <option key={cat} value={cat}>
+                            {cat}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Statystyki */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+                {['new', 'in_progress', 'resolved', 'closed'].map((status) => {
+                  const count = bugReports.filter(r => r.status === status).length;
+                  const statusLabels = {
+                    new: 'Nowe',
+                    in_progress: 'W trakcie',
+                    resolved: 'Rozwiązane',
+                    closed: 'Zamknięte'
+                  };
+                  const statusColors = {
+                    new: 'bg-blue-100 text-blue-800',
+                    in_progress: 'bg-yellow-100 text-yellow-800',
+                    resolved: 'bg-green-100 text-green-800',
+                    closed: 'bg-gray-100 text-gray-800'
+                  };
+                  return (
+                    <div key={status} className={`${statusColors[status as keyof typeof statusColors]} rounded-lg p-4`}>
+                      <p className="text-sm font-medium opacity-75">{statusLabels[status as keyof typeof statusLabels]}</p>
+                      <p className="text-2xl font-bold mt-1">{count}</p>
+                    </div>
+                  );
+                })}
+              </div>
+
+                  {/* Lista zgłoszeń */}
+                  {bugReportsLoading ? (
+                    <div className="text-center py-12">
+                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#4067EC] mx-auto"></div>
+                      <p className="mt-4 text-gray-600">Ładowanie zgłoszeń...</p>
+                    </div>
+                  ) : bugReports.length === 0 ? (
+                    <div className="text-center py-12">
+                      <Bug className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                      <p className="text-gray-600 text-lg">Brak zgłoszeń do wyświetlenia</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {bugReports.map((report) => {
+                    const statusColors = {
+                      new: 'bg-blue-100 text-blue-800 border-blue-200',
+                      in_progress: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+                      resolved: 'bg-green-100 text-green-800 border-green-200',
+                      closed: 'bg-gray-100 text-gray-800 border-gray-200',
+                    };
+                    const statusLabels = {
+                      new: 'Nowe',
+                      in_progress: 'W trakcie',
+                      resolved: 'Rozwiązane',
+                      closed: 'Zamknięte'
+                    };
+                    return (
+                      <div
+                        key={report.id}
+                        className="border rounded-lg p-4 hover:shadow-md transition-shadow"
+                      >
+                        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-3">
+                              <span className={`px-3 py-1 rounded-full border text-sm font-medium ${statusColors[report.status as keyof typeof statusColors]}`}>
+                                {statusLabels[report.status as keyof typeof statusLabels]}
+                              </span>
+                              <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm font-medium">
+                                {report.category}
+                              </span>
+                              <span className="text-sm text-gray-500">
+                                {formatDate(report.created_at)}
+                              </span>
+                            </div>
+
+                            <h3 className="text-lg font-semibold text-gray-800 mb-2">
+                              {report.description}
+                            </h3>
+
+                            {report.steps && (
+                              <div className="mb-3">
+                                <p className="text-sm font-medium text-gray-700 mb-1">Kroki do odtworzenia:</p>
+                                <p className="text-sm text-gray-600 whitespace-pre-line">{report.steps}</p>
+                              </div>
+                            )}
+
+                            {(report.expected || report.actual) && (
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                                {report.expected && (
+                                  <div>
+                                    <p className="text-sm font-medium text-green-700 mb-1">Oczekiwane:</p>
+                                    <p className="text-sm text-gray-600">{report.expected}</p>
+                                  </div>
+                                )}
+                                {report.actual && (
+                                  <div>
+                                    <p className="text-sm font-medium text-red-700 mb-1">Rzeczywiste:</p>
+                                    <p className="text-sm text-gray-600">{report.actual}</p>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            <div className="flex flex-wrap gap-4 text-sm text-gray-500">
+                              {report.browser && (
+                                <span>🌐 {report.browser}</span>
+                              )}
+                              {report.url && (
+                                <a
+                                  href={report.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-blue-600 hover:underline"
+                                >
+                                  🔗 Link
+                                </a>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="lg:ml-4">
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Zmień status:
+                            </label>
+                            <select
+                              value={report.status}
+                              onChange={(e) => updateBugReportStatus(report.id, e.target.value)}
+                              className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            >
+                              <option value="new">Nowe</option>
+                              <option value="in_progress">W trakcie</option>
+                              <option value="resolved">Rozwiązane</option>
+                              <option value="closed">Zamknięte</option>
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+                      );
+                    })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+          </div>
+
+        {/* Prawa kolumna - Szybkie akcje i aktywności - jednakowa szerokość */}
+        <div className="lg:col-span-1 w-full max-w-full space-y-6">
+          {/* Quick Actions */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 w-full max-w-full">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900">Szybkie akcje</h3>
+              <p className="text-sm text-gray-600">Najczęściej używane funkcje</p>
+            </div>
+            <div className="p-6 space-y-4">
+              <button
+                onClick={() => setShowCreateUserModal(true)}
+                className="w-full flex items-center gap-3 p-3 text-left rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+              >
+                <UserPlus className="h-5 w-5 text-blue-600" />
+                <div>
+                  <div className="font-medium text-gray-900">Dodaj użytkownika</div>
+                  <div className="text-sm text-gray-600">Utwórz nowe konto</div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => setShowCreateCourseModal(true)}
+                className="w-full flex items-center gap-3 p-3 text-left rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+              >
+                <BookOpen className="h-5 w-5 text-green-600" />
+                <div>
+                  <div className="font-medium text-gray-900">Utwórz kurs</div>
+                  <div className="text-sm text-gray-600">Dodaj nowy kurs</div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => setShowCreateGroupModal(true)}
+                className="w-full flex items-center gap-3 p-3 text-left rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+              >
+                <Group className="h-5 w-5 text-purple-600" />
+                <div>
+                  <div className="font-medium text-gray-900">Utwórz grupę</div>
+                  <div className="text-sm text-gray-600">Dodaj nową grupę</div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => setActiveTab("pending")}
+                className="w-full flex items-center gap-3 p-3 text-left rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+              >
+                <Clock className="h-5 w-5 text-yellow-600" />
+                <div>
+                  <div className="font-medium text-gray-900">Zatwierdź użytkowników</div>
+                  <div className="text-sm text-gray-600">Przeglądaj oczekujących</div>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          {/* Recent Activity */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 w-full max-w-full">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900">Ostatnie aktywności</h3>
+              <p className="text-sm text-gray-600">Najnowsze wydarzenia w systemie</p>
+            </div>
+            <div className="p-6">
+              <div className="space-y-4">
+                {recentActivities.length > 0 ? (
+                  recentActivities.slice(0, 5).map((activity, index) => {
+                    const Icon = activity.icon;
+                    return (
+                      <div key={index} className="flex items-start gap-3 pb-4 border-b border-gray-100 last:border-0 last:pb-0">
+                        <div className="p-2 bg-blue-50 rounded-lg flex-shrink-0">
+                          <Icon className="h-4 w-4 text-blue-600" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900">{activity.title}</p>
+                          <p className="text-xs text-gray-500 mt-1">{activity.time}</p>
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    Brak ostatnich aktywności
+                  </div>
+                )}
+              </div>
+              
+              <div className="mt-6 pt-4 border-t border-gray-200">
+                <button className="w-full text-center text-sm text-blue-600 hover:text-blue-800 font-medium">
+                  Zobacz wszystkie aktywności
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        </div>
 
       {/* Reset Password Modal */}
       {showResetPasswordModal && (
@@ -1995,11 +2567,6 @@ function SuperAdminDashboardContent() {
                             const student = users.find(u => u.email === studentEmail);
                             return (
                               <div key={index} className="flex items-center justify-between bg-gray-50 p-2 rounded">
-      {/* Theme Toggle */}
-      <div className="absolute top-4 right-4 z-50">
-        <ThemeToggle />
-      </div>
-
                                 <span className="text-sm">
                                   {student ? `${student.firstName || ''} ${student.lastName || ''}` : studentEmail}
                                 </span>
@@ -2071,123 +2638,6 @@ function SuperAdminDashboardContent() {
             </div>
           </div>
         )}
-
-          </div>
-        </div>
-
-        {/* Prawa kolumna - Szybkie akcje i aktywności */}
-        <div className="lg:col-span-1 space-y-6">
-          {/* Quick Actions */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900">Szybkie akcje</h3>
-              <p className="text-sm text-gray-600">Najczęściej używane funkcje</p>
-            </div>
-            <div className="p-6 space-y-4">
-              <button
-                onClick={() => setShowCreateUserModal(true)}
-                className="w-full flex items-center gap-3 p-3 text-left rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
-              >
-                <UserPlus className="h-5 w-5 text-blue-600" />
-                <div>
-                  <div className="font-medium text-gray-900">Dodaj użytkownika</div>
-                  <div className="text-sm text-gray-600">Utwórz nowe konto</div>
-                </div>
-              </button>
-
-              <button
-                onClick={() => setShowCreateCourseModal(true)}
-                className="w-full flex items-center gap-3 p-3 text-left rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
-              >
-                <BookOpen className="h-5 w-5 text-green-600" />
-                <div>
-                  <div className="font-medium text-gray-900">Utwórz kurs</div>
-                  <div className="text-sm text-gray-600">Dodaj nowy kurs</div>
-                </div>
-              </button>
-
-              <button
-                onClick={() => setShowCreateGroupModal(true)}
-                className="w-full flex items-center gap-3 p-3 text-left rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
-              >
-                <Group className="h-5 w-5 text-purple-600" />
-                <div>
-                  <div className="font-medium text-gray-900">Utwórz grupę</div>
-                  <div className="text-sm text-gray-600">Dodaj nową grupę</div>
-                </div>
-              </button>
-
-              <button
-                onClick={() => setActiveTab("pending")}
-                className="w-full flex items-center gap-3 p-3 text-left rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
-              >
-                <Clock className="h-5 w-5 text-yellow-600" />
-                <div>
-                  <div className="font-medium text-gray-900">Zatwierdź użytkowników</div>
-                  <div className="text-sm text-gray-600">Oczekujący na zatwierdzenie</div>
-                </div>
-              </button>
-
-              <button
-                onClick={() => setActiveTab("assignments")}
-                className="w-full flex items-center gap-3 p-3 text-left rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
-              >
-                <GraduationCap className="h-5 w-5 text-indigo-600" />
-                <div>
-                  <div className="font-medium text-gray-900">Przypisz kursy</div>
-                  <div className="text-sm text-gray-600">Zarządzaj przypisaniami</div>
-                </div>
-              </button>
-            </div>
-          </div>
-
-          {/* Recent Activity */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900">Ostatnia aktywność</h3>
-              <p className="text-sm text-gray-600">Co się dzieje w systemie</p>
-            </div>
-            <div className="p-6">
-              <div className="space-y-4">
-                {recentActivities.length > 0 ? (
-                  recentActivities.map((activity) => {
-                    const Icon = activity.icon;
-                    return (
-                      <div key={activity.id} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-      {/* Theme Toggle */}
-      <div className="absolute top-4 right-4 z-50">
-        <ThemeToggle />
-      </div>
-
-                        <div className="p-2 bg-white rounded-lg border">
-                          <Icon className="h-4 w-4 text-gray-600" />
-                        </div>
-                        <div className="flex-1">
-                          <h4 className="font-medium text-gray-900">{activity.title}</h4>
-                          <p className="text-sm text-gray-600">{activity.description}</p>
-                          <div className="flex items-center gap-1 mt-1">
-                            <Clock className="h-3 w-3 text-gray-400" />
-                            <span className="text-xs text-gray-500">{activity.timestamp}</span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })
-                ) : (
-                  <div className="text-center py-8 text-gray-500">
-                    Brak ostatnich aktywności
-                  </div>
-                )}
-              </div>
-              
-              <div className="mt-6 pt-4 border-t border-gray-200">
-                <button className="w-full text-center text-sm text-blue-600 hover:text-blue-800 font-medium">
-                  Zobacz wszystkie aktywności
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
 
       {/* Add Member Modal */}
       {showAddMemberModal && (

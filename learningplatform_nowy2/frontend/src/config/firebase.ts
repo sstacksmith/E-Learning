@@ -1,6 +1,6 @@
 
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, OAuthProvider } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, OAuthProvider, setPersistence, browserSessionPersistence } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 // import { getFunctions, connectFunctionsEmulator } from 'firebase/functions';
@@ -22,6 +22,18 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
+
+// Ustaw persistence na sessionStorage (sesja wygasa po zamknięciu przeglądarki)
+// To zapobiega automatycznemu logowaniu po zamknięciu i ponownym otwarciu przeglądarki
+// Aby używać localStorage (sesja utrzymuje się po zamknięciu), zakomentuj poniższy blok:
+// import { browserLocalPersistence } from 'firebase/auth';
+// i zmień browserSessionPersistence na browserLocalPersistence
+if (typeof window !== 'undefined') {
+  setPersistence(auth, browserSessionPersistence).catch((error) => {
+    console.error('Error setting auth persistence:', error);
+  });
+}
+
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 
