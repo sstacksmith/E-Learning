@@ -184,9 +184,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // Ustaw custom claims w Firebase Auth jeśli rola jest teacher/admin
     if (userData.role === 'teacher' || userData.role === 'admin') {
       try {
-        // Dodaj timeout dla API call - maksymalnie 3 sekundy
+        // Dodaj timeout dla API call - maksymalnie 5 sekund (więcej czasu na produkcję)
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3000);
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
         
         const response = await fetch(`/api/set-${userData.role}-role-api`, {
           method: 'POST',
@@ -201,8 +201,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         
         if (response.ok) {
           console.log(`✅ Custom claims set for ${userData.role}`);
+          // Poczekaj chwilę na propagację custom claims w Firebase
+          await new Promise(resolve => setTimeout(resolve, 500));
+          // Odśwież token aby uzyskać nowe custom claims
+          await user.getIdToken(true); // forceRefresh = true
+          console.log(`✅ Token refreshed with new custom claims`);
         } else {
-          console.warn(`⚠️ Failed to set custom claims for ${userData.role}`);
+          const errorData = await response.json().catch(() => ({}));
+          console.warn(`⚠️ Failed to set custom claims for ${userData.role}:`, errorData);
         }
       } catch (error) {
         if (error instanceof Error && error.name === 'AbortError') {
@@ -214,8 +220,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
 
     // Zapisz token JWT do localStorage - używamy tylko jednego klucza
-    const token = await user.getIdToken();
-    console.log('Pobrany token:', token);
+    // Użyj forceRefresh jeśli rola to admin/teacher, aby mieć pewność że mamy najnowsze custom claims
+    const forceRefresh = userData.role === 'admin' || userData.role === 'teacher';
+    const token = await user.getIdToken(forceRefresh);
+    console.log('Pobrany token:', token.substring(0, 20) + '...');
     localStorage.setItem('firebaseToken', token);
     console.log('Token zapisany do localStorage');
 

@@ -308,16 +308,28 @@ function SuperAdminDashboardContent() {
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         console.error('❌ Error response:', errorData);
+        console.error('❌ Response status:', response.status);
+        console.error('❌ Response headers:', Object.fromEntries(response.headers.entries()));
+        
         if (response.status === 403) {
           const errorMsg = errorData.error || 'Brak uprawnień. Wymagana rola: Administrator';
           console.error('❌ 403 Forbidden - User role:', user?.role, 'User email:', currentUser.email);
+          console.error('❌ Debug info:', errorData._debug);
+          
+          // Jeśli backend zwrócił informacje diagnostyczne, użyj ich
+          if (errorData._debug) {
+            console.error('❌ Backend debug:', errorData._debug);
+          }
+          
           // Dodaj pomocny komunikat jeśli użytkownik ma rolę admin w kontekście, ale nie w tokenie
           if (user?.role === 'admin') {
-            throw new Error(`${errorMsg}\n\nTwoje konto ma rolę administratora, ale token nie zawiera zaktualizowanych uprawnień. Proszę wyloguj się i zaloguj ponownie, aby odświeżyć token.`);
+            throw new Error(`${errorMsg}\n\nTwoje konto ma rolę administratora w Firestore, ale backend nie może zweryfikować uprawnień. Sprawdź logi backendu lub skontaktuj się z administratorem.`);
           }
           throw new Error(errorMsg);
         }
-        const errorMessage = errorData.error || errorData.detail || 'Błąd podczas pobierania zgłoszeń';
+        
+        // Dla innych błędów HTTP
+        const errorMessage = errorData.error || errorData.detail || `Błąd podczas pobierania zgłoszeń (status: ${response.status})`;
         throw new Error(errorMessage);
       }
 
@@ -325,9 +337,19 @@ function SuperAdminDashboardContent() {
       console.log('✅ Bug reports fetched successfully:', data.count || 0, 'reports');
       setBugReports(data.reports || []);
     } catch (err: any) {
-      const errorMessage = err.message || 'Wystąpił błąd podczas pobierania zgłoszeń';
-      setBugReportsError(errorMessage);
       console.error('❌ Error fetching bug reports:', err);
+      console.error('❌ Error type:', err?.constructor?.name);
+      console.error('❌ Error stack:', err?.stack);
+      
+      // Sprawdź typ błędu
+      if (err instanceof TypeError && err.message.includes('fetch')) {
+        setBugReportsError('Błąd połączenia z serwerem. Sprawdź połączenie internetowe lub spróbuj ponownie później.');
+      } else if (err.name === 'AbortError') {
+        setBugReportsError('Żądanie przekroczyło limit czasu. Spróbuj ponownie.');
+      } else {
+        const errorMessage = err.message || 'Wystąpił błąd podczas pobierania zgłoszeń';
+        setBugReportsError(errorMessage);
+      }
     } finally {
       setBugReportsLoading(false);
     }

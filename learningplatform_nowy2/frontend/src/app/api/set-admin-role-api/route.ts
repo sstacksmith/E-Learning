@@ -1,6 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8000';
+// Funkcja do określenia URL backendu (taka sama jak w bug-reports)
+function getBackendUrl(): string {
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL;
+  }
+  if (process.env.VERCEL || process.env.VERCEL_ENV === 'production') {
+    return 'https://cogito-7zrt.onrender.com';
+  }
+  if (process.env.NODE_ENV === 'production') {
+    return 'https://cogito-7zrt.onrender.com';
+  }
+  return 'http://localhost:8000';
+}
+
+const BACKEND_URL = getBackendUrl();
 
 export async function POST(request: NextRequest) {
   try {
