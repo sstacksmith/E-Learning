@@ -45,14 +45,64 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const router = useRouter();
 
+  // Automatyczne wylogowanie po 30 minutach nieaktywności
+  useEffect(() => {
+    const INACTIVITY_TIMEOUT = 30 * 60 * 1000; // 30 minut w milisekundach
+    let inactivityTimer: NodeJS.Timeout;
+
+    const resetInactivityTimer = () => {
+      if (inactivityTimer) clearTimeout(inactivityTimer);
+      
+      // Zapisz timestamp ostatniej aktywności
+      sessionStorage.setItem('lastActivity', Date.now().toString());
+      
+      // Ustaw nowy timer
+      inactivityTimer = setTimeout(async () => {
+        console.warn('⏰ Automatyczne wylogowanie z powodu nieaktywności (30 min)');
+        await logout();
+      }, INACTIVITY_TIMEOUT);
+    };
+
+    // Sprawdź czy użytkownik jest zalogowany
+    if (isAuthenticated) {
+      // Sprawdź ostatnią aktywność przy załadowaniu strony
+      const lastActivity = sessionStorage.getItem('lastActivity');
+      if (lastActivity) {
+        const timeSinceLastActivity = Date.now() - parseInt(lastActivity);
+        if (timeSinceLastActivity > INACTIVITY_TIMEOUT) {
+          console.warn('⏰ Sesja wygasła - wylogowanie');
+          logout();
+          return;
+        }
+      }
+
+      // Nasłuchuj na aktywność użytkownika
+      const events = ['mousedown', 'keydown', 'scroll', 'touchstart', 'click'];
+      events.forEach(event => {
+        document.addEventListener(event, resetInactivityTimer);
+      });
+
+      // Uruchom timer
+      resetInactivityTimer();
+
+      // Cleanup
+      return () => {
+        if (inactivityTimer) clearTimeout(inactivityTimer);
+        events.forEach(event => {
+          document.removeEventListener(event, resetInactivityTimer);
+        });
+      };
+    }
+  }, [isAuthenticated]);
+
   // Listen for auth state changes
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       try {
         if (firebaseUser) {
-          // Sprawdź cache przed żądaniem do Firestore
+          // Sprawdź cache przed żądaniem do Firestore (używamy sessionStorage dla bezpieczeństwa)
           const cacheKey = `userData_${firebaseUser.uid}`;
-          const cachedData = localStorage.getItem(cacheKey);
+          const cachedData = sessionStorage.getItem(cacheKey);
           let userData: any = {};
           let role: UserRole = 'student';
 
@@ -63,7 +113,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               if (parsed.timestamp && Date.now() - parsed.timestamp < 300000) {
                 userData = parsed.data;
                 role = (userData as any).role as UserRole || 'student';
-                console.log('📦 Używam cached danych użytkownika');
+                console.log('📦 Używam cached danych użytkownika (sessionStorage)');
               } else {
                 throw new Error('Cache expired');
               }
@@ -84,12 +134,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             userData = userDoc.exists() ? userDoc.data() : {};
             role = (userData as any).role as UserRole || 'student';
 
-            // Zapisz do cache
-            localStorage.setItem(cacheKey, JSON.stringify({
+            // Zapisz do cache (sessionStorage - wygasa po zamknięciu przeglądarki)
+            sessionStorage.setItem(cacheKey, JSON.stringify({
               data: userData,
               timestamp: Date.now()
             }));
-            console.log('💾 Dane użytkownika zapisane do cache');
+            console.log('💾 Dane użytkownika zapisane do cache (sessionStorage)');
           }
 
           console.log('AuthContext - Firebase user data:', userData);
@@ -102,16 +152,31 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           });
           setIsAuthenticated(true);
 
-          // Store the token
+          // Store the token (używamy sessionStorage dla bezpieczeństwa)
           const token = await firebaseUser.getIdToken();
-          localStorage.setItem('firebaseToken', token);
+          sessionStorage.setItem('firebaseToken', token);
+          
+          // Ustaw timestamp ostatniej aktywności
+          sessionStorage.setItem('lastActivity', Date.now().toString());
 
           // Nie przekierowujemy rodzica nigdzie - ma widzieć normalną stronę homelogin
         } else {
           setUser(null);
           setIsAuthenticated(false);
+          
+          // Wyczyść sessionStorage
+          sessionStorage.removeItem('firebaseToken');
+          sessionStorage.removeItem('lastActivity');
+          
+          // Wyczyść cache przy wylogowaniu (zarówno localStorage jak i sessionStorage)
+          Object.keys(sessionStorage).forEach(key => {
+            if (key.startsWith('userData_')) {
+              sessionStorage.removeItem(key);
+            }
+          });
+          
+          // Wyczyść również localStorage dla kompatybilności wstecznej
           localStorage.removeItem('firebaseToken');
-          // Wyczyść cache przy wylogowaniu
           Object.keys(localStorage).forEach(key => {
             if (key.startsWith('userData_')) {
               localStorage.removeItem(key);
@@ -122,7 +187,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         console.error('AuthContext error:', err);
         setUser(null);
         setIsAuthenticated(false);
-        localStorage.removeItem('firebaseToken');
+        sessionStorage.removeItem('firebaseToken');
+        localStorage.removeItem('firebaseToken'); // Kompatybilność wsteczna
       } finally {
         setLoading(false);
       }
@@ -219,13 +285,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     }
 
-    // Zapisz token JWT do localStorage - używamy tylko jednego klucza
+    // Zapisz token JWT do sessionStorage (bezpieczniejsze niż localStorage)
     // Użyj forceRefresh jeśli rola to admin/teacher, aby mieć pewność że mamy najnowsze custom claims
     const forceRefresh = userData.role === 'admin' || userData.role === 'teacher';
     const token = await user.getIdToken(forceRefresh);
     console.log('Pobrany token:', token.substring(0, 20) + '...');
-    localStorage.setItem('firebaseToken', token);
-    console.log('Token zapisany do localStorage');
+    sessionStorage.setItem('firebaseToken', token);
+    sessionStorage.setItem('lastActivity', Date.now().toString());
+    console.log('Token zapisany do sessionStorage (bezpieczne)');
 
     // Zwróć userCredential aby można było pobrać rolę w komponencie logowania
     return userCredential;
@@ -237,21 +304,30 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // Wyloguj z Firebase
       await signOut(auth);
       
-      // Wyczyść wszystkie dane z localStorage związane z autoryzacją
+      // Wyczyść wszystkie dane z sessionStorage związane z autoryzacją
+      sessionStorage.removeItem('firebaseToken');
+      sessionStorage.removeItem('lastActivity');
+      sessionStorage.removeItem('token');
+      
+      // Wyczyść cache danych użytkownika z sessionStorage
+      Object.keys(sessionStorage).forEach(key => {
+        if (key.startsWith('userData_')) {
+          sessionStorage.removeItem(key);
+        }
+      });
+      
+      // Wyczyść również localStorage dla kompatybilności wstecznej
       localStorage.removeItem('firebaseToken');
       localStorage.removeItem('token');
       localStorage.removeItem('rememberedEmail');
       localStorage.removeItem('rememberedPassword');
+      localStorage.removeItem('tokenExpiry');
       
-      // Wyczyść cache danych użytkownika
       Object.keys(localStorage).forEach(key => {
         if (key.startsWith('userData_')) {
           localStorage.removeItem(key);
         }
       });
-      
-      // Wyczyść token expiry
-      localStorage.removeItem('tokenExpiry');
       
       // Resetuj stan użytkownika
       setUser(null);

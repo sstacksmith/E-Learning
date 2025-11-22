@@ -1157,9 +1157,9 @@ export default function StudentsPage() {
           {/* Students Display - Cards or List - pokazuj tylko gdy nie jesteśmy w wyborze klas */}
           {!showClassSelection && (
             <>
-          {viewMode === 'cards' ? (
-            /* Enhanced Students Grid - Clean Design */
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {/* Mobile: Always show cards (regardless of viewMode) */}
+          <div className="md:hidden">
+            <div className="grid grid-cols-1 gap-6">
               {filteredStudents.map((student) => (
                 <div key={student.id} className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden group">
                   {/* Header with Avatar and Grade */}
@@ -1222,6 +1222,68 @@ export default function StudentsPage() {
                       <button 
                         onClick={() => handleUnassignStudent(student.id)}
                         className="px-4 py-2.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-red-200 hover:border-red-300 font-medium text-sm"
+                      >
+                        Odłącz
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Desktop: Show cards or list based on viewMode */}
+          <div className="hidden md:block">
+          {viewMode === 'cards' ? (
+            /* Enhanced Students Grid - Clean Design */
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {filteredStudents.map((student) => (
+                <div key={student.id} className="group relative bg-white/80 backdrop-blur-sm rounded-2xl border border-white/30 shadow-sm hover:shadow-xl hover:scale-[1.02] transition-all duration-300 overflow-hidden">
+                  <div className="p-6">
+                    <div className="flex items-center gap-4 mb-4">
+                      <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg">
+                        <span className="text-white font-bold text-lg">
+                          {student.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                        </span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-lg font-bold text-gray-900 truncate">{student.name}</h3>
+                        <p className="text-sm text-gray-500">{student.class}</p>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <span className="text-sm text-gray-600">Średnia ocen</span>
+                        <div className="flex items-center gap-2">
+                          <Star className="h-4 w-4 text-yellow-500 fill-current" />
+                          <span className={`text-sm font-bold ${getGradeColor(student.averageGrade)}`}>
+                            {student.averageGrade.toFixed(1)}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <span className="text-sm text-gray-600">Frekwencja</span>
+                        <span className="text-sm font-bold text-gray-900">{student.frequency}%</span>
+                      </div>
+                      
+                      <div className="p-3 bg-gray-50 rounded-lg">
+                        <span className="text-xs text-gray-500">Ostatnia aktywność</span>
+                        <p className="text-sm text-gray-700 mt-1">{student.lastActivity}</p>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-4 flex gap-2">
+                      <button 
+                        onClick={() => router.push(`/homelogin/teacher/students/${student.id}`)}
+                        className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                      >
+                        Zobacz profil
+                      </button>
+                      <button 
+                        onClick={() => handleUnassignStudent(student.id)}
+                        className="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors text-sm font-medium"
                       >
                         Odłącz
                       </button>
@@ -1296,6 +1358,7 @@ export default function StudentsPage() {
               </div>
             </div>
           )}
+          </div>
 
           {/* Empty State */}
           {filteredStudents.length === 0 && (

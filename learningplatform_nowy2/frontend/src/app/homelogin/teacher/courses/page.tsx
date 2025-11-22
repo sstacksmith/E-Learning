@@ -407,7 +407,7 @@ export default function TeacherCourses() {
         const auth = getAuth();
         if (auth.currentUser) {
           const token = await auth.currentUser.getIdToken(true);
-          localStorage.setItem('token', token);
+          sessionStorage.setItem('token', token);
         }
       } else {
         const errorData = await response.json();

@@ -1,0 +1,12 @@
+{
+  "scripts": {
+    "test:mobile": "playwright test tests/mobile-responsiveness.spec.ts",
+    "test:mobile:headed": "playwright test tests/mobile-responsiveness.spec.ts --headed",
+    "test:mobile:debug": "playwright test tests/mobile-responsiveness.spec.ts --debug",
+    "test:mobile:ui": "playwright test tests/mobile-responsiveness.spec.ts --ui",
+    "test:mobile:report": "playwright show-report",
+    "test:mobile:all": "playwright test",
+    "playwright:install": "playwright install"
+  }
+}
+

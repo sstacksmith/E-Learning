@@ -111,7 +111,12 @@ function ProfilePageContent() {
   };
 
   const handleLogout = () => {
+    sessionStorage.removeItem('firebaseToken');
+    sessionStorage.removeItem('token');
+    sessionStorage.removeItem('lastActivity');
+    // Kompatybilność wsteczna
     localStorage.removeItem('firebaseToken');
+    localStorage.removeItem('token');
     router.push('/login');
   };
 

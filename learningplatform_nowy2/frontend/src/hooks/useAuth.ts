@@ -10,15 +10,16 @@ const TOKEN_EXPIRY_BUFFER = 5 * 60 * 1000; // 5 minut przed wygaśnięciem
 const TOKEN_KEY = 'firebaseToken';
 const TOKEN_EXPIRY_KEY = 'firebaseTokenExpiry';
 
+// Używamy sessionStorage dla bezpieczeństwa - sesja wygasa po zamknięciu przeglądarki
 function getStoredToken() {
-  const token = localStorage.getItem(TOKEN_KEY);
-  const expiry = localStorage.getItem(TOKEN_EXPIRY_KEY);
+  const token = sessionStorage.getItem(TOKEN_KEY);
+  const expiry = sessionStorage.getItem(TOKEN_EXPIRY_KEY);
   if (!token || !expiry) return null;
 
   const expiryTime = parseInt(expiry, 10);
   if (Date.now() + TOKEN_EXPIRY_BUFFER >= expiryTime) {
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(TOKEN_EXPIRY_KEY);
+    sessionStorage.removeItem(TOKEN_KEY);
+    sessionStorage.removeItem(TOKEN_EXPIRY_KEY);
     return null;
   }
 
@@ -26,8 +27,8 @@ function getStoredToken() {
 }
 
 function storeToken(token: string, expiryTime: number) {
-  localStorage.setItem(TOKEN_KEY, token);
-  localStorage.setItem(TOKEN_EXPIRY_KEY, expiryTime.toString());
+  sessionStorage.setItem(TOKEN_KEY, token);
+  sessionStorage.setItem(TOKEN_EXPIRY_KEY, expiryTime.toString());
 }
 
 export function useAuth(): UseAuthState & {
@@ -100,13 +101,13 @@ export function useAuth(): UseAuthState & {
         } catch (error) {
           console.error('Error in auth state change:', error);
           setError(error as Error);
-          localStorage.removeItem(TOKEN_KEY);
-          localStorage.removeItem(TOKEN_EXPIRY_KEY);
+          sessionStorage.removeItem(TOKEN_KEY);
+          sessionStorage.removeItem(TOKEN_EXPIRY_KEY);
           setUser(null);
         }
       } else {
-        localStorage.removeItem(TOKEN_KEY);
-        localStorage.removeItem(TOKEN_EXPIRY_KEY);
+        sessionStorage.removeItem(TOKEN_KEY);
+        sessionStorage.removeItem(TOKEN_EXPIRY_KEY);
         if (tokenRefreshTimeout) {
           clearTimeout(tokenRefreshTimeout);
         }
@@ -159,8 +160,8 @@ export function useAuth(): UseAuthState & {
   const logout = useCallback(async (): Promise<void> => {
     try {
       await auth.signOut();
-      localStorage.removeItem(TOKEN_KEY);
-      localStorage.removeItem(TOKEN_EXPIRY_KEY);
+      sessionStorage.removeItem(TOKEN_KEY);
+      sessionStorage.removeItem(TOKEN_EXPIRY_KEY);
       if (tokenRefreshTimeout) {
         clearTimeout(tokenRefreshTimeout);
       }

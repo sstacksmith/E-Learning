@@ -311,7 +311,10 @@ function HomeContent() {
   }
 
   // Authenticated user view - redirect to dashboard
-  router.push('/homelogin');
+  // Poczekaj na załadowanie danych użytkownika przed przekierowaniem
+  if (user) {
+    router.push('/homelogin');
+  }
   return null;
 }
 

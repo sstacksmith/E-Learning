@@ -35,9 +35,10 @@ export default function LoginButtons() {
       const data = await response.json();
       setUser(data.user);
       
-      // Store tokens in localStorage
-      localStorage.setItem('accessToken', data.access);
-      localStorage.setItem('refreshToken', data.refresh);
+      // Store tokens in sessionStorage (bezpieczniejsze)
+      sessionStorage.setItem('accessToken', data.access);
+      sessionStorage.setItem('refreshToken', data.refresh);
+      sessionStorage.setItem('lastActivity', Date.now().toString());
       
     } catch (err) {
       if (err instanceof Error) {

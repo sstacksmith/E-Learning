@@ -44,10 +44,11 @@ export default function SocialLoginButtons({ onSuccess, onError }: SocialLoginBu
       const data = await response.json();
       console.log('Backend authentication successful:', data);
       
-      // Store tokens in localStorage
-      localStorage.setItem('accessToken', data.access);
-      localStorage.setItem('refreshToken', data.refresh);
-      localStorage.setItem('firebaseToken', userToken);
+      // Store tokens in sessionStorage (bezpieczniejsze)
+      sessionStorage.setItem('accessToken', data.access);
+      sessionStorage.setItem('refreshToken', data.refresh);
+      sessionStorage.setItem('firebaseToken', userToken);
+      sessionStorage.setItem('lastActivity', Date.now().toString());
       
       // Update user context
       setUser({

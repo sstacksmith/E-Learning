@@ -483,85 +483,141 @@ export default function TeacherGradesPage() {
               <p className="text-gray-600">Nie masz jeszcze żadnych przedmiotów obowiązkowych.</p>
             </div>
           ) : (
-            <div className="w-full overflow-x-auto">
-              <table className="w-full min-w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-semibold text-gray-700">Przedmiot</th>
-                    <th className="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-semibold text-gray-700">Oceny</th>
-                    <th className="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-semibold text-gray-700">Średnia</th>
-              </tr>
-            </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {mandatoryCourses.map(([subject, subjectGrades], idx) => (
-                    <tr key={`mandatory-${subject}-${idx}`} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-3 sm:px-6 py-3 sm:py-4">
-                        <div className="flex items-center gap-2 sm:gap-3">
-                          <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg bg-blue-100 flex items-center justify-center">
-                            <BookOpen className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
+            <>
+              {/* Desktop: Table */}
+              <div className="hidden md:block w-full overflow-x-auto">
+                <table className="w-full min-w-full">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Przedmiot</th>
+                      <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Oceny</th>
+                      <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Średnia</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {mandatoryCourses.map(([subject, subjectGrades], idx) => (
+                      <tr key={`mandatory-${subject}-${idx}`} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+                              <BookOpen className="w-4 h-4 text-blue-600" />
+                            </div>
+                            <span className="font-semibold text-gray-800 text-base">{subject}</span>
                           </div>
-                          <span className="font-semibold text-gray-800 text-sm sm:text-base truncate">{subject}</span>
+                        </td>
+                        <td className="px-6 py-4">
+                          {subjectGrades.length > 0 ? (
+                            <div className="flex flex-wrap gap-2">
+                              {subjectGrades.map((grade) => {
+                                const gradeValue = grade.grade || grade.value || grade.value_grade;
+                                const gradeDescription = grade.description || grade.comments || '';
+                                const gradeDate = grade.date || grade.graded_at || '';
+                                const gradeType = grade.gradeType || grade.type || '';
+                                
+                                return (
+                                  <div key={grade.id} className="relative group">
+                                    <button
+                                      className={`px-3 py-1.5 rounded-lg font-bold text-sm shadow-sm transition-all duration-200 hover:scale-105 hover:shadow-md ${getGradeColor(gradeValue)}`}
+                                    >
+                                      {gradeValue}
+                                    </button>
+                                    
+                                    {/* Tooltip */}
+                                    <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50 min-w-[250px] max-w-[350px]">
+                                      <div className="space-y-1">
+                                        <div className="font-semibold">Ocena: {gradeValue}</div>
+                                        <div className="font-semibold">Uczeń: {grade.studentName}</div>
+                                        {gradeType && (
+                                          <div><span className="font-medium">Typ:</span> {gradeType}</div>
+                                        )}
+                                        {grade.quiz_title && (
+                                          <div><span className="font-medium">Quiz:</span> {grade.quiz_title}</div>
+                                        )}
+                                        {grade.percentage !== undefined && (
+                                          <div><span className="font-medium">Wynik:</span> {grade.percentage}%</div>
+                                        )}
+                                        {gradeDescription && (
+                                          <div><span className="font-medium">Opis:</span> {gradeDescription}</div>
+                                        )}
+                                        {gradeDate && (
+                                          <div><span className="font-medium">Data:</span> {new Date(gradeDate).toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\./g, '/')}</div>
+                                        )}
+                                      </div>
+                                      {/* Arrow */}
+                                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-b-4 border-transparent border-b-gray-900"></div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <span className="text-sm text-gray-500">Brak ocen w tym przedmiocie</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-blue-100 text-blue-800">
+                            {subjectGrades.length > 0 ? calculateAverage(subjectGrades) : 'Brak ocen'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile: Cards */}
+              <div className="md:hidden space-y-4 p-4">
+                {mandatoryCourses.map(([subject, subjectGrades], idx) => (
+                  <div key={`mandatory-mobile-${subject}-${idx}`} className="bg-gray-50 rounded-xl p-4 border border-gray-200 shadow-sm">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
+                        <BookOpen className="w-5 h-5 text-blue-600" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold text-gray-800 text-base truncate">{subject}</h3>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          Średnia: <span className="font-semibold text-blue-600">
+                            {subjectGrades.length > 0 ? calculateAverage(subjectGrades) : 'Brak ocen'}
+                          </span>
+                        </p>
+                      </div>
+                    </div>
+                    
+                    {subjectGrades.length > 0 ? (
+                      <div className="space-y-2">
+                        <p className="text-xs font-medium text-gray-600 mb-2">Oceny:</p>
+                        <div className="flex flex-wrap gap-2">
+                          {subjectGrades.map((grade) => {
+                            const gradeValue = grade.grade || grade.value || grade.value_grade;
+                            const gradeDescription = grade.description || grade.comments || '';
+                            const gradeDate = grade.date || grade.graded_at || '';
+                            const gradeType = grade.gradeType || grade.type || '';
+                            
+                            return (
+                              <div key={grade.id} className="flex flex-col">
+                                <button
+                                  className={`min-w-[48px] min-h-[48px] px-4 py-2 rounded-lg font-bold text-base shadow-sm ${getGradeColor(gradeValue)}`}
+                                >
+                                  {gradeValue}
+                                </button>
+                                {(gradeType || gradeDate) && (
+                                  <div className="mt-1 text-[10px] text-gray-600 text-center">
+                                    {gradeType && <div className="truncate">{gradeType}</div>}
+                                    {gradeDate && <div>{new Date(gradeDate).toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit' })}</div>}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
-                      </td>
-                      <td className="px-3 sm:px-6 py-3 sm:py-4">
-                        {subjectGrades.length > 0 ? (
-                          <div className="flex flex-wrap gap-1 sm:gap-2">
-                            {subjectGrades.map((grade) => {
-                              const gradeValue = grade.grade || grade.value || grade.value_grade;
-                              const gradeDescription = grade.description || grade.comments || '';
-                              const gradeDate = grade.date || grade.graded_at || '';
-                              const gradeType = grade.gradeType || grade.type || '';
-                              
-                              return (
-                                <div key={grade.id} className="relative group">
-          <button
-                                    className={`px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg font-bold text-xs sm:text-sm shadow-sm transition-all duration-200 hover:scale-105 hover:shadow-md ${getGradeColor(gradeValue)}`}
-                                  >
-                                    {gradeValue}
-          </button>
-          
-                                  {/* Tooltip */}
-                                  <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50 min-w-[250px] max-w-[350px]">
-                                    <div className="space-y-1">
-                                      <div className="font-semibold">Ocena: {gradeValue}</div>
-                                      <div className="font-semibold">Uczeń: {grade.studentName}</div>
-                                      {gradeType && (
-                                        <div><span className="font-medium">Typ:</span> {gradeType}</div>
-                                      )}
-                                      {grade.quiz_title && (
-                                        <div><span className="font-medium">Quiz:</span> {grade.quiz_title}</div>
-                                      )}
-                                      {grade.percentage !== undefined && (
-                                        <div><span className="font-medium">Wynik:</span> {grade.percentage}%</div>
-                                      )}
-                                      {gradeDescription && (
-                                        <div><span className="font-medium">Opis:</span> {gradeDescription}</div>
-                                      )}
-                                      {gradeDate && (
-                                        <div><span className="font-medium">Data:</span> {new Date(gradeDate).toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\./g, '/')}</div>
-                                      )}
-        </div>
-                                    {/* Arrow */}
-                                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-b-4 border-transparent border-b-gray-900"></div>
-      </div>
-          </div>
-                              );
-                            })}
-          </div>
-                        ) : (
-                          <span className="text-xs sm:text-sm text-gray-500">Brak ocen w tym przedmiocie</span>
-                        )}
-                      </td>
-                      <td className="px-3 sm:px-6 py-3 sm:py-4">
-                        <span className="inline-flex items-center px-2 py-1 sm:px-3 sm:py-1 rounded-full text-xs sm:text-sm font-semibold bg-blue-100 text-blue-800">
-                          {subjectGrades.length > 0 ? calculateAverage(subjectGrades) : 'Brak ocen'}
-            </span>
-                      </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          </div>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500 text-center py-4">Brak ocen w tym przedmiocie</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </>
           )}
           </div>
 
@@ -588,85 +644,141 @@ export default function TeacherGradesPage() {
               <p className="text-gray-600">Nie masz jeszcze żadnych przedmiotów fakultatywnych.</p>
         </div>
           ) : (
-            <div className="w-full overflow-x-auto">
-              <table className="w-full min-w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                    <th className="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-semibold text-gray-700">Przedmiot</th>
-                    <th className="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-semibold text-gray-700">Oceny</th>
-                    <th className="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-semibold text-gray-700">Średnia</th>
-              </tr>
-            </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {electiveCourses.map(([subject, subjectGrades], idx) => (
-                    <tr key={`elective-${subject}-${idx}`} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-3 sm:px-6 py-3 sm:py-4">
-                        <div className="flex items-center gap-2 sm:gap-3">
-                          <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg bg-green-100 flex items-center justify-center">
-                            <BookOpen className="w-3 h-3 sm:w-4 sm:h-4 text-green-600" />
-                  </div>
-                          <span className="font-semibold text-gray-800 text-sm sm:text-base truncate">{subject}</span>
-                  </div>
-                      </td>
-                      <td className="px-3 sm:px-6 py-3 sm:py-4">
-                        {subjectGrades.length > 0 ? (
-                          <div className="flex flex-wrap gap-1 sm:gap-2">
-                            {subjectGrades.map((grade) => {
-                              const gradeValue = grade.grade || grade.value || grade.value_grade;
-                              const gradeDescription = grade.description || grade.comments || '';
-                              const gradeDate = grade.date || grade.graded_at || '';
-                              const gradeType = grade.gradeType || grade.type || '';
-                              
-                              return (
-                                <div key={grade.id} className="relative group">
-                                  <button
-                                    className={`px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg font-bold text-xs sm:text-sm shadow-sm transition-all duration-200 hover:scale-105 hover:shadow-md ${getGradeColor(gradeValue)}`}
-                                  >
-                                    {gradeValue}
-                                  </button>
-                                  
-                                  {/* Tooltip */}
-                                  <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50 min-w-[250px] max-w-[350px]">
-                                    <div className="space-y-1">
-                                      <div className="font-semibold">Ocena: {gradeValue}</div>
-                                      <div className="font-semibold">Uczeń: {grade.studentName}</div>
-                                      {gradeType && (
-                                        <div><span className="font-medium">Typ:</span> {gradeType}</div>
-                                      )}
-                                      {grade.quiz_title && (
-                                        <div><span className="font-medium">Quiz:</span> {grade.quiz_title}</div>
-                                      )}
-                                      {grade.percentage !== undefined && (
-                                        <div><span className="font-medium">Wynik:</span> {grade.percentage}%</div>
-                                      )}
-                                      {gradeDescription && (
-                                        <div><span className="font-medium">Opis:</span> {gradeDescription}</div>
-                                      )}
-                                      {gradeDate && (
-                                        <div><span className="font-medium">Data:</span> {new Date(gradeDate).toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\./g, '/')}</div>
+            <>
+              {/* Desktop: Table */}
+              <div className="hidden md:block w-full overflow-x-auto">
+                <table className="w-full min-w-full">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Przedmiot</th>
+                      <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Oceny</th>
+                      <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Średnia</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {electiveCourses.map(([subject, subjectGrades], idx) => (
+                      <tr key={`elective-${subject}-${idx}`} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center">
+                              <BookOpen className="w-4 h-4 text-green-600" />
+                            </div>
+                            <span className="font-semibold text-gray-800 text-base">{subject}</span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          {subjectGrades.length > 0 ? (
+                            <div className="flex flex-wrap gap-2">
+                              {subjectGrades.map((grade) => {
+                                const gradeValue = grade.grade || grade.value || grade.value_grade;
+                                const gradeDescription = grade.description || grade.comments || '';
+                                const gradeDate = grade.date || grade.graded_at || '';
+                                const gradeType = grade.gradeType || grade.type || '';
+                                
+                                return (
+                                  <div key={grade.id} className="relative group">
+                                    <button
+                                      className={`px-3 py-1.5 rounded-lg font-bold text-sm shadow-sm transition-all duration-200 hover:scale-105 hover:shadow-md ${getGradeColor(gradeValue)}`}
+                                    >
+                                      {gradeValue}
+                                    </button>
+                                    
+                                    {/* Tooltip */}
+                                    <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50 min-w-[250px] max-w-[350px]">
+                                      <div className="space-y-1">
+                                        <div className="font-semibold">Ocena: {gradeValue}</div>
+                                        <div className="font-semibold">Uczeń: {grade.studentName}</div>
+                                        {gradeType && (
+                                          <div><span className="font-medium">Typ:</span> {gradeType}</div>
+                                        )}
+                                        {grade.quiz_title && (
+                                          <div><span className="font-medium">Quiz:</span> {grade.quiz_title}</div>
+                                        )}
+                                        {grade.percentage !== undefined && (
+                                          <div><span className="font-medium">Wynik:</span> {grade.percentage}%</div>
+                                        )}
+                                        {gradeDescription && (
+                                          <div><span className="font-medium">Opis:</span> {gradeDescription}</div>
+                                        )}
+                                        {gradeDate && (
+                                          <div><span className="font-medium">Data:</span> {new Date(gradeDate).toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\./g, '/')}</div>
+                                        )}
+                                      </div>
+                                      {/* Arrow */}
+                                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-b-4 border-transparent border-b-gray-900"></div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <span className="text-sm text-gray-500">Brak ocen w tym przedmiocie</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-green-100 text-green-800">
+                            {subjectGrades.length > 0 ? calculateAverage(subjectGrades) : 'Brak ocen'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile: Cards */}
+              <div className="md:hidden space-y-4 p-4">
+                {electiveCourses.map(([subject, subjectGrades], idx) => (
+                  <div key={`elective-mobile-${subject}-${idx}`} className="bg-gray-50 rounded-xl p-4 border border-gray-200 shadow-sm">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center flex-shrink-0">
+                        <BookOpen className="w-5 h-5 text-green-600" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold text-gray-800 text-base truncate">{subject}</h3>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          Średnia: <span className="font-semibold text-green-600">
+                            {subjectGrades.length > 0 ? calculateAverage(subjectGrades) : 'Brak ocen'}
+                          </span>
+                        </p>
+                      </div>
+                    </div>
+                    
+                    {subjectGrades.length > 0 ? (
+                      <div className="space-y-2">
+                        <p className="text-xs font-medium text-gray-600 mb-2">Oceny:</p>
+                        <div className="flex flex-wrap gap-2">
+                          {subjectGrades.map((grade) => {
+                            const gradeValue = grade.grade || grade.value || grade.value_grade;
+                            const gradeDescription = grade.description || grade.comments || '';
+                            const gradeDate = grade.date || grade.graded_at || '';
+                            const gradeType = grade.gradeType || grade.type || '';
+                            
+                            return (
+                              <div key={grade.id} className="flex flex-col">
+                                <button
+                                  className={`min-w-[48px] min-h-[48px] px-4 py-2 rounded-lg font-bold text-base shadow-sm ${getGradeColor(gradeValue)}`}
+                                >
+                                  {gradeValue}
+                                </button>
+                                {(gradeType || gradeDate) && (
+                                  <div className="mt-1 text-[10px] text-gray-600 text-center">
+                                    {gradeType && <div className="truncate">{gradeType}</div>}
+                                    {gradeDate && <div>{new Date(gradeDate).toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit' })}</div>}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500 text-center py-4">Brak ocen w tym przedmiocie</p>
                     )}
                   </div>
-                                    {/* Arrow */}
-                                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-b-4 border-transparent border-b-gray-900"></div>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        ) : (
-                          <span className="text-xs sm:text-sm text-gray-500">Brak ocen w tym przedmiocie</span>
-                        )}
-                  </td>
-                      <td className="px-3 sm:px-6 py-3 sm:py-4">
-                        <span className="inline-flex items-center px-2 py-1 sm:px-3 sm:py-1 rounded-full text-xs sm:text-sm font-semibold bg-green-100 text-green-800">
-                          {subjectGrades.length > 0 ? calculateAverage(subjectGrades) : 'Brak ocen'}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                ))}
+              </div>
+            </>
             )}
           </div>
         </div>
@@ -674,8 +786,8 @@ export default function TeacherGradesPage() {
 
       {/* Modal dodawania oceny */}
       {showAddGradeModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[85vh] overflow-y-auto my-auto">
             <div className="p-6">
             <div className="flex items-center justify-between mb-6">
                 <h2 className="text-xl font-bold text-gray-800">Dodaj nową ocenę</h2>

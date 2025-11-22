@@ -603,7 +603,7 @@ function SuperAdminDashboardContent() {
             const auth = getAuth();
             if (auth.currentUser) {
               const token = await auth.currentUser.getIdToken(true);
-              localStorage.setItem('token', token);
+              sessionStorage.setItem('token', token);
             }
           }
         } catch (authError) {
@@ -632,7 +632,7 @@ function SuperAdminDashboardContent() {
 
   const handleResetPassword = async (userId: string) => {
     try {
-      const token = localStorage.getItem("token");
+      const token = sessionStorage.getItem("token") || sessionStorage.getItem("firebaseToken");
               const response = await fetch(`/api/users/${userId}/reset_password/`, {
         method: "POST",
         headers: {
@@ -662,7 +662,7 @@ function SuperAdminDashboardContent() {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleCreateGroup = async () => {
     try {
-      const token = localStorage.getItem("token");
+      const token = sessionStorage.getItem("token") || sessionStorage.getItem("firebaseToken");
               const response = await fetch("/api/groups/", {
         method: "POST",
         headers: {
@@ -695,7 +695,7 @@ function SuperAdminDashboardContent() {
 
   const handleAddMember = async (groupId: string, userId: string) => {
     try {
-      const token = localStorage.getItem("token");
+      const token = sessionStorage.getItem("token") || sessionStorage.getItem("firebaseToken");
               const response = await fetch(`/api/groups/${groupId}/add_member/`, {
         method: "POST",
         headers: {
@@ -1083,17 +1083,8 @@ function SuperAdminDashboardContent() {
       <div className="bg-white/90 backdrop-blur-lg border-b border-gray-200 shadow-sm sticky top-0 z-40">
         <div className="px-4 sm:px-6 lg:px-8 py-3 sm:py-4">
           <div className="flex items-center justify-between gap-4">
-            {/* Lewa strona - Logo i przycisk powrotu */}
+            {/* Lewa strona - Logo */}
             <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
-              <button
-                onClick={() => window.location.href = '/homelogin'}
-                className="flex items-center gap-2 px-3 py-2 sm:px-4 bg-white/80 backdrop-blur-sm text-gray-700 rounded-lg hover:bg-white hover:shadow-md transition-all duration-200 border border-gray-200 flex-shrink-0"
-                aria-label="Powrót do strony głównej"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                <span className="hidden sm:inline">Powrót</span>
-              </button>
-              
               <div className="flex items-center gap-2 min-w-0">
                 <Image src="/puzzleicon.png" alt="Logo" width={28} height={28} className="flex-shrink-0" />
                 <span className="text-lg sm:text-xl font-bold text-[#4067EC] truncate">COGITO</span>

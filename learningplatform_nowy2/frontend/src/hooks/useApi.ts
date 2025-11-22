@@ -101,6 +101,10 @@ const useApi = (): UseApiMethods => {
       if (response.status === 401) {
         console.log(`❌ 401 Unauthorized - redirecting to login`);
         // Wyloguj użytkownika tylko jeśli token jest nieprawidłowy
+        sessionStorage.removeItem('firebaseToken');
+        sessionStorage.removeItem('firebaseTokenExpiry');
+        sessionStorage.removeItem('lastActivity');
+        // Wyczyść również localStorage dla kompatybilności wstecznej
         localStorage.removeItem('firebaseToken');
         localStorage.removeItem('firebaseTokenExpiry');
         window.location.href = '/login';
