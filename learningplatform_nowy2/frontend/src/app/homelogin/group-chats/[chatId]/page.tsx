@@ -239,15 +239,16 @@ export default function StudentGroupChatView() {
                 onChange={(e) => setNewMessage(e.target.value)}
                 placeholder="Napisz wiadomość..."
                 disabled={sending}
-                className="w-full border-0 bg-white rounded-2xl px-6 py-4 shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-400 focus:shadow-xl transition-all duration-200 disabled:opacity-50 text-gray-900 placeholder-gray-400"
+                style={{ fontSize: '16px' }}
+                className="w-full border-0 bg-white rounded-2xl px-4 sm:px-6 py-3 sm:py-4 shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-400 focus:shadow-xl transition-all duration-200 disabled:opacity-50 text-gray-900 placeholder-gray-400"
               />
             </div>
             <button
               type="submit"
               disabled={sending || !newMessage.trim()}
-              className="bg-gradient-to-r from-blue-500 to-purple-600 text-white p-4 rounded-2xl hover:shadow-lg hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none shadow-lg"
+              className="bg-gradient-to-r from-blue-500 to-purple-600 text-white p-3 sm:p-4 rounded-2xl hover:shadow-lg hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none shadow-lg min-w-[48px] min-h-[48px] flex items-center justify-center"
             >
-              <Send className="h-5 w-5" />
+              <Send className="h-5 w-5 sm:h-6 sm:w-6" />
             </button>
           </div>
         </form>

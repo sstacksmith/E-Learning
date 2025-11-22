@@ -5,7 +5,7 @@ import { useAuth } from '@/context/AuthContext';
 import { collection, getDocs, query, where, doc, getDoc } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import Providers from '@/components/Providers';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface Course {
   id: string;
@@ -30,6 +30,7 @@ function ParentCoursesContent() {
   const [studentId, setStudentId] = useState<string | null>(null);
   const [studentData, setStudentData] = useState<any>(null);
   const [displayName, setDisplayName] = useState<string>('');
+  const [expandedCourses, setExpandedCourses] = useState<Set<string>>(new Set());
 
   // Pobierz przypisanego ucznia
   useEffect(() => {
@@ -244,6 +245,18 @@ function ParentCoursesContent() {
     }
   };
 
+  const toggleCourse = (courseId: string) => {
+    setExpandedCourses(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(courseId)) {
+        newSet.delete(courseId);
+      } else {
+        newSet.add(courseId);
+      }
+      return newSet;
+    });
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#F4F6FB] flex items-center justify-center">
@@ -320,94 +333,114 @@ function ParentCoursesContent() {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-            {filteredCourses.map((course) => (
-              <div key={course.id} className="bg-white/90 backdrop-blur-xl rounded-xl p-4 md:p-6 border border-white/20 hover:border-[#4067EC] transition-all duration-300 hover:shadow-lg">
-                {/* Course Header */}
-                <div className="flex items-start gap-3 mb-4">
-                  <div className="w-16 h-16 bg-[#4067EC] rounded-lg flex items-center justify-center text-white text-2xl font-bold">
-                    {course.title.charAt(0).toUpperCase()}
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-lg text-gray-800 mb-2 line-clamp-2">
-                      {course.title}
-                    </h3>
-                    <p className="text-sm text-gray-600 mb-2 line-clamp-2">
-                      {course.description}
-                    </p>
-                  </div>
-                </div>
-                
-                {/* Course Info */}
-                <div className="space-y-2 mb-4">
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <span className="font-medium">Przedmiot:</span>
-                    <span className="px-2 py-1 bg-[#4067EC] text-white rounded-full text-xs">
-                      {course.subject}
-                    </span>
-                  </div>
-                  
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <span className="font-medium">Rok:</span>
-                    <span className="px-2 py-1 bg-gray-200 text-gray-700 rounded-full text-xs">
-                      {course.yearOfStudy}
-                    </span>
-                  </div>
-                  
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <span className="font-medium">Nauczyciel:</span>
-                    <span className="text-gray-700">{course.teacherName}</span>
-                  </div>
-                  
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <span className="font-medium">Status:</span>
-                    <span className={`px-2 py-1 rounded-full text-xs ${
-                      course.isActive 
-                        ? 'bg-green-100 text-green-700' 
-                        : 'bg-red-100 text-red-700'
-                    }`}>
-                      {course.isActive ? 'Aktywny' : 'Nieaktywny'}
-                    </span>
-                  </div>
-                  
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <span className="font-medium">Ostatni dostęp:</span>
-                    <span className="text-gray-700">{formatDate(course.lastAccessed)}</span>
-                  </div>
-                </div>
-                
-                {/* Progress Bar */}
-                <div className="mb-4">
-                  <div className="flex items-center justify-between text-sm text-gray-600 mb-2">
-                    <span>Postęp</span>
-                    <span>{course.progress}%</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className={`h-2 rounded-full transition-all duration-300 ${getProgressColor(course.progress)}`}
-                      style={{ width: `${course.progress}%` }}
-                    ></div>
-                  </div>
-                  <div className="text-xs text-gray-500 mt-1">
-                    {course.completedLessons} z {course.totalLessons} lekcji ukończonych
-                  </div>
-                </div>
-                
-                {/* Action Buttons */}
-                <div className="flex gap-2">
-                  <Link
-                    href={`/homelogin/parent/courses/${course.id}`}
-                    className="flex-1 bg-[#4067EC] text-white py-2 px-4 rounded-lg font-medium hover:bg-[#3050b3] transition-colors text-center"
+          <div className="space-y-3 md:space-y-4">
+            {filteredCourses.map((course) => {
+              const isExpanded = expandedCourses.has(course.id);
+              return (
+                <div key={course.id} className="bg-white/90 backdrop-blur-xl rounded-xl border border-white/20 hover:border-[#4067EC] transition-all duration-300 hover:shadow-lg overflow-hidden">
+                  {/* Course Header - Always Visible */}
+                  <button
+                    onClick={() => toggleCourse(course.id)}
+                    className="w-full p-3 sm:p-4 flex items-center gap-3 hover:bg-gray-50 transition-colors"
                   >
-                    Zobacz szczegóły
-                  </Link>
-                  
-                  <button className="px-3 py-2 text-[#4067EC] hover:bg-[#4067EC] hover:text-white rounded-lg transition-colors">
-                    ⭐
+                    <div className="w-12 h-12 sm:w-14 sm:h-14 bg-[#4067EC] rounded-lg flex items-center justify-center text-white text-lg sm:text-xl font-bold flex-shrink-0">
+                      {course.title.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1 text-left min-w-0">
+                      <h3 className="font-semibold text-sm sm:text-base md:text-lg text-gray-800 mb-1 truncate">
+                        {course.title}
+                      </h3>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="px-2 py-0.5 bg-[#4067EC] text-white rounded-full text-[10px] sm:text-xs">
+                          {course.subject}
+                        </span>
+                        <span className="text-xs sm:text-sm text-gray-600">
+                          {course.progress}% ukończone
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex-shrink-0">
+                      {isExpanded ? (
+                        <ChevronUp className="w-5 h-5 sm:w-6 sm:h-6 text-gray-400" />
+                      ) : (
+                        <ChevronDown className="w-5 h-5 sm:w-6 sm:h-6 text-gray-400" />
+                      )}
+                    </div>
                   </button>
+                  
+                  {/* Course Details - Collapsible */}
+                  {isExpanded && (
+                    <div className="px-3 sm:px-4 pb-3 sm:pb-4 border-t border-gray-100">
+                      <p className="text-xs sm:text-sm text-gray-600 mb-3 sm:mb-4 mt-3 sm:mt-4">
+                        {course.description}
+                      </p>
+                      
+                      {/* Course Info */}
+                      <div className="space-y-2 mb-3 sm:mb-4">
+                        <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-600">
+                          <span className="font-medium">Rok:</span>
+                          <span className="px-2 py-1 bg-gray-200 text-gray-700 rounded-full text-xs">
+                            {course.yearOfStudy}
+                          </span>
+                        </div>
+                        
+                        <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-600">
+                          <span className="font-medium">Nauczyciel:</span>
+                          <span className="text-gray-700 truncate">{course.teacherName}</span>
+                        </div>
+                        
+                        <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-600">
+                          <span className="font-medium">Status:</span>
+                          <span className={`px-2 py-1 rounded-full text-xs ${
+                            course.isActive 
+                              ? 'bg-green-100 text-green-700' 
+                              : 'bg-red-100 text-red-700'
+                          }`}>
+                            {course.isActive ? 'Aktywny' : 'Nieaktywny'}
+                          </span>
+                        </div>
+                        
+                        <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-600">
+                          <span className="font-medium">Ostatni dostęp:</span>
+                          <span className="text-gray-700">{formatDate(course.lastAccessed)}</span>
+                        </div>
+                      </div>
+                      
+                      {/* Progress Bar */}
+                      <div className="mb-3 sm:mb-4">
+                        <div className="flex items-center justify-between text-xs sm:text-sm text-gray-600 mb-2">
+                          <span>Postęp</span>
+                          <span>{course.progress}%</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div 
+                            className={`h-2 rounded-full transition-all duration-300 ${getProgressColor(course.progress)}`}
+                            style={{ width: `${course.progress}%` }}
+                          ></div>
+                        </div>
+                        <div className="text-[10px] sm:text-xs text-gray-500 mt-1">
+                          {course.completedLessons} z {course.totalLessons} lekcji ukończonych
+                        </div>
+                      </div>
+                      
+                      {/* Action Buttons */}
+                      <div className="flex gap-2">
+                        <Link
+                          href={`/homelogin/parent/courses/${course.id}`}
+                          className="flex-1 bg-[#4067EC] text-white py-2 px-3 sm:px-4 rounded-lg text-xs sm:text-sm font-medium hover:bg-[#3050b3] transition-colors text-center"
+                        >
+                          Zobacz szczegóły
+                        </Link>
+                        
+                        <button className="px-3 py-2 text-[#4067EC] hover:bg-[#4067EC] hover:text-white rounded-lg transition-colors text-sm sm:text-base">
+                          ⭐
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
         </div>

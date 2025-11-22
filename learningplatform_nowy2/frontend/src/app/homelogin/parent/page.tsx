@@ -280,15 +280,16 @@ export default function ParentDashboard() {
             </div>
 
             {/* Full Width Schedule Grid */}
-            <div className="w-full border border-slate-200 rounded-3xl overflow-hidden shadow-xl bg-white">
-              <div className="grid grid-cols-6 min-h-[600px]">
+            <div className="w-full border border-slate-200 rounded-3xl overflow-x-auto shadow-xl bg-white">
+              <div className="grid grid-cols-6 min-h-[600px] min-w-[800px]">
                 {/* Enhanced Headers */}
-                <div className="font-bold p-6 h-20 text-center border-b border-r bg-gradient-to-r from-blue-600 to-indigo-600 text-white flex items-center justify-center">
-                  <span className="text-xl">Godzina</span>
+                <div className="font-bold p-2 sm:p-4 md:p-6 h-16 sm:h-20 text-center border-b border-r bg-gradient-to-r from-blue-600 to-indigo-600 text-white flex items-center justify-center">
+                  <span className="text-xs sm:text-sm md:text-base lg:text-xl">Godzina</span>
                 </div>
                 {daysOfWeek.map((day, index) => (
-                  <div key={index} className="font-bold p-6 h-20 text-center border-b border-r bg-gradient-to-r from-blue-600 to-indigo-600 text-white flex items-center justify-center">
-                    <span className="text-xl">{day}</span>
+                  <div key={index} className="font-bold p-2 sm:p-4 md:p-6 h-16 sm:h-20 text-center border-b border-r bg-gradient-to-r from-blue-600 to-indigo-600 text-white flex items-center justify-center">
+                    <span className="hidden md:inline text-xs sm:text-sm md:text-base lg:text-xl">{day}</span>
+                    <span className="md:hidden text-xs sm:text-sm">{daysOfWeekShort[index]}</span>
                   </div>
                 ))}
 
@@ -297,11 +298,11 @@ export default function ParentDashboard() {
                   {timeSlots.map((slot, index) => (
                     <React.Fragment key={index}>
                       {/* Enhanced Time Column */}
-                      <div className="bg-gradient-to-br from-slate-50 to-blue-50 border-r border-b border-slate-200 p-6 flex flex-col justify-center hover:bg-gradient-to-br hover:from-blue-50 hover:to-indigo-50 transition-all duration-200">
-                        <div className="text-lg font-bold text-blue-600 mb-2">
+                      <div className="bg-gradient-to-br from-slate-50 to-blue-50 border-r border-b border-slate-200 p-2 sm:p-3 md:p-4 lg:p-6 flex flex-col justify-center hover:bg-gradient-to-br hover:from-blue-50 hover:to-indigo-50 transition-all duration-200">
+                        <div className="text-[10px] sm:text-xs md:text-sm lg:text-lg font-bold text-blue-600 mb-1 sm:mb-2 whitespace-nowrap">
                           {slot.startTime} - {slot.endTime}
                         </div>
-                        <div className="text-sm text-slate-500 font-medium">
+                        <div className="text-[9px] sm:text-xs md:text-sm text-slate-500 font-medium whitespace-nowrap">
                           Lekcja {slot.label}
                         </div>
                       </div>
@@ -312,33 +313,33 @@ export default function ParentDashboard() {
                         return (
                           <div 
                             key={`${index}-${dayIndex}`} 
-                            className="border-r border-b border-slate-200 p-6 bg-white hover:bg-gradient-to-br hover:from-slate-50 hover:to-blue-50 transition-all duration-200 group relative"
+                            className="border-r border-b border-slate-200 p-1 sm:p-2 md:p-3 lg:p-6 bg-white hover:bg-gradient-to-br hover:from-slate-50 hover:to-blue-50 transition-all duration-200 group relative"
                           >
                             {lessons.length > 0 ? (
-                              <div className="space-y-2">
+                              <div className="space-y-1 sm:space-y-2">
                                 {lessons.map((lesson) => (
                                   <div 
                                     key={lesson.id}
-                                    className="bg-blue-100 text-blue-800 p-3 rounded-lg border border-blue-200 hover:bg-blue-200 transition-colors"
+                                    className="bg-blue-100 text-blue-800 p-1 sm:p-2 md:p-3 rounded-lg border border-blue-200 hover:bg-blue-200 transition-colors"
                                   >
-                                    <div className="font-semibold text-sm mb-1">{lesson.subject}</div>
+                                    <div className="font-semibold text-[9px] sm:text-[10px] md:text-xs lg:text-sm mb-0.5 sm:mb-1 break-words">{lesson.subject}</div>
                                     {lesson.time && (
-                                      <div className="text-xs text-blue-600 mb-1">{lesson.time}</div>
+                                      <div className="text-[8px] sm:text-[9px] md:text-xs text-blue-600 mb-0.5 sm:mb-1 whitespace-nowrap overflow-hidden text-ellipsis">{lesson.time}</div>
                                     )}
                                     {lesson.room && (
-                                      <div className="text-xs text-blue-500">Sala: {lesson.room}</div>
+                                      <div className="text-[8px] sm:text-[9px] md:text-xs text-blue-500 whitespace-nowrap overflow-hidden text-ellipsis">Sala: {lesson.room}</div>
                                     )}
                                     {lesson.teacher && (
-                                      <div className="text-xs text-blue-500 mt-1">{lesson.teacher}</div>
+                                      <div className="text-[8px] sm:text-[9px] md:text-xs text-blue-500 mt-0.5 sm:mt-1 break-words line-clamp-2">{lesson.teacher}</div>
                                     )}
                                   </div>
                                 ))}
                               </div>
                             ) : (
                               <>
-                                <div className="text-sm text-slate-400 mb-3 font-medium">{slot.startTime}</div>
+                                <div className="text-[9px] sm:text-xs md:text-sm text-slate-400 mb-1 sm:mb-3 font-medium whitespace-nowrap">{slot.startTime}</div>
                                 <div className="flex items-center justify-between">
-                                  <div className="text-xs text-slate-300 group-hover:text-slate-400 transition-colors duration-200">
+                                  <div className="text-[8px] sm:text-[10px] md:text-xs text-slate-300 group-hover:text-slate-400 transition-colors duration-200 whitespace-nowrap">
                                     Brak zajęć
                                   </div>
                                 </div>

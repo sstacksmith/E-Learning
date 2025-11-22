@@ -1162,13 +1162,14 @@ function Dashboard() {
       {/* Main content */}
       <main className="flex-1 flex flex-col w-full lg:w-auto bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 transition-colors duration-200">
         {/* Header */}
-        <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between px-6 lg:px-8 py-6 bg-white/80 dark:bg-gray-800/80 backdrop-blur-lg border-b border-white/20 dark:border-gray-700/50 shadow-sm relative gap-4 sm:gap-0 transition-colors duration-200">
-          <div className="relative w-full sm:w-1/2 lg:w-1/3" ref={searchRef}>
+        <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between px-4 sm:px-6 lg:px-8 py-4 sm:py-6 bg-white/80 dark:bg-gray-800/80 backdrop-blur-lg border-b border-white/20 dark:border-gray-700/50 shadow-sm relative gap-3 sm:gap-4 transition-colors duration-200">
+          <div className="relative w-full sm:w-[45%] md:w-[40%] lg:w-1/3" ref={searchRef}>
             <div className="flex">
               <input
                 type="text"
                 placeholder="Szukaj kursu lub nauczyciela..."
-                className="w-full px-4 py-3 rounded-l-xl border border-white/30 dark:border-gray-600 bg-white/60 dark:bg-gray-700/60 backdrop-blur-sm focus:outline-none focus:ring-2 focus:ring-[#4067EC] dark:focus:ring-blue-400 focus:bg-white dark:focus:bg-gray-700 text-gray-800 dark:text-gray-200 font-semibold pr-10 text-sm shadow-sm transition-colors duration-200"
+                className="w-full px-3 sm:px-4 py-2 sm:py-3 rounded-l-xl border border-white/30 dark:border-gray-600 bg-white/60 dark:bg-gray-700/60 backdrop-blur-sm focus:outline-none focus:ring-2 focus:ring-[#4067EC] dark:focus:ring-blue-400 focus:bg-white dark:focus:bg-gray-700 text-gray-800 dark:text-gray-200 font-semibold pr-8 sm:pr-10 text-xs sm:text-sm shadow-sm transition-colors duration-200"
+                style={{ fontSize: '16px' }}
                 value={search}
                 onChange={handleSearchChange}
                 onFocus={handleSearchFocus}
@@ -1180,10 +1181,10 @@ function Dashboard() {
                   setShowSearchResults(false);
                   setSearchResults([]);
                 }}
-                className="px-4 py-3 bg-gradient-to-r from-[#4067EC] to-[#5577FF] text-white rounded-r-xl border border-[#4067EC] hover:from-[#3155d4] hover:to-[#4067EC] focus:outline-none focus:ring-2 focus:ring-[#4067EC] transition-all duration-200 shadow-sm hover:shadow-lg"
+                className="px-3 sm:px-4 py-2 sm:py-3 bg-gradient-to-r from-[#4067EC] to-[#5577FF] text-white rounded-r-xl border border-[#4067EC] hover:from-[#3155d4] hover:to-[#4067EC] focus:outline-none focus:ring-2 focus:ring-[#4067EC] transition-all duration-200 shadow-sm hover:shadow-lg flex-shrink-0"
                 aria-label="Wyczyść wyszukiwanie"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:h-5 sm:w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>

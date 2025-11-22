@@ -223,17 +223,18 @@ function MyCoursesPageContent() {
       </div>
 
       {/* Wyszukiwarka i sortowanie */}
-      <div className="bg-white/60 backdrop-blur-sm border-b border-white/20 px-4 sm:px-6 lg:px-8 py-4">
+      <div className="bg-white/60 backdrop-blur-sm border-b border-white/20 px-4 sm:px-6 lg:px-8 py-3 sm:py-4">
         <div className="max-w-6xl mx-auto">
-          <div className="flex flex-col lg:flex-row gap-4 items-center justify-between">
+          <div className="flex flex-col lg:flex-row gap-3 sm:gap-4 items-center justify-between">
             {/* Wyszukiwarka */}
-            <div className="relative flex-1 max-w-2xl" ref={searchRef}>
+            <div className="relative flex-1 w-full lg:max-w-2xl" ref={searchRef}>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <input
                   type="text"
                   placeholder="Wyszukaj kursy..."
-                  className="w-full pl-10 pr-10 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4067EC] focus:border-[#4067EC] text-gray-900 transition-all duration-200 ease-in-out hover:border-gray-300 hover:shadow-sm bg-white/80 backdrop-blur-sm"
+                  style={{ fontSize: '16px' }}
+                  className="w-full pl-10 pr-10 py-2 sm:py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4067EC] focus:border-[#4067EC] text-gray-900 transition-all duration-200 ease-in-out hover:border-gray-300 hover:shadow-sm bg-white/80 backdrop-blur-sm"
                   value={search}
                   onChange={handleSearchChange}
                 />
