@@ -280,6 +280,7 @@ function LoginPageContent() {
                 <input
                   type={showPassword ? "text" : "password"}
                   placeholder="Hasło"
+                  autoComplete="current-password"
                   style={{ fontSize: '16px' }}
                   className={`w-full pl-12 pr-12 py-3 border-2 ${errors.password ? 'border-red-500' : 'border-gray-200'} rounded-xl focus:outline-none focus:border-blue-500 transition-all duration-200 text-gray-900 placeholder-gray-400 bg-white/50`}
                   value={password}
