@@ -15,10 +15,11 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.urls import path, include
-from learningplatform.views import health_check, set_teacher_role, set_admin_role, set_student_role, report_bug, get_bug_reports, update_bug_report_status
+from learningplatform.views import health_check, api_root, set_teacher_role, set_admin_role, set_student_role, report_bug, get_bug_reports, update_bug_report_status
 from learningplatform.firebase_views import UpdateLearningTimeView
 
 urlpatterns = [
+    path('', api_root, name='api-root'),
     path('health/', health_check, name='health-check'),
     
     # Only API endpoint that works with Firebase

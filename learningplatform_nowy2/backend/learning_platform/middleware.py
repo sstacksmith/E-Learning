@@ -1,4 +1,3 @@
-import firebase_admin
 from firebase_admin import auth
 from django.utils.functional import SimpleLazyObject
 from django.contrib.auth.models import AnonymousUser
@@ -6,28 +5,14 @@ import jwt
 from django.conf import settings
 # from api.models import User  # Removed - using Firebase only
 from django.http import HttpResponse
-from firebase_admin import auth
-import firebase_admin
-from firebase_admin import credentials
-import os
-from pathlib import Path
 
-BASE_DIR = Path(__file__).resolve().parent.parent
-print("BASE_DIR:", BASE_DIR)
-
-# Ścieżka do pliku credentials
-cred_path = os.path.join(BASE_DIR, 'firebase-credentials.json')
-print("Używany plik credentials:", cred_path)
-
-# Inicjalizacja Firebase Admin SDK
-cred = credentials.Certificate(cred_path)
-print("project_id z credentials:", cred.project_id)
-
+# Firebase Admin SDK is initialized in firebase_utils.py using environment variables
+# This middleware just uses the already-initialized SDK
+# Import firebase_utils to ensure initialization happens
 try:
-    firebase_admin.initialize_app(cred)
-except ValueError:
-    # App already initialized
-    pass
+    import firebase_utils  # noqa: F401 - ensures Firebase is initialized
+except Exception as e:
+    print(f"⚠️ Warning: Firebase initialization may have failed: {e}")
 
 def get_user_from_token(request):
     auth_header = request.headers.get('Authorization', '')

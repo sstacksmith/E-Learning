@@ -21,10 +21,21 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-#r%j=p*5tx%*32e&af2vg1&hhb0frc%h=80)1-apfeh-pudvof'
+# Get SECRET_KEY from environment variable
+# On production (Render), SECRET_KEY MUST be set in environment variables
+SECRET_KEY = os.getenv('SECRET_KEY')
+if not SECRET_KEY:
+    if os.getenv('RENDER') or os.getenv('RAILWAY_ENVIRONMENT'):
+        # Production environment - SECRET_KEY is required
+        raise Exception("SECRET_KEY environment variable is required in production!")
+    else:
+        # Development - use insecure key as fallback
+        SECRET_KEY = 'django-insecure-#r%j=p*5tx%*32e&af2vg1&hhb0frc%h=80)1-apfeh-pudvof'
+        print("⚠️ WARNING: Using insecure SECRET_KEY for development. Set SECRET_KEY env var for production!")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+# DEBUG is False on production (Render), True in development
+DEBUG = not (os.getenv('RENDER') or os.getenv('RAILWAY_ENVIRONMENT'))
 
 ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'cogito-7zrt.onrender.com', 'e-learning-theta-ten.vercel.app', 'e-learning-git-main-patryks-projects-e8ee70da.vercel.app', 'e-learning-r1fw6hxe1-patryks-projects-e8ee70da.vercel.app']
 

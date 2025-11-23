@@ -708,7 +708,23 @@ def teacher_course_detail(request, course_id):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def health_check(request):
-    return Response({'status': 'ok', 'timestamp': time.time()})
+    return JsonResponse({'status': 'ok', 'timestamp': time.time()})
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def api_root(request):
+    """Root endpoint - zwraca informacje o API"""
+    return JsonResponse({
+        'message': 'Cogito Learning Platform API',
+        'version': '1.0',
+        'endpoints': {
+            'health': '/health/',
+            'api': '/api/',
+            'bug_reports': '/api/bug-reports/',
+            'report_bug': '/api/report-bug/',
+        },
+        'status': 'online'
+    })
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
