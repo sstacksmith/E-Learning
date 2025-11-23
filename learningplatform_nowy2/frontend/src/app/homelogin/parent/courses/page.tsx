@@ -152,7 +152,7 @@ function ParentCoursesContent() {
               });
 
               // Oblicz postęp
-              let totalLessons = courseLessons.length;
+              const totalLessons = courseLessons.length;
               let completedLessons = 0;
               let lastAccessed: string | null = null;
 

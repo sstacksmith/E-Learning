@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { User, Mail, Phone, Calendar, Award, BookOpen, Users, Lock, Eye, EyeOff, RefreshCw, Star, TrendingUp, Activity, Target, Zap } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { auth, db } from '@/config/firebase';
@@ -93,11 +93,7 @@ export default function TeacherProfilePage() {
     }
   ]);
 
-  useEffect(() => {
-    loadUserData();
-  }, [user]);
-
-  const loadUserData = async () => {
+  const loadUserData = useCallback(async () => {
     if (user) {
       try {
         // Get displayName and email from Firebase Auth
@@ -133,9 +129,9 @@ export default function TeacherProfilePage() {
       }
     }
     setTimeout(() => setLoading(false), 500);
-  };
+  }, [user]);
 
-  const loadTeacherStats = async () => {
+  const loadTeacherStats = useCallback(async () => {
     if (!user?.uid) return;
     
     setLoadingStats(true);
@@ -156,7 +152,11 @@ export default function TeacherProfilePage() {
     } finally {
       setLoadingStats(false);
     }
-  };
+  }, [user]);
+
+  useEffect(() => {
+    loadUserData();
+  }, [user, loadUserData]);
 
   const handleEdit = () => {
     setIsEditing(true);
@@ -279,7 +279,7 @@ export default function TeacherProfilePage() {
     if (activeTab === 'stats') {
       loadTeacherStats();
     }
-  }, [activeTab]);
+  }, [activeTab, loadTeacherStats]);
 
   if (loading) {
     return (
@@ -494,7 +494,7 @@ export default function TeacherProfilePage() {
               </div>
             </div>
             <div className="space-y-4">
-              {achievements.map((achievement, index) => (
+              {achievements.map((achievement) => (
                 <div key={achievement.id} className="group flex items-start gap-4 p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl hover:from-blue-50 hover:to-purple-50 transition-all duration-300 hover:shadow-md hover:scale-[1.02] border border-gray-200 hover:border-blue-300">
                   <div className="text-3xl group-hover:animate-bounce">{achievement.icon}</div>
                   <div className="flex-1">

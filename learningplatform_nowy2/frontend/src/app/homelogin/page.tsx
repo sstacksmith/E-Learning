@@ -15,7 +15,7 @@ const Calendar = dynamic(() => import('../../components/Calendar'), {
 });
 import { collection, getDocs, query, where, deleteDoc, doc, limit } from 'firebase/firestore';
 import { db } from '../../config/firebase';
-import { Search, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Search, ArrowUp, ArrowDown } from 'lucide-react';
 import ThemeToggle from '@/components/ThemeToggle';
 
 import Providers from '@/components/Providers';
@@ -121,43 +121,6 @@ const getSidebarLinks = (userRole?: string) => {
 
 
 
-const podstawoweKursy = [
-  'Język polski',
-  'Język angielski',
-  'Język hiszpański',
-  'Filozofia',
-  'Matematyka',
-  'Historia',
-  'Historia i Teraźniejszość',
-  'Biznes i Zarządzanie',
-  'Podstawy Przedsiębiorczości',
-  'Edukacja dla Bezpieczeństwa',
-  'Biologia',
-  'Chemia',
-  'Fizyka',
-  'Geografia',
-  'Informatyka',
-  'Wychowanie fizyczne',
-];
-const dodatkoweKursy = [
-  'mindfunless',
-  'mikroekspresja',
-  'gotowanie',
-  'szachy',
-  'zarzadzanie',
-  'podstawy prawa',
-  'dietetyka',
-  'psychologia',
-  'pedagogika',
-  'neurodydaktyka',
-  'dziennikarstwo',
-  'rysunek',
-  'ikigai',
-  'rodzicielstwo',
-  'social media',
-];
-const wszystkieKursy = [...podstawoweKursy, ...dodatkoweKursy];
-
 function DashboardPageContent() {
   const { user, loading } = useAuth();
   const router = useRouter();
@@ -208,7 +171,7 @@ function Dashboard() {
   const [courseSortBy, setCourseSortBy] = useState<'title' | 'category'>('title');
   const [courseSortOrder, setCourseSortOrder] = useState<'asc' | 'desc'>('asc');
   const [teachers, setTeachers] = useState<Teacher[]>([]);
-  const [loadingTeachers, setLoadingTeachers] = useState(true);
+  const [, setLoadingTeachers] = useState(true);
   const searchRef = useRef<HTMLDivElement>(null);
 
   interface Notification {
@@ -237,8 +200,6 @@ function Dashboard() {
   const [sending, setSending] = useState(false);
   const [sendSuccess, setSendSuccess] = useState<string | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
-  const [showDropdown, setShowDropdown] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
   const [searchPosition, setSearchPosition] = useState({ left: 0, width: 0 });
 
 
@@ -938,7 +899,7 @@ function Dashboard() {
             </div>
           ) : (
             <ul className="max-h-96 overflow-y-auto">
-              {notifications.map((notif, index) => {
+              {notifications.map((notif) => {
                 const isUnread = !notif.read;
                 
                 // Różnorodne kolory dla różnych typów powiadomień

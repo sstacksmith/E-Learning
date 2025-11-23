@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { getAuth } from "firebase/auth";
 import { getFirestore, doc, collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, getDoc } from "firebase/firestore";
 import firebaseApp from "@/config/firebase";
@@ -25,7 +25,6 @@ interface Chat {
 
 export default function StudentGroupChatView() {
   const params = useParams();
-  const router = useRouter();
   const chatId = params?.chatId as string;
   
   const [messages, setMessages] = useState<Message[]>([]);

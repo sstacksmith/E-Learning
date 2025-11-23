@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import { db } from '@/config/firebase';
 import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
 import QuizPreview from '@/components/QuizPreview';
-import { ArrowLeft, Eye, Save, Plus, Trash2, Settings, Edit, Eye as ViewIcon, AlertTriangle, CheckCircle, Info, BookOpen, Zap, Sparkles, Search, Clock, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { ArrowLeft, Save, Plus, Trash2, Settings, Edit, AlertTriangle, CheckCircle, Info, BookOpen, Zap, Sparkles, Search, Clock, ArrowUpDown, ArrowUp, ArrowDown, Eye } from 'lucide-react';
 import { ErrorDisplay } from '@/components/ErrorDisplay';
 import { AIQuizGenerator } from '@/components/AIQuizGenerator';
 import { Quiz, Question, Answer } from '@/types/models';
@@ -440,22 +440,6 @@ export default function QuizManagementPage() {
     }
   };
 
-  const validateQuestion = (question: Question): string | null => {
-    if (!question.content.trim()) {
-      return 'Treść pytania nie może być pusta';
-    }
-    
-    if (question.answers.length < 2) {
-      return 'Pytanie musi mieć minimum 2 odpowiedzi';
-    }
-    
-    const hasCorrectAnswer = question.answers.some(answer => answer.is_correct);
-    if (!hasCorrectAnswer) {
-      return 'Musi być zaznaczona minimum 1 poprawna odpowiedź';
-    }
-    
-    return null;
-  };
 
   const handleAddQuestion = (question: any) => {
     setNewQuiz((prev) => ({
@@ -1088,7 +1072,7 @@ export default function QuizManagementPage() {
                           className="p-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
                           title="Podgląd"
                         >
-                          <ViewIcon className="w-4 h-4" />
+                          <Eye className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => handleEditQuiz(quiz)}

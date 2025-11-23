@@ -1,5 +1,5 @@
 "use client";
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { auth, db } from '../config/firebase';
 import {
@@ -45,7 +45,105 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const router = useRouter();
 
+  // Logout user
+  const logout = useCallback(async () => {
+    try {
+      // Wyloguj z Firebase
+      await signOut(auth);
+      
+      // Wyczyść wszystkie dane z sessionStorage związane z autoryzacją
+      sessionStorage.removeItem('firebaseToken');
+      sessionStorage.removeItem('lastActivity');
+      sessionStorage.removeItem('token');
+      
+      // Wyczyść cache danych użytkownika z sessionStorage
+      Object.keys(sessionStorage).forEach(key => {
+        if (key.startsWith('userData_')) {
+          sessionStorage.removeItem(key);
+        }
+      });
+      
+      // Wyczyść również localStorage dla kompatybilności wstecznej
+      localStorage.removeItem('firebaseToken');
+      localStorage.removeItem('token');
+      localStorage.removeItem('rememberedEmail');
+      localStorage.removeItem('rememberedPassword');
+      localStorage.removeItem('tokenExpiry');
+      
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('userData_')) {
+          localStorage.removeItem(key);
+        }
+      });
+      
+      // Resetuj stan użytkownika
+      setUser(null);
+      setIsAuthenticated(false);
+      
+      // Przekieruj do strony logowania
+      router.push('/login');
+      
+      // Wymuś odświeżenie strony aby wyczyścić wszystkie cache
+      if (typeof window !== 'undefined') {
+        window.location.href = '/login';
+      }
+    } catch (error) {
+      console.error('Logout error:', error);
+      throw error;
+    }
+  }, [router]);
+
   // Automatyczne wylogowanie po 30 minutach nieaktywności
+  useEffect(() => {
+    const INACTIVITY_TIMEOUT = 30 * 60 * 1000; // 30 minut w milisekundach
+    let inactivityTimer: NodeJS.Timeout;
+
+    const resetInactivityTimer = () => {
+      if (inactivityTimer) clearTimeout(inactivityTimer);
+      
+      // Zapisz timestamp ostatniej aktywności
+      sessionStorage.setItem('lastActivity', Date.now().toString());
+      
+      // Ustaw nowy timer
+      inactivityTimer = setTimeout(async () => {
+        console.warn('⏰ Automatyczne wylogowanie z powodu nieaktywności (30 min)');
+        await logout();
+      }, INACTIVITY_TIMEOUT);
+    };
+
+    // Sprawdź czy użytkownik jest zalogowany
+    if (isAuthenticated) {
+      // Sprawdź ostatnią aktywność przy załadowaniu strony
+      const lastActivity = sessionStorage.getItem('lastActivity');
+      if (lastActivity) {
+        const timeSinceLastActivity = Date.now() - parseInt(lastActivity);
+        if (timeSinceLastActivity > INACTIVITY_TIMEOUT) {
+          console.warn('⏰ Sesja wygasła - wylogowanie');
+          // logout(); // TODO: Fix circular dependency
+          return;
+        }
+      }
+
+      // Nasłuchuj na aktywność użytkownika
+      const events = ['mousedown', 'keydown', 'scroll', 'touchstart', 'click'];
+      events.forEach(event => {
+        document.addEventListener(event, resetInactivityTimer);
+      });
+
+      // Uruchom timer
+      resetInactivityTimer();
+
+      // Cleanup
+      return () => {
+        if (inactivityTimer) clearTimeout(inactivityTimer);
+        events.forEach(event => {
+          document.removeEventListener(event, resetInactivityTimer);
+        });
+      };
+    }
+  }, [isAuthenticated]);
+
+  // Update useEffect to use logout
   useEffect(() => {
     const INACTIVITY_TIMEOUT = 30 * 60 * 1000; // 30 minut w milisekundach
     let inactivityTimer: NodeJS.Timeout;
@@ -93,7 +191,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         });
       };
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, logout]);
 
   // Listen for auth state changes
   useEffect(() => {
@@ -296,54 +394,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     // Zwróć userCredential aby można było pobrać rolę w komponencie logowania
     return userCredential;
-  };
-
-  // Logout user
-  const logout = async () => {
-    try {
-      // Wyloguj z Firebase
-      await signOut(auth);
-      
-      // Wyczyść wszystkie dane z sessionStorage związane z autoryzacją
-      sessionStorage.removeItem('firebaseToken');
-      sessionStorage.removeItem('lastActivity');
-      sessionStorage.removeItem('token');
-      
-      // Wyczyść cache danych użytkownika z sessionStorage
-      Object.keys(sessionStorage).forEach(key => {
-        if (key.startsWith('userData_')) {
-          sessionStorage.removeItem(key);
-        }
-      });
-      
-      // Wyczyść również localStorage dla kompatybilności wstecznej
-      localStorage.removeItem('firebaseToken');
-      localStorage.removeItem('token');
-      localStorage.removeItem('rememberedEmail');
-      localStorage.removeItem('rememberedPassword');
-      localStorage.removeItem('tokenExpiry');
-      
-      Object.keys(localStorage).forEach(key => {
-        if (key.startsWith('userData_')) {
-          localStorage.removeItem(key);
-        }
-      });
-      
-      // Resetuj stan użytkownika
-      setUser(null);
-      setIsAuthenticated(false);
-      
-      // Przekieruj do strony logowania
-      router.push('/login');
-      
-      // Wymuś odświeżenie strony aby wyczyścić wszystkie cache
-      if (typeof window !== 'undefined') {
-        window.location.href = '/login';
-      }
-    } catch (error) {
-      console.error('Logout error:', error);
-      throw error;
-    }
   };
 
   // Get current user role

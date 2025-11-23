@@ -42,9 +42,9 @@ export default function ChatAssistant({ open, onClose }: ChatAssistantProps) {
     setMessages(msgs => [...msgs, userMsg]);
     setInput('');
     try {
-      const recaptchaToken = await getRecaptchaToken();
       // Jeśli Twój backend wymaga tokena, możesz go przekazać w prompt lub w metadanych
       // Przykład: const prompt = `${input}\n[recaptcha:${recaptchaToken}]`;
+      await getRecaptchaToken(); // Token może być potrzebny w przyszłości
       const result = await model.generateContent(input);
       const response = result.response;
       const text = response.text();

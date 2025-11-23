@@ -9,11 +9,8 @@ interface VideoPlayerProps {
 const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoUrl, title, className = '' }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
-  const [showControls, setShowControls] = useState(true);
-  const [hasError, setHasError] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   // Firebase Storage URLs już mają token który omija CORS
@@ -67,31 +64,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoUrl, title, className = 
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  if (hasError) {
-    return (
-      <div className={`relative bg-black rounded-lg overflow-hidden ${className}`}>
-        <div className="relative w-full" style={{ paddingBottom: '56.25%' }}>
-          <div className="absolute top-0 left-0 w-full h-full flex items-center justify-center">
-            <div className="text-white text-center p-6">
-              <svg className="w-16 h-16 mx-auto mb-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <p className="text-lg font-medium">Nie można załadować wideo</p>
-              <p className="text-sm text-gray-400 mt-2">Sprawdź czy plik jest dostępny</p>
-              <a
-                href={videoUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-4 inline-block px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm"
-              >
-                Otwórz bezpośredni link
-              </a>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className={`relative bg-black rounded-lg overflow-hidden ${className}`}>
@@ -132,12 +104,12 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoUrl, title, className = 
           <input
             type="range"
             min="0"
-            max={duration || 0}
+            max={videoRef.current?.duration || 0}
             value={currentTime}
             onChange={handleSeek}
             className="w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer slider"
             style={{
-              background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${(currentTime / duration) * 100}%, #4b5563 ${(currentTime / duration) * 100}%, #4b5563 100%)`
+              background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${videoRef.current?.duration ? (currentTime / videoRef.current.duration) * 100 : 0}%, #4b5563 ${videoRef.current?.duration ? (currentTime / videoRef.current.duration) * 100 : 0}%, #4b5563 100%)`
             }}
           />
         </div>
@@ -163,7 +135,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoUrl, title, className = 
 
             {/* Time Display */}
             <span className="text-white text-sm">
-              {formatTime(currentTime)} / {formatTime(duration)}
+              {formatTime(currentTime)} / {formatTime(videoRef.current?.duration || 0)}
             </span>
           </div>
 

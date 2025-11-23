@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { getAuth } from 'firebase/auth';
-import { doc, getDoc, DocumentData, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, DocumentData } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import Image from 'next/image';
 import Link from 'next/link';

@@ -13,10 +13,8 @@
  * 6. Zabezpieczenia (brak dostępu do porównania przed oceną)
  */
 
-import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { collection, query, where, getDocs, addDoc } from 'firebase/firestore';
+import { collection, getDocs, addDoc } from 'firebase/firestore';
 
 // Mock Firebase
 jest.mock('firebase/firestore', () => ({

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Class, Course } from '../types/models';
 import { db } from '../config/firebase';
@@ -40,14 +40,7 @@ export default function ClassManagement({ onClose }: ClassManagementProps) {
     setTimeout(() => setMessage(null), 3000);
   };
 
-  useEffect(() => {
-    if (user) {
-      loadClasses();
-      loadCourses();
-    }
-  }, [user]);
-
-  const loadClasses = async () => {
+  const loadClasses = useCallback(async () => {
     try {
       setLoading(true);
       const classesRef = collection(db, 'classes');
@@ -71,9 +64,9 @@ export default function ClassManagement({ onClose }: ClassManagementProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
 
-  const loadCourses = async () => {
+  const loadCourses = useCallback(async () => {
     try {
       const coursesRef = collection(db, 'courses');
       const snapshot = await getDocs(coursesRef);
@@ -86,7 +79,14 @@ export default function ClassManagement({ onClose }: ClassManagementProps) {
     } catch (error) {
       console.error('Error loading courses:', error);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (user) {
+      loadClasses();
+      loadCourses();
+    }
+  }, [user, loadClasses, loadCourses]);
 
   const createClass = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -1,14 +1,13 @@
 "use client";
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useAuth } from '../../../context/AuthContext';
 import Image from "next/image";
 import { HiOutlineDotsVertical } from "react-icons/hi";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "../../../config/firebase";
-import Link from "next/link";
 import { useRouter } from 'next/navigation';
 import Providers from '@/components/Providers';
-import { ArrowLeft, Grid3X3, List, Search, X, BookOpen, Clock, Users, Star, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { ArrowLeft, Grid3X3, List, Search, X, BookOpen, Star, ArrowUp, ArrowDown } from 'lucide-react';
 import ThemeToggle from '@/components/ThemeToggle';
 
 interface Course {
@@ -75,25 +74,8 @@ function MyCoursesPageContent() {
     fetchCourses();
   }, [user]);
 
-  // Automatyczne sortowanie gdy zmienia się sortBy lub sortOrder
-  useEffect(() => {
-    if (search) {
-      const filtered = courses.filter(course => {
-        const title = course.title?.toLowerCase() || '';
-        const description = course.description?.toLowerCase() || '';
-        const subject = course.subject?.toLowerCase() || '';
-        const searchTerm = search.toLowerCase();
-        
-        return title.includes(searchTerm) || description.includes(searchTerm) || subject.includes(searchTerm);
-      });
-      setFilteredCourses(sortCourses(filtered));
-    } else {
-      setFilteredCourses(sortCourses(courses));
-    }
-  }, [sortBy, sortOrder, courses, search]);
-
   // Funkcja sortowania
-  const sortCourses = (coursesToSort: Course[]) => {
+  const sortCourses = useCallback((coursesToSort: Course[]) => {
     return [...coursesToSort].sort((a, b) => {
       let aValue: string | number = '';
       let bValue: string | number = '';
@@ -119,7 +101,24 @@ function MyCoursesPageContent() {
         return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
       }
     });
-  };
+  }, [sortBy, sortOrder]);
+
+  // Automatyczne sortowanie gdy zmienia się sortBy lub sortOrder
+  useEffect(() => {
+    if (search) {
+      const filtered = courses.filter(course => {
+        const title = course.title?.toLowerCase() || '';
+        const description = course.description?.toLowerCase() || '';
+        const subject = course.subject?.toLowerCase() || '';
+        const searchTerm = search.toLowerCase();
+        
+        return title.includes(searchTerm) || description.includes(searchTerm) || subject.includes(searchTerm);
+      });
+      setFilteredCourses(sortCourses(filtered));
+    } else {
+      setFilteredCourses(sortCourses(courses));
+    }
+  }, [sortBy, sortOrder, courses, search, sortCourses]);
 
   // Funkcja wyszukiwania
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {

@@ -146,21 +146,6 @@ export default function InstructorProfilePage() {
     setEditMode(prev => !prev);
   };
 
-  const resetForm = () => {
-    if (instructor) {
-      setForm({
-        firstName: instructor.firstName || '',
-        lastName: instructor.lastName || '',
-        description: instructor.description || '',
-        subjects: instructor.subjects || '',
-        experience: instructor.experience || '',
-        education: instructor.education || '',
-        profileImageUrl: instructor.profileImageUrl || ''
-      });
-    }
-    setEditMode(false);
-  };
-
   // Check if current user can edit this profile
   const canEdit = user && (user.uid === instructorId || user.role === 'admin');
 

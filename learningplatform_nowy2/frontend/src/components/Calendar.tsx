@@ -87,6 +87,7 @@ const Calendar: React.FC = () => {
   const [editError, setEditError] = useState('');
   const [editSuccess, setEditSuccess] = useState('');
   const router = useRouter();
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [showQuickEventModal, setShowQuickEventModal] = useState(false);
   const [quickEventDate, setQuickEventDate] = useState<string>('');
@@ -362,7 +363,7 @@ const Calendar: React.FC = () => {
       const eventsList = eventsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Event));
       setEvents(eventsList);
       setEditEvent(null);
-    } catch (err) {
+    } catch {
       setEditError('Błąd podczas usuwania wydarzenia.');
     } finally {
       setEditLoading(false);
@@ -397,11 +398,6 @@ const Calendar: React.FC = () => {
     });
     return dates;
   }, [filteredEvents]);
-
-  // Eventy z wybranego dnia
-  const eventsForSelectedDate = selectedDate
-    ? filteredEvents.filter(ev => ev.date === selectedDate)
-    : [];
 
   // Podświetlanie dni z eventami, weekendów i świąt
   function dayCellClassNames(arg: any) {
@@ -547,15 +543,6 @@ const Calendar: React.FC = () => {
       arg.el.querySelector('.fc-col-header-cell-cushion')?.appendChild(label);
     }
   }
-
-
-  // Przekierowanie do kursu
-  function goToCourse(courseId: string | undefined) {
-    if (courseId) {
-      router.push(`/homelogin/student/courses/${courseId}`);
-    }
-  }
-
   // Stan dla szybkiego formularza
   const [quickTitle, setQuickTitle] = useState('');
   const [quickStartTime, setQuickStartTime] = useState('');

@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { MathEditor } from './MathEditor';
 import MathView from './MathView';
 import useApi from '../hooks/useApi';
 

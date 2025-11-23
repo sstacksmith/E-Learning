@@ -316,9 +316,7 @@ describe('Class Schedule Fix', () => {
         ]
       };
 
-      const students = ['student1'];
-
-      const syncClassScheduleToCalendar = async (classData, students) => {
+      const syncClassScheduleToCalendar = async (classData) => {
         let syncedCount = 0;
         for (const scheduleSlot of classData.schedule) {
           if (!scheduleSlot.day || !scheduleSlot.time || !scheduleSlot.room) {
@@ -329,7 +327,7 @@ describe('Class Schedule Fix', () => {
         return syncedCount;
       };
 
-      const syncedCount = await syncClassScheduleToCalendar(mockClass, students);
+      const syncedCount = await syncClassScheduleToCalendar(mockClass);
 
       expect(syncedCount).toBe(1); // Only the first slot should be synced
     });

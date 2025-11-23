@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from '@/context/AuthContext';
 import { MessageSquare, Users, Clock, Send, Plus, FileText, Download } from 'lucide-react';
-import { db, storage } from '@/config/firebase';
+import { db } from '@/config/firebase';
 import { collection, query, where, onSnapshot, getDocs, addDoc, serverTimestamp, orderBy, limit } from 'firebase/firestore';
 // import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 
@@ -769,7 +769,6 @@ export default function GroupChatsPage() {
                             <div className="text-sm">
                               {/^image\//.test(message.fileType || '') ? (
                                 <div className="block">
-                                  {/* eslint-disable-next-line @next/next/no-img-element */}
                                   <img src={message.fileData} alt={message.fileName || 'Załącznik'} className="rounded-lg max-h-64 object-contain" />
                                 </div>
                               ) : (
@@ -795,7 +794,6 @@ export default function GroupChatsPage() {
                             <div className="text-sm">
                               {/^image\//.test(message.fileType || '') ? (
                                 <a href={message.fileUrl} target="_blank" rel="noreferrer" className="block">
-                                  {/* eslint-disable-next-line @next/next/no-img-element */}
                                   <img src={message.fileUrl} alt={message.fileName || 'Załącznik'} className="rounded-lg max-h-64 object-contain" />
                                 </a>
                               ) : (

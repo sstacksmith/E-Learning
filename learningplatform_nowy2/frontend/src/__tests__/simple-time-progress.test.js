@@ -175,7 +175,7 @@ describe('Firebase Data Simulation', () => {
   const processStudentProgress = (studentId, courseId, data) => {
     const { lessons, progress, learningTime, grades } = data
     
-    let totalLessons = lessons.length
+    const totalLessons = lessons.length
     let completedLessons = 0
     let totalTimeSpent = 0
     let totalScore = 0

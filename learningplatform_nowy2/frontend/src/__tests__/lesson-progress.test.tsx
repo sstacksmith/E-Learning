@@ -6,7 +6,7 @@ const mockUpdateDoc = updateDoc as jest.MockedFunction<typeof updateDoc>
 const mockGetDocs = getDocs as jest.MockedFunction<typeof getDocs>
 const mockCollection = collection as jest.MockedFunction<typeof collection>
 const mockQuery = query as jest.MockedFunction<typeof query>
-const mockWhere = where as jest.MockedFunction<typeof where>
+// const mockWhere = where as jest.MockedFunction<typeof where>
 
 // Mock collection to return a mock collection reference
 mockCollection.mockImplementation((db, collectionName) => ({

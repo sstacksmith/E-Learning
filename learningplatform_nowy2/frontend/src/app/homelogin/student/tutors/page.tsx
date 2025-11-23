@@ -2,8 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { ArrowLeft, MessageCircle, Phone, Mail, Clock, Star, User, AlertCircle } from 'lucide-react';
-import { useRouter } from 'next/navigation';
-import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../../../config/firebase';
 import { useAuth } from '../../../../context/AuthContext';
 
@@ -25,7 +24,6 @@ interface Tutor {
 
 function StudentTutorsPageContent() {
   const { user } = useAuth();
-  const router = useRouter();
   const [tutors, setTutors] = useState<Tutor[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

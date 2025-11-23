@@ -1,5 +1,4 @@
 "use client";
-import Image from "next/image";
 import { ArrowLeft } from 'lucide-react';
 import ThemeToggle from '@/components/ThemeToggle';
 

@@ -5,21 +5,15 @@ import Image from "next/image";
 import Link from "next/link";
 import Providers from '@/components/Providers';
 import { db } from "@/config/firebase";
-import { collection, getDocs, doc, updateDoc, deleteDoc } from "firebase/firestore";
+import { collection, getDocs, doc, updateDoc } from "firebase/firestore";
 import { auth } from "@/config/firebase";
-import { getAuth, signInWithEmailAndPassword } from "firebase/auth";
 import {
   BookOpen,
   Users,
   ClipboardList,
-  BarChart3,
-  Calendar,
-  MessageSquare,
-  Award,
   TrendingUp,
   Clock,
   Shield,
-  Settings,
   Plus,
   Edit,
   Trash2,
@@ -28,10 +22,8 @@ import {
   UserPlus,
   Group,
   GraduationCap,
-  ArrowLeft,
   Bug,
   Filter,
-  AlertCircle,
   RefreshCw,
   Menu,
   X
@@ -480,7 +472,7 @@ function SuperAdminDashboardContent() {
   const setAdminRole = async (uid: string) => {
     try {
       // Znajdź użytkownika po ID w Firestore
-      const { updateDoc, doc, getDoc } = await import('firebase/firestore');
+      const { updateDoc, doc } = await import('firebase/firestore');
       await updateDoc(doc(db, 'users', uid), {
         role: 'admin',
         approved: true

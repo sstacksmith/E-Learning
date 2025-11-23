@@ -3,12 +3,12 @@
 // Force dynamic rendering to prevent SSR issues with client-side hooks
 export const dynamic = 'force-dynamic';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { Search, Star, BookOpen, Plus, UserPlus, Users, ArrowLeft, Grid3X3, List, Filter, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { Search, Star, BookOpen, UserPlus, Users, ArrowLeft, Grid3X3, List, Filter, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { db } from '@/config/firebase';
-import { collection, getDocs, query, where, updateDoc, doc, addDoc } from 'firebase/firestore';
+import { collection, getDocs, query, where, updateDoc, doc } from 'firebase/firestore';
 
 interface Student {
   id: string;
@@ -83,33 +83,8 @@ export default function StudentsPage() {
     console.log('🔍 STATE DEBUG - classes changed:', classes.length, classes);
   }, [showClassSelection, selectedClass, classes]);
 
-  useEffect(() => {
-    console.log('🔍 useEffect - user changed:', user);
-    if (user && user.uid) {
-      console.log('🔍 useEffect - user ma UID, wywołuję fetchClasses, fetchStudents i fetchAllStudents');
-      console.log('🔍 useEffect - user details:', {
-        uid: user.uid,
-        email: user.email,
-        role: user.role
-      });
-      fetchClasses();
-      fetchStudents();
-      fetchAllStudents();
-    } else {
-      console.log('🔍 useEffect - brak użytkownika lub UID');
-    }
-  }, [user]);
-
-  // 🆕 NOWY useEffect - pobieranie uczniów gdy zmieni się wybrana klasa
-  useEffect(() => {
-    if (selectedClass && user) {
-      console.log('🔍 useEffect - selectedClass changed, wywołuję fetchStudents');
-      fetchStudents();
-    }
-  }, [selectedClass, user]);
-
   // 🆕 NOWA FUNKCJA - pobieranie klas
-  const fetchClasses = async () => {
+  const fetchClasses = useCallback(async () => {
     if (!user || !user.uid) {
       console.error('❌ Brak użytkownika lub UID w fetchClasses');
       return;
@@ -236,9 +211,9 @@ export default function StudentsPage() {
       console.error('❌ Error details:', error);
       setError(`Wystąpił błąd podczas pobierania klas: ${error instanceof Error ? error.message : String(error)}`);
     }
-  };
+  }, [user]);
 
-  const fetchAllStudents = async () => {
+  const fetchAllStudents = useCallback(async () => {
     if (!user || !user.uid) return;
     
     try {
@@ -256,9 +231,9 @@ export default function StudentsPage() {
     } catch (error) {
       console.error('Error fetching all students:', error);
     }
-  };
+  }, [user]);
 
-  const fetchStudents = async () => {
+  const fetchStudents = useCallback(async () => {
     if (!user || !user.uid) {
       console.error('❌ Brak użytkownika lub UID');
       setError('Brak danych użytkownika');
@@ -392,7 +367,26 @@ export default function StudentsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, selectedClass]);
+
+  useEffect(() => {
+    if (user && user.uid) {
+      console.log('🔍 useEffect - user changed, wywołuję fetchClasses, fetchStudents, fetchAllStudents');
+      fetchClasses();
+      fetchStudents();
+      fetchAllStudents();
+    } else {
+      console.log('🔍 useEffect - brak użytkownika lub UID');
+    }
+  }, [user, fetchAllStudents, fetchClasses, fetchStudents]);
+
+  // 🆕 NOWY useEffect - pobieranie uczniów gdy zmieni się wybrana klasa
+  useEffect(() => {
+    if (selectedClass && user) {
+      console.log('🔍 useEffect - selectedClass changed, wywołuję fetchStudents');
+      fetchStudents();
+    }
+  }, [selectedClass, user, fetchStudents]);
 
   const handleAssignStudents = async () => {
     if (selectedStudents.length === 0 || !user) return;
@@ -730,42 +724,13 @@ export default function StudentsPage() {
                   </div>
                   <h3 className="text-xl font-bold text-gray-900 mb-3">Brak klas</h3>
                   <p className="text-gray-600 mb-8 max-w-md mx-auto">
-                    Nie masz jeszcze żadnych klas. Utwórz przykładową klasę, aby przetestować funkcjonalność.
+                    Nie masz jeszcze żadnych klas. Przejdź do sekcji &quot;Zarządzanie Klasami&quot;, aby utworzyć pierwszą klasę.
                   </p>
                   <button 
-                    onClick={async () => {
-                      console.log('🔍 Tworzę przykładową klasę...');
-                      if (!user) return;
-                      
-                      const exampleClass = {
-                        name: '3A',
-                        description: 'Przykładowa klasa matematyki',
-                        grade_level: 3,
-                        subject: 'przedmiot/kurs',
-                        max_students: 30,
-                        academic_year: '2024/2025',
-                        students: [],
-                        is_active: true,
-                        teacher_id: user.uid,
-                        teacher_email: user.email,
-                        created_at: new Date(),
-                        updated_at: new Date(),
-                        assignedCourses: []
-                      };
-                      
-                      try {
-                        const docRef = await addDoc(collection(db, 'classes'), exampleClass);
-                        console.log('✅ Przykładowa klasa utworzona z ID:', docRef.id);
-                        setError(''); // Wyczyść błędy
-                        fetchClasses(); // Odśwież listę klas
-                      } catch (error) {
-                        console.error('❌ Błąd tworzenia przykładowej klasy:', error);
-                        setError(`Błąd tworzenia przykładowej klasy: ${error instanceof Error ? error.message : String(error)}`);
-                      }
-                    }}
+                    onClick={() => router.push('/homelogin/teacher/classes')}
                     className="bg-blue-600 text-white px-8 py-4 rounded-xl hover:bg-blue-700 transition-all duration-300 font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
                   >
-                    Utwórz Przykładową Klasę
+                    Przejdź do Zarządzania Klasami
                   </button>
                 </div>
               ) : (

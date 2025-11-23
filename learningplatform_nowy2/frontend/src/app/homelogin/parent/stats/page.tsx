@@ -47,7 +47,7 @@ export default function ParentStats() {
   const [loading, setLoading] = useState(true);
   const [learningData, setLearningData] = useState<UserLearningData | null>(null);
   const [grades, setGrades] = useState<Grade[]>([]);
-  const [gradesLoading, setGradesLoading] = useState(true);
+  const [, setGradesLoading] = useState(true);
   const [showAllDays, setShowAllDays] = useState(false);
   const [showGrades, setShowGrades] = useState(false);
   const [assignedStudent, setAssignedStudent] = useState<{ id: string; name: string; email: string } | null>(null);

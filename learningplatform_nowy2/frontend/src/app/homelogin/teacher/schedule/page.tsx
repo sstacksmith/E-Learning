@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '@/config/firebase';
@@ -9,15 +9,10 @@ import {
   Edit, 
   Trash2, 
   Calendar, 
-  BookOpen, 
-  Users, 
   MapPin,
-  Filter,
   Search,
   ChevronLeft,
-  ChevronRight,
-  School,
-  Bell
+  ChevronRight
 } from 'lucide-react';
 
 interface Lesson {
@@ -134,25 +129,26 @@ export default function TeacherSchedule() {
     }).replace(/\./g, '/');
   };
 
-  useEffect(() => {
-    if (user) {
-      console.log('🔍 useEffect - user changed:', user);
-      console.log('🔍 useEffect - wywołuję fetchClasses');
-      fetchClasses();
-    } else {
-      console.log('🔍 useEffect - brak użytkownika');
+  const fetchClasses = useCallback(async () => {
+    try {
+      console.log('🔍 fetchClasses - rozpoczynam pobieranie klas');
+      const classesRef = collection(db, 'classes');
+      const classesSnapshot = await getDocs(classesRef);
+      
+      const classesData = classesSnapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() } as Class))
+        .filter(cls => cls.name); // Filtruj tylko klasy z nazwą
+      
+      console.log('🔍 fetchClasses - pobrano klas:', classesData.length);
+      console.log('📚 Klasy:', classesData.map(cls => `${cls.name} (${cls.subject})`));
+      
+      setClasses(classesData);
+    } catch (error) {
+      console.error('Error fetching classes:', error);
     }
-  }, [user]);
+  }, []);
 
-  useEffect(() => {
-    if (user) {
-      console.log('🔍 useEffect - currentWeek changed:', currentWeek);
-      console.log('🔍 useEffect - wywołuję fetchLessons');
-      fetchLessons();
-    }
-  }, [user, currentWeek, classes]);
-
-  const fetchLessons = async () => {
+  const fetchLessons = useCallback(async () => {
     try {
       // Mock data - w rzeczywistej aplikacji pobieralibyśmy z Firebase
       // Używamy nazw klas z bazy danych jeśli są dostępne
@@ -209,26 +205,25 @@ export default function TeacherSchedule() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, currentWeek, classes]);
 
-  const fetchClasses = async () => {
-    try {
-      console.log('🔍 fetchClasses - rozpoczynam pobieranie klas');
-      const classesRef = collection(db, 'classes');
-      const classesSnapshot = await getDocs(classesRef);
-      
-      const classesData = classesSnapshot.docs
-        .map(doc => ({ id: doc.id, ...doc.data() } as Class))
-        .filter(cls => cls.name); // Filtruj tylko klasy z nazwą
-      
-      console.log('🔍 fetchClasses - pobrano klas:', classesData.length);
-      console.log('📚 Klasy:', classesData.map(cls => `${cls.name} (${cls.subject})`));
-      
-      setClasses(classesData);
-    } catch (error) {
-      console.error('Error fetching classes:', error);
+  useEffect(() => {
+    if (user) {
+      console.log('🔍 useEffect - user changed:', user);
+      console.log('🔍 useEffect - wywołuję fetchClasses');
+      fetchClasses();
+    } else {
+      console.log('🔍 useEffect - brak użytkownika');
     }
-  };
+  }, [user, fetchClasses]);
+
+  useEffect(() => {
+    if (user) {
+      console.log('🔍 useEffect - currentWeek changed:', currentWeek);
+      console.log('🔍 useEffect - wywołuję fetchLessons');
+      fetchLessons();
+    }
+  }, [user, currentWeek, classes, fetchLessons]);
 
   const filteredLessons = lessons.filter(lesson => {
     const matchesSearch = lesson.title.toLowerCase().includes(searchTerm.toLowerCase()) ||

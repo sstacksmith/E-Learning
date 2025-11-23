@@ -29,7 +29,6 @@ interface ReorderableSectionProps {
   onSubsectionMoveToSection: (fromSectionId: number, fromSubsectionIndex: number, toSectionId: number, toSubsectionIndex: number) => void;
   renderSectionContent: (section: Section) => React.ReactNode;
   renderSubsectionContent: (subsection: Subsection, sectionId: string | number) => React.ReactNode;
-  draggedElement?: string | null;
   setDraggedElement?: (element: string | null) => void;
 }
 
@@ -42,14 +41,13 @@ export function ReorderableSection({
   onSubsectionMoveToSection,
   renderSectionContent,
   renderSubsectionContent,
-  draggedElement,
   setDraggedElement
 }: ReorderableSectionProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [isDragOverSection, setIsDragOverSection] = useState(false);
-  const [draggedSubsectionId, setDraggedSubsectionId] = useState<string | number | null>(null);
+  const [, setDraggedSubsectionId] = useState<string | number | null>(null);
 
   const handleDragStart = (e: React.DragEvent) => {
     if (!isReorderMode) return;
@@ -209,7 +207,6 @@ export function ReorderableSection({
                       onSubsectionReorder={onSubsectionReorder}
                       onSubsectionMoveToSection={onSubsectionMoveToSection}
                       renderSubsectionContent={renderSubsectionContent}
-                      draggedElement={draggedElement}
                       setDraggedElement={setDraggedElement}
                     />
                   ))}
@@ -231,7 +228,6 @@ interface ReorderableSubsectionProps {
   onSubsectionReorder: (sectionId: number, fromIndex: number, toIndex: number) => void;
   onSubsectionMoveToSection: (fromSectionId: number, fromSubsectionIndex: number, toSectionId: number, toSubsectionIndex: number) => void;
   renderSubsectionContent: (subsection: Subsection, sectionId: string | number) => React.ReactNode;
-  draggedElement?: string | null;
   setDraggedElement?: (element: string | null) => void;
 }
 
@@ -243,14 +239,13 @@ function ReorderableSubsection({
   onSubsectionReorder,
   onSubsectionMoveToSection,
   renderSubsectionContent,
-  draggedElement,
   setDraggedElement
 }: ReorderableSubsectionProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [isDragOverSubsection, setIsDragOverSubsection] = useState(false);
-  const [draggedData, setDraggedData] = useState<string | null>(null);
+  const [, setDraggedData] = useState<string | null>(null);
 
   const handleDragStart = (e: React.DragEvent) => {
     if (!isReorderMode) return;

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { 
   School, 
@@ -12,14 +12,9 @@ import {
   Trash2, 
   Search,
   ArrowLeft,
-  UserPlus,
-  Settings,
-  BarChart3,
-  Clock,
-  Award
 } from 'lucide-react';
 import { db } from '@/config/firebase';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, arrayUnion, arrayRemove, serverTimestamp } from 'firebase/firestore';
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, arrayUnion, arrayRemove, serverTimestamp } from 'firebase/firestore';
 
 interface Class {
   id: string;
@@ -83,7 +78,7 @@ export default function ClassesPage() {
     schedule: [] as any[]
   });
 
-  const [studentFormData, setStudentFormData] = useState({
+  const [, setStudentFormData] = useState({
     studentEmail: ''
   });
 
@@ -97,33 +92,7 @@ export default function ClassesPage() {
     courseId: ''
   });
 
-  useEffect(() => {
-    console.log('🔍 useEffect - user changed:', user);
-    if (user) {
-      console.log('🔍 useEffect - user ma UID, wywołuję fetchClasses, fetchStudents i fetchCourses');
-      fetchClasses();
-      fetchStudents();
-      fetchCourses();
-    } else {
-      console.log('🔍 useEffect - brak użytkownika');
-    }
-  }, [user]);
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setShowStudentDropdown(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, []);
-
-  const fetchClasses = async () => {
+  const fetchClasses = useCallback(async () => {
     if (!user) {
       console.log('❌ fetchClasses - brak użytkownika');
       return;
@@ -157,7 +126,7 @@ export default function ClassesPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
 
   const fetchStudents = async () => {
     try {
@@ -191,6 +160,32 @@ export default function ClassesPage() {
       console.error('Error fetching courses:', error);
     }
   };
+
+  useEffect(() => {
+    console.log('🔍 useEffect - user changed:', user);
+    if (user) {
+      console.log('🔍 useEffect - user ma UID, wywołuję fetchClasses, fetchStudents i fetchCourses');
+      fetchClasses();
+      fetchStudents();
+      fetchCourses();
+    } else {
+      console.log('🔍 useEffect - brak użytkownika');
+    }
+  }, [user, fetchClasses]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowStudentDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   const handleCreateClass = async () => {
     if (!formData.name || !formData.grade_level) {
@@ -502,51 +497,6 @@ export default function ClassesPage() {
     }
   };
 
-  const handleAddStudentToClass = async () => {
-    if (!selectedClass || !studentFormData.studentEmail) {
-      setError('Wprowadź email ucznia.');
-      return;
-    }
-
-    try {
-      // Znajdź ucznia po email
-      const student = students.find(s => s.email === studentFormData.studentEmail);
-      if (!student) {
-        setError('Nie znaleziono ucznia o podanym emailu.');
-        return;
-      }
-
-      // Sprawdź czy uczeń nie jest już w klasie
-      if (selectedClass.students?.includes(student.id)) {
-        setError('Uczeń jest już w tej klasie.');
-        return;
-      }
-
-      // Dodaj ucznia do klasy
-      const classRef = doc(db, 'classes', selectedClass.id);
-      await updateDoc(classRef, {
-        students: arrayUnion(student.id)
-      });
-
-      // Synchronizuj plan zajęć klasy z kalendarzem dla tego studenta
-      try {
-        const updatedStudents = [...(selectedClass.students || []), student.id];
-        await syncClassScheduleToCalendar(selectedClass, updatedStudents);
-        console.log('✅ Plan zajęć zsynchronizowany dla nowego studenta');
-      } catch (syncError) {
-        console.error('❌ Błąd synchronizacji planu zajęć dla studenta:', syncError);
-        // Nie przerywamy procesu, tylko logujemy błąd
-      }
-
-      setSuccess('Uczeń został dodany do klasy!');
-      resetStudentForm();
-      fetchClasses();
-    } catch (error) {
-      console.error('Error adding student to class:', error);
-      setError('Wystąpił błąd podczas dodawania ucznia.');
-    }
-  };
-
   const handleRemoveStudentFromClass = async (studentId: string) => {
     if (!selectedClass) return;
 
@@ -677,38 +627,6 @@ export default function ClassesPage() {
               >
                 <Plus className="h-5 w-5" />
                 <span>Utwórz Klasę</span>
-              </button>
-              <button 
-                onClick={async () => {
-                  console.log('🔍 Tworzę przykładową klasę...');
-                  const exampleClass = {
-                    name: '3A',
-                    description: 'Przykładowa klasa matematyki',
-                    grade_level: 3,
-                    subject: 'Matematyka',
-                    max_students: 30,
-                    academic_year: '2024/2025',
-                    students: [],
-                    is_active: true,
-                    created_at: new Date(),
-                    updated_at: new Date(),
-                    assignedCourses: []
-                  };
-                  
-                  try {
-                    const docRef = await addDoc(collection(db, 'classes'), exampleClass);
-                    console.log('✅ Przykładowa klasa utworzona z ID:', docRef.id);
-                    setSuccess('Przykładowa klasa została utworzona!');
-                    fetchClasses();
-                  } catch (error) {
-                    console.error('❌ Błąd tworzenia przykładowej klasy:', error);
-                    setError('Błąd tworzenia przykładowej klasy');
-                  }
-                }}
-                className="flex items-center gap-3 px-6 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 font-semibold"
-              >
-                <Plus className="h-5 w-5" />
-                <span>Przykładowa Klasa</span>
               </button>
             </div>
           </div>

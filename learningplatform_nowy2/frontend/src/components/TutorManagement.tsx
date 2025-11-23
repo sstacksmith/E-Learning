@@ -108,7 +108,7 @@ export default function TutorManagement({ onClose }: TutorManagementProps) {
       const currentAssignedTutors = studentData.assignedTutors || [];
       const currentPrimaryTutor = studentData.primaryTutorId;
 
-      let updateData: any = {};
+      const updateData: any = {};
 
       if (isPrimary) {
         // Ustaw jako głównego tutora

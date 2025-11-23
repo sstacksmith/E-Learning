@@ -4,9 +4,6 @@
 
 describe('Course Title Edit Functionality', () => {
   // Mock functions for testing
-  const mockUpdateDoc = jest.fn();
-  const mockDoc = jest.fn();
-  const mockServerTimestamp = jest.fn(() => '2024-01-01T12:00:00Z');
 
   beforeEach(() => {
     jest.clearAllMocks();

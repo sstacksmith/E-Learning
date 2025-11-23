@@ -1,10 +1,11 @@
 'use client';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { collection, getDocs, query, where, doc, getDoc, updateDoc, limit } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
 import { useAuth } from '../../../context/AuthContext';
 import Providers from '@/components/Providers';
-import { ArrowLeft, BookOpen, Award, TrendingUp, Calendar, User } from 'lucide-react';
+import { ArrowLeft, BookOpen, Award, Calendar, User } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import ThemeToggle from '@/components/ThemeToggle';
 
@@ -131,7 +132,7 @@ function GradesPageContent() {
     fetchUserCourses();
   }, [user]);
 
-  const fetchGrades = async () => {
+  const fetchGrades = useCallback(async () => {
     if (!user) return;
     setLoading(true);
     console.log('🔄 Fetching grades for user:', user.uid);
@@ -166,9 +167,10 @@ function GradesPageContent() {
     })));
     setGrades(uniqueGrades);
     setLoading(false);
-  };
+  }, [user]);
 
   // 🆕 Funkcja do ręcznego przypisania kursu (dla debugowania)
+  /*
   const handleManualCourseAssignment = async (courseId: string) => {
     if (!user || !courseId) return;
     
@@ -203,6 +205,7 @@ function GradesPageContent() {
       alert('Błąd podczas przypisywania kursu.');
     }
   };
+  */
 
   useEffect(() => {
     console.log('🔄 Grades useEffect triggered, user:', user?.uid, 'authLoading:', authLoading);
@@ -217,7 +220,7 @@ function GradesPageContent() {
     }
     console.log('✅ User found, fetching grades...');
     fetchGrades();
-  }, [user, authLoading]);
+  }, [user, authLoading, fetchGrades]);
 
   // Grupowanie ocen po przedmiocie i sortowanie po dacie rosnąco
   const groupedGrades: GroupedGrades = grades.reduce((acc, grade) => {
@@ -291,27 +294,17 @@ function GradesPageContent() {
   }
 
   // Oblicz ogólną średnią tylko z przedmiotów obowiązkowych, które mają oceny
-  const mandatoryCoursesWithGrades = mandatoryCourses.filter(([subject, subjectGrades]) => 
+  const mandatoryCoursesWithGrades = mandatoryCourses.filter(([, subjectGrades]) => 
     subjectGrades.length > 0
   );
-  const overallAverage = mandatoryCoursesWithGrades.reduce((total, [subject, subjectGrades]) => {
+  const overallAverage = mandatoryCoursesWithGrades.reduce((total, [, subjectGrades]) => {
     const avg = calculateAverage(subjectGrades);
     return avg !== '-' ? total + parseFloat(avg) : total;
   }, 0) / (mandatoryCoursesWithGrades.length || 1);
 
   // Oblicz statystyki
-  const totalGrades = grades.length;
-  const subjectsCount = Object.keys(groupedGrades).length;
   const mandatorySubjectsCount = mandatoryCourses.length;
   const electiveSubjectsCount = electiveCourses.length;
-  const recentGrades = grades.filter(grade => {
-    const gradeDate = grade.date || grade.graded_at;
-    if (!gradeDate) return false;
-    const date = new Date(gradeDate);
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    return date > thirtyDaysAgo;
-  }).length;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
@@ -433,7 +426,7 @@ function GradesPageContent() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {mandatoryCourses.map(([subject, subjectGrades], idx) => (
+                    {mandatoryCourses.map(([subject, subjectGrades]) => (
                       <tr key={subject} className="hover:bg-gray-50 transition-colors">
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
@@ -446,7 +439,7 @@ function GradesPageContent() {
                         <td className="px-6 py-4">
                           {subjectGrades.length > 0 ? (
                             <div className="flex flex-wrap gap-2">
-                              {subjectGrades.map((grade, gradeIdx) => {
+                              {subjectGrades.map((grade) => {
                                 const gradeValue = grade.grade || grade.value || grade.value_grade;
                                 const gradeDescription = grade.description || grade.comment || '';
                                 const gradeDate = grade.date || grade.graded_at || '';
@@ -504,7 +497,7 @@ function GradesPageContent() {
 
               {/* Mobile: Cards */}
               <div className="md:hidden space-y-4 p-4">
-                {mandatoryCourses.map(([subject, subjectGrades], idx) => (
+                {mandatoryCourses.map(([subject, subjectGrades]) => (
                   <div key={`mandatory-mobile-${subject}`} className="bg-gray-50 rounded-xl p-4 border border-gray-200 shadow-sm">
                     <div className="flex items-center gap-3 mb-4">
                       <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
@@ -524,7 +517,7 @@ function GradesPageContent() {
                       <div className="space-y-2">
                         <p className="text-xs font-medium text-gray-600 mb-2">Oceny:</p>
                         <div className="flex flex-wrap gap-2">
-                          {subjectGrades.map((grade, gradeIdx) => {
+                          {subjectGrades.map((grade) => {
                             const gradeValue = grade.grade || grade.value || grade.value_grade;
                             const gradeDate = grade.date || grade.graded_at || '';
                             const gradeType = grade.gradeType || grade.grade_type || '';
@@ -592,7 +585,7 @@ function GradesPageContent() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {electiveCourses.map(([subject, subjectGrades], idx) => (
+                    {electiveCourses.map(([subject, subjectGrades]) => (
                       <tr key={subject} className="hover:bg-gray-50 transition-colors">
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
@@ -605,7 +598,7 @@ function GradesPageContent() {
                         <td className="px-6 py-4">
                           {subjectGrades.length > 0 ? (
                             <div className="flex flex-wrap gap-2">
-                              {subjectGrades.map((grade, gradeIdx) => {
+                              {subjectGrades.map((grade) => {
                                 const gradeValue = grade.grade || grade.value || grade.value_grade;
                                 const gradeDescription = grade.description || grade.comment || '';
                                 const gradeDate = grade.date || grade.graded_at || '';
@@ -663,7 +656,7 @@ function GradesPageContent() {
 
               {/* Mobile: Cards */}
               <div className="md:hidden space-y-4 p-4">
-                {electiveCourses.map(([subject, subjectGrades], idx) => (
+                {electiveCourses.map(([subject, subjectGrades]) => (
                   <div key={`elective-mobile-${subject}`} className="bg-gray-50 rounded-xl p-4 border border-gray-200 shadow-sm">
                     <div className="flex items-center gap-3 mb-4">
                       <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center flex-shrink-0">
@@ -683,7 +676,7 @@ function GradesPageContent() {
                       <div className="space-y-2">
                         <p className="text-xs font-medium text-gray-600 mb-2">Oceny:</p>
                         <div className="flex flex-wrap gap-2">
-                          {subjectGrades.map((grade, gradeIdx) => {
+                          {subjectGrades.map((grade) => {
                             const gradeValue = grade.grade || grade.value || grade.value_grade;
                             const gradeDate = grade.date || grade.graded_at || '';
                             const gradeType = grade.gradeType || grade.grade_type || '';

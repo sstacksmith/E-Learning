@@ -5,7 +5,6 @@ import { useAuth } from '@/context/AuthContext';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import Providers from '@/components/Providers';
-import Image from 'next/image';
 import { ArrowLeft } from 'lucide-react';
 
 interface Course {
@@ -52,7 +51,6 @@ function StudentCoursesContent() {
         });
         
         // Sprawdź kursy przypisane do klas (jeśli użytkownik ma klasy)
-        let classCourses: any[] = [];
         if ((user as any).classes && Array.isArray((user as any).classes) && (user as any).classes.length > 0) {
           // Pobierz kursy dla każdej klasy równolegle
           const classQueries = (user as any).classes.map((classId: string) =>

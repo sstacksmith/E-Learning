@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import { FaChevronDown, FaChevronUp, FaFilePdf, FaFolder, FaFolderOpen, FaFile } from "react-icons/fa";
+import { FaChevronDown, FaChevronUp, FaFilePdf, FaFolder, FaFolderOpen } from "react-icons/fa";
 import { BookOpen, Calendar, GraduationCap, HelpCircle, Menu, X } from 'lucide-react';
 import VideoPlayer from './VideoPlayer';
 import YouTubePlayer from './YouTubePlayer';
@@ -165,17 +165,6 @@ export const CourseViewShared: React.FC<CourseViewProps> = ({
         description: section.description
       }));
   }, [sections]);
-
-  const renderContentIcon = (type: string) => {
-    switch (type) {
-      case 'text': return '📄';
-      case 'file': return '📎';
-      case 'video': return '🎥';
-      case 'quiz': return '❓';
-      case 'math': return '🧮';
-      default: return '📄';
-    }
-  };
 
   // Funkcja do scrollowania do sekcji
   const scrollToSection = (sectionId: string) => {
@@ -693,7 +682,7 @@ export const CourseViewShared: React.FC<CourseViewProps> = ({
                                                 className="absolute top-0 left-0 w-full h-full object-contain"
                                                 loading="lazy"
                                                 decoding="async"
-                                                onError={(e) => {
+                                                onError={() => {
                                                   // Silent error handling - no console in production
                                                   if (process.env.NODE_ENV === 'development') {
                                                     console.error('Image failed to load:', {
@@ -1184,7 +1173,7 @@ export const CourseViewShared: React.FC<CourseViewProps> = ({
                                                         alt={block.title || 'Obraz'}
                                                         className="absolute top-0 left-0 w-full h-full object-contain"
                                                         loading="lazy"
-                                                        onError={(e) => {
+                                                        onError={() => {
                                                           console.error('Image failed to load (old system):', {
                                                             src: block.fileUrl,
                                                             fileName: fileName,

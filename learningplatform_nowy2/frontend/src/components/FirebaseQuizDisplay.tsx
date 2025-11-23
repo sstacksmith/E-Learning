@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { collection, doc, getDocs, addDoc, updateDoc, query, where, orderBy, serverTimestamp } from 'firebase/firestore';
 import { db } from '../config/firebase';
-import { Quiz, QuizAttempt, Grade } from '../types/models';
+import { Quiz, QuizAttempt } from '../types/models';
 import { calculateGradeFromPercentage, getGradeDescription, getGradeColor } from '../utils/gradeCalculator';
 
 interface FirebaseQuizDisplayProps {
@@ -124,7 +124,6 @@ export const FirebaseQuizDisplay: React.FC<FirebaseQuizDisplayProps> = ({ quizId
       
       // Określ numer próby dla opisu
       const currentAttemptNumber = currentAttempt?.attempt_number || attempts.length + 1;
-      const isFirstAttempt = existingGradesSnapshot.empty;
       
       // Jeśli już istnieje ocena z tego quizu, zaktualizuj ją
       if (!existingGradesSnapshot.empty) {

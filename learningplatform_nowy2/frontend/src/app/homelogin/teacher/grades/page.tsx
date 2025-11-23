@@ -3,7 +3,7 @@
 // Force dynamic rendering to prevent SSR issues with client-side hooks
 export const dynamic = 'force-dynamic';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
 import { Plus, ArrowLeft, Calendar, User, Award, BookOpen } from 'lucide-react';
@@ -95,7 +95,7 @@ export default function TeacherGradesPage() {
     { value: 'inne', label: 'Inne' },
   ];
 
-  const fetchCourses = async () => {
+  const fetchCourses = useCallback(async () => {
     if (!user) return;
     
     try {
@@ -135,9 +135,9 @@ export default function TeacherGradesPage() {
     } catch (error) {
       console.error('❌ Error fetching courses:', error);
     }
-  };
+  }, [user]);
 
-  const fetchStudents = async () => {
+  const fetchStudents = useCallback(async () => {
     if (!user) return;
     
     try {
@@ -170,9 +170,9 @@ export default function TeacherGradesPage() {
     } catch (error) {
       console.error('❌ Error fetching students:', error);
     }
-  };
+  }, [user]);
 
-  const fetchGrades = async () => {
+  const fetchGrades = useCallback(async () => {
     if (!user) return;
     
     try {
@@ -198,7 +198,7 @@ export default function TeacherGradesPage() {
     } catch (error) {
       console.error('❌ Error fetching grades:', error);
     }
-  };
+  }, [user, students]);
 
   useEffect(() => {
     if (!user) return;
@@ -216,13 +216,13 @@ export default function TeacherGradesPage() {
   };
 
     loadData();
-  }, [user]);
+  }, [user, fetchCourses, fetchStudents]);
 
   useEffect(() => {
     if (students.length > 0) {
       fetchGrades();
     }
-  }, [students, user]);
+  }, [students, user, fetchGrades]);
 
   // Grupowanie ocen po przedmiocie
   const groupedGrades: GroupedGrades = grades.reduce((acc, grade) => {
@@ -510,9 +510,9 @@ export default function TeacherGradesPage() {
                             <div className="flex flex-wrap gap-2">
                               {subjectGrades.map((grade) => {
                                 const gradeValue = grade.grade || grade.value || grade.value_grade;
-                                const gradeDescription = grade.description || grade.comments || '';
                                 const gradeDate = grade.date || grade.graded_at || '';
                                 const gradeType = grade.gradeType || grade.type || '';
+                                const gradeDescription = grade.description || grade.comments || '';
                                 
                                 return (
                                   <div key={grade.id} className="relative group">
@@ -589,7 +589,6 @@ export default function TeacherGradesPage() {
                         <div className="flex flex-wrap gap-2">
                           {subjectGrades.map((grade) => {
                             const gradeValue = grade.grade || grade.value || grade.value_grade;
-                            const gradeDescription = grade.description || grade.comments || '';
                             const gradeDate = grade.date || grade.graded_at || '';
                             const gradeType = grade.gradeType || grade.type || '';
                             
@@ -671,9 +670,9 @@ export default function TeacherGradesPage() {
                             <div className="flex flex-wrap gap-2">
                               {subjectGrades.map((grade) => {
                                 const gradeValue = grade.grade || grade.value || grade.value_grade;
-                                const gradeDescription = grade.description || grade.comments || '';
                                 const gradeDate = grade.date || grade.graded_at || '';
                                 const gradeType = grade.gradeType || grade.type || '';
+                                const gradeDescription = grade.description || grade.comments || '';
                                 
                                 return (
                                   <div key={grade.id} className="relative group">
@@ -750,7 +749,6 @@ export default function TeacherGradesPage() {
                         <div className="flex flex-wrap gap-2">
                           {subjectGrades.map((grade) => {
                             const gradeValue = grade.grade || grade.value || grade.value_grade;
-                            const gradeDescription = grade.description || grade.comments || '';
                             const gradeDate = grade.date || grade.graded_at || '';
                             const gradeType = grade.gradeType || grade.type || '';
                             

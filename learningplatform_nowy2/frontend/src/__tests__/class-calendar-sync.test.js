@@ -188,7 +188,7 @@ describe('Class Calendar Synchronization Tests', () => {
       const updatedStudents = [...classData.students, newStudentId];
 
       // Symulacja tworzenia wydarzeń dla wszystkich studentów
-      const events = classData.schedule.map(slot => ({
+      const events = classData.schedule.map(() => ({
         students: updatedStudents,
         assignedTo: updatedStudents
       }));
@@ -212,7 +212,7 @@ describe('Class Calendar Synchronization Tests', () => {
       const updatedStudents = classData.students.filter(id => id !== studentToRemove);
 
       // Symulacja aktualizacji wydarzeń
-      const events = classData.schedule.map(slot => ({
+      const events = classData.schedule.map(() => ({
         students: updatedStudents,
         assignedTo: updatedStudents
       }));

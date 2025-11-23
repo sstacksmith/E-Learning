@@ -1,7 +1,6 @@
 'use client';
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Award, TrendingUp, Users, Star, BarChart3, Clock, Plus, Edit, Trash2, Eye } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { ArrowLeft, Award, TrendingUp, Users, Star, BarChart3, Clock, Plus, Edit, Trash2 } from 'lucide-react';
 import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, limit } from 'firebase/firestore';
 import { db } from '../../../../config/firebase';
 import { useAuth } from '../../../../context/AuthContext';
@@ -167,7 +166,6 @@ const studentEvaluationQuestions = [
 ];
 
 export default function TeacherSurveysPage() {
-  const router = useRouter();
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [surveyResponses, setSurveyResponses] = useState<SurveyResponse[]>([]);

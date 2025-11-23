@@ -1,8 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { collection, getDocs, updateDoc, doc } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 
-export async function POST(request: NextRequest) {
+export async function POST() {
   try {
     console.log('Starting update of existing courses to mandatory type...');
     

@@ -1,5 +1,5 @@
 'use client';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { collection, getDocs, query, where, doc, getDoc, limit } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { useAuth } from '@/context/AuthContext';
@@ -71,7 +71,7 @@ function GradesPageContent() {
     fetchUserCourses();
   }, [user]);
 
-  const fetchGrades = async () => {
+  const fetchGrades = useCallback(async () => {
     if (!user) return;
     setLoading(true);
     
@@ -97,7 +97,7 @@ function GradesPageContent() {
     
     setGrades(uniqueGrades);
     setLoading(false);
-  };
+  }, [user]);
 
   useEffect(() => {
     console.log('🔄 Grades useEffect triggered, user:', user?.uid, 'authLoading:', authLoading);
@@ -112,7 +112,7 @@ function GradesPageContent() {
     }
     console.log('✅ User found, fetching grades...');
     fetchGrades();
-  }, [user, authLoading]);
+  }, [user, authLoading, fetchGrades]);
 
   // Grupowanie ocen po przedmiocie i sortowanie po dacie rosnąco
   const groupedGrades: GroupedGrades = grades.reduce((acc, grade) => {

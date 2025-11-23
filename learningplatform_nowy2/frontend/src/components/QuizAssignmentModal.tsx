@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { db } from '@/config/firebase';
-import { collection, getDocs, query, where, updateDoc, doc } from 'firebase/firestore';
-import { X, Search, Plus, Check } from 'lucide-react';
+import { updateDoc, doc } from 'firebase/firestore';
+import { X, Search, Plus } from 'lucide-react';
 
 interface Quiz {
   id: string;
@@ -36,15 +36,10 @@ export const QuizAssignmentModal: React.FC<QuizAssignmentModalProps> = ({
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [filteredQuizzes, setFilteredQuizzes] = useState<Quiz[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [loading, setLoading] = useState(false);
   const [assigning, setAssigning] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loading] = useState(false);
 
-  useEffect(() => {
-    if (isOpen) {
-      fetchAvailableQuizzes();
-    }
-  }, [isOpen, courseId]);
 
   useEffect(() => {
     if (searchTerm.trim()) {
@@ -58,42 +53,6 @@ export const QuizAssignmentModal: React.FC<QuizAssignmentModalProps> = ({
       setFilteredQuizzes(quizzes);
     }
   }, [searchTerm, quizzes]);
-
-  const fetchAvailableQuizzes = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      console.log('🔍 Fetching available quizzes for course:', courseId);
-
-      const quizzesCollection = collection(db, 'quizzes');
-      const quizzesSnapshot = await getDocs(quizzesCollection);
-      
-      console.log('📊 Total quizzes found:', quizzesSnapshot.docs.length);
-      
-      const allQuizzes = quizzesSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        created_at: doc.data().created_at?.toDate?.()?.toISOString() || new Date().toISOString()
-      })) as Quiz[];
-
-      console.log('📋 All quizzes:', allQuizzes.map(q => ({ id: q.id, title: q.title, course_id: q.course_id })));
-
-      // Filter out quizzes that are already assigned to this course
-      const availableQuizzes = allQuizzes.filter(quiz => 
-        quiz.course_id !== courseId
-      );
-
-      console.log('✅ Available quizzes after filtering:', availableQuizzes.length);
-      console.log('📋 Available quizzes:', availableQuizzes.map(q => ({ id: q.id, title: q.title })));
-
-      setQuizzes(availableQuizzes);
-    } catch (error) {
-      console.error('❌ Error fetching quizzes:', error);
-      setError('Nie udało się załadować quizów');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleAssignQuiz = async (quizId: string) => {
     try {

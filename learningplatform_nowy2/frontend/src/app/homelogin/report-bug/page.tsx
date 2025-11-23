@@ -76,7 +76,7 @@ export default function ReportBugPage() {
       } else {
         setError(result.error || 'Wystąpił błąd podczas wysyłania zgłoszenia');
       }
-    } catch (err) {
+    } catch {
       setError('Wystąpił błąd podczas wysyłania zgłoszenia');
     } finally {
       setIsSubmitting(false);

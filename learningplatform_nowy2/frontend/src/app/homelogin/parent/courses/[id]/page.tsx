@@ -248,8 +248,8 @@ function ParentCourseDetailContent() {
       const gradesRef = collection(db, 'grades');
       
       // Pobierz oceny przez user_id
-      let gradesQuery = query(gradesRef, where('user_id', '==', studentId));
-      let gradesSnapshot = await getDocs(gradesQuery);
+      const gradesQuery = query(gradesRef, where('user_id', '==', studentId));
+      const gradesSnapshot = await getDocs(gradesQuery);
       const gradesList = gradesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
       // Pobierz również oceny gdzie studentEmail jest równy email użytkownika

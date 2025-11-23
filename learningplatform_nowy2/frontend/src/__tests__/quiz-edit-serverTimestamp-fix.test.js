@@ -255,7 +255,7 @@ describe('Quiz Edit serverTimestamp Fix', () => {
         ]
       };
 
-      const updateQuizWithError = async (quizId, quizData) => {
+      const updateQuizWithError = async () => {
         // Simulate Firebase error
         throw new Error('Firebase update failed');
       };

@@ -19,48 +19,6 @@ import {
   UserPlus
 } from 'lucide-react';
 
-// Funkcja do formatowania względnego czasu
-function formatRelativeTime(timestamp: string): string {
-  try {
-    // Obsłuż ręcznie format dd/mm/yyyy (i opcjonalnie hh:mm)
-    let date: Date;
-    const slashMatch = timestamp && timestamp.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2}))?$/);
-    if (slashMatch) {
-      const [, dd, mm, yyyy, hh, min] = slashMatch;
-      date = new Date(
-        Number(yyyy),
-        Number(mm) - 1,
-        Number(dd),
-        hh !== undefined ? Number(hh) : 0,
-        min !== undefined ? Number(min) : 0,
-        0,
-        0
-      );
-    } else {
-      date = new Date(timestamp);
-    }
-    const now = new Date();
-    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-    
-    if (diffInSeconds < 60) {
-      return 'przed chwilą';
-    } else if (diffInSeconds < 3600) {
-      const minutes = Math.floor(diffInSeconds / 60);
-      return `${minutes} minut temu`;
-    } else if (diffInSeconds < 86400) {
-      const hours = Math.floor(diffInSeconds / 3600);
-      return `${hours} godzin temu`;
-    } else if (diffInSeconds < 2592000) {
-      const days = Math.floor(diffInSeconds / 86400);
-      return `${days} dni temu`;
-    } else {
-      return date.toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\./g, '/');
-    }
-  } catch (error) {
-    return timestamp;
-  }
-}
-
 interface StatCard {
   title: string;
   value: string;

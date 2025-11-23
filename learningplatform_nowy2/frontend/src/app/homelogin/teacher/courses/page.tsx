@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { db } from '../../../../config/firebase';
 import Link from "next/link";
 import { useAuth } from '@/context/AuthContext';
-import { ArrowLeft, BookOpen, Users, FileText, Calendar, Edit, Trash2, Plus, RefreshCw, Settings } from 'lucide-react';
+import { BookOpen, FileText, Edit, Trash2, Plus } from 'lucide-react';
 
 interface Course {
   id: string;
@@ -39,7 +39,7 @@ export default function TeacherCourses() {
     total_pages: 1,
     count: 0
   });
-  const [success, setSuccess] = useState<string | null>(null);
+  const [, setSuccess] = useState<string | null>(null);
   const [deletingCourse, setDeletingCourse] = useState<string | null>(null);
   
   // States for editing course title
@@ -59,8 +59,6 @@ export default function TeacherCourses() {
     courseType: 'obowiązkowy' as 'obowiązkowy' | 'fakultatywny'
   });
   const [creatingCourse, setCreatingCourse] = useState(false);
-  const [fixingPermissions, setFixingPermissions] = useState(false);
-  const [updatingCourseTypes, setUpdatingCourseTypes] = useState(false);
   
   // State dla wyszukiwarki i filtrowania
   const [searchTerm, setSearchTerm] = useState('');
@@ -377,50 +375,6 @@ export default function TeacherCourses() {
     setNewTitle('');
   }, []);
 
-  // Function to fix permissions for current user
-  const handleFixPermissions = useCallback(async () => {
-    if (!user?.uid) {
-      setError('Nie można zidentyfikować użytkownika');
-      return;
-    }
-    
-    setFixingPermissions(true);
-    setError(null);
-    
-    try {
-      console.log('Fixing permissions for user:', user.uid);
-      
-      const response = await fetch('/api/set-teacher-role-api', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ uid: user.uid })
-      });
-      
-      if (response.ok) {
-        console.log('✅ Permissions fixed successfully');
-        setSuccess('Uprawnienia zostały naprawione! Teraz możesz tworzyć kursy.');
-        
-        // Refresh token to get new custom claims
-        const { getAuth } = await import('firebase/auth');
-        const auth = getAuth();
-        if (auth.currentUser) {
-          const token = await auth.currentUser.getIdToken(true);
-          sessionStorage.setItem('token', token);
-        }
-      } else {
-        const errorData = await response.json();
-        console.error('Failed to fix permissions:', errorData);
-        setError('Nie udało się naprawić uprawnień. Spróbuj ponownie.');
-      }
-    } catch (error) {
-      console.error('Error fixing permissions:', error);
-      setError('Błąd podczas naprawy uprawnień. Spróbuj ponownie.');
-    } finally {
-      setFixingPermissions(false);
-    }
-  }, [user, setError, setSuccess]);
 
   // Function to create new course
   const handleCreateCourse = useCallback(async (e: React.FormEvent) => {
@@ -512,38 +466,6 @@ export default function TeacherCourses() {
     }
   }, [newCourse, user, clearCache, fetchCourses]);
 
-  // Function to update existing courses to mandatory type
-  const handleUpdateCourseTypes = useCallback(async () => {
-    setUpdatingCourseTypes(true);
-    setError(null);
-    
-    try {
-      const response = await fetch('/api/update-existing-courses-type', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-      
-      const result = await response.json();
-      
-      if (response.ok) {
-        setSuccess(result.message);
-        // Refresh courses list
-        clearCache();
-        fetchCourses(1, false);
-        // Clear success message after 5 seconds
-        setTimeout(() => setSuccess(null), 5000);
-      } else {
-        setError(result.error || 'Błąd podczas aktualizacji kursów');
-      }
-    } catch (error) {
-      console.error('Error updating course types:', error);
-      setError('Błąd podczas aktualizacji kursów');
-    } finally {
-      setUpdatingCourseTypes(false);
-    }
-  }, [clearCache, fetchCourses]);
 
   // Filtruj kursy gdy zmienia się searchTerm, courseTypeFilter lub courses
   useEffect(() => {
@@ -583,56 +505,14 @@ export default function TeacherCourses() {
           <div className="flex gap-2">
             {/* Add Course Button - only for teachers */}
             {!isAdmin && (
-              <>
-                <button
-                  onClick={() => setShowCreateCourse(true)}
-                  className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-300 font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center gap-2"
-                >
-                  <Plus className="h-5 w-5" />
-                  Dodaj kurs
-                </button>
-                
-                <button
-                  onClick={handleFixPermissions}
-                  disabled={fixingPermissions}
-                  className="bg-orange-600 text-white px-4 py-3 rounded-xl hover:bg-orange-700 transition-all duration-300 font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center gap-2 disabled:opacity-50"
-                >
-                  <Settings className="h-5 w-5" />
-                  {fixingPermissions ? 'Naprawiam...' : 'Napraw uprawnienia'}
-                </button>
-              </>
+              <button
+                onClick={() => setShowCreateCourse(true)}
+                className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-300 font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center gap-2"
+              >
+                <Plus className="h-5 w-5" />
+                Dodaj kurs
+              </button>
             )}
-            
-            <button
-              onClick={() => {
-                clearCache();
-                setLoading(true);
-                setError(null);
-                fetchCourses(1, false, 0);
-              }}
-              className="bg-gray-600 text-white px-4 py-3 rounded-xl hover:bg-gray-700 transition-all duration-300 font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center gap-2"
-            >
-              <RefreshCw className="h-5 w-5" />
-              Odśwież
-            </button>
-            
-            <button
-              onClick={handleUpdateCourseTypes}
-              disabled={updatingCourseTypes}
-              className="bg-orange-600 text-white px-4 py-3 rounded-xl hover:bg-orange-700 transition-all duration-300 font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {updatingCourseTypes ? (
-                <>
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  Aktualizacja...
-                </>
-              ) : (
-                <>
-                  <Settings className="h-5 w-5" />
-                  Aktualizuj typy kursów
-                </>
-              )}
-            </button>
           </div>
         </div>
       </div>

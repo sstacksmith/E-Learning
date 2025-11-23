@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Plus, Trash2, Save, X, Edit, Eye } from 'lucide-react';
+import { Plus, Trash2, Save, X, Edit } from 'lucide-react';
 
 interface SurveyQuestion {
   id: string;

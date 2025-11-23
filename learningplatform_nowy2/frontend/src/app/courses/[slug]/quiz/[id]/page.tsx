@@ -27,11 +27,6 @@ const generateUUID = (): string => {
   });
 };
 
-interface QuizAnswer {
-  content: string;
-  type: 'text' | 'math';
-}
-
 function QuizTakingContent() {
   const router = useRouter();
   const params = useParams();
@@ -48,7 +43,7 @@ function QuizTakingContent() {
   const [grade, setGrade] = useState(0);
   const [gradeDescription, setGradeDescription] = useState('');
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
+  const [, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [attemptsCount, setAttemptsCount] = useState(0);
   const [maxAttemptsReached, setMaxAttemptsReached] = useState(false);
@@ -95,7 +90,7 @@ function QuizTakingContent() {
       
       // Calculate score
       let correctAnswers = 0;
-      let totalQuestions = quiz.questions.length;
+      const totalQuestions = quiz.questions.length;
       
       console.log('Calculating score for', totalQuestions, 'questions');
       console.log('Selected answers:', selectedAnswers);
@@ -204,7 +199,6 @@ function QuizTakingContent() {
           const courseDocId = courseDocSnap.id;
           console.log('📚 Found course data:', courseData);
           console.log('📚 Course document ID:', courseDocId);
-          const teacherId = courseData.created_by || courseData.teacherEmail || user.uid;
           const teacherEmail = courseData.created_by_email || courseData.teacherEmail || courseData.created_by;
           
           // Sprawdź czy już istnieje ocena z tego quizu
@@ -338,7 +332,7 @@ function QuizTakingContent() {
     } finally {
       setSubmitting(false);
     }
-  }, [quiz, user, selectedAnswers, openAnswers, slug]);
+  }, [quiz, user, selectedAnswers, openAnswers, slug, attemptsCount]);
 
   const fetchAttempts = useCallback(async (quizId: string) => {
     if (!user) return 0;
@@ -423,7 +417,7 @@ function QuizTakingContent() {
     } finally {
       setLoading(false);
     }
-  }, [router, slug, quizId]);
+  }, [router, slug, quizId, fetchAttempts, user]);
 
   useEffect(() => {
     if (slug && quizId && !authLoading && user) {
@@ -448,7 +442,7 @@ function QuizTakingContent() {
     }, 1000);
     
     return () => clearInterval(timer);
-  }, [quizStarted, timeLeft]);
+  }, [quizStarted, timeLeft, handleSubmit]);
   
   // Format time for display
   const formatTime = (seconds: number) => {
@@ -514,16 +508,6 @@ function QuizTakingContent() {
     return isAnswered;
   }, [quiz, currentQuestionIndex, openAnswers, selectedAnswers]);
 
-  // Check if all questions are answered
-  const areAllQuestionsAnswered = useCallback(() => {
-    return quiz?.questions.every(question => {
-      if (question.type === 'open' || !question.answers?.length) {
-        return openAnswers[question.id]?.content?.trim();
-      } else {
-        return selectedAnswers[question.id];
-      }
-    }) || false;
-  }, [quiz?.questions, openAnswers, selectedAnswers]);
 
   if (authLoading || loading) return <div className="p-4">Ładowanie quizu...</div>;
   if (error) return <div className="p-4 text-red-500">{error}</div>;
@@ -880,7 +864,7 @@ function QuizTakingContent() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">
-              <div className="text-xl font-bold text-blue-600">EP EduPanel</div>
+              <div className="text-xl font-bold text-blue-600">Cogito</div>
             </div>
             <div className="flex items-center space-x-4">
               <ThemeToggle />

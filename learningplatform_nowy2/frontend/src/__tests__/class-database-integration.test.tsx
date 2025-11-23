@@ -3,7 +3,7 @@ import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import '@testing-library/jest-dom';
 import ClassesPage from '@/app/homelogin/teacher/classes/page';
 import { useAuth } from '@/context/AuthContext';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { getDocs, addDoc, updateDoc, deleteDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 
 // Mock the auth context
 jest.mock('@/context/AuthContext');

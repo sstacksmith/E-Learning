@@ -17,7 +17,7 @@ function ProfilePageContent() {
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [userClass, setUserClass] = useState('');
-  const [userClasses, setUserClasses] = useState<string[]>([]);
+  const [, setUserClasses] = useState<string[]>([]);
   const [classNames, setClassNames] = useState<string[]>([]);
   const [photoURL, setPhotoURL] = useState('');
   const [, setLoading] = useState(true);
@@ -97,7 +97,6 @@ function ProfilePageContent() {
       }, 2000);
     } catch (error: unknown) {
       console.error('Error uploading photo:', error);
-      const errorMessage = error instanceof Error ? error.message : String(error);
         setUploadError('Błąd podczas przesyłania zdjęcia. Spróbuj ponownie.');
     } finally {
       setUploading(false);

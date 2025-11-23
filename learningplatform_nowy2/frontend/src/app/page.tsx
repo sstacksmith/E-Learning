@@ -1,12 +1,11 @@
 "use client";
-import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import Providers from "@/components/Providers";
 import ThemeToggle from "@/components/ThemeToggle";
-import { BookOpen, Users, Award, Clock, TrendingUp, CheckCircle, ArrowRight, GraduationCap, MessageSquare, BarChart3, FileText, Shield } from "lucide-react";
+import CogitoLogo from "@/components/CogitoLogo";
+import { BookOpen, Users, Award, Clock, TrendingUp, CheckCircle, ArrowRight, GraduationCap, MessageSquare, BarChart3, Shield } from "lucide-react";
 
 function HomeContent() {
   const router = useRouter();
@@ -23,14 +22,9 @@ function HomeContent() {
             <div className="flex items-center justify-between">
               <div className="flex items-center cursor-pointer group" onClick={() => router.push("/")}>
                 <div className="relative overflow-hidden rounded-xl p-1.5 sm:p-2 bg-gradient-to-r from-[#4067EC] to-indigo-600 shadow-lg">
-                  <Image 
-                    src="/puzzleicon.png" 
-                    alt="COGITO Logo" 
-                    width={32} 
-                    height={32} 
+                  <CogitoLogo 
+                    size={32}
                     className="w-6 h-6 sm:w-8 sm:h-8 transition-transform duration-300 group-hover:scale-110"
-                    priority
-                    loading="eager"
                   />
                 </div>
                 <span className="ml-2 sm:ml-3 text-xl sm:text-2xl font-bold bg-gradient-to-r from-[#4067EC] to-indigo-600 bg-clip-text text-transparent">
@@ -253,13 +247,9 @@ function HomeContent() {
                 <div className="col-span-2 sm:col-span-1">
                   <div className="flex items-center mb-3 sm:mb-4">
                     <div className="relative overflow-hidden rounded-xl p-1.5 sm:p-2 bg-gradient-to-r from-[#4067EC] to-indigo-600">
-                      <Image 
-                        src="/puzzleicon.png" 
-                        alt="COGITO Logo" 
-                        width={24} 
-                        height={24} 
+                      <CogitoLogo 
+                        size={24}
                         className="w-5 h-5 sm:w-6 sm:h-6"
-                        loading="lazy"
                       />
                     </div>
                     <span className="ml-2 text-lg sm:text-xl font-bold">COGITO</span>

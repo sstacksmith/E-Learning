@@ -3,7 +3,7 @@
 // Force dynamic rendering to prevent SSR issues with client-side hooks
 export const dynamic = 'force-dynamic';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { db } from '@/config/firebase';
 import { collection, getDocs, query, where } from 'firebase/firestore';
@@ -32,7 +32,7 @@ export default function ParentTutors() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const fetchAssignedStudentData = async () => {
+  const fetchAssignedStudentData = useCallback(async () => {
     if (!user) return;
 
     try {
@@ -105,11 +105,11 @@ export default function ParentTutors() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
 
   useEffect(() => {
     fetchAssignedStudentData();
-  }, [user]);
+  }, [user, fetchAssignedStudentData]);
 
   if (loading) {
     return (

@@ -1,5 +1,5 @@
 'use client';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { collection, getDocs, query, where, doc, getDoc } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { useAuth } from '@/context/AuthContext';
@@ -144,7 +144,7 @@ export default function ParentGrades() {
     fetchUserCourses();
   }, [studentId, studentEmail]);
 
-  const fetchGrades = async () => {
+  const fetchGrades = useCallback(async () => {
     if (!studentId) return;
     setLoading(true);
 
@@ -174,12 +174,12 @@ export default function ParentGrades() {
 
     setGrades(uniqueGrades);
     setLoading(false);
-  };
+  }, [studentId, studentEmail]);
 
   useEffect(() => {
     if (!studentId) return;
     fetchGrades();
-  }, [studentId, studentEmail]);
+  }, [studentId, studentEmail, fetchGrades]);
 
   // Grupowanie ocen po przedmiocie i sortowanie po dacie rosnąco
   const groupedGrades: GroupedGrades = grades.reduce((acc, grade) => {
@@ -253,10 +253,10 @@ export default function ParentGrades() {
   }
 
   // Oblicz ogólną średnią tylko z przedmiotów obowiązkowych, które mają oceny
-  const mandatoryCoursesWithGrades = mandatoryCourses.filter(([subject, subjectGrades]) => 
+  const mandatoryCoursesWithGrades = mandatoryCourses.filter(([, subjectGrades]) => 
     subjectGrades.length > 0
   );
-  const overallAverage = mandatoryCoursesWithGrades.reduce((total, [subject, subjectGrades]) => {
+  const overallAverage = mandatoryCoursesWithGrades.reduce((total, [, subjectGrades]) => {
     const avg = calculateAverage(subjectGrades);
     return avg !== '-' ? total + parseFloat(avg) : total;
   }, 0) / (mandatoryCoursesWithGrades.length || 1);
@@ -411,7 +411,7 @@ export default function ParentGrades() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {mandatoryCourses.map(([subject, subjectGrades], idx) => (
+                    {mandatoryCourses.map(([subject, subjectGrades]) => (
                       <tr key={subject} className="hover:bg-gray-50 transition-colors">
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
@@ -424,7 +424,7 @@ export default function ParentGrades() {
                         <td className="px-6 py-4">
                           {subjectGrades.length > 0 ? (
                             <div className="flex flex-wrap gap-2">
-                              {subjectGrades.map((grade, gradeIdx) => {
+                              {subjectGrades.map((grade) => {
                                 const gradeValue = grade.grade || grade.value || grade.value_grade;
                                 const gradeDescription = grade.description || grade.comment || '';
                                 const gradeDate = grade.date || grade.graded_at || '';
@@ -482,7 +482,7 @@ export default function ParentGrades() {
 
               {/* Mobile: Cards */}
               <div className="md:hidden space-y-4 p-4">
-                {mandatoryCourses.map(([subject, subjectGrades], idx) => (
+                {mandatoryCourses.map(([subject, subjectGrades]) => (
                   <div key={`mandatory-mobile-${subject}`} className="bg-gray-50 rounded-xl p-4 border border-gray-200 shadow-sm">
                     <div className="flex items-center gap-3 mb-4">
                       <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
@@ -502,7 +502,7 @@ export default function ParentGrades() {
                       <div className="space-y-2">
                         <p className="text-xs font-medium text-gray-600 mb-2">Oceny:</p>
                         <div className="flex flex-wrap gap-2">
-                          {subjectGrades.map((grade, gradeIdx) => {
+                          {subjectGrades.map((grade) => {
                             const gradeValue = grade.grade || grade.value || grade.value_grade;
                             const gradeDate = grade.date || grade.graded_at || '';
                             const gradeType = grade.gradeType || grade.grade_type || '';
@@ -570,7 +570,7 @@ export default function ParentGrades() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {electiveCourses.map(([subject, subjectGrades], idx) => (
+                    {electiveCourses.map(([subject, subjectGrades]) => (
                       <tr key={subject} className="hover:bg-gray-50 transition-colors">
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
@@ -583,7 +583,7 @@ export default function ParentGrades() {
                         <td className="px-6 py-4">
                           {subjectGrades.length > 0 ? (
                             <div className="flex flex-wrap gap-2">
-                              {subjectGrades.map((grade, gradeIdx) => {
+                              {subjectGrades.map((grade) => {
                                 const gradeValue = grade.grade || grade.value || grade.value_grade;
                                 const gradeDescription = grade.description || grade.comment || '';
                                 const gradeDate = grade.date || grade.graded_at || '';
@@ -641,7 +641,7 @@ export default function ParentGrades() {
 
               {/* Mobile: Cards */}
               <div className="md:hidden space-y-4 p-4">
-                {electiveCourses.map(([subject, subjectGrades], idx) => (
+                {electiveCourses.map(([subject, subjectGrades]) => (
                   <div key={`elective-mobile-${subject}`} className="bg-gray-50 rounded-xl p-4 border border-gray-200 shadow-sm">
                     <div className="flex items-center gap-3 mb-4">
                       <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center flex-shrink-0">
@@ -661,7 +661,7 @@ export default function ParentGrades() {
                       <div className="space-y-2">
                         <p className="text-xs font-medium text-gray-600 mb-2">Oceny:</p>
                         <div className="flex flex-wrap gap-2">
-                          {subjectGrades.map((grade, gradeIdx) => {
+                          {subjectGrades.map((grade) => {
                             const gradeValue = grade.grade || grade.value || grade.value_grade;
                             const gradeDate = grade.date || grade.graded_at || '';
                             const gradeType = grade.gradeType || grade.grade_type || '';

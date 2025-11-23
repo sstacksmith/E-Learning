@@ -1,35 +1,27 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useState, useEffect, useCallback } from 'react';
+import { useParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { db } from '@/config/firebase';
-import { collection, getDocs, query, where, doc, getDoc, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, getDocs, query, where, doc, getDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { 
   ArrowLeft, 
   Mail, 
   Phone, 
   MapPin, 
   Calendar, 
-  Clock, 
   Star, 
   User,
   BookOpen,
-  Edit,
-  Save,
-  X,
   Plus,
-  BarChart3,
   GraduationCap,
-  Shield,
-  LogOut,
   Award,
   TrendingUp,
   Activity,
   Target,
   Zap,
-  CheckCircle,
-  Info
+  CheckCircle
 } from 'lucide-react';
 
 interface StudentProfile {
@@ -69,15 +61,13 @@ interface Grade {
 
 export default function StudentProfilePage() {
   const params = useParams();
-  const router = useRouter();
   const { user } = useAuth();
   const [student, setStudent] = useState<StudentProfile | null>(null);
-  const [grades, setGrades] = useState<Grade[]>([]);
+  const [, setGrades] = useState<Grade[]>([]);
   const [teacherNotes, setTeacherNotes] = useState<TeacherNote[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editData, setEditData] = useState<Partial<StudentProfile>>({});
+  const [, setEditData] = useState<Partial<StudentProfile>>({});
   const [newNote, setNewNote] = useState('');
   const [addingNote, setAddingNote] = useState(false);
 
@@ -120,14 +110,7 @@ export default function StudentProfilePage() {
     streak: 7
   });
 
-  useEffect(() => {
-    if (studentId && user) {
-      fetchStudentProfile();
-      fetchTeacherNotes();
-    }
-  }, [studentId, user]);
-
-  const fetchStudentProfile = async () => {
+  const fetchStudentProfile = useCallback(async () => {
     try {
       setLoading(true);
       
@@ -239,9 +222,9 @@ export default function StudentProfilePage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [studentId, user]);
 
-  const fetchTeacherNotes = async () => {
+  const fetchTeacherNotes = useCallback(async () => {
     try {
       const notesRef = collection(db, 'teacherNotes');
       const notesSnapshot = await getDocs(query(notesRef, where('studentId', '==', studentId)));
@@ -265,26 +248,14 @@ export default function StudentProfilePage() {
     } catch (error) {
       console.error('Error fetching teacher notes:', error);
     }
-  };
+  }, [studentId]);
 
-  const handleSaveProfile = async () => {
-    if (!student || !user) return;
-
-    try {
-      const userRef = doc(db, 'users', studentId);
-      await updateDoc(userRef, {
-        phone: editData.phone || '',
-        address: editData.address || '',
-        dateOfBirth: editData.dateOfBirth || ''
-      });
-
-      setStudent({ ...student, ...editData });
-      setIsEditing(false);
-    } catch (error) {
-      console.error('Error updating profile:', error);
-      setError('Nie udało się zaktualizować profilu');
+  useEffect(() => {
+    if (studentId && user) {
+      fetchStudentProfile();
+      fetchTeacherNotes();
     }
-  };
+  }, [studentId, user, fetchStudentProfile, fetchTeacherNotes]);
 
   const handleAddNote = async () => {
     if (!newNote.trim() || !user || !student) return;
@@ -313,11 +284,6 @@ export default function StudentProfilePage() {
     }
   };
 
-  const getGradeColor = (grade: number) => {
-    if (grade >= 4.5) return 'bg-green-600 text-white';
-    if (grade >= 3.5) return 'bg-yellow-600 text-white';
-    return 'bg-red-600 text-white';
-  };
 
   if (loading) {
     return (

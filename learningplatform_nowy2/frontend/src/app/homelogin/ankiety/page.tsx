@@ -16,15 +16,6 @@ interface Teacher {
   photoURL?: string;
 }
 
-interface SurveyResponse {
-  teacherId: string;
-  teacherName: string;
-  responses: {
-    [key: string]: number;
-  };
-  submittedAt: any;
-}
-
 interface TeacherAverage {
   teacherId: string;
   teacherName: string;

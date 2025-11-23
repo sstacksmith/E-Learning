@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Search, UserPlus, User, Mail, Phone, Star, Save, X, AlertCircle, CheckCircle, Users } from 'lucide-react';
-import { collection, query, where, getDocs, doc, updateDoc, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 
 interface Student {
@@ -41,11 +41,7 @@ export default function InstructorStudentManagement({ onClose, currentInstructor
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  useEffect(() => {
-    fetchData();
-  }, [currentInstructorId]);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       
@@ -77,7 +73,11 @@ export default function InstructorStudentManagement({ onClose, currentInstructor
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentInstructorId]);
+
+  useEffect(() => {
+    fetchData();
+  }, [currentInstructorId, fetchData]);
 
   const filteredStudents = students.filter(student =>
     student.displayName?.toLowerCase().includes(searchTerm.toLowerCase()) ||

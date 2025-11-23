@@ -5,10 +5,10 @@ import { auth, db } from "@/config/firebase";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { doc, setDoc } from "firebase/firestore";
-import Image from 'next/image';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { BookOpen, Mail, Lock, Eye, EyeOff, User } from 'lucide-react';
+import CogitoLogo from '@/components/CogitoLogo';
 
 // Lazy load komponenty
 const Notification = lazy(() => import('@/components/Notification'));
@@ -133,16 +133,15 @@ function RegisterPageContent() {
           className="absolute top-6 left-6 flex items-center z-20 cursor-pointer group transition-all duration-300" 
           onClick={() => router.push('/')}
         >
-          <div className="relative overflow-hidden rounded-full">
-            <Image 
-              src="/puzzleicon.png" 
-              alt="Puzzle Icon" 
-              width={32} 
-              height={32} 
-              className="w-8 h-8 transition-transform duration-300 group-hover:scale-110"
-            />
+          <div className="relative flex flex-col items-center">
+            <div className="relative flex items-center justify-center mb-1">
+              <CogitoLogo 
+                size={40}
+                className="w-10 h-10 transition-transform duration-300 group-hover:scale-110 object-contain"
+              />
+            </div>
+            <span className="text-lg font-semibold text-gray-800 group-hover:text-[#4067EC] transition-colors duration-300">Cogito</span>
           </div>
-          <span className="ml-2 text-lg font-semibold text-gray-800 group-hover:text-[#4067EC] transition-colors duration-300">Cogito</span>
         </div>
         
         {/* Theme Toggle */}

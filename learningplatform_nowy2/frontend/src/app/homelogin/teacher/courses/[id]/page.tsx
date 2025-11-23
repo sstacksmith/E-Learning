@@ -7,7 +7,7 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db } from "@/config/firebase";
 import Image from "next/image";
 import Providers from '@/components/Providers';
-import { FaFilePdf, FaFileAlt, FaLink, FaChevronDown, FaChevronUp, FaPlus, FaImage, FaClipboardList, FaGraduationCap, FaUsers, FaQuestionCircle } from "react-icons/fa";
+import { FaFilePdf, FaFileAlt, FaLink, FaChevronDown, FaChevronUp, FaPlus, FaImage, FaClipboardList, FaQuestionCircle } from "react-icons/fa";
 import VideoPlayer from '@/components/VideoPlayer';
 import YouTubePlayer from '@/components/YouTubePlayer';
 import dynamic from 'next/dynamic';
@@ -193,10 +193,9 @@ function TeacherCourseDetailContent() {
   const [course, setCourse] = useState<Course | null>(null);
   const [students, setStudents] = useState<Student[]>([]);
   const [assignedUsers, setAssignedUsers] = useState<Student[]>([]);
-  const [selectedStudent, setSelectedStudent] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const [, setSuccess] = useState<string | null>(null);
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [loadingQuizzes, setLoadingQuizzes] = useState(true);
   const [quizError, setQuizError] = useState<string | null>(null);
@@ -225,7 +224,6 @@ function TeacherCourseDetailContent() {
   const [showSection, setShowSection] = useState<{[id:number]: boolean}>({});
   const [addingSection, setAddingSection] = useState(false);
   const [sectionContents, setSectionContents] = useState<{[id:number]: SectionContent[]}>({});
-  const [newContent, setNewContent] = useState<{[id:number]: {name: string, file: File | null, link: string, text: string}}>({});
 
   // Dodaj nową deklarację sections
   const [sections, setSections] = useState<Section[]>([]);
@@ -272,7 +270,7 @@ function TeacherCourseDetailContent() {
   const [isReorderMode, setIsReorderMode] = useState(false);
   const [reorderedSections, setReorderedSections] = useState<Section[]>([]);
   const [isSavingOrder, setIsSavingOrder] = useState(false);
-  const [draggedElement, setDraggedElement] = useState<string | null>(null);
+  const [, setDraggedElement] = useState<string | null>(null);
 
 
 
@@ -726,26 +724,6 @@ function TeacherCourseDetailContent() {
     fetchQuizzes();
   }, [fetchQuizzes]);
 
-  // Filtrowanie dostępnych uczniów (nie przypisanych do kursu + wyszukiwanie)
-  const filteredAvailableStudents = students.filter(student => {
-    // Sprawdź czy uczeń nie jest już przypisany
-    const isNotAssigned = !assignedUsers.some(assigned => 
-      assigned.uid === student.uid || assigned.email === student.email
-    );
-    
-    // 🆕 NOWE - Sprawdź czy uczeń nie jest w klasie przypisanej do kursu
-    const isNotInAssignedClass = !(course as any)?.assignedClasses?.some((classId: any) => {
-      // Sprawdź czy uczeń jest w tej klasie
-      return classId && student.classes && student.classes.includes(classId);
-    });
-    
-    // Sprawdź czy pasuje do wyszukiwania
-    const matchesSearch = !studentSearchTerm || 
-      student.displayName?.toLowerCase().includes(studentSearchTerm.toLowerCase()) ||
-      student.email?.toLowerCase().includes(studentSearchTerm.toLowerCase());
-    
-    return isNotAssigned && isNotInAssignedClass && matchesSearch;
-  });
 
 
   // Usuwanie ucznia z kursu
@@ -790,124 +768,6 @@ function TeacherCourseDetailContent() {
   };
 
 
-  // Assign student to course using Firestore
-  const handleAssignStudent = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedStudent || !courseId) return;
-    
-    try {
-      console.log('Assigning student to course:', selectedStudent, courseId);
-      
-      // Pobierz kurs z Firestore
-      const courseDoc = await getDoc(doc(db, "courses", String(courseId)));
-      
-      if (!courseDoc.exists()) {
-        setError('Kurs nie został znaleziony');
-        return;
-      }
-      
-      const courseData = courseDoc.data();
-      const assignedUsers = courseData.assignedUsers || [];
-      
-      // Sprawdź czy student już jest przypisany
-      if (assignedUsers.includes(selectedStudent)) {
-        setError('Student jest już przypisany do tego kursu');
-        return;
-      }
-      
-      // Dodaj studenta do listy przypisanych użytkowników
-      assignedUsers.push(selectedStudent);
-      
-      // Zaktualizuj kurs w Firestore
-      await updateDoc(doc(db, "courses", String(courseId)), {
-        assignedUsers: assignedUsers
-      });
-      
-      console.log('Student assigned successfully to Firestore');
-      setSuccess('Uczeń został przypisany do kursu!');
-      setSelectedStudent("");
-      
-      // Refresh assigned users from Firestore
-      console.log('Refreshing assigned users from Firestore after assignment...');
-      
-      // Pobierz zaktualizowane dane z Firestore
-      const updatedCourseDoc = await getDoc(doc(db, "courses", String(courseId)));
-        
-      if (updatedCourseDoc.exists()) {
-        const updatedCourseData = updatedCourseDoc.data();
-        console.log('Updated course data from Firestore:', updatedCourseData);
-          
-        // Pobierz zaktualizowanych przypisanych użytkowników
-        const assignedUsersFromFirestore = updatedCourseData.assignedUsers || [];
-        console.log('Updated assignedUsers from Firestore:', assignedUsersFromFirestore);
-          
-        // Pobierz pełne dane użytkowników z kolekcji "users"
-        const assignedUsersList = await Promise.all(
-          assignedUsersFromFirestore.map(async (userIdentifier: string) => {
-            try {
-              // Sprawdź czy to email czy UID
-              let userDoc;
-              if (userIdentifier.includes('@')) {
-                // To email - znajdź użytkownika po email
-                const usersQuery = query(collection(db, "users"), where("email", "==", userIdentifier));
-                const userSnapshot = await getDocs(usersQuery);
-                if (!userSnapshot.empty) {
-                  userDoc = userSnapshot.docs[0];
-                }
-              } else {
-                // To UID - pobierz bezpośrednio
-                userDoc = await getDoc(doc(db, "users", userIdentifier));
-              }
-                
-                              if (userDoc && userDoc.exists()) {
-                  const userData = userDoc.data() as { firstName?: string; lastName?: string; email?: string; };
-                  return {
-                  uid: userDoc.id,
-                  displayName: `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || userData.email || userIdentifier,
-                  email: userData.email || userIdentifier,
-                  role: 'student',
-                  is_active: true
-                };
-              } else {
-                // Fallback jeśli nie znaleziono użytkownika
-                return {
-                  uid: userIdentifier,
-                  displayName: userIdentifier.includes('@') ? userIdentifier.split('@')[0] : userIdentifier,
-                  email: userIdentifier.includes('@') ? userIdentifier : `${userIdentifier}@example.com`,
-                  role: 'student',
-                  is_active: true
-                };
-              }
-            } catch (error) {
-              console.error('Error fetching user data for:', userIdentifier, error);
-              // Fallback
-              return {
-                uid: userIdentifier,
-                displayName: userIdentifier.includes('@') ? userIdentifier.split('@')[0] : userIdentifier,
-                email: userIdentifier.includes('@') ? userIdentifier : `${userIdentifier}@example.com`,
-                role: 'student',
-                is_active: true
-              };
-            }
-          })
-        );
-          
-        console.log('Updated assigned users list:', assignedUsersList);
-        setAssignedUsers(assignedUsersList);
-          
-        // Dodaj timeout aby komunikat sukcesu był widoczny
-        setTimeout(() => {
-          setSuccess(null);
-        }, 3000);
-      } else {
-        console.error('Course document not found in Firestore after assignment');
-      }
-    } catch (error) {
-      console.error('Error assigning student:', error);
-      setError('Błąd podczas przypisywania ucznia do kursu');
-      setTimeout(() => setError(null), 3000);
-    }
-  }, [selectedStudent, courseId, setError, setSuccess, setAssignedUsers]);
 
   // Funkcje do zarządzania uczniami
   const handleAddStudent = async (studentId: string) => {
@@ -1169,64 +1029,6 @@ function TeacherCourseDetailContent() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sections, courseId, newSection, user, saveSectionsToFirestore, refreshCourseData]);
 
-  // Add content to section
-  const handleAddContent = useCallback(async (sectionId: number, e: React.FormEvent) => {
-    e.preventDefault();
-    const content = newContent[Number(sectionId)];
-    const text = content.text || '';
-    if (!content || (!content.file && !content.link && !text)) return;
-    
-    let fileUrl = '';
-    
-    // Upload file to Firebase Storage if file exists
-    if (content.file) {
-      try {
-        const storage = getStorage();
-        const storageRef = ref(storage, `courses/${courseId}/sections/${sectionId}/${Date.now()}_${content.file.name}`);
-        await uploadBytes(storageRef, content.file);
-        fileUrl = await getDownloadURL(storageRef);
-      } catch (error) {
-        console.error('Error uploading file:', error);
-        alert('Błąd podczas uploadu pliku');
-        return;
-      }
-    }
-    
-    const newContentItem = { 
-      id: Date.now(),
-      type: 'material', // Dodaj wymagane type
-      name: content.name || '',
-      fileUrl: fileUrl || null, // Save the Firebase Storage URL
-      link: content.link || null,
-      text: text || null
-    };
-    
-    const updatedSectionContents = {
-      ...sectionContents,
-      [Number(sectionId)]: [...(sectionContents[Number(sectionId)] || []), newContentItem]
-    };
-    
-    setSectionContents(updatedSectionContents);
-    setNewContent(nc => ({...nc, [Number(sectionId)]: {name: '', file: null, link: '', text: ''}}));
-    
-    // Aktualizuj sekcje w Firestore z nowymi materiałami
-    if (courseId) {
-      console.log('Saving content to Firestore for sectionId:', sectionId);
-      console.log('Updated sectionContents:', updatedSectionContents);
-      console.log('Current sections:', sections);
-      
-      const updatedSections = sections.map(section => 
-        section.id === sectionId 
-          ? { ...section, contents: updatedSectionContents[sectionId] }
-          : section
-      );
-      console.log('Updated sections to save:', updatedSections);
-      
-      await saveSectionsToFirestore(courseId, updatedSections);
-      console.log('Sections saved to Firestore, refreshing data...');
-      await refreshCourseData();
-    }
-  }, [sectionContents, newContent, courseId, sections, saveSectionsToFirestore, refreshCourseData]);
 
   // Banner upload handler
   const handleBannerChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -2176,7 +1978,6 @@ function TeacherCourseDetailContent() {
               onSectionReorder={handleSectionReorder}
               onSubsectionReorder={handleSubsectionReorder}
               onSubsectionMoveToSection={handleSubsectionMoveToSection}
-              draggedElement={draggedElement}
               setDraggedElement={setDraggedElement}
               renderSectionContent={(section) => (
                 <div className="space-y-3">
@@ -2202,7 +2003,7 @@ function TeacherCourseDetailContent() {
                   )}
                 </div>
               )}
-              renderSubsectionContent={(subsection, sectionId) => (
+              renderSubsectionContent={(subsection) => (
                 <div className="text-gray-500 text-sm">
                   Podsekcja: {subsection.name}
                 </div>

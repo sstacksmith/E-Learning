@@ -48,12 +48,11 @@ const monthsPl = [
 ];
 
 const daysOfWeek = ['Poniedziałek', 'Wtorek', 'Środa', 'Czwartek', 'Piątek'];
-const daysOfWeekShort = ['Pon', 'Wt', 'Śr', 'Czw', 'Pt'];
 
 export default function ParentDashboard() {
   const { user } = useAuth();
   const [events, setEvents] = useState<Event[]>([]);
-  const [assignedStudent, setAssignedStudent] = useState<{ id: string; name: string } | null>(null);
+  const [, setAssignedStudent] = useState<{ id: string; name: string } | null>(null);
   const [currentWeek, setCurrentWeek] = useState(() => {
     const today = new Date();
     const day = today.getDay();

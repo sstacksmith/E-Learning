@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState, useCallback } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { getAuth } from "firebase/auth";
 import { getFirestore, doc, collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, limit, startAfter, updateDoc, setDoc, where, getDocs } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
@@ -41,7 +41,6 @@ const MESSAGES_PER_PAGE = 50;
 
 export default function GroupChatView() {
   const params = useParams();
-  const router = useRouter();
   const chatId = params?.chatId as string;
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
@@ -277,7 +276,6 @@ export default function GroupChatView() {
       }
     }
     
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const messageData: any = {
       senderId: user.uid || user.email || 'unknown',
       createdAt: serverTimestamp(),

@@ -1,7 +1,6 @@
 "use client";
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Image from "next/image";
-import Link from "next/link";
 import { db } from '@/config/firebase';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { ArrowLeft } from 'lucide-react';
@@ -40,9 +39,46 @@ export default function SpecialistsPage() {
     loadSpecialists();
   }, []);
 
+  const filterAndSortSpecialists = useCallback(() => {
+    let filtered = [...specialists];
+
+    // Filter by search term
+    if (searchTerm) {
+      filtered = filtered.filter(specialist =>
+        specialist.displayName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        specialist.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        specialist.subjects?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        specialist.department?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
+    // Filter by role
+    if (selectedRole) {
+      filtered = filtered.filter(specialist => specialist.role === selectedRole);
+    }
+
+    // Sort
+    filtered.sort((a, b) => {
+      switch (sortBy) {
+        case 'name':
+          const nameA = a.displayName || `${a.firstName || ''} ${a.lastName || ''}`.trim() || '';
+          const nameB = b.displayName || `${b.firstName || ''} ${b.lastName || ''}`.trim() || '';
+          return nameA.localeCompare(nameB);
+        case 'role':
+          return a.role.localeCompare(b.role);
+        case 'department':
+          return (a.department || '').localeCompare(b.department || '');
+        default:
+          return 0;
+      }
+    });
+
+    setFilteredSpecialists(filtered);
+  }, [specialists, searchTerm, selectedRole, sortBy]);
+
   useEffect(() => {
     filterAndSortSpecialists();
-  }, [specialists, searchTerm, selectedRole, sortBy]);
+  }, [filterAndSortSpecialists]);
 
   const loadSpecialists = async () => {
     try {
@@ -81,44 +117,6 @@ export default function SpecialistsPage() {
       setLoading(false);
     }
   };
-
-  const filterAndSortSpecialists = () => {
-    let filtered = [...specialists];
-
-    // Filter by search term
-    if (searchTerm) {
-      filtered = filtered.filter(specialist =>
-        specialist.displayName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        specialist.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        specialist.subjects?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        specialist.department?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-
-    // Filter by role
-    if (selectedRole) {
-      filtered = filtered.filter(specialist => specialist.role === selectedRole);
-    }
-
-    // Sort
-    filtered.sort((a, b) => {
-      switch (sortBy) {
-        case 'name':
-          const nameA = a.displayName || `${a.firstName || ''} ${a.lastName || ''}`.trim() || '';
-          const nameB = b.displayName || `${b.firstName || ''} ${b.lastName || ''}`.trim() || '';
-          return nameA.localeCompare(nameB);
-        case 'role':
-          return a.role.localeCompare(b.role);
-        case 'department':
-          return (a.department || '').localeCompare(b.department || '');
-        default:
-          return 0;
-      }
-    });
-
-    setFilteredSpecialists(filtered);
-  };
-
 
   const getSpecialistTypeLabel = (role: string) => {
     switch (role) {

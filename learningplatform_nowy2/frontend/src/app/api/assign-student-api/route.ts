@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
     const currentAssignedInstructors = studentData.assignedInstructors || [];
     const currentPrimaryTutorId = studentData.primaryTutorId;
 
-    let updateData: any = {};
+    const updateData: any = {};
 
     if (isPrimary) {
       // Set as primary instructor
@@ -108,7 +108,7 @@ export async function DELETE(request: NextRequest) {
     const currentAssignedInstructors = studentData.assignedInstructors || [];
     const currentPrimaryTutorId = studentData.primaryTutorId;
 
-    let updateData: any = {};
+    const updateData: any = {};
 
     // Remove from assigned instructors
     if (currentAssignedInstructors.includes(instructorId)) {

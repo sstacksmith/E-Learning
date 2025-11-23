@@ -6,7 +6,6 @@ import { useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import ThemeToggle from '@/components/ThemeToggle';
 import {
-  GraduationCap,
   BookOpen,
   Users,
   Calendar,
@@ -21,6 +20,7 @@ import {
   School,
   Clock
 } from 'lucide-react';
+import CogitoLogo from '@/components/CogitoLogo';
 
 export default function TeacherLayout({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
@@ -139,8 +139,8 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
           <div className="flex flex-col flex-1">
             {/* Logo */}
             <div className="flex items-center h-16 px-6 border-b border-gray-200 dark:border-gray-700">
-              <GraduationCap className="h-8 w-8 text-blue-600 dark:text-blue-400" />
-              <span className="ml-2 text-lg font-semibold text-gray-900 dark:text-gray-100">EduPanel</span>
+              <CogitoLogo size={32} className="text-blue-600 dark:text-blue-400" />
+              <span className="ml-2 text-lg font-semibold text-gray-900 dark:text-gray-100">Cogito</span>
             </div>
 
             {/* Teacher Info */}
@@ -216,8 +216,8 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
               {/* Mobile Header */}
               <div className="flex items-center justify-between h-16 px-6 border-b border-gray-200 dark:border-gray-700">
                 <div className="flex items-center">
-                  <GraduationCap className="h-8 w-8 text-blue-600 dark:text-blue-400" />
-                  <span className="ml-2 text-lg font-semibold text-gray-900 dark:text-gray-100">EduPanel</span>
+                  <CogitoLogo size={32} className="text-blue-600 dark:text-blue-400" />
+                  <span className="ml-2 text-lg font-semibold text-gray-900 dark:text-gray-100">Cogito</span>
                 </div>
                 <button
                   onClick={() => setSidebarOpen(false)}

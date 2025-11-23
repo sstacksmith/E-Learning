@@ -7,7 +7,6 @@ import ThemeToggle from '@/components/ThemeToggle';
 import {
   Calendar,
   BookOpen,
-  GraduationCap,
   BarChart3,
   Bell,
   Settings,
@@ -17,8 +16,10 @@ import {
   CheckCircle,
   AlertCircle,
   Clock,
-  Menu
+  Menu,
+  GraduationCap
 } from 'lucide-react';
+import CogitoLogo from '@/components/CogitoLogo';
 import { useRouter, usePathname } from 'next/navigation';
 
 interface Student {
@@ -328,8 +329,8 @@ export default function ParentLayout({
         <div className="flex flex-col flex-1">
           {/* Logo */}
           <div className="flex items-center h-16 px-6 border-b border-gray-200">
-            <GraduationCap className="h-8 w-8 text-blue-600" />
-            <span className="ml-2 text-lg font-semibold text-gray-900">EduPanel</span>
+            <CogitoLogo size={32} className="text-blue-600" />
+            <span className="ml-2 text-lg font-semibold text-gray-900">Cogito</span>
           </div>
 
           {/* Child Info */}
@@ -410,8 +411,8 @@ export default function ParentLayout({
               {/* Mobile Header */}
               <div className="flex items-center justify-between h-16 px-6 border-b border-gray-200">
                 <div className="flex items-center">
-                  <GraduationCap className="h-8 w-8 text-blue-600" />
-                  <span className="ml-2 text-lg font-semibold text-gray-900">EduPanel</span>
+                  <CogitoLogo size={32} className="text-blue-600" />
+                  <span className="ml-2 text-lg font-semibold text-gray-900">Cogito</span>
                 </div>
                 <button
                   onClick={() => setSidebarOpen(false)}

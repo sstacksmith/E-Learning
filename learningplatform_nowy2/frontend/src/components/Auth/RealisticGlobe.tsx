@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useMemo } from 'react';
+import { useRef, useMemo, Suspense } from 'react';
 import { Canvas, useFrame, useLoader } from '@react-three/fiber';
 import { OrbitControls, Sphere, Text } from '@react-three/drei';
 import * as THREE from 'three';
@@ -97,7 +97,7 @@ function FloatingFormulas() {
     return items;
   }, []);
 
-  useFrame((state) => {
+  useFrame(() => {
     if (groupRef.current) {
       groupRef.current.rotation.y += 0.001;
     }
@@ -172,12 +172,36 @@ function ConnectionLines() {
   );
 }
 
+// Logo w środku kuli
+function LogoMesh() {
+  const logoTexture = useLoader(THREE.TextureLoader, '/cogito-logo.png');
+  
+  // Konfiguracja tekstury - odwróć Y (flipY = false dla poprawnej orientacji)
+  logoTexture.flipY = false;
+  logoTexture.format = THREE.RGBAFormat;
+  logoTexture.minFilter = THREE.LinearFilter;
+  logoTexture.magFilter = THREE.LinearFilter;
+
+  return (
+    <mesh position={[0, 0.5, 3.5]} renderOrder={999} rotation={[Math.PI, 0, 0]}>
+      <planeGeometry args={[1.1, 1.1]} />
+      <meshStandardMaterial
+        map={logoTexture}
+        transparent={true}
+        opacity={1}
+        emissive="#ffffff"
+        emissiveIntensity={0.5}
+        side={THREE.DoubleSide}
+        alphaTest={0.05}
+        depthWrite={false}
+      />
+    </mesh>
+  );
+}
+
 // Logo i tekst w środku kuli
 function CenterText() {
   const groupRef = useRef<THREE.Group>(null);
-  
-  // Załaduj teksturę
-  const logoTexture = useLoader(THREE.TextureLoader, '/logo-cogito.png');
 
   useFrame((state) => {
     if (groupRef.current) {
@@ -188,34 +212,29 @@ function CenterText() {
 
   return (
     <group ref={groupRef} position={[0, 0, 0]}>
-      {/* Logo Cogito nad tekstem - BEZ TŁA */}
-      <mesh position={[0, 0.5, 0]}>
-        <planeGeometry args={[1.8, 1.6]} />
-        <meshBasicMaterial
-          map={logoTexture}
-          transparent={true}
-          opacity={1}
-          toneMapped={false}
-          side={THREE.DoubleSide}
-        />
-      </mesh>
+      {/* Logo Cogito nad tekstem */}
+      <Suspense fallback={null}>
+        <LogoMesh />
+      </Suspense>
 
       {/* Tekst "Cogito" */}
       <Text
-        position={[0, -0.3, 0]}
+        position={[0, -0.25, 3.5]}
         fontSize={0.5}
-        color="#ffffff"
+        color="#0066cc"
         anchorX="center"
         anchorY="middle"
         fontWeight="bold"
         letterSpacing={0.05}
+        renderOrder={1000}
       >
         Cogito
         <meshStandardMaterial
-          color="#ffffff"
-          emissive="#00d4ff"
-          emissiveIntensity={2.0}
+          color="#0066cc"
+          emissive="#0066cc"
+          emissiveIntensity={0.3}
           toneMapped={false}
+          depthWrite={false}
         />
       </Text>
     </group>
@@ -228,7 +247,7 @@ function EarthGlobe() {
   const glowRef = useRef<THREE.Mesh>(null);
 
   // Animacja rotacji
-  useFrame((state) => {
+  useFrame(() => {
     if (meshRef.current) {
       meshRef.current.rotation.y += 0.002;
     }
@@ -329,7 +348,7 @@ function BackgroundParticles() {
     return { positions, colors };
   }, []);
 
-  useFrame((state) => {
+  useFrame(() => {
     if (particlesRef.current) {
       particlesRef.current.rotation.y += 0.0005;
       particlesRef.current.rotation.x += 0.0003;

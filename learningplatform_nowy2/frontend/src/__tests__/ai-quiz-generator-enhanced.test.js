@@ -187,7 +187,7 @@ describe('AI Quiz Generator Enhanced Tests', () => {
       expect(question.points).toBeDefined();
 
       // Sprawdź strukturę odpowiedzi
-      question.answers.forEach((answer, index) => {
+      question.answers.forEach((answer) => {
         expect(answer.id).toBeDefined();
         expect(answer.content).toBeDefined();
         expect(typeof answer.is_correct).toBe('boolean');
