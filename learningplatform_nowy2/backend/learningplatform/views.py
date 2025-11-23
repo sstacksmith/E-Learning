@@ -1417,7 +1417,16 @@ def get_bug_reports(request):
             limit = 50
         
         # Pobierz zgłoszenia z Firestore
-        db = firestore.client()
+        # Use get_firestore_client to ensure Firebase is initialized
+        from firebase_utils import get_firestore_client
+        db = get_firestore_client()
+        if not db:
+            logger.error("❌ Firestore client not available - Firebase Admin SDK not initialized")
+            return Response(
+                {'error': 'Firebase Admin SDK not initialized. Check FIREBASE_PRIVATE_KEY environment variable.', 'reports': []}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
         bug_reports_ref = db.collection('bug_reports')
         
         logger.info(f"🔍 Fetching bug reports - status_filter: {status_filter}, category_filter: {category_filter}, limit: {limit}")
@@ -1493,7 +1502,9 @@ def get_bug_reports(request):
             if '_sort_timestamp' in report:
                 del report['_sort_timestamp']
         
-        logger.info(f"✅ Bug reports retrieved by {user.email}: {len(bug_reports)} reports (processed {doc_count} documents)")
+        # Get user email if authenticated, otherwise use 'anonymous'
+        user_email = request.user.email if hasattr(request.user, 'email') and request.user.is_authenticated else 'anonymous'
+        logger.info(f"✅ Bug reports retrieved by {user_email}: {len(bug_reports)} reports (processed {doc_count} documents)")
         
         return Response({
             'success': True,
