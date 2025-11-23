@@ -175,3 +175,4 @@ Podczas ładowania kuli pokazuje się spinner:
 **Mobile:** ✅ **TYLKO LOGOWANIE**  
 **Desktop:** ✅ **LOGOWANIE + KULA 3D**
 
+

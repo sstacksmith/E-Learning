@@ -311,3 +311,4 @@ npm run dev
 **Wersja:** 2.0.0 (Realistyczna Kula)  
 **Status:** ✅ **GOTOWE BEZ PRAW AUTORSKICH!**
 
+

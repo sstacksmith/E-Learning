@@ -88,3 +88,4 @@ https://nextjs.org/docs/app/api-reference/functions/generate-viewport
 **Plików zmienionych:** 1  
 **Warningi usunięte:** 100%
 
+

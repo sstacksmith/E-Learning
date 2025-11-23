@@ -191,3 +191,4 @@ W razie problemów lub pytań:
 **Wersja:** 2.0.0  
 **Status:** ✅ Gotowe do wdrożenia
 
+

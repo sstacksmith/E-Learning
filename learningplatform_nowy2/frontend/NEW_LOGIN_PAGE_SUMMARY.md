@@ -322,3 +322,4 @@ npm run build
 **Wersja:** 1.0.0  
 **Status:** ✅ **GOTOWE!**
 
+

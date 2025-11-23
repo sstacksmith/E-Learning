@@ -16,3 +16,4 @@ Można używać komercyjnie bez ograniczeń
 ## Alternative
 Jeśli nie chcesz pobierać tekstur, używamy proceduralne generowanie w Three.js
 
+

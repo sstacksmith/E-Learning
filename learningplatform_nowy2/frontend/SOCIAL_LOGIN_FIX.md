@@ -240,3 +240,4 @@ if (!allowedEmails.includes(userEmail)) {
 **Domena:** 🔒 **@cogitowroclaw.pl ONLY**  
 **Bezpieczeństwo:** ⭐⭐⭐⭐⭐
 
+

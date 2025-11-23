@@ -56,3 +56,6 @@ htmlcov/
 *.tmp
 *.bak
 *.cache
+
+#Important file
+firebase-credentials.json

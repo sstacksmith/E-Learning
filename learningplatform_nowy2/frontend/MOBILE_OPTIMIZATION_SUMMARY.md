@@ -256,3 +256,4 @@ Jeśli znajdziesz problemy z responsywnością:
 **Wersja:** 1.0  
 **Status:** ✅ Zakończone - Gotowe do testów
 
+
