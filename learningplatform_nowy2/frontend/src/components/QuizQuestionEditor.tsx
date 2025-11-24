@@ -26,11 +26,13 @@ interface MixedContent {
 }
 
 // Lokalne typy rozszerzające globalne
-interface LocalAnswer extends Omit<Answer, 'created_at' | 'updated_at' | 'created_by'> {
+interface LocalAnswer extends Omit<Answer, 'created_at' | 'updated_at' | 'created_by' | 'id'> {
+  id?: string; // Optional for new answers
   mathContent?: string;
 }
 
-interface QuestionData extends Omit<Question, 'created_at' | 'updated_at' | 'created_by' | 'answers'> {
+interface QuestionData extends Omit<Question, 'created_at' | 'updated_at' | 'created_by' | 'answers' | 'id'> {
+  id?: string; // Optional for new questions
   mathContent?: string;
   answers: LocalAnswer[];
 }
@@ -361,7 +363,7 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                 <div className="space-y-2">
                   <textarea
                     value={answer.content}
-                    onChange={(e) => handleAnswerChange(answer.id, e.target.value)}
+                    onChange={(e) => handleAnswerChange(answer.id || generateUUID(), e.target.value)}
                     className="w-full p-2 border rounded"
                     placeholder={isOpenQuestion ? "Wpisz poprawną odpowiedź" : `Odpowiedź ${String.fromCharCode(65 + index)}`}
                   />
@@ -399,7 +401,7 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                     <div className="border rounded p-2 bg-white">
                       <MathEditor
                         initialValue={answer.mathContent || ''}
-                        onChange={(value) => handleAnswerChange(answer.id, value, true)}
+                        onChange={(value) => handleAnswerChange(answer.id || generateUUID(), value, true)}
                       />
                       <p className="text-xs text-gray-500 mt-1">
                         Użyj edytora matematycznego powyżej do tworzenia wyrażeń
@@ -416,7 +418,7 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
               </div>
               {!isOpenQuestion && (
                 <button
-                  onClick={() => handleToggleCorrect(answer.id)}
+                  onClick={() => handleToggleCorrect(answer.id || generateUUID())}
                   className={`px-3 py-2 rounded transition-colors ${
                     answer.is_correct 
                       ? 'bg-green-500 text-white hover:bg-green-600' 
@@ -429,7 +431,7 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
               )}
               {/* Przycisk usuwania odpowiedzi */}
               <button
-                onClick={() => handleRemoveAnswer(answer.id)}
+                onClick={() => handleRemoveAnswer(answer.id || generateUUID())}
                 disabled={!isOpenQuestion && question.answers.length <= 2}
                 className={`px-3 py-2 rounded transition-colors ${
                   !isOpenQuestion && question.answers.length <= 2

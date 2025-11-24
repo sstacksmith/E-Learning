@@ -428,7 +428,7 @@ export default function TeacherProfilePage() {
                       fill
                       className="object-cover"
                       unoptimized
-                      onError={(e) => {
+                      onError={() => {
                         console.error('Error loading image:', photoURL);
                         setPhotoURL('');
                       }}

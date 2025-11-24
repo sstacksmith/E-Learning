@@ -207,7 +207,7 @@ export default function ClassesPage() {
       uid: user.uid,
       email: user.email,
       role: user.role,
-      displayName: user.displayName
+      displayName: user.displayName || null
     });
 
     // Sprawdź czy Firebase Auth jest dostępny
@@ -313,7 +313,7 @@ export default function ClassesPage() {
 
       // Sprawdź czy kolekcja istnieje
       console.log('🔍 Sprawdzam dostęp do kolekcji classes...');
-      const testQuery = collection(db, 'classes');
+      collection(db, 'classes'); // Test dostępności kolekcji
       console.log('✅ Kolekcja classes dostępna');
 
       // Test uprawnień przed zapisem
@@ -328,7 +328,7 @@ export default function ClassesPage() {
       
       try {
         // Próba odczytu kolekcji (test uprawnień)
-        const testSnapshot = await getDocs(query(collection(db, 'classes'), where('teacher_id', '==', user.uid), limit(1)));
+        await getDocs(query(collection(db, 'classes'), where('teacher_id', '==', user.uid), limit(1)));
         console.log('✅ TEST: Uprawnienia do odczytu OK');
       } catch (readTestError: any) {
         console.error('❌ TEST: Błąd uprawnień do odczytu:', readTestError);

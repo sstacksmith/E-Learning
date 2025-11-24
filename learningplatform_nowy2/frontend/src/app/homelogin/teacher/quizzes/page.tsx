@@ -13,12 +13,14 @@ import { AIQuizGenerator } from '@/components/AIQuizGenerator';
 import { Quiz, Question, Answer } from '@/types/models';
 
 // Lokalne typy rozszerzające globalne
-interface LocalAnswer extends Omit<Answer, 'created_at' | 'updated_at' | 'created_by'> {
+interface LocalAnswer extends Omit<Answer, 'created_at' | 'updated_at' | 'created_by' | 'id'> {
+  id?: string; // Optional for new answers
   mathContent?: string;
   isCorrect: boolean; // Alias dla is_correct
 }
 
-interface LocalQuestion extends Omit<Question, 'created_at' | 'updated_at' | 'created_by' | 'answers'> {
+interface LocalQuestion extends Omit<Question, 'created_at' | 'updated_at' | 'created_by' | 'answers' | 'id'> {
+  id?: string; // Optional for new questions
   mathContent?: string;
   explanation?: string;
   answers: LocalAnswer[];

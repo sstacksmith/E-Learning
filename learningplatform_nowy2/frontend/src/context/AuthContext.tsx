@@ -21,6 +21,7 @@ export type User = {
   uid: string;
   email: string;
   role: UserRole;
+  displayName?: string | null;
 };
 
 type AuthContextType = {
@@ -141,7 +142,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         });
       };
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, logout]);
 
   // Update useEffect to use logout
   useEffect(() => {

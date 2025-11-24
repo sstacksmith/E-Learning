@@ -13,12 +13,14 @@ import { collection, query, where, getDocs, deleteDoc, doc } from 'firebase/fire
 import { Quiz, Question, Answer } from '@/types/models';
 
 // Lokalne typy rozszerzające globalne
-interface LocalAnswer extends Omit<Answer, 'created_at' | 'updated_at' | 'created_by'> {
+interface LocalAnswer extends Omit<Answer, 'created_at' | 'updated_at' | 'created_by' | 'id'> {
+  id?: string; // Optional for new answers
   mathContent?: string;
   isCorrect: boolean; // Alias dla is_correct
 }
 
-interface LocalQuestion extends Omit<Question, 'created_at' | 'updated_at' | 'created_by' | 'answers'> {
+interface LocalQuestion extends Omit<Question, 'created_at' | 'updated_at' | 'created_by' | 'answers' | 'id'> {
+  id?: string; // Optional for new questions
   mathContent?: string;
   explanation?: string;
   answers: LocalAnswer[];
@@ -100,26 +102,28 @@ const QuizPreview: React.FC<QuizPreviewProps> = ({ quiz, onClose, onDelete }) =>
   };
 
   const getStudentAnswers = (result: QuizResult): StudentAnswer[] => {
-    return quiz.questions.map(question => {
-      if (question.type === 'open' || !question.answers?.length) {
-        // Pytanie otwarte
-        return {
-          questionId: question.id,
-          openAnswer: result.answers.open,
-          isCorrect: result.answers.open?.content.toLowerCase().trim() === 
-            question.answers[0]?.content.toLowerCase().trim()
-        };
-      } else {
-        // Pytanie zamknięte
-        const selectedAnswerId = result.answers.selected[question.id];
-        const correctAnswer = question.answers.find(a => a.is_correct);
-        return {
-          questionId: question.id,
-          selectedAnswerId,
-          isCorrect: selectedAnswerId === correctAnswer?.id
-        };
-      }
-    });
+    return quiz.questions
+      .filter(question => question.id) // Only process questions with IDs
+      .map(question => {
+        if (question.type === 'open' || !question.answers?.length) {
+          // Pytanie otwarte
+          return {
+            questionId: question.id!,
+            openAnswer: result.answers.open,
+            isCorrect: result.answers.open?.content.toLowerCase().trim() === 
+              question.answers[0]?.content.toLowerCase().trim()
+          };
+        } else {
+          // Pytanie zamknięte
+          const selectedAnswerId = result.answers.selected[question.id!];
+          const correctAnswer = question.answers.find(a => a.is_correct);
+          return {
+            questionId: question.id!,
+            selectedAnswerId,
+            isCorrect: selectedAnswerId === correctAnswer?.id
+          };
+        }
+      });
   };
 
   const renderStudentAnswers = () => {

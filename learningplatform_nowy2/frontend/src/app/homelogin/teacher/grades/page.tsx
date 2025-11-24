@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
-import { Plus, ArrowLeft, Calendar, User, Award, BookOpen, Users } from 'lucide-react';
+import { Plus, ArrowLeft, User, Award, Users } from 'lucide-react';
 import { db } from '@/config/firebase';
 import { collection, getDocs, addDoc, query, where } from 'firebase/firestore';
 import { Class } from '@/types/models';
@@ -49,15 +49,6 @@ interface Student {
   assignedToTeacher?: string;
 }
 
-interface Course {
-  id: string;
-  title: string;
-  courseType: 'obowiązkowy' | 'fakultatywny';
-  created_by?: string;
-  teacherEmail?: string;
-  assignedUsers?: string[];
-}
-
 interface GroupedGrades {
   [className: string]: {
     students: {
@@ -74,7 +65,6 @@ export default function TeacherGradesPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [grades, setGrades] = useState<Grade[]>([]);
-  const [courses, setCourses] = useState<Course[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
   const [showAddGradeModal, setShowAddGradeModal] = useState(false);
   const [students, setStudents] = useState<Student[]>([]);
