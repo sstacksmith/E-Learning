@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { useAuth } from '@/context/AuthContext';
@@ -20,6 +20,7 @@ interface Event {
   subject?: string;
   room?: string;
   day?: string;
+  course_id?: string;
 }
 
 interface ScheduleLesson {
@@ -52,6 +53,7 @@ const daysOfWeek = ['Poniedziałek', 'Wtorek', 'Środa', 'Czwartek', 'Piątek'];
 export default function ParentDashboard() {
   const { user } = useAuth();
   const [events, setEvents] = useState<Event[]>([]);
+  const [courses, setCourses] = useState<Map<string, { courseType?: string }>>(new Map());
   const [, setAssignedStudent] = useState<{ id: string; name: string } | null>(null);
   const [currentWeek, setCurrentWeek] = useState(() => {
     const today = new Date();
@@ -63,6 +65,7 @@ export default function ParentDashboard() {
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [showElectiveOnly, setShowElectiveOnly] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -115,6 +118,17 @@ export default function ParentDashboard() {
         });
 
         setEvents(studentEvents);
+
+        // Pobierz kursy aby sprawdzić typy
+        const coursesRef = collection(db, 'courses');
+        const coursesSnapshot = await getDocs(coursesRef);
+        const coursesMap = new Map<string, { courseType?: string }>();
+        coursesSnapshot.docs.forEach(doc => {
+          const data = doc.data();
+          coursesMap.set(doc.id, { courseType: data.courseType });
+        });
+        setCourses(coursesMap);
+
         setLoading(false);
       } catch (err) {
         console.error('Error fetching data:', err);
@@ -153,6 +167,18 @@ export default function ParentDashboard() {
     friday.setDate(friday.getDate() + 4);
     
     return `${monday.getDate()}-${friday.getDate()} ${monthsPl[monday.getMonth()]}${monday.getMonth() !== friday.getMonth() ? ' - ' + friday.getDate() + ' ' + monthsPl[friday.getMonth()] : ''}`;
+  };
+
+  // Funkcja sprawdzająca czy zajęcia są fakultatywne
+  const isElectiveLesson = (event: Event): boolean => {
+    // Sprawdź czy event ma flagę fakultatywny
+    if (event.type === 'fakultatywny' || event.type === 'elective') return true;
+    // Sprawdź czy event jest powiązany z kursem fakultatywnym
+    if (event.course_id) {
+      const course = courses.get(event.course_id);
+      if (course?.courseType === 'fakultatywny') return true;
+    }
+    return false;
   };
 
   // Funkcja pobierająca zajęcia dla danego dnia i slotu czasowego
@@ -226,7 +252,12 @@ export default function ParentDashboard() {
       return false;
     });
 
-    return dayEvents.map(event => ({
+    // Filtruj według typu zajęć (fakultatywne/obowiązkowe)
+    const filteredEvents = showElectiveOnly 
+      ? dayEvents.filter(event => isElectiveLesson(event))
+      : dayEvents; // Gdy wyłączone, pokaż wszystkie zajęcia
+
+    return filteredEvents.map(event => ({
       id: event.id,
       title: event.title,
       subject: event.subject || event.title,
@@ -246,60 +277,57 @@ export default function ParentDashboard() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 w-full">
-      {/* Header z przyciskiem powrotu */}
+      {/* Header bez przycisku powrotu */}
       <div className="bg-white/80 backdrop-blur-lg border-b border-white/20 px-4 sm:px-6 lg:px-8 py-4">
-        {/* Mobile Layout - Vertical Stack */}
-        <div className="flex flex-col gap-3 sm:hidden">
-          <button
-            onClick={() => window.location.href = '/homelogin'}
-            className="flex items-center gap-2 px-3 py-2 bg-white/60 backdrop-blur-sm text-gray-700 rounded-lg hover:bg-white hover:shadow-lg transition-all duration-200 ease-in-out border border-white/20 w-fit"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span className="text-sm">Powrót</span>
-          </button>
-          
-          <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-            Plan zajęć
-          </h1>
-        </div>
-
-        {/* Desktop Layout - Horizontal */}
-        <div className="hidden sm:flex items-center justify-between">
-          <button
-            onClick={() => window.location.href = '/homelogin'}
-            className="flex items-center gap-2 px-4 py-2 bg-white/60 backdrop-blur-sm text-gray-700 rounded-lg hover:bg-white hover:shadow-lg transition-all duration-200 ease-in-out border border-white/20"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Powrót do strony głównej
-          </button>
-          
+        <div className="flex items-center justify-between">
           <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
             Plan zajęć
           </h1>
           
-          <div className="w-20"></div>
+          {/* Switch na zajęcia fakultatywne */}
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <span className="text-sm text-gray-700 hidden sm:inline">Tylko zajęcia fakultatywne</span>
+              <span className="text-xs text-gray-700 sm:hidden">Fakultatywne</span>
+              <div className="relative">
+                <input
+                  type="checkbox"
+                  checked={showElectiveOnly}
+                  onChange={(e) => setShowElectiveOnly(e.target.checked)}
+                  className="sr-only"
+                />
+                <div className={`w-11 h-6 rounded-full transition-colors duration-200 ${
+                  showElectiveOnly ? 'bg-blue-600' : 'bg-gray-300'
+                }`}>
+                  <div className={`w-5 h-5 bg-white rounded-full shadow-md transform transition-transform duration-200 ${
+                    showElectiveOnly ? 'translate-x-5' : 'translate-x-0.5'
+                  } mt-0.5`}></div>
+                </div>
+              </div>
+            </label>
+          </div>
         </div>
       </div>
 
-      <div className="px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
-        <div className="space-y-6">
+      <div className="px-4 sm:px-6 lg:px-8 py-4">
+        <div className="space-y-4">
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4">
               {error}
             </div>
           )}
 
           <div className="w-full">
             {/* Enhanced Navigation Header */}
-            <div className="flex items-center justify-between mb-4 sm:mb-8 p-3 sm:p-6 bg-gradient-to-r from-slate-50 to-blue-50 rounded-2xl border border-slate-200/50">
+            <div className="flex items-center justify-center gap-3 mb-4 sm:mb-8 p-3 sm:p-6 bg-gradient-to-r from-slate-50 to-blue-50 rounded-2xl border border-slate-200/50">
               <button 
                 onClick={prevWeek} 
-                className="p-2 sm:p-4 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200 shadow-md flex-shrink-0"
+                className="p-2 sm:p-4 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200 shadow-md flex-shrink-0 flex items-center justify-center"
               >
                 <ChevronLeft className="w-4 h-4 sm:w-6 sm:h-6" />
               </button>
               
-              <div className="text-center flex-1 px-2">
+              <div className="text-center flex-1 px-2 flex flex-col items-center justify-center">
                 <div className="font-bold text-slate-900 text-base sm:text-2xl mb-1 sm:mb-2">
                   {monthsPl[currentWeek.getMonth()]} {currentWeek.getFullYear()}
                 </div>
@@ -310,15 +338,15 @@ export default function ParentDashboard() {
               
               <button 
                 onClick={nextWeek} 
-                className="p-2 sm:p-4 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200 shadow-md flex-shrink-0"
+                className="p-2 sm:p-4 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200 shadow-md flex-shrink-0 flex items-center justify-center"
               >
                 <ChevronRight className="w-4 h-4 sm:w-6 sm:h-6" />
               </button>
             </div>
 
-            {/* Desktop View - Schedule Grid */}
+            {/* Desktop View - Schedule Grid - Zmniejszona rozdzielczość */}
             <div className="hidden md:block w-full border border-slate-200 rounded-3xl overflow-hidden shadow-xl bg-white">
-              <div className="grid grid-cols-6 min-h-[600px]">
+              <div className="grid grid-cols-6" style={{ maxHeight: 'calc(100vh - 250px)', fontSize: '0.75rem' }}>
                 {/* Enhanced Headers */}
                 <div className="font-bold p-4 md:p-6 h-16 sm:h-20 text-center border-b border-r bg-gradient-to-r from-blue-600 to-indigo-600 text-white flex items-center justify-center">
                   <span className="text-sm md:text-base lg:text-xl">Godzina</span>

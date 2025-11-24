@@ -18,7 +18,8 @@ import {
   X,
   Bot,
   School,
-  Clock
+  Clock,
+  Mail
 } from 'lucide-react';
 import CogitoLogo from '@/components/CogitoLogo';
 
@@ -114,6 +115,13 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
       icon: MessageSquare, 
       href: '/homelogin/teacher/group-chats',
       active: pathname === '/homelogin/teacher/group-chats'
+    },
+    { 
+      id: 'messages', 
+      label: 'Wiadomości od rodziców', 
+      icon: Mail, 
+      href: '/homelogin/teacher/messages',
+      active: pathname === '/homelogin/teacher/messages'
     },
     { 
       id: 'ai-help', 

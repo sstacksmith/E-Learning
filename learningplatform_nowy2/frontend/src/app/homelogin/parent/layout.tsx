@@ -17,7 +17,8 @@ import {
   AlertCircle,
   Clock,
   Menu,
-  GraduationCap
+  GraduationCap,
+  MessageSquare
 } from 'lucide-react';
 import CogitoLogo from '@/components/CogitoLogo';
 import { useRouter, usePathname } from 'next/navigation';
@@ -37,6 +38,10 @@ interface Notification {
   timestamp: string;
   read: boolean;
   courseTitle?: string;
+  action_url?: string;
+  gradeId?: string; // ID oceny dla powiadomień o ocenach
+  messageId?: string; // ID wiadomości dla powiadomień o odpowiedziach
+  teacherName?: string; // Imię nauczyciela
 }
 
 export default function ParentLayout({
@@ -116,25 +121,135 @@ export default function ParentLayout({
       if (!user || !selectedStudent) return;
 
       try {
-        const { collection, getDocs, query, where, limit } = await import('firebase/firestore');
+        const { collection, getDocs, query, where, limit, doc, getDoc } = await import('firebase/firestore');
         const { db } = await import('@/config/firebase');
 
-        // Pobierz ostatnie oceny jako powiadomienia (bez orderBy aby uniknąć błędu indeksu)
+        const allNotifications: Notification[] = [];
+
+        // 1. Pobierz powiadomienia z kolekcji notifications dla rodzica
+        const notificationsRef = collection(db, 'notifications');
+        const notificationsQuery = query(
+          notificationsRef, 
+          where('user_id', '==', user.uid)
+        );
+        const notificationsSnapshot = await getDocs(notificationsQuery);
+        
+        notificationsSnapshot.docs.forEach(notificationDoc => {
+          const notificationData = notificationDoc.data();
+          allNotifications.push({
+            id: notificationDoc.id,
+            type: notificationData.type || 'message',
+            title: notificationData.title || 'Powiadomienie',
+            message: notificationData.message || '',
+            timestamp: notificationData.timestamp?.toDate?.()?.toISOString() || notificationData.created_at?.toISOString() || new Date().toISOString(),
+            read: notificationData.read || false,
+            courseTitle: notificationData.courseTitle,
+            action_url: notificationData.action_url,
+            messageId: notificationData.messageId,
+            teacherName: notificationData.teacherName
+          });
+        });
+
+        // 2. Pobierz powiadomienia z kolekcji notifications dla ucznia (rodzic widzi powiadomienia dziecka)
+        const studentNotificationsQuery = query(
+          notificationsRef, 
+          where('user_id', '==', selectedStudent.id)
+        );
+        const studentNotificationsSnapshot = await getDocs(studentNotificationsQuery);
+        
+        studentNotificationsSnapshot.docs.forEach(notificationDoc => {
+          const notificationData = notificationDoc.data();
+          // Sprawdź czy powiadomienie już nie istnieje
+          if (!allNotifications.find(n => n.id === notificationDoc.id)) {
+            allNotifications.push({
+              id: notificationDoc.id,
+              type: notificationData.type || 'message',
+              title: notificationData.title || 'Powiadomienie',
+              message: notificationData.message || '',
+              timestamp: notificationData.timestamp?.toDate?.()?.toISOString() || notificationData.created_at?.toISOString() || new Date().toISOString(),
+              read: notificationData.read || false,
+              courseTitle: notificationData.courseTitle,
+              action_url: notificationData.action_url,
+              messageId: notificationData.messageId,
+              teacherName: notificationData.teacherName
+            });
+          }
+        });
+
+        // 3. Sprawdź nowe odpowiedzi w wiadomościach (gdy nauczyciel odpowiedział)
+        const messagesRef = collection(db, 'messages');
+        const receivedMessagesQuery = query(
+          messagesRef,
+          where('to', '==', user.uid),
+          where('read', '==', false)
+        );
+        const receivedMessagesSnapshot = await getDocs(receivedMessagesQuery);
+        
+        // Pobierz informacje o nauczycielach którzy odpowiedzieli
+        const teacherIds = [...new Set(receivedMessagesSnapshot.docs.map(doc => doc.data().from))];
+        const teacherInfoMap = new Map<string, string>();
+        
+        for (const teacherId of teacherIds) {
+          try {
+            const teacherDoc = await getDoc(doc(db, 'users', teacherId));
+            if (teacherDoc.exists()) {
+              const teacherData = teacherDoc.data();
+              teacherInfoMap.set(teacherId, teacherData.displayName || teacherData.email || 'Nauczyciel');
+            }
+          } catch (error) {
+            console.error(`Error fetching teacher ${teacherId}:`, error);
+          }
+        }
+        
+        // Utwórz powiadomienia o nieprzeczytanych odpowiedziach
+        // Sprawdź które wiadomości są już oznaczone jako przeczytane w powiadomieniach
+        const readMessageIds = new Set<string>();
+        allNotifications.forEach(n => {
+          if (n.messageId && n.read) {
+            readMessageIds.add(n.messageId);
+          }
+        });
+        
+        receivedMessagesSnapshot.docs.forEach(messageDoc => {
+          const messageData = messageDoc.data();
+          
+          // Sprawdź czy to odpowiedź od nauczyciela (wiadomość od kogoś innego niż rodzic)
+          if (messageData.from !== user.uid && !readMessageIds.has(messageDoc.id)) {
+            const teacherName = teacherInfoMap.get(messageData.from) || 'Nauczyciel';
+            
+            allNotifications.push({
+              id: `message_${messageDoc.id}`,
+              type: 'message',
+              title: 'Nowa odpowiedź od nauczyciela',
+              message: `${teacherName} odpowiedział na Twoją wiadomość: ${messageData.content?.substring(0, 50) || ''}${messageData.content?.length > 50 ? '...' : ''}`,
+              timestamp: messageData.timestamp?.toDate?.()?.toISOString() || new Date().toISOString(),
+              read: false, // Zawsze nieprzeczytane jeśli to nowa odpowiedź
+              action_url: '/homelogin/parent/messages',
+              messageId: messageDoc.id,
+              teacherName: teacherName
+            });
+          }
+        });
+
+        // 4. Pobierz ostatnie oceny jako powiadomienia
         const gradesRef = collection(db, 'grades');
-        let gradesQuery = query(gradesRef, where('studentId', '==', selectedStudent.id), limit(10));
+        let gradesQuery = query(gradesRef, where('studentId', '==', selectedStudent.id), limit(20));
         let gradesSnapshot = await getDocs(gradesQuery);
         
         // Spróbuj alternatywne nazwy pól jeśli nie znaleziono
         if (gradesSnapshot.empty) {
-          gradesQuery = query(gradesRef, where('user_id', '==', selectedStudent.id), limit(10));
+          gradesQuery = query(gradesRef, where('user_id', '==', selectedStudent.id), limit(20));
           gradesSnapshot = await getDocs(gradesQuery);
         }
         if (gradesSnapshot.empty) {
-          gradesQuery = query(gradesRef, where('student', '==', selectedStudent.id), limit(10));
+          gradesQuery = query(gradesRef, where('student', '==', selectedStudent.id), limit(20));
           gradesSnapshot = await getDocs(gradesQuery);
         }
 
-        const gradeNotifications: Notification[] = [];
+        // Sprawdź które oceny są już oznaczone jako przeczytane
+        const readGradesRef = doc(db, 'notification_read_status', user.uid);
+        const readGradesDoc = await getDoc(readGradesRef);
+        const readGrades = readGradesDoc.exists() ? (readGradesDoc.data().readGrades || []) : [];
         
         // Zbierz unikalne course_id
         const courseIds = new Set<string>();
@@ -143,8 +258,7 @@ export default function ParentLayout({
           if (gradeData.course_id) courseIds.add(gradeData.course_id);
         });
         
-        // Pobierz wszystkie kursy jednocześnie (batch query)
-        const { doc, getDoc } = await import('firebase/firestore');
+        // Pobierz wszystkie kursy jednocześnie
         const courseQueries = Array.from(courseIds).slice(0, 20).map(courseId => 
           getDoc(doc(db, 'courses', courseId))
         );
@@ -156,62 +270,49 @@ export default function ParentLayout({
           }
         });
         
-        // Przetwórz oceny
+        // Przetwórz oceny - sprawdź czy są już przeczytane
         gradesSnapshot.docs.forEach(gradeDoc => {
           const gradeData = gradeDoc.data();
           const courseTitle = gradeData.course_id ? (coursesMap.get(gradeData.course_id) || 'Nieznany kurs') : 'Nieznany kurs';
           const gradeValue = gradeData.value || gradeData.grade || 0;
           const gradeDate = gradeData.date || gradeData.graded_at;
+          const isRead = readGrades.includes(gradeDoc.id);
           
-          gradeNotifications.push({
-            id: gradeDoc.id,
-            type: 'grade',
-            title: 'Nowa ocena',
-            message: `Otrzymano ocenę ${gradeValue} z przedmiotu ${courseTitle}`,
-            timestamp: gradeDate || new Date().toISOString(),
-            read: false,
-            courseTitle
-          });
+          // Sprawdź czy powiadomienie o tej ocenie już nie istnieje
+          if (!allNotifications.find(n => n.id === `grade_${gradeDoc.id}`)) {
+            allNotifications.push({
+              id: `grade_${gradeDoc.id}`,
+              type: 'grade',
+              title: 'Nowa ocena',
+              message: `Otrzymano ocenę ${gradeValue} z przedmiotu ${courseTitle}`,
+              timestamp: gradeDate || new Date().toISOString(),
+              read: isRead,
+              courseTitle,
+              gradeId: gradeDoc.id // Zapisz ID oceny do późniejszego oznaczenia jako przeczytana
+            });
+          }
         });
 
-        // Dodaj przykładowe powiadomienia (można rozszerzyć o inne typy)
-        const mockNotifications: Notification[] = [
-          {
-            id: 'welcome',
-            type: 'message',
-            title: 'Witamy w systemie',
-            message: 'Dziękujemy za korzystanie z naszej platformy edukacyjnej.',
-            timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-            read: false
-          }
-        ];
-
-        const allNotifications = [...gradeNotifications, ...mockNotifications]
+        // Sortuj i ogranicz do 20 najnowszych
+        const sortedNotifications = allNotifications
           .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-          .slice(0, 10); // Ogranicz do 10 najnowszych po sortowaniu
+          .slice(0, 20);
 
-        setNotifications(allNotifications);
-        setUnreadCount(allNotifications.filter(n => !n.read).length);
+        setNotifications(sortedNotifications);
+        setUnreadCount(sortedNotifications.filter(n => !n.read).length);
 
       } catch (error) {
         console.error('Error fetching notifications:', error);
-        // Fallback do przykładowych powiadomień w przypadku błędu
-        const fallbackNotifications: Notification[] = [
-          {
-            id: 'error',
-            type: 'message',
-            title: 'Błąd pobierania powiadomień',
-            message: 'Nie udało się pobrać najnowszych powiadomień.',
-            timestamp: new Date().toISOString(),
-            read: false
-          }
-        ];
-        setNotifications(fallbackNotifications);
-        setUnreadCount(1);
+        setNotifications([]);
+        setUnreadCount(0);
       }
     };
 
     fetchNotifications();
+    
+    // Odświeżaj powiadomienia co 30 sekund
+    const interval = setInterval(fetchNotifications, 30000);
+    return () => clearInterval(interval);
   }, [user, selectedStudent]);
 
   // Zamknij powiadomienia po kliknięciu poza nimi
@@ -228,22 +329,108 @@ export default function ParentLayout({
     };
   }, []);
 
-  const markNotificationAsRead = (notificationId: string) => {
-    setNotifications(prev => 
-      prev.map(notification => 
-        notification.id === notificationId 
-          ? { ...notification, read: true }
-          : notification
-      )
-    );
-    setUnreadCount(prev => Math.max(0, prev - 1));
+  const markNotificationAsRead = async (notificationId: string) => {
+    if (!user) return;
+    
+    const notification = notifications.find(n => n.id === notificationId);
+    if (!notification || notification.read) return;
+
+    try {
+      const { doc, updateDoc, setDoc, getDoc } = await import('firebase/firestore');
+      const { db } = await import('@/config/firebase');
+
+      // Jeśli to powiadomienie z kolekcji notifications
+      if (notificationId.startsWith('grade_')) {
+        // To powiadomienie o ocenie - zapisz w notification_read_status
+        const readStatusRef = doc(db, 'notification_read_status', user.uid);
+        const readStatusDoc = await getDoc(readStatusRef);
+        const currentReadGrades = readStatusDoc.exists() ? (readStatusDoc.data().readGrades || []) : [];
+        
+        if (notification.gradeId && !currentReadGrades.includes(notification.gradeId)) {
+          await setDoc(readStatusRef, {
+            readGrades: [...currentReadGrades, notification.gradeId],
+            lastUpdated: new Date().toISOString()
+          }, { merge: true });
+        }
+      } else {
+        // To powiadomienie z kolekcji notifications - zaktualizuj bezpośrednio
+        const notificationRef = doc(db, 'notifications', notificationId);
+        await updateDoc(notificationRef, {
+          read: true,
+          readAt: new Date().toISOString()
+        });
+      }
+
+      // Aktualizuj stan lokalny
+      setNotifications(prev => 
+        prev.map(n => 
+          n.id === notificationId 
+            ? { ...n, read: true }
+            : n
+        )
+      );
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+      // Aktualizuj stan lokalny nawet jeśli zapis się nie powiódł
+      setNotifications(prev => 
+        prev.map(n => 
+          n.id === notificationId 
+            ? { ...n, read: true }
+            : n
+        )
+      );
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    }
   };
 
-  const markAllAsRead = () => {
-    setNotifications(prev => 
-      prev.map(notification => ({ ...notification, read: true }))
-    );
-    setUnreadCount(0);
+  const markAllAsRead = async () => {
+    if (!user) return;
+    
+    try {
+      const { doc, updateDoc, setDoc, collection, getDocs, query, where } = await import('firebase/firestore');
+      const { db } = await import('@/config/firebase');
+
+      // Oznacz wszystkie powiadomienia z kolekcji notifications
+      const notificationsRef = collection(db, 'notifications');
+      const notificationsQuery = query(notificationsRef, where('user_id', '==', user.uid));
+      const notificationsSnapshot = await getDocs(notificationsQuery);
+      
+      const updatePromises = notificationsSnapshot.docs.map(doc => 
+        updateDoc(doc.ref, {
+          read: true,
+          readAt: new Date().toISOString()
+        })
+      );
+      await Promise.all(updatePromises);
+
+      // Oznacz wszystkie oceny jako przeczytane
+      const readStatusRef = doc(db, 'notification_read_status', user.uid);
+      const allGradeIds = notifications
+        .filter(n => n.gradeId)
+        .map(n => n.gradeId!)
+        .filter((id, index, self) => self.indexOf(id) === index);
+      
+      if (allGradeIds.length > 0) {
+        await setDoc(readStatusRef, {
+          readGrades: allGradeIds,
+          lastUpdated: new Date().toISOString()
+        }, { merge: true });
+      }
+
+      // Aktualizuj stan lokalny
+      setNotifications(prev => 
+        prev.map(n => ({ ...n, read: true }))
+      );
+      setUnreadCount(0);
+    } catch (error) {
+      console.error('Error marking all notifications as read:', error);
+      // Aktualizuj stan lokalny nawet jeśli zapis się nie powiódł
+      setNotifications(prev => 
+        prev.map(n => ({ ...n, read: true }))
+      );
+      setUnreadCount(0);
+    }
   };
 
   const getNotificationIcon = (type: string) => {
@@ -308,6 +495,13 @@ export default function ParentLayout({
       icon: BarChart3, 
       href: '/homelogin/parent/stats',
       active: pathname === '/homelogin/parent/stats'
+    },
+    { 
+      id: 'messages', 
+      label: 'Wiadomości', 
+      icon: MessageSquare, 
+      href: '/homelogin/parent/messages',
+      active: pathname === '/homelogin/parent/messages'
     },
   ];
 
@@ -551,7 +745,13 @@ export default function ParentLayout({
                       notifications.map((notification) => (
                         <div
                           key={notification.id}
-                          onClick={() => markNotificationAsRead(notification.id)}
+                          onClick={async () => {
+                            await markNotificationAsRead(notification.id);
+                            if (notification.action_url) {
+                              setShowNotifications(false);
+                              router.push(notification.action_url);
+                            }
+                          }}
                           className={`p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors ${
                             !notification.read ? 'bg-blue-50' : ''
                           }`}
@@ -591,19 +791,6 @@ export default function ParentLayout({
                   </div>
 
                   {/* Footer */}
-                  {notifications.length > 0 && (
-                    <div className="p-3 border-t border-gray-200 bg-gray-50">
-                      <button 
-                        onClick={() => {
-                          setShowNotifications(false);
-                          // Tutaj można dodać przekierowanie do strony wszystkich powiadomień
-                        }}
-                        className="w-full text-center text-sm text-blue-600 hover:text-blue-800 font-medium"
-                      >
-                        Zobacz wszystkie powiadomienia
-                      </button>
-                    </div>
-                  )}
                 </div>
               )}
             </div>

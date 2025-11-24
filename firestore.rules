@@ -164,6 +164,64 @@ service cloud.firestore {
       );
     }
     
+    // Sesje użytkowników - użytkownicy mogą zarządzać tylko swoimi sesjami
+    match /userSessions/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Czas nauki użytkowników - użytkownicy mogą zarządzać tylko swoim czasem
+    match /userLearningTime/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      // Nauczyciele i admini mogą czytać wszystkie dane
+      allow read: if request.auth != null && (
+        request.auth.token.role == 'admin' || 
+        request.auth.token.role == 'teacher'
+      );
+    }
+    
+    // Wiadomości - użytkownicy mogą czytać i pisać wiadomości, gdzie są nadawcą lub odbiorcą
+    match /messages/{messageId} {
+      allow read: if request.auth != null && (
+        request.auth.uid == resource.data.from || 
+        request.auth.uid == resource.data.to ||
+        request.auth.token.role == 'admin' || 
+        request.auth.token.role == 'teacher'
+      );
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.from;
+      allow update: if request.auth != null && (
+        request.auth.uid == resource.data.from ||
+        request.auth.uid == resource.data.to ||
+        request.auth.token.role == 'admin' || 
+        request.auth.token.role == 'teacher'
+      );
+      allow delete: if request.auth != null && (
+        request.auth.uid == resource.data.from ||
+        request.auth.token.role == 'admin'
+      );
+    }
+    
+    // Relacje rodzic-uczeń - rodzice mogą czytać swoje relacje
+    match /parent_students/{documentId} {
+      allow read: if request.auth != null && (
+        request.auth.uid == resource.data.parent ||
+        request.auth.token.role == 'admin' || 
+        request.auth.token.role == 'teacher'
+      );
+      allow create: if request.auth != null && (
+        request.auth.token.role == 'admin' || 
+        request.auth.token.role == 'teacher'
+      );
+      allow update, delete: if request.auth != null && (
+        request.auth.token.role == 'admin' || 
+        request.auth.token.role == 'teacher'
+      );
+    }
+    
+    // Status przeczytanych powiadomień - użytkownicy mogą zarządzać tylko swoim statusem
+    match /notification_read_status/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
     // Domyślnie - tylko zalogowani użytkownicy mogą czytać
     match /{document=**} {
       allow read: if request.auth != null;

@@ -3,8 +3,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { collection, getDocs, query, where, doc, getDoc } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { useAuth } from '@/context/AuthContext';
-import { ArrowLeft, BookOpen, Award, Calendar, User } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { BookOpen, Award, Calendar, User } from 'lucide-react';
 
 interface Grade {
   id: string;
@@ -38,13 +37,14 @@ interface Course {
 
 export default function ParentGrades() {
   const { user } = useAuth();
-  const router = useRouter();
   const [grades, setGrades] = useState<Grade[]>([]);
   const [loading, setLoading] = useState(true);
   const [displayName, setDisplayName] = useState<string>('');
   const [userCourses, setUserCourses] = useState<any[]>([]);
   const [studentId, setStudentId] = useState<string | null>(null);
   const [studentEmail, setStudentEmail] = useState<string | null>(null);
+  const [attendanceData, setAttendanceData] = useState<{[subject: string]: {present: number, total: number, percentage: number}}>({});
+  const [globalAttendance, setGlobalAttendance] = useState<{present: number, total: number, percentage: number}>({present: 0, total: 0, percentage: 0});
 
   useEffect(() => {
     if (!user) return;
@@ -195,6 +195,90 @@ export default function ParentGrades() {
     return course?.courseType || 'obowiązkowy'; // domyślnie obowiązkowy
   };
 
+  // Funkcja do obliczania frekwencji dla przedmiotu
+  const calculateAttendanceForSubject = (subject: string, studentId: string | null): {present: number, total: number, percentage: number} => {
+    if (!studentId || !attendanceData[subject]) {
+      return {present: 0, total: 0, percentage: 0};
+    }
+    return attendanceData[subject];
+  };
+
+  // Pobierz frekwencję z events
+  useEffect(() => {
+    const fetchAttendance = async () => {
+      if (!studentId) return;
+
+      try {
+        // Pobierz wszystkie wydarzenia (events) dla ucznia
+        const eventsRef = collection(db, 'events');
+        const eventsSnapshot = await getDocs(eventsRef);
+        const allEvents = eventsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+        // Filtruj wydarzenia dla ucznia
+        const studentEvents = allEvents.filter((event: any) => {
+          if (event.assignedTo && event.assignedTo.includes(studentId)) return true;
+          if (event.students && event.students.includes(studentId)) return true;
+          return false;
+        });
+
+        // Grupuj wydarzenia po przedmiocie/subject
+        const eventsBySubject: {[subject: string]: any[]} = {};
+        studentEvents.forEach((event: any) => {
+          const subject = event.subject || event.title || 'Inne';
+          if (!eventsBySubject[subject]) {
+            eventsBySubject[subject] = [];
+          }
+          eventsBySubject[subject].push(event);
+        });
+
+        // Oblicz frekwencję per przedmiot
+        const attendanceBySubject: {[subject: string]: {present: number, total: number, percentage: number}} = {};
+        let globalPresent = 0;
+        let globalTotal = 0;
+
+        Object.keys(eventsBySubject).forEach(subject => {
+          const subjectEvents = eventsBySubject[subject];
+          let present = 0;
+          let total = subjectEvents.length;
+
+          // Sprawdź obecności w eventach (jeśli mają pole attendance)
+          subjectEvents.forEach((event: any) => {
+            if (event.attendance) {
+              const studentAttendance = event.attendance[studentId] || event.attendance[studentEmail || ''];
+              if (studentAttendance === 'present' || studentAttendance === true) {
+                present++;
+              }
+            } else {
+              // Jeśli nie ma danych o obecności, zakładamy że uczeń był obecny (dla wydarzeń przypisanych)
+              present++;
+            }
+          });
+
+          const percentage = total > 0 ? Math.round((present / total) * 100) : 0;
+          attendanceBySubject[subject] = {present, total, percentage};
+          globalPresent += present;
+          globalTotal += total;
+        });
+
+        setAttendanceData(attendanceBySubject);
+        
+        // Oblicz globalną frekwencję
+        const globalPercentage = globalTotal > 0 ? Math.round((globalPresent / globalTotal) * 100) : 0;
+        setGlobalAttendance({
+          present: globalPresent,
+          total: globalTotal,
+          percentage: globalPercentage
+        });
+      } catch (error) {
+        console.error('Error fetching attendance:', error);
+        // Ustaw domyślne wartości jeśli nie ma danych
+        setGlobalAttendance({present: 0, total: 0, percentage: 0});
+      }
+    };
+
+    fetchAttendance();
+  }, [studentId, studentEmail]);
+
   // Rozdzielenie kursów na obowiązkowe i fakultatywne (włączając kursy bez ocen)
   const allCourses = [...Object.entries(groupedGrades)];
   
@@ -270,41 +354,7 @@ export default function ParentGrades() {
       {/* Header - pełna szerokość */}
       <div className="w-full bg-white/80 backdrop-blur-lg border-b border-white/20 shadow-sm">
         <div className="w-full px-4 sm:px-6 lg:px-8 py-4">
-          {/* Mobile Layout - Vertical Stack */}
-          <div className="flex flex-col gap-3 sm:hidden">
-            <div className="flex items-center justify-between">
-              <button
-                onClick={() => router.push('/homelogin')}
-                className="flex items-center gap-2 px-3 py-2 bg-white/60 backdrop-blur-sm text-gray-700 rounded-lg hover:bg-white hover:shadow-lg transition-all duration-200 ease-in-out border border-white/20"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                <span className="text-sm">Powrót</span>
-              </button>
-              
-              <button
-                onClick={fetchGrades}
-                disabled={loading}
-                className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors text-sm"
-              >
-                {loading ? 'Ładowanie...' : 'Odśwież'}
-              </button>
-            </div>
-            
-            <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-              Dziennik ocen
-            </h1>
-          </div>
-
-          {/* Desktop Layout - Horizontal */}
-          <div className="hidden sm:flex items-center justify-between">
-            <button
-              onClick={() => router.push('/homelogin')}
-              className="flex items-center gap-2 px-4 py-2 bg-white/60 backdrop-blur-sm text-gray-700 rounded-lg hover:bg-white hover:shadow-lg transition-all duration-200 ease-in-out border border-white/20"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              Powrót do strony głównej
-            </button>
-            
+          <div className="flex items-center justify-between">
             <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
               Dziennik ocen
             </h1>
@@ -312,7 +362,7 @@ export default function ParentGrades() {
             <button
               onClick={fetchGrades}
               disabled={loading}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors text-sm sm:text-base"
             >
               {loading ? 'Ładowanie...' : 'Odśwież'}
             </button>
@@ -374,8 +424,188 @@ export default function ParentGrades() {
           </div>
         </div>
 
-        {/* Grades Table - dwie kolumny */}
-        <div className="w-full grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Grades Grid - widok kafelkowy */}
+        <div className="w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
+          {/* Przedmioty obowiązkowe - kafelki */}
+          {mandatoryCourses.map(([subject, subjectGrades]) => {
+            // Oblicz frekwencję dla tego przedmiotu
+            const attendance = calculateAttendanceForSubject(subject, studentId);
+            return (
+              <div 
+                key={`mandatory-${subject}`} 
+                className="bg-white rounded-2xl shadow-lg border border-gray-100 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 ease-in-out overflow-hidden"
+              >
+                <div className="px-4 sm:px-5 py-3 sm:py-4 bg-gradient-to-r from-blue-600 via-blue-600 to-blue-700 rounded-t-2xl">
+                  <h2 className="text-base sm:text-lg font-bold text-white truncate">{subject}</h2>
+                </div>
+                <div className="p-4 sm:p-5">
+                  {/* Średnia */}
+                  <div className="mb-4">
+                    <div className="text-xs text-gray-500 mb-1.5 font-medium">Średnia</div>
+                    <div className="text-2xl sm:text-3xl font-bold text-blue-600">
+                      {subjectGrades.length > 0 ? calculateAverage(subjectGrades) : '-'}
+                    </div>
+                  </div>
+                  
+                  {/* Oceny */}
+                  <div className="mb-4">
+                    <div className="text-xs text-gray-500 mb-2 font-medium">Oceny</div>
+                    <div className="flex flex-wrap gap-1.5 sm:gap-2">
+                      {subjectGrades.length > 0 ? (
+                        subjectGrades.slice(0, 6).map((grade) => {
+                          const gradeValue = grade.grade || grade.value || grade.value_grade;
+                          return (
+                            <div key={grade.id} className={`px-2.5 py-1 rounded-lg text-xs font-bold shadow-sm ${getGradeColor(gradeValue)}`}>
+                              {gradeValue}
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <span className="text-xs text-gray-400 italic">Brak ocen</span>
+                      )}
+                      {subjectGrades.length > 6 && (
+                        <div className="px-2.5 py-1 rounded-lg text-xs font-bold bg-gray-100 text-gray-700 shadow-sm">
+                          +{subjectGrades.length - 6}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Frekwencja per przedmiot */}
+                  <div className="pt-3 border-t border-gray-100">
+                    <div className="text-xs text-gray-500 mb-1.5 font-medium">Frekwencja</div>
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="text-base sm:text-lg font-bold text-gray-800">
+                        {attendance.percentage}%
+                      </div>
+                      <div className={`w-2 h-2 rounded-full ${attendance.percentage >= 90 ? 'bg-green-500' : attendance.percentage >= 75 ? 'bg-yellow-500' : 'bg-red-500'}`}></div>
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {attendance.present}/{attendance.total} obecności
+                    </div>
+                    <div className="mt-2 w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
+                      <div 
+                        className={`h-full rounded-full transition-all duration-500 ${
+                          attendance.percentage >= 90 ? 'bg-green-500' : 
+                          attendance.percentage >= 75 ? 'bg-yellow-500' : 
+                          'bg-red-500'
+                        }`}
+                        style={{ width: `${attendance.percentage}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+          
+          {/* Przedmioty fakultatywne - kafelki */}
+          {electiveCourses.map(([subject, subjectGrades]) => {
+            // Oblicz frekwencję dla tego przedmiotu
+            const attendance = calculateAttendanceForSubject(subject, studentId);
+            return (
+              <div 
+                key={`elective-${subject}`} 
+                className="bg-white rounded-2xl shadow-lg border border-gray-100 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 ease-in-out overflow-hidden"
+              >
+                <div className="px-4 sm:px-5 py-3 sm:py-4 bg-gradient-to-r from-green-600 via-green-600 to-green-700 rounded-t-2xl">
+                  <h2 className="text-base sm:text-lg font-bold text-white truncate">{subject}</h2>
+                </div>
+                <div className="p-4 sm:p-5">
+                  {/* Średnia */}
+                  <div className="mb-4">
+                    <div className="text-xs text-gray-500 mb-1.5 font-medium">Średnia</div>
+                    <div className="text-2xl sm:text-3xl font-bold text-green-600">
+                      {subjectGrades.length > 0 ? calculateAverage(subjectGrades) : '-'}
+                    </div>
+                  </div>
+                  
+                  {/* Oceny */}
+                  <div className="mb-4">
+                    <div className="text-xs text-gray-500 mb-2 font-medium">Oceny</div>
+                    <div className="flex flex-wrap gap-1.5 sm:gap-2">
+                      {subjectGrades.length > 0 ? (
+                        subjectGrades.slice(0, 6).map((grade) => {
+                          const gradeValue = grade.grade || grade.value || grade.value_grade;
+                          return (
+                            <div key={grade.id} className={`px-2.5 py-1 rounded-lg text-xs font-bold shadow-sm ${getGradeColor(gradeValue)}`}>
+                              {gradeValue}
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <span className="text-xs text-gray-400 italic">Brak ocen</span>
+                      )}
+                      {subjectGrades.length > 6 && (
+                        <div className="px-2.5 py-1 rounded-lg text-xs font-bold bg-gray-100 text-gray-700 shadow-sm">
+                          +{subjectGrades.length - 6}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Frekwencja per przedmiot */}
+                  <div className="pt-3 border-t border-gray-100">
+                    <div className="text-xs text-gray-500 mb-1.5 font-medium">Frekwencja</div>
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="text-base sm:text-lg font-bold text-gray-800">
+                        {attendance.percentage}%
+                      </div>
+                      <div className={`w-2 h-2 rounded-full ${attendance.percentage >= 90 ? 'bg-green-500' : attendance.percentage >= 75 ? 'bg-yellow-500' : 'bg-red-500'}`}></div>
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {attendance.present}/{attendance.total} obecności
+                    </div>
+                    <div className="mt-2 w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
+                      <div 
+                        className={`h-full rounded-full transition-all duration-500 ${
+                          attendance.percentage >= 90 ? 'bg-green-500' : 
+                          attendance.percentage >= 75 ? 'bg-yellow-500' : 
+                          'bg-red-500'
+                        }`}
+                        style={{ width: `${attendance.percentage}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        
+        {/* Frekwencja globalna */}
+        <div className="w-full mt-6 bg-white rounded-2xl shadow-lg border border-gray-100 p-6 sm:p-8">
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-6">Frekwencja globalna</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
+            <div className="text-center p-5 sm:p-6 bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl border border-blue-200 shadow-sm hover:shadow-md transition-shadow">
+              <div className="text-3xl sm:text-4xl font-bold text-blue-600 mb-2">{globalAttendance.percentage}%</div>
+              <div className="text-sm sm:text-base text-gray-700 font-medium">Ogólna frekwencja</div>
+              <div className="mt-3 w-full bg-blue-200 rounded-full h-2 overflow-hidden">
+                <div 
+                  className={`h-full rounded-full transition-all duration-500 ${
+                    globalAttendance.percentage >= 90 ? 'bg-green-500' : 
+                    globalAttendance.percentage >= 75 ? 'bg-yellow-500' : 
+                    'bg-red-500'
+                  }`}
+                  style={{ width: `${globalAttendance.percentage}%` }}
+                ></div>
+              </div>
+            </div>
+            <div className="text-center p-5 sm:p-6 bg-gradient-to-br from-green-50 to-green-100 rounded-2xl border border-green-200 shadow-sm hover:shadow-md transition-shadow">
+              <div className="text-3xl sm:text-4xl font-bold text-green-600 mb-2">{globalAttendance.present}</div>
+              <div className="text-sm sm:text-base text-gray-700 font-medium">Obecności</div>
+              <div className="mt-3 text-xs text-gray-600">z {globalAttendance.total} zajęć</div>
+            </div>
+            <div className="text-center p-5 sm:p-6 bg-gradient-to-br from-red-50 to-red-100 rounded-2xl border border-red-200 shadow-sm hover:shadow-md transition-shadow">
+              <div className="text-3xl sm:text-4xl font-bold text-red-600 mb-2">{globalAttendance.total - globalAttendance.present}</div>
+              <div className="text-sm sm:text-base text-gray-700 font-medium">Nieobecności</div>
+              <div className="mt-3 text-xs text-gray-600">z {globalAttendance.total} zajęć</div>
+            </div>
+          </div>
+        </div>
+        
+        {/* Stary widok - ukryty dla kompatybilności */}
+        <div className="hidden">
           {/* Przedmioty obowiązkowe */}
           <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-white/20">
             <div className="px-4 sm:px-6 py-4 bg-gradient-to-r from-blue-600 to-blue-700">

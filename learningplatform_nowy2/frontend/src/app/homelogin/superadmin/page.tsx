@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import Providers from '@/components/Providers';
 import { db } from "@/config/firebase";
-import { collection, getDocs, doc, updateDoc } from "firebase/firestore";
+import { collection, getDocs, doc, updateDoc, getDoc } from "firebase/firestore";
 import { auth } from "@/config/firebase";
 import {
   BookOpen,
@@ -127,6 +127,10 @@ function SuperAdminDashboardContent() {
   const [editCourseDescription, setEditCourseDescription] = useState("");
   const [editCourseSubject, setEditCourseSubject] = useState("");
   const [editCourseTeacher, setEditCourseTeacher] = useState("");
+  const [showEditTeacherSpecializationModal, setShowEditTeacherSpecializationModal] = useState(false);
+  const [editingTeacher, setEditingTeacher] = useState<FirestoreUser | null>(null);
+  const [teacherInstructorType, setTeacherInstructorType] = useState<string>("");
+  const [teacherSpecialization, setTeacherSpecialization] = useState<string>("");
   const [editCourseStudents, setEditCourseStudents] = useState<string[]>([]);
   const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -567,6 +571,34 @@ function SuperAdminDashboardContent() {
     } catch (err) {
       console.error('Error rejecting user:', err);
       setError('Nie udało się odrzucić użytkownika');
+      setTimeout(() => setError(''), 3000);
+    }
+  };
+
+  const saveTeacherSpecialization = async () => {
+    if (!editingTeacher) return;
+    
+    try {
+      const specializationArray = teacherSpecialization
+        .split(',')
+        .map(s => s.trim())
+        .filter(s => s.length > 0);
+      
+      await updateDoc(doc(db, 'users', editingTeacher.id), {
+        instructorType: teacherInstructorType || null,
+        specialization: specializationArray.length > 0 ? specializationArray : null
+      });
+      
+      setSuccess(`Specjalizacja nauczyciela została zaktualizowana`);
+      setTimeout(() => setSuccess(''), 3000);
+      setShowEditTeacherSpecializationModal(false);
+      setEditingTeacher(null);
+      setTeacherInstructorType('');
+      setTeacherSpecialization('');
+      fetchUsers(); // Refresh the list
+    } catch (err) {
+      console.error('Error saving teacher specialization:', err);
+      setError('Nie udało się zapisać specjalizacji');
       setTimeout(() => setError(''), 3000);
     }
   };
@@ -1422,13 +1454,35 @@ function SuperAdminDashboardContent() {
                               </button>
                             )}
                             {user.role === 'teacher' && (
-                              <button 
-                                onClick={() => setStudentRole(user.id)}
-                                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 transition-colors"
-                              >
-                                <Users className="h-3 w-3" />
-                                Uczeń
-                              </button>
+                              <>
+                                <button 
+                                  onClick={() => setStudentRole(user.id)}
+                                  className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 transition-colors"
+                                >
+                                  <Users className="h-3 w-3" />
+                                  Uczeń
+                                </button>
+                                <button 
+                                  onClick={() => {
+                                    setEditingTeacher(user);
+                                    // Pobierz aktualne dane nauczyciela
+                                    const teacherDoc = doc(db, 'users', user.id);
+                                    getDoc(teacherDoc).then(docSnap => {
+                                      if (docSnap.exists()) {
+                                        const data = docSnap.data();
+                                        setTeacherInstructorType(data.instructorType || '');
+                                        setTeacherSpecialization(Array.isArray(data.specialization) ? data.specialization.join(', ') : (data.specialization || ''));
+                                      }
+                                    });
+                                    setShowEditTeacherSpecializationModal(true);
+                                  }}
+                                  className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-indigo-700 bg-indigo-100 border border-indigo-300 rounded-md hover:bg-indigo-200 transition-colors"
+                                  title="Edytuj specjalizację"
+                                >
+                                  <Edit className="h-3 w-3" />
+                                  Specjalizacja
+                                </button>
+                              </>
                             )}
                             <button 
                               onClick={() => deleteUser(user.id)}
@@ -2661,6 +2715,78 @@ function SuperAdminDashboardContent() {
             </div>
           </div>
         )}
+
+      {/* Edit Teacher Specialization Modal */}
+      {showEditTeacherSpecializationModal && editingTeacher && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-bold mb-4">Edytuj specjalizację nauczyciela</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Nauczyciel
+                </label>
+                <p className="text-sm text-gray-900">
+                  {editingTeacher.firstName} {editingTeacher.lastName} ({editingTeacher.email})
+                </p>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Typ instruktora
+                </label>
+                <select
+                  value={teacherInstructorType}
+                  onChange={(e) => setTeacherInstructorType(e.target.value)}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#4067EC] focus:ring-[#4067EC]"
+                >
+                  <option value="">-- Brak --</option>
+                  <option value="wychowawca">Wychowawca</option>
+                  <option value="tutor">Tutor</option>
+                  <option value="nauczyciel_wspomagajacy">Nauczyciel wspomagający</option>
+                  <option value="pedagog_specjalny">Pedagog specjalny</option>
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Specjalizacje (oddzielone przecinkami)
+                </label>
+                <input
+                  type="text"
+                  value={teacherSpecialization}
+                  onChange={(e) => setTeacherSpecialization(e.target.value)}
+                  placeholder="np. Matematyka, Fizyka, Informatyka"
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#4067EC] focus:ring-[#4067EC]"
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Wpisz specjalizacje oddzielone przecinkami (np. Matematyka, Fizyka)
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex justify-end mt-6 space-x-3">
+              <button
+                onClick={() => {
+                  setShowEditTeacherSpecializationModal(false);
+                  setEditingTeacher(null);
+                  setTeacherInstructorType('');
+                  setTeacherSpecialization('');
+                }}
+                className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300"
+              >
+                Anuluj
+              </button>
+              <button
+                onClick={saveTeacherSpecialization}
+                className="px-4 py-2 bg-[#4067EC] text-white rounded-md hover:bg-[#3155d4]"
+              >
+                Zapisz
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Add Member Modal */}
       {showAddMemberModal && (

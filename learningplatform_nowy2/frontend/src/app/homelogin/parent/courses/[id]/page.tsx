@@ -401,64 +401,98 @@ function ParentCourseDetailContent() {
         </div>
       </div>
 
-      {/* Statystyki ucznia */}
+      {/* Informacje o kursie */}
       <div className="px-4 sm:px-6 lg:px-8 py-6">
+        {/* Opis kursu */}
+        <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-lg border border-white/20 p-6 mb-6">
+          <h2 className="text-xl font-bold text-gray-900 mb-3">O kursie</h2>
+          <p className="text-gray-700 mb-4">{course.description || course.description || 'Brak opisu kursu'}</p>
+          <div className="flex flex-wrap gap-3">
+            {course.subject && (
+              <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
+                {course.subject}
+              </span>
+            )}
+            {course.courseType && (
+              <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                course.courseType === 'fakultatywny' 
+                  ? 'bg-green-100 text-green-700' 
+                  : 'bg-purple-100 text-purple-700'
+              }`}>
+                {course.courseType === 'fakultatywny' ? 'Fakultatywny' : 'Obowiązkowy'}
+              </span>
+            )}
+            {course.year_of_study && (
+              <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm font-medium">
+                Rok {course.year_of_study}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Statystyki ucznia */}
         <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-lg border border-white/20 p-6 mb-6">
           <h2 className="text-xl font-bold text-gray-900 mb-4">
             Postęp {assignedStudent?.name || 'ucznia'} w kursie
           </h2>
           
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+            <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl shadow-sm border border-blue-200 p-4 hover:shadow-md transition-shadow">
               <div className="flex items-center">
-                <div className="p-2 bg-blue-100 rounded-lg">
+                <div className="p-2 bg-blue-200 rounded-lg">
                   <BarChart3 className="w-5 h-5 text-blue-600" />
                 </div>
                 <div className="ml-3">
-                  <p className="text-sm text-gray-600">Postęp</p>
-                  <p className="text-lg font-semibold text-gray-900">
+                  <p className="text-sm text-gray-600 font-medium">Postęp</p>
+                  <p className="text-xl font-bold text-blue-700">
                     {statistics.progress}%
                   </p>
                 </div>
               </div>
+              <div className="mt-3 w-full bg-blue-200 rounded-full h-2">
+                <div 
+                  className="bg-blue-600 h-2 rounded-full transition-all duration-500"
+                  style={{ width: `${statistics.progress}%` }}
+                ></div>
+              </div>
             </div>
 
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+            <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl shadow-sm border border-green-200 p-4 hover:shadow-md transition-shadow">
               <div className="flex items-center">
-                <div className="p-2 bg-green-100 rounded-lg">
+                <div className="p-2 bg-green-200 rounded-lg">
                   <CheckCircle className="w-5 h-5 text-green-600" />
                 </div>
                 <div className="ml-3">
-                  <p className="text-sm text-gray-600">Ukończone</p>
-                  <p className="text-lg font-semibold text-gray-900">
+                  <p className="text-sm text-gray-600 font-medium">Ukończone</p>
+                  <p className="text-xl font-bold text-green-700">
                     {statistics.completedLessons}/{statistics.totalLessons}
                   </p>
                 </div>
               </div>
             </div>
 
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+            <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl shadow-sm border border-purple-200 p-4 hover:shadow-md transition-shadow">
               <div className="flex items-center">
-                <div className="p-2 bg-purple-100 rounded-lg">
+                <div className="p-2 bg-purple-200 rounded-lg">
                   <Clock className="w-5 h-5 text-purple-600" />
                 </div>
                 <div className="ml-3">
-                  <p className="text-sm text-gray-600">Czas nauki</p>
-                  <p className="text-lg font-semibold text-gray-900">
+                  <p className="text-sm text-gray-600 font-medium">Czas nauki</p>
+                  <p className="text-xl font-bold text-purple-700">
                     {formatTime(statistics.totalTimeSpent)}
                   </p>
                 </div>
               </div>
             </div>
 
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+            <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-xl shadow-sm border border-yellow-200 p-4 hover:shadow-md transition-shadow">
               <div className="flex items-center">
-                <div className="p-2 bg-yellow-100 rounded-lg">
+                <div className="p-2 bg-yellow-200 rounded-lg">
                   <User className="w-5 h-5 text-yellow-600" />
                 </div>
                 <div className="ml-3">
-                  <p className="text-sm text-gray-600">Śr. ocena</p>
-                  <p className="text-lg font-semibold text-gray-900">
+                  <p className="text-sm text-gray-600 font-medium">Śr. ocena</p>
+                  <p className="text-xl font-bold text-yellow-700">
                     {statistics.averageScore !== undefined ? 
                       statistics.averageScore.toFixed(2) : 'Brak'}
                   </p>
