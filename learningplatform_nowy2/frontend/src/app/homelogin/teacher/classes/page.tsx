@@ -13,8 +13,8 @@ import {
   Search,
   ArrowLeft,
 } from 'lucide-react';
-import { db } from '@/config/firebase';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, arrayUnion, arrayRemove, serverTimestamp } from 'firebase/firestore';
+import { db, auth } from '@/config/firebase';
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, arrayUnion, arrayRemove, serverTimestamp, getDoc, query, where, limit } from 'firebase/firestore';
 
 interface Class {
   id: string;
@@ -188,27 +188,256 @@ export default function ClassesPage() {
   }, []);
 
   const handleCreateClass = async () => {
+    console.log('🚀 ========== START CREATE CLASS ==========');
+    
     if (!formData.name || !formData.grade_level) {
       setError('Wypełnij wszystkie wymagane pola.');
+      console.error('❌ Walidacja nieudana - brak wymaganych pól');
       return;
     }
 
-    console.log('🔍 handleCreateClass - tworzę klasę:', formData);
+    if (!user || !user.uid) {
+      setError('Brak danych użytkownika. Zaloguj się ponownie.');
+      console.error('❌ Brak użytkownika:', { user, hasUid: !!user?.uid });
+      return;
+    }
+
+    console.log('📋 FormData:', JSON.stringify(formData, null, 2));
+    console.log('👤 User data:', {
+      uid: user.uid,
+      email: user.email,
+      role: user.role,
+      displayName: user.displayName
+    });
+
+    // Sprawdź czy Firebase Auth jest dostępny
+    const currentUser = auth.currentUser;
+    console.log('🔥 Firebase Auth currentUser:', {
+      uid: currentUser?.uid,
+      email: currentUser?.email,
+      emailVerified: currentUser?.emailVerified
+    });
+    
+    // Sprawdź token i custom claims
+    let tokenRole = null;
+    if (currentUser) {
+      try {
+        const token = await currentUser.getIdTokenResult(true); // forceRefresh
+        tokenRole = token.claims.role;
+        console.log('🎫 Token claims:', {
+          role: token.claims.role,
+          email: token.claims.email,
+          uid: token.claims.uid,
+          allClaims: JSON.stringify(token.claims, null, 2)
+        });
+        
+        if (!token.claims.role) {
+          console.warn('⚠️ UWAGA: Token nie ma ustawionej roli (role) w custom claims!');
+          console.warn('⚠️ To może powodować problemy z uprawnieniami Firestore.');
+          console.warn('⚠️ Próbuję ustawić custom claims automatycznie...');
+          
+          // Próba automatycznego ustawienia custom claims
+          try {
+            const response = await fetch('/api/set-teacher-role-api', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ uid: user.uid })
+            });
+            
+            if (response.ok) {
+              console.log('✅ Custom claims ustawione! Odświeżam token...');
+              await currentUser.getIdToken(true); // Odśwież token
+              const newToken = await currentUser.getIdTokenResult(true);
+              tokenRole = newToken.claims.role;
+              console.log('✅ Nowy token role:', tokenRole);
+            } else {
+              console.warn('⚠️ Nie udało się ustawić custom claims automatycznie');
+            }
+          } catch (setRoleError) {
+            console.warn('⚠️ Błąd podczas ustawiania custom claims:', setRoleError);
+          }
+        }
+      } catch (tokenError) {
+        console.error('❌ Błąd pobierania token claims:', tokenError);
+      }
+    }
 
     try {
+      // Upewnij się że teacher_id jest dokładnie równy currentUser.uid
+      const teacherId = String(user.uid).trim();
+      const currentUserId = String(currentUser?.uid || user.uid).trim();
+      
+      console.log('🔍 Weryfikacja teacher_id:', {
+        teacherId,
+        currentUserId,
+        match: teacherId === currentUserId,
+        userUid: user.uid,
+        currentUserUid: currentUser?.uid
+      });
+      
+      if (teacherId !== currentUserId) {
+        console.error('❌ BŁĄD: teacher_id nie pasuje do currentUser.uid!');
+        setError('Błąd weryfikacji użytkownika. Odśwież stronę i spróbuj ponownie.');
+        return;
+      }
+      
       const classData = {
-        ...formData,
+        name: String(formData.name).trim(),
+        description: String(formData.description || '').trim(),
+        grade_level: Number(formData.grade_level),
+        subject: String(formData.subject || '').trim(),
+        max_students: Number(formData.max_students || 30),
+        academic_year: String(formData.academic_year || `${new Date().getFullYear()}/${new Date().getFullYear() + 1}`).trim(),
+        teacher_id: teacherId, // Używamy zweryfikowanego teacher_id
+        teacher_email: String(user.email || '').trim(),
         students: [],
         is_active: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-        assignedCourses: []
+        schedule: Array.isArray(formData.schedule) ? formData.schedule : [],
+        assignedCourses: [],
+        created_at: serverTimestamp(),
+        updated_at: serverTimestamp()
       };
+      
+      console.log('📦 ClassData przed zapisem (z weryfikacją):', {
+        ...classData,
+        created_at: '[serverTimestamp]',
+        updated_at: '[serverTimestamp]',
+        teacher_id_verified: classData.teacher_id === currentUserId,
+        teacher_id_type: typeof classData.teacher_id,
+        currentUserId_type: typeof currentUserId,
+        teacher_id_value: classData.teacher_id,
+        currentUserId_value: currentUserId
+      });
 
-      console.log('🔍 handleCreateClass - dane do zapisania:', classData);
+      // Sprawdź czy kolekcja istnieje
+      console.log('🔍 Sprawdzam dostęp do kolekcji classes...');
+      const testQuery = collection(db, 'classes');
+      console.log('✅ Kolekcja classes dostępna');
 
-      const docRef = await addDoc(collection(db, 'classes'), classData);
-      console.log('✅ handleCreateClass - klasa utworzona z ID:', docRef.id);
+      // Test uprawnień przed zapisem
+      console.log('🧪 TEST: Sprawdzam uprawnienia do zapisu...');
+      console.log('🧪 TEST: teacher_id w danych:', classData.teacher_id);
+      console.log('🧪 TEST: request.auth.uid będzie:', currentUserId);
+      console.log('🧪 TEST: Czy będą pasować?', classData.teacher_id === currentUserId);
+      console.log('🧪 TEST: Typy danych:', {
+        teacher_id: typeof classData.teacher_id,
+        currentUserId: typeof currentUserId
+      });
+      
+      try {
+        // Próba odczytu kolekcji (test uprawnień)
+        const testSnapshot = await getDocs(query(collection(db, 'classes'), where('teacher_id', '==', user.uid), limit(1)));
+        console.log('✅ TEST: Uprawnienia do odczytu OK');
+      } catch (readTestError: any) {
+        console.error('❌ TEST: Błąd uprawnień do odczytu:', readTestError);
+      }
+
+      // Próba 1: Bezpośredni zapis do Firestore
+      console.log('💾 Próbuję zapisać dokument bezpośrednio do Firestore...');
+      let docRef;
+      try {
+        docRef = await addDoc(collection(db, 'classes'), classData);
+        console.log('✅ ✅ ✅ SUKCES! Klasa utworzona z ID:', docRef.id);
+        console.log('📄 Pełna ścieżka dokumentu:', docRef.path);
+      } catch (firestoreError: any) {
+        console.error('❌ Błąd bezpośredniego zapisu do Firestore:', firestoreError);
+        console.error('❌ Error code:', firestoreError?.code);
+        console.error('❌ Error message:', firestoreError?.message);
+        
+        // Szczegółowa analiza błędu uprawnień
+        if (firestoreError?.code === 'permission-denied') {
+          console.error('🔒 BŁĄD UPRAWNIEŃ - Diagnostyka:');
+          console.error('1. Sprawdź czy token ma ustawioną rolę:', {
+            hasToken: !!currentUser,
+            tokenRole: currentUser ? (await currentUser.getIdTokenResult()).claims.role : 'N/A'
+          });
+          console.error('2. Sprawdź czy reguły Firestore są wdrożone');
+          console.error('3. Sprawdź czy teacher_id w danych == request.auth.uid');
+          
+          // Próba 2: Przez API backend (jeśli bezpośredni zapis nie działa)
+          console.log('🔄 Próbuję alternatywną metodę przez API backend...');
+          try {
+            const token = await currentUser?.getIdToken();
+            console.log('🎫 Token uzyskany, długość:', token?.length);
+            
+            const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+            const response = await fetch(`${apiUrl}/api/classes/create/`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify({
+                name: formData.name,
+                description: formData.description || '',
+                grade_level: formData.grade_level,
+                subject: formData.subject || '',
+                max_students: formData.max_students || 30,
+                academic_year: formData.academic_year || `${new Date().getFullYear()}/${new Date().getFullYear() + 1}`,
+                students: [],
+                schedule: formData.schedule || []
+              })
+            });
+            
+            console.log('📡 API Response status:', response.status);
+            
+            if (response.ok) {
+              const result = await response.json();
+              console.log('✅ ✅ ✅ SUKCES przez API! Klasa utworzona z ID:', result.class_id);
+              docRef = { id: result.class_id } as any;
+            } else {
+              const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+              console.error('❌ API Error:', errorData);
+              throw new Error(errorData.error || 'Błąd API');
+            }
+          } catch (apiError: any) {
+            console.error('❌ Błąd API:', apiError);
+            console.error('❌ API Error details:', {
+              message: apiError?.message,
+              stack: apiError?.stack
+            });
+            throw firestoreError; // Rzuć oryginalny błąd Firestore
+          }
+        } else {
+          throw firestoreError;
+        }
+      }
+      
+      // Weryfikuj zapis - odczytaj dokument (tylko jeśli docRef ma id)
+      if (docRef && docRef.id) {
+        try {
+          const verifyDoc = await getDoc(doc(db, 'classes', docRef.id));
+          if (verifyDoc.exists()) {
+            console.log('✅ Weryfikacja: Dokument istnieje w bazie');
+            console.log('📄 Zapisane dane:', verifyDoc.data());
+            
+            // Sprawdź czy wszystkie pola są zapisane poprawnie
+            const savedData = verifyDoc.data();
+            const verificationChecks = {
+              hasTeacherId: !!savedData.teacher_id,
+              teacherIdMatches: savedData.teacher_id === user.uid,
+              hasName: !!savedData.name,
+              hasGradeLevel: !!savedData.grade_level,
+              isActive: savedData.is_active === true
+            };
+            console.log('✅ Weryfikacja pól:', verificationChecks);
+            
+            if (!verificationChecks.teacherIdMatches) {
+              console.error('⚠️ UWAGA: teacher_id nie pasuje do user.uid!');
+            }
+          } else {
+            console.error('❌ Weryfikacja: Dokument nie istnieje!');
+          }
+        } catch (verifyError: any) {
+          console.error('❌ Błąd weryfikacji dokumentu:', verifyError);
+          console.error('❌ Error code:', verifyError?.code);
+          console.error('❌ Error message:', verifyError?.message);
+        }
+      } else {
+        console.warn('⚠️ Nie można zweryfikować - brak docRef.id');
+      }
       
       // Synchronizuj plan zajęć z kalendarzem
       try {
@@ -222,10 +451,48 @@ export default function ClassesPage() {
       setSuccess('Klasa została utworzona pomyślnie!');
       setShowCreateModal(false);
       resetForm();
-      fetchClasses();
-    } catch (error) {
-      console.error('❌ Error creating class:', error);
-      setError('Wystąpił błąd podczas tworzenia klasy.');
+      
+      // Odśwież listę klas
+      console.log('🔄 Odświeżam listę klas...');
+      await fetchClasses();
+      
+      console.log('🎉 ========== CREATE CLASS COMPLETED ==========');
+    } catch (error: any) {
+      console.error('❌ ========== ERROR CREATING CLASS ==========');
+      console.error('❌ Error type:', error?.constructor?.name);
+      console.error('❌ Error message:', error?.message);
+      console.error('❌ Error code:', error?.code);
+      console.error('❌ Error details:', error);
+      console.error('❌ Full error object:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+      
+      // Szczegółowa analiza błędu
+      if (error?.code === 'permission-denied') {
+        console.error('🔒 BŁĄD UPRAWNIEŃ - Sprawdź reguły Firestore dla kolekcji "classes"');
+        console.error('📋 Wymagane reguły:');
+        console.error(`
+          match /classes/{classId} {
+            allow read: if request.auth != null;
+            allow create: if request.auth != null && (
+              request.auth.token.role == 'teacher' || 
+              request.auth.token.role == 'admin' ||
+              request.resource.data.teacher_id == request.auth.uid
+            );
+            allow update, delete: if request.auth != null && (
+              request.auth.token.role == 'admin' ||
+              resource.data.teacher_id == request.auth.uid
+            );
+          }
+        `);
+        setError('Brak uprawnień do tworzenia klas. Sprawdź reguły Firestore lub skontaktuj się z administratorem.');
+      } else if (error?.code === 'unavailable') {
+        setError('Firebase jest niedostępny. Sprawdź połączenie z internetem.');
+      } else if (error?.code === 'unauthenticated') {
+        setError('Nie jesteś zalogowany. Zaloguj się ponownie.');
+      } else {
+        setError(`Wystąpił błąd podczas tworzenia klasy: ${error?.message || 'Nieznany błąd'}`);
+      }
+      
+      console.error('❌ ========== END ERROR ==========');
     }
   };
 
@@ -236,6 +503,11 @@ export default function ClassesPage() {
     }
 
     try {
+      if (!user || !user.uid) {
+        setError('Brak danych użytkownika. Zaloguj się ponownie.');
+        return;
+      }
+
       const classRef = doc(db, 'classes', selectedClass.id);
       await updateDoc(classRef, {
         name: formData.name,
@@ -245,7 +517,9 @@ export default function ClassesPage() {
         max_students: formData.max_students,
         academic_year: formData.academic_year,
         schedule: formData.schedule, // ✅ Dodano zapisywanie planu zajęć
-        updated_at: new Date()
+        teacher_id: user.uid, // Upewnij się, że teacher_id jest ustawione
+        teacher_email: user.email || '', // Upewnij się, że teacher_email jest ustawione
+        updated_at: serverTimestamp()
       });
 
       // Synchronizuj plan zajęć z kalendarzem po edycji

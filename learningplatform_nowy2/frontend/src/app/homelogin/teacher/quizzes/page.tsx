@@ -102,6 +102,7 @@ export default function QuizManagementPage() {
   const [editingQuestionIndex, setEditingQuestionIndex] = useState<number | null>(null);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
   const [showAIGenerator, setShowAIGenerator] = useState(false);
+  const [showImportQuiz, setShowImportQuiz] = useState(false);
   const [sortBy, setSortBy] = useState<'title' | 'created_at' | 'course_title' | 'subject' | 'questions_count'>('created_at');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   
@@ -323,6 +324,31 @@ export default function QuizManagementPage() {
     setNewQuiz(convertedQuiz);
     setIsCreating(true);
     setShowAIGenerator(false);
+  };
+
+  const handleImportQuiz = (quiz: LocalQuiz) => {
+    // Kopiuj quiz z wszystkimi pytaniami i odpowiedziami
+    const importedQuiz = {
+      title: `${quiz.title} (Kopia)`,
+      description: quiz.description || '',
+      subject: quiz.subject || '',
+      course_id: quiz.course_id || null,
+      questions: quiz.questions.map((q) => ({
+        ...q,
+        id: undefined, // Usuń ID, aby utworzyć nowe pytania
+        answers: q.answers.map((a) => ({
+          ...a,
+          id: undefined, // Usuń ID, aby utworzyć nowe odpowiedzi
+        })),
+      })),
+      max_attempts: quiz.max_attempts || 1,
+      time_limit: quiz.time_limit || 30,
+    };
+
+    console.log('Imported quiz:', importedQuiz);
+    setNewQuiz(importedQuiz);
+    setIsCreating(true);
+    setShowImportQuiz(false);
   };
 
   const handleEditQuiz = (quiz: LocalQuiz) => {
@@ -619,7 +645,7 @@ export default function QuizManagementPage() {
                 className="group px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-300 font-medium shadow-lg hover:shadow-xl hover:scale-105 flex items-center space-x-2"
               >
                 <Plus className="w-5 h-5 group-hover:animate-bounce" />
-                <span>Utwórz Quiz</span>
+                <span>Utwórz Quiz Własnoręcznie</span>
               </button>
               <button
                 onClick={() => setShowAIGenerator(true)}
@@ -627,6 +653,13 @@ export default function QuizManagementPage() {
               >
                 <Sparkles className="w-5 h-5 group-hover:animate-pulse" />
                 <span>Generator AI</span>
+              </button>
+              <button
+                onClick={() => setShowImportQuiz(true)}
+                className="group px-6 py-3 bg-gradient-to-r from-green-600 to-teal-600 text-white rounded-xl hover:from-green-700 hover:to-teal-700 transition-all duration-300 font-medium shadow-lg hover:shadow-xl hover:scale-105 flex items-center space-x-2"
+              >
+                <BookOpen className="w-5 h-5 group-hover:animate-pulse" />
+                <span>Importuj Quiz</span>
               </button>
             </>
           )}
@@ -725,7 +758,7 @@ export default function QuizManagementPage() {
               </div>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 gap-6">
               <div className="group">
                 <label className="block text-sm font-semibold text-purple-700 mb-2 flex items-center gap-2">
                   <BookOpen className="w-4 h-4" />
@@ -758,7 +791,7 @@ export default function QuizManagementPage() {
                               setNewQuiz((prev) => ({ 
                                 ...prev, 
                                 course_id: course.id,
-                                subject: course.title  // Automatycznie uzupełnij przedmiot
+                                subject: course.subject || ''  // Użyj przedmiotu z kursu, nie tytułu
                               }));
                               setSearchTerm(course.title);
                               setIsSearchOpen(false);
@@ -772,21 +805,6 @@ export default function QuizManagementPage() {
                     </div>
                   )}
                 </div>
-              </div>
-              <div className="group">
-                <label className="block text-sm font-semibold text-orange-700 mb-2 flex items-center gap-2">
-                  <Sparkles className="w-4 h-4" />
-                  Przedmiot
-                </label>
-                <input
-                  type="text"
-                  value={newQuiz.subject}
-                  onChange={(e) =>
-                    setNewQuiz((prev) => ({ ...prev, subject: e.target.value }))
-                  }
-                  className="w-full p-4 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-orange-100 focus:border-orange-500 transition-all duration-300"
-                  placeholder="Wprowadź przedmiot"
-                />
               </div>
             </div>
 
@@ -1154,6 +1172,86 @@ export default function QuizManagementPage() {
           onQuizGenerated={handleAIGeneratedQuiz}
           onClose={() => setShowAIGenerator(false)}
         />
+      )}
+
+      {/* Import Quiz Modal */}
+      {showImportQuiz && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl p-8 max-w-4xl mx-4 max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-teal-600 rounded-full flex items-center justify-center">
+                  <BookOpen className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-2xl font-semibold text-gray-900">Importuj Quiz</h3>
+                  <p className="text-gray-600">Wybierz quiz do skopiowania z wszystkimi pytaniami i odpowiedziami</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowImportQuiz(false)}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <span className="text-2xl">&times;</span>
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto mb-6">
+              {quizzes.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <BookOpen className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                  <p className="text-lg font-medium mb-2">Brak dostępnych quizów</p>
+                  <p className="text-sm">Najpierw utwórz quiz, aby móc go później importować</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {quizzes.map((quiz) => (
+                    <div
+                      key={quiz.id}
+                      className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors cursor-pointer"
+                      onClick={() => handleImportQuiz(quiz)}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <h4 className="text-lg font-semibold text-gray-900 mb-2">{quiz.title}</h4>
+                          <p className="text-gray-600 mb-3 text-sm">{quiz.description || 'Brak opisu'}</p>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-gray-500">
+                            <div>
+                              <span className="font-medium">Kurs:</span> {quiz.course_title || 'Brak'}
+                            </div>
+                            <div>
+                              <span className="font-medium">Przedmiot:</span> {quiz.subject || 'Brak'}
+                            </div>
+                            <div>
+                              <span className="font-medium">Pytania:</span> {quiz.questions?.length || 0}
+                            </div>
+                            <div>
+                              <span className="font-medium">Próby:</span> {quiz.max_attempts || 1}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="ml-4 flex items-center">
+                          <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                            <Plus className="w-5 h-5 text-green-600" />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            
+            <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+              <button
+                onClick={() => setShowImportQuiz(false)}
+                className="px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+              >
+                Anuluj
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -103,6 +103,67 @@ service cloud.firestore {
       );
     }
     
+    // Klasy - nauczyciele mogą tworzyć i zarządzać swoimi klasami
+    // PRIORYTET: jeśli teacher_id == uid (działa nawet bez roli w tokenie)
+    match /classes/{classId} {
+      // Wszyscy zalogowani mogą czytać klasy
+      allow read: if request.auth != null;
+      
+      // Tworzenie klasy - PRIORYTET: jeśli teacher_id == uid (działa nawet bez roli w tokenie)
+      // Alternatywnie: jeśli token ma rolę teacher/admin
+      allow create: if request.auth != null && (
+        // Główna reguła: teacher_id musi być równy uid użytkownika
+        request.resource.data.teacher_id == request.auth.uid ||
+        // Alternatywa: token ma rolę teacher lub admin
+        request.auth.token.role == 'teacher' || 
+        request.auth.token.role == 'admin'
+      );
+      
+      // Aktualizacja - tylko właściciel klasy lub admin
+      allow update: if request.auth != null && (
+        resource.data.teacher_id == request.auth.uid ||
+        request.auth.token.role == 'admin'
+      );
+      
+      // Usuwanie - tylko właściciel klasy lub admin
+      allow delete: if request.auth != null && (
+        resource.data.teacher_id == request.auth.uid ||
+        request.auth.token.role == 'admin'
+      );
+    }
+    
+    // Wydarzenia kalendarza - nauczyciele mogą tworzyć i zarządzać wydarzeniami
+    match /events/{eventId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && (
+        request.auth.token.role == 'admin' || 
+        request.auth.token.role == 'teacher'
+      );
+      allow update, delete: if request.auth != null && (
+        request.auth.token.role == 'admin' || 
+        request.auth.token.role == 'teacher' ||
+        request.auth.uid == resource.data.createdBy
+      );
+    }
+    
+    // Powiadomienia - nauczyciele mogą tworzyć, użytkownicy mogą czytać swoje
+    match /notifications/{notificationId} {
+      allow read: if request.auth != null && (
+        request.auth.uid == resource.data.user_id || 
+        request.auth.token.role == 'admin' || 
+        request.auth.token.role == 'teacher'
+      );
+      allow create: if request.auth != null && (
+        request.auth.token.role == 'admin' || 
+        request.auth.token.role == 'teacher'
+      );
+      allow update: if request.auth != null && request.auth.uid == resource.data.user_id;
+      allow delete: if request.auth != null && (
+        request.auth.token.role == 'admin' || 
+        request.auth.token.role == 'teacher'
+      );
+    }
+    
     // Domyślnie - tylko zalogowani użytkownicy mogą czytać
     match /{document=**} {
       allow read: if request.auth != null;

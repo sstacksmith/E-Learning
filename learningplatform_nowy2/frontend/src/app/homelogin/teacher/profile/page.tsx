@@ -1,11 +1,14 @@
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
-import { User, Mail, Phone, Calendar, Award, BookOpen, Users, Lock, Eye, EyeOff, RefreshCw, Star, TrendingUp, Activity, Target, Zap } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { User, Mail, Phone, Calendar, Award, BookOpen, Users, Lock, Eye, EyeOff, RefreshCw, Star, TrendingUp, Activity, Target, Zap, Camera, ArrowLeft, CheckCircle, XCircle } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { auth, db } from '@/config/firebase';
+import { auth, db, storage } from '@/config/firebase';
 import { updateProfile, updatePassword, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
 import { doc, updateDoc, getDoc } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 
 interface Achievement {
   id: string;
@@ -27,6 +30,8 @@ interface ProfileData {
 
 export default function TeacherProfilePage() {
   const { user } = useAuth();
+  const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(true);
   const [loadingStats, setLoadingStats] = useState(false);
   const [activeTab, setActiveTab] = useState<'profile' | 'stats' | 'password'>('profile');
@@ -36,6 +41,9 @@ export default function TeacherProfilePage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [photoURL, setPhotoURL] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [hovered, setHovered] = useState(false);
 
   // Profile data state - start with empty values
   const [profileData, setProfileData] = useState<ProfileData>({
@@ -106,6 +114,16 @@ export default function TeacherProfilePage() {
           const userDoc = await getDoc(doc(db, 'users', user.uid));
           const userData = userDoc.data();
           
+          // Priorytet: Firestore > Firebase Auth > pusty string
+          const photoUrl = userData?.photoURL || currentUser.photoURL || '';
+          console.log('Loading photoURL:', { 
+            firestore: userData?.photoURL, 
+            auth: currentUser.photoURL, 
+            final: photoUrl 
+          });
+          
+          setPhotoURL(photoUrl);
+          
           setProfileData(prev => ({
             ...prev,
             displayName,
@@ -130,6 +148,85 @@ export default function TeacherProfilePage() {
     }
     setTimeout(() => setLoading(false), 500);
   }, [user]);
+
+  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!user || !e.target.files || e.target.files.length === 0) return;
+    const file = e.target.files[0];
+    if (!file.type.startsWith('image/')) {
+      setMessage({ type: 'error', text: 'Proszę wybrać plik obrazu (JPG, PNG)' });
+      return;
+    }
+    
+    if (file.size > 5 * 1024 * 1024) {
+      setMessage({ type: 'error', text: 'Plik jest za duży. Maksymalny rozmiar to 5MB.' });
+      return;
+    }
+    
+    try {
+      setUploading(true);
+      setMessage(null);
+      
+      console.log('Starting photo upload for user:', user.uid);
+      
+      // Upload to Firebase Storage
+      const storageRef = ref(storage, `profile_photos/${user.uid}`);
+      console.log('Uploading to storage:', storageRef.fullPath);
+      
+      await uploadBytes(storageRef, file);
+      console.log('File uploaded successfully');
+      
+      // Get download URL
+      const url = await getDownloadURL(storageRef);
+      console.log('Download URL obtained:', url);
+      
+      // Update Firestore
+      await updateDoc(doc(db, 'users', user.uid), { 
+        photoURL: url,
+        updated_at: new Date().toISOString()
+      });
+      console.log('Firestore updated with photoURL');
+      
+      // Update Firebase Auth profile
+      if (auth.currentUser) {
+        await updateProfile(auth.currentUser, { photoURL: url });
+        console.log('Firebase Auth profile updated');
+      }
+      
+      // Update local state immediately
+      setPhotoURL(url);
+      
+      // Reload user data to ensure consistency
+      await loadUserData();
+      
+      setMessage({ type: 'success', text: 'Zdjęcie profilowe zostało zaktualizowane!' });
+      
+      // Optional: reload page after 2 seconds to ensure everything is synced
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
+    } catch (error: any) {
+      console.error('Error uploading photo:', error);
+      let errorMessage = 'Błąd podczas przesyłania zdjęcia. Spróbuj ponownie.';
+      
+      if (error.code === 'storage/unauthorized') {
+        errorMessage = 'Brak uprawnień do przesyłania zdjęć. Skontaktuj się z administratorem.';
+      } else if (error.code === 'storage/quota-exceeded') {
+        errorMessage = 'Przekroczono limit przestrzeni. Skontaktuj się z administratorem.';
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      setMessage({ type: 'error', text: errorMessage });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handlePhotoClick = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
 
   const loadTeacherStats = useCallback(async () => {
     if (!user?.uid) return;
@@ -290,395 +387,523 @@ export default function TeacherProfilePage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 w-full">
       {/* Header */}
-      <div className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-r from-blue-50 via-purple-50 to-pink-50 opacity-50"></div>
-        <div className="relative bg-white rounded-xl shadow-sm border border-gray-200 p-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-3xl font-bold text-gray-900 mb-2">Mój Profil</h2>
-              <p className="text-gray-600 text-lg">Zarządzaj swoimi danymi i ustawieniami</p>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="text-right">
-                <div className="text-2xl font-bold text-blue-600">{profileData.activeCourses}</div>
-                <div className="text-sm text-gray-500">Aktywne kursy</div>
+      <div className="bg-white/80 backdrop-blur-lg border-b border-white/20 px-4 sm:px-6 lg:px-8 py-4 mb-6">
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => router.push('/homelogin/teacher')}
+            className="flex items-center gap-2 px-4 py-2 bg-white/60 backdrop-blur-sm text-gray-700 rounded-lg hover:bg-white hover:shadow-lg transition-all duration-200 ease-in-out border border-white/20"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Powrót do panelu
+          </button>
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+            Mój Profil
+          </h1>
+          <div className="w-20"></div>
+        </div>
+      </div>
+
+      <div className="px-4 sm:px-6 lg:px-8 pb-8 space-y-6">
+        {/* Profile Header Card */}
+        <div className="relative overflow-hidden bg-white rounded-2xl shadow-xl border border-gray-200">
+          <div className="absolute inset-0 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 opacity-10"></div>
+          <div className="relative p-8">
+            <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
+              {/* Profile Photo */}
+              <div className="relative group">
+                <div
+                  className={`relative w-32 h-32 rounded-full overflow-hidden border-4 border-white shadow-2xl transition-all duration-300 ${
+                    hovered ? 'ring-4 ring-blue-400 scale-105' : ''
+                  }`}
+                  onMouseEnter={() => setHovered(true)}
+                  onMouseLeave={() => setHovered(false)}
+                  onClick={handlePhotoClick}
+                >
+                  {photoURL ? (
+                    <Image
+                      src={photoURL}
+                      alt="Profile"
+                      fill
+                      className="object-cover"
+                      unoptimized
+                      onError={(e) => {
+                        console.error('Error loading image:', photoURL);
+                        setPhotoURL('');
+                      }}
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+                      <User className="h-16 w-16 text-white" />
+                    </div>
+                  )}
+                  <div className={`absolute inset-0 bg-black/50 flex items-center justify-center transition-opacity duration-300 ${
+                    hovered ? 'opacity-100' : 'opacity-0'
+                  }`}>
+                    <Camera className="h-8 w-8 text-white" />
+                  </div>
+                </div>
+                {uploading && (
+                  <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+                  </div>
+                )}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handlePhotoChange}
+                  className="hidden"
+                />
+                <div className="absolute -bottom-2 -right-2 w-10 h-10 bg-green-500 rounded-full flex items-center justify-center border-4 border-white shadow-lg">
+                  <CheckCircle className="h-5 w-5 text-white" />
+                </div>
               </div>
-              <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center animate-pulse">
-                <User className="h-8 w-8 text-white" />
+
+              {/* Profile Info */}
+              <div className="flex-1 text-center md:text-left">
+                <div className="flex items-center justify-center md:justify-start gap-3 mb-2">
+                  <h2 className="text-3xl font-bold text-gray-900">{profileData.displayName || 'Nauczyciel'}</h2>
+                  <div className="flex items-center gap-2 px-3 py-1 bg-green-100 rounded-full">
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                    <span className="text-xs font-medium text-green-700">Online</span>
+                  </div>
+                </div>
+                <p className="text-gray-600 text-lg mb-4 flex items-center justify-center md:justify-start gap-2">
+                  <Mail className="h-4 w-4" />
+                  {profileData.email}
+                </p>
+                <div className="flex flex-wrap gap-4 justify-center md:justify-start">
+                  <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 rounded-lg">
+                    <BookOpen className="h-5 w-5 text-blue-600" />
+                    <div>
+                      <div className="text-2xl font-bold text-blue-600">{profileData.activeCourses}</div>
+                      <div className="text-xs text-gray-600">Aktywne kursy</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 px-4 py-2 bg-green-50 rounded-lg">
+                    <Users className="h-5 w-5 text-green-600" />
+                    <div>
+                      <div className="text-2xl font-bold text-green-600">{profileData.totalStudents}</div>
+                      <div className="text-xs text-gray-600">Uczniów</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 px-4 py-2 bg-purple-50 rounded-lg">
+                    <Star className="h-5 w-5 text-purple-600" />
+                    <div>
+                      <div className="text-2xl font-bold text-purple-600">{profileData.averageRating.toFixed(1)}</div>
+                      <div className="text-xs text-gray-600">Średnia ocen</div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Message Display */}
-      {message && (
-        <div className={`p-4 rounded-lg shadow-sm ${
-          message.type === 'success' 
-            ? 'bg-green-50 border border-green-200 text-green-700' 
-            : 'bg-red-50 border border-red-200 text-red-700'
-        }`}>
-          {message.text}
+        {/* Message Display */}
+        {message && (
+          <div className={`p-4 rounded-xl shadow-lg border-2 flex items-center gap-3 animate-in slide-in-from-top-5 ${
+            message.type === 'success' 
+              ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-300 text-green-800' 
+              : 'bg-gradient-to-r from-red-50 to-rose-50 border-red-300 text-red-800'
+          }`}>
+            {message.type === 'success' ? (
+              <CheckCircle className="h-6 w-6 text-green-600 flex-shrink-0" />
+            ) : (
+              <XCircle className="h-6 w-6 text-red-600 flex-shrink-0" />
+            )}
+            <span className="font-medium">{message.text}</span>
+          </div>
+        )}
+
+        {/* Tabs */}
+        <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-2">
+          <nav className="flex space-x-2">
+            {[
+              { key: 'profile', label: 'Informacje Podstawowe', icon: User },
+              { key: 'stats', label: 'Statystyki', icon: TrendingUp },
+              { key: 'password', label: 'Zmiana Hasła', icon: Lock }
+            ].map((tab) => {
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key as 'profile' | 'stats' | 'password')}
+                  className={`flex items-center gap-2 py-3 px-6 rounded-lg font-medium text-sm transition-all duration-300 ${
+                    activeTab === tab.key
+                      ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg scale-105'
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                  }`}
+                >
+                  <Icon className="h-4 w-4" />
+                  {tab.label}
+                </button>
+              );
+            })}
+          </nav>
         </div>
-      )}
 
-      {/* Tabs */}
-      <div className="border-b border-gray-200">
-        <nav className="flex space-x-8">
-          {[
-            { key: 'profile', label: 'Informacje Podstawowe' },
-            { key: 'password', label: 'Zmiana Hasła' },
-            { key: 'stats', label: 'Statystyki' }
-          ].map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key as 'profile' | 'stats' | 'password')}
-              className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
-                activeTab === tab.key
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </nav>
-      </div>
-
-      {activeTab === 'profile' && (
-        <div className="grid lg:grid-cols-2 gap-6">
-          {/* Profile Info */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-lg transition-all duration-300">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center">
-                <div className="relative">
-                  <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center mr-4 hover:animate-pulse transition-all duration-300">
-                    <User className="h-10 w-10 text-blue-600" />
+        {activeTab === 'profile' && (
+          <div className="grid lg:grid-cols-2 gap-6">
+            {/* Profile Info */}
+            <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-8 hover:shadow-2xl transition-all duration-300">
+              <div className="flex items-center justify-between mb-8">
+                <h3 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
+                  <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+                    <User className="h-6 w-6 text-white" />
                   </div>
-                  <div className="absolute -top-1 -right-1 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
-                    <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+                  Dane Profilowe
+                </h3>
+                {!isEditing ? (
+                  <button 
+                    onClick={handleEdit}
+                    className="group text-sm bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:to-purple-700 transition-all duration-300 font-medium shadow-lg hover:shadow-xl hover:scale-105 flex items-center gap-2"
+                  >
+                    <User className="h-4 w-4 group-hover:animate-bounce" />
+                    Edytuj Profil
+                  </button>
+                ) : (
+                  <div className="flex gap-3">
+                    <button 
+                      onClick={handleCancel}
+                      className="text-sm bg-gradient-to-r from-gray-500 to-gray-600 text-white px-4 py-2 rounded-xl hover:from-gray-600 hover:to-gray-700 transition-all duration-300 font-medium shadow-lg hover:shadow-xl hover:scale-105"
+                    >
+                      Anuluj
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-6">
+                <div className="group">
+                  <label className="block text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                    <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                      <User className="h-4 w-4 text-blue-600" />
+                    </div>
+                    Imię i Nazwisko
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={isEditing ? editableProfile.displayName : profileData.displayName}
+                      onChange={(e) => isEditing && setEditableProfile(prev => ({ ...prev, displayName: e.target.value }))}
+                      className={`w-full border-2 rounded-xl px-4 py-3.5 text-lg focus:outline-none focus:ring-4 transition-all duration-300 ${
+                        isEditing 
+                          ? 'border-blue-300 bg-white focus:ring-blue-100 focus:border-blue-500 hover:border-blue-400' 
+                          : 'border-gray-200 bg-gray-50'
+                      }`}
+                      readOnly={!isEditing}
+                    />
+                    {isEditing && (
+                      <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
+                        <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                      </div>
+                    )}
                   </div>
                 </div>
-                <div>
-                  <h3 className="text-xl font-semibold text-gray-900 hover:text-blue-600 transition-colors">{profileData.displayName}</h3>
-                  <div className="flex items-center gap-2">
-                    <p className="text-gray-600">Nauczyciel</p>
-                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                    <span className="text-xs text-green-600 font-medium">Online</span>
+
+                <div className="group">
+                  <label className="block text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                    <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
+                      <Mail className="h-4 w-4 text-green-600" />
+                    </div>
+                    Email
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="email"
+                      value={profileData.email}
+                      className="w-full border-2 border-gray-200 rounded-xl px-4 py-3.5 text-lg bg-gray-50 focus:outline-none"
+                      readOnly
+                    />
+                    <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
+                      <Lock className="h-4 w-4 text-gray-400" />
+                    </div>
+                  </div>
+                  <span className="text-xs text-gray-500 mt-2 flex items-center gap-1">
+                    <Lock className="h-3 w-3" />
+                    Email nie może być zmieniony
+                  </span>
+                </div>
+
+                <div className="group">
+                  <label className="block text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                    <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
+                      <Phone className="h-4 w-4 text-purple-600" />
+                    </div>
+                    Telefon
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="tel"
+                      value={isEditing ? editableProfile.phone : profileData.phone}
+                      onChange={(e) => isEditing && setEditableProfile(prev => ({ ...prev, phone: e.target.value }))}
+                      className={`w-full border-2 rounded-xl px-4 py-3.5 text-lg focus:outline-none focus:ring-4 transition-all duration-300 ${
+                        isEditing 
+                          ? 'border-purple-300 bg-white focus:ring-purple-100 focus:border-purple-500 hover:border-purple-400' 
+                          : 'border-gray-200 bg-gray-50'
+                      }`}
+                      readOnly={!isEditing}
+                      placeholder="+48 XXX XXX XXX"
+                    />
+                    {isEditing && (
+                      <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
+                        <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
-              {!isEditing ? (
-                <button 
-                  onClick={handleEdit}
-                  className="group text-sm bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-300 font-medium shadow-lg hover:shadow-xl hover:scale-105 flex items-center gap-2"
-                >
-                  <User className="h-4 w-4 group-hover:animate-bounce" />
-                  Edytuj Profil
-                </button>
-              ) : (
-                <div className="flex gap-3">
+
+              {isEditing && (
+                <div className="mt-8 pt-6 border-t-2 border-gray-200">
                   <button 
-                    onClick={handleCancel}
-                    className="text-sm bg-gradient-to-r from-gray-500 to-gray-600 text-white px-4 py-2 rounded-xl hover:from-gray-600 hover:to-gray-700 transition-all duration-300 font-medium shadow-lg hover:shadow-xl hover:scale-105"
+                    onClick={handleSave}
+                    disabled={isSaving}
+                    className="w-full bg-gradient-to-r from-green-600 to-emerald-600 text-white py-4 px-6 rounded-xl hover:from-green-700 hover:to-emerald-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed font-semibold shadow-xl hover:shadow-2xl hover:scale-105 flex items-center justify-center gap-3 text-lg"
                   >
-                    Anuluj
+                    {isSaving ? (
+                      <>
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                        Zapisywanie...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle className="h-5 w-5" />
+                        Zapisz zmiany
+                      </>
+                    )}
                   </button>
                 </div>
               )}
             </div>
 
-            <div className="space-y-6">
-              <div className="group">
-                <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                  <User className="h-4 w-4 text-blue-500" />
-                  Imię i Nazwisko
-                </label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={isEditing ? editableProfile.displayName : profileData.displayName}
-                    onChange={(e) => isEditing && setEditableProfile(prev => ({ ...prev, displayName: e.target.value }))}
-                    className={`w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition-all duration-300 ${
-                      isEditing ? 'bg-white hover:border-blue-300' : 'bg-gray-50'
-                    }`}
-                    readOnly={!isEditing}
-                  />
-                  {isEditing && (
-                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="group">
-                <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                  <Mail className="h-4 w-4 text-green-500" />
-                  Email
-                </label>
-                <div className="relative">
-                  <input
-                    type="email"
-                    value={profileData.email}
-                    className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-4 focus:ring-green-100 focus:border-green-500 transition-all duration-300 bg-gray-50"
-                    readOnly
-                  />
-                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+            {/* Recent Achievements */}
+            <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-8 hover:shadow-2xl transition-all duration-300">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
+                  <div className="w-10 h-10 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-lg flex items-center justify-center">
+                    <Award className="h-6 w-6 text-white" />
                   </div>
+                  Ostatnie Osiągnięcia
+                </h3>
+                <div className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-yellow-50 to-orange-50 rounded-lg border border-yellow-200">
+                  <Award className="h-5 w-5 text-yellow-600" />
+                  <span className="text-sm font-semibold text-yellow-700">{achievements.length} osiągnięć</span>
                 </div>
-                <span className="text-xs text-gray-500 mt-1 flex items-center gap-1">
-                  <Lock className="h-3 w-3" />
-                  Email nie może być zmieniony
-                </span>
               </div>
-
-              <div className="group">
-                <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                  <Phone className="h-4 w-4 text-purple-500" />
-                  Telefon
-                </label>
-                <div className="relative">
-                  <input
-                    type="tel"
-                    value={isEditing ? editableProfile.phone : profileData.phone}
-                    onChange={(e) => isEditing && setEditableProfile(prev => ({ ...prev, phone: e.target.value }))}
-                    className={`w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-4 focus:ring-purple-100 focus:border-purple-500 transition-all duration-300 ${
-                      isEditing ? 'bg-white hover:border-purple-300' : 'bg-gray-50'
-                    }`}
-                    readOnly={!isEditing}
-                    placeholder="+48 XXX XXX XXX"
-                  />
-                  {isEditing && (
-                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+              <div className="space-y-4">
+                {achievements.map((achievement) => (
+                  <div key={achievement.id} className="group flex items-start gap-4 p-5 bg-gradient-to-r from-gray-50 via-blue-50 to-purple-50 rounded-xl hover:from-blue-100 hover:via-purple-100 hover:to-pink-100 transition-all duration-300 hover:shadow-lg hover:scale-[1.02] border-2 border-gray-200 hover:border-blue-400">
+                    <div className="text-4xl group-hover:animate-bounce transition-transform">{achievement.icon}</div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <h4 className="font-bold text-lg text-gray-900 group-hover:text-blue-600 transition-colors">{achievement.title}</h4>
+                        <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                      </div>
+                      <p className="text-sm text-gray-600 mb-3">{achievement.description}</p>
+                      <div className="flex items-center gap-2">
+                        <Calendar className="h-4 w-4 text-gray-400" />
+                        <p className="text-xs font-medium text-gray-500">{achievement.date}</p>
+                        <div className="ml-auto">
+                          <div className="w-12 h-1.5 bg-gradient-to-r from-yellow-400 via-orange-500 to-red-500 rounded-full"></div>
+                        </div>
+                      </div>
                     </div>
-                  )}
-                </div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-6 pt-4 border-t-2 border-gray-200">
+                <button className="w-full text-center text-sm font-semibold text-blue-600 hover:text-blue-800 hover:bg-blue-50 py-3 rounded-xl transition-all duration-300 hover:scale-105">
+                  Zobacz wszystkie osiągnięcia →
+                </button>
               </div>
             </div>
+          </div>
+        )}
 
-            {isEditing && (
-              <div className="mt-6 pt-6 border-t border-gray-200">
-                <button 
-                  onClick={handleSave}
-                  disabled={isSaving}
-                  className="w-full bg-gradient-to-r from-green-600 to-green-700 text-white py-3 px-4 rounded-xl hover:from-green-700 hover:to-green-800 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-lg hover:shadow-xl hover:scale-105 flex items-center justify-center gap-2"
+        {activeTab === 'password' && (
+          <div className="max-w-2xl">
+            <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-8">
+              <div className="flex items-center mb-8">
+                <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center mr-4">
+                  <Lock className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-2xl font-bold text-gray-900">Zmiana Hasła</h3>
+                  <p className="text-gray-600">Zaktualizuj swoje hasło do konta</p>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                    <Lock className="h-4 w-4 text-blue-600" />
+                    Aktualne hasło
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      value={passwordData.currentPassword}
+                      onChange={(e) => setPasswordData(prev => ({ ...prev, currentPassword: e.target.value }))}
+                      className="w-full border-2 border-gray-200 rounded-xl px-4 py-3.5 text-lg focus:outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition-all duration-300"
+                      placeholder="Wprowadź aktualne hasło"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute inset-y-0 right-0 pr-4 flex items-center hover:opacity-70 transition-opacity"
+                    >
+                      {showPassword ? <EyeOff className="h-5 w-5 text-gray-400" /> : <Eye className="h-5 w-5 text-gray-400" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                    <Lock className="h-4 w-4 text-green-600" />
+                    Nowe hasło
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showNewPassword ? "text" : "password"}
+                      value={passwordData.newPassword}
+                      onChange={(e) => setPasswordData(prev => ({ ...prev, newPassword: e.target.value }))}
+                      className="w-full border-2 border-gray-200 rounded-xl px-4 py-3.5 text-lg focus:outline-none focus:ring-4 focus:ring-green-100 focus:border-green-500 transition-all duration-300"
+                      placeholder="Wprowadź nowe hasło"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className="absolute inset-y-0 right-0 pr-4 flex items-center hover:opacity-70 transition-opacity"
+                    >
+                      {showNewPassword ? <EyeOff className="h-5 w-5 text-gray-400" /> : <Eye className="h-5 w-5 text-gray-400" />}
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2 flex items-center gap-1">
+                    <Lock className="h-3 w-3" />
+                    Minimum 6 znaków
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                    <Lock className="h-4 w-4 text-purple-600" />
+                    Potwierdź nowe hasło
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showConfirmPassword ? "text" : "password"}
+                      value={passwordData.confirmPassword}
+                      onChange={(e) => setPasswordData(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                      className="w-full border-2 border-gray-200 rounded-xl px-4 py-3.5 text-lg focus:outline-none focus:ring-4 focus:ring-purple-100 focus:border-purple-500 transition-all duration-300"
+                      placeholder="Potwierdź nowe hasło"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute inset-y-0 right-0 pr-4 flex items-center hover:opacity-70 transition-opacity"
+                    >
+                      {showConfirmPassword ? <EyeOff className="h-5 w-5 text-gray-400" /> : <Eye className="h-5 w-5 text-gray-400" />}
+                    </button>
+                  </div>
+                </div>
+
+                <button
+                  onClick={handlePasswordChange}
+                  disabled={isChangingPassword || !passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmPassword}
+                  className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-4 px-6 rounded-xl hover:from-blue-700 hover:to-purple-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed mt-6 font-semibold shadow-xl hover:shadow-2xl hover:scale-105 flex items-center justify-center gap-3 text-lg"
                 >
-                  {isSaving ? (
+                  {isChangingPassword ? (
                     <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                      Zapisywanie...
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                      Zmienianie hasła...
                     </>
                   ) : (
                     <>
-                      <Zap className="h-4 w-4" />
-                      Zapisz zmiany
+                      <CheckCircle className="h-5 w-5" />
+                      Zmień hasło
                     </>
                   )}
                 </button>
               </div>
-            )}
-          </div>
-
-          {/* Recent Achievements */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-semibold text-gray-900">Ostatnie Osiągnięcia</h3>
-              <div className="flex items-center gap-2 text-sm text-gray-500">
-                <Award className="h-4 w-4" />
-                <span>{achievements.length} osiągnięć</span>
-              </div>
-            </div>
-            <div className="space-y-4">
-              {achievements.map((achievement) => (
-                <div key={achievement.id} className="group flex items-start gap-4 p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl hover:from-blue-50 hover:to-purple-50 transition-all duration-300 hover:shadow-md hover:scale-[1.02] border border-gray-200 hover:border-blue-300">
-                  <div className="text-3xl group-hover:animate-bounce">{achievement.icon}</div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h4 className="font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">{achievement.title}</h4>
-                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                    </div>
-                    <p className="text-sm text-gray-600 mb-2">{achievement.description}</p>
-                    <div className="flex items-center gap-2">
-                      <Calendar className="h-3 w-3 text-gray-400" />
-                      <p className="text-xs text-gray-500">{achievement.date}</p>
-                      <div className="ml-auto">
-                        <div className="w-8 h-1 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full"></div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="mt-6 pt-4 border-t border-gray-200">
-              <button className="w-full text-center text-sm text-blue-600 hover:text-blue-800 font-medium hover:bg-blue-50 py-2 rounded-lg transition-colors">
-                Zobacz wszystkie osiągnięcia →
-              </button>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {activeTab === 'password' && (
-        <div className="max-w-md">
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <div className="flex items-center mb-6">
-              <Lock className="h-8 w-8 text-blue-600 mr-3" />
-              <div>
-                <h3 className="text-xl font-semibold text-gray-900">Zmiana Hasła</h3>
-                <p className="text-gray-600">Zaktualizuj swoje hasło do konta</p>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Aktualne hasło
-                </label>
-                <div className="relative">
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    value={passwordData.currentPassword}
-                    onChange={(e) => setPasswordData(prev => ({ ...prev, currentPassword: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 pr-10 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Wprowadź aktualne hasło"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                  >
-                    {showPassword ? <EyeOff className="h-4 w-4 text-gray-400" /> : <Eye className="h-4 w-4 text-gray-400" />}
-                  </button>
+        {activeTab === 'stats' && (
+          <div>
+            <div className="flex items-center justify-between mb-8">
+              <h3 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+                  <TrendingUp className="h-6 w-6 text-white" />
                 </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Nowe hasło
-                </label>
-                <div className="relative">
-                  <input
-                    type={showNewPassword ? "text" : "password"}
-                    value={passwordData.newPassword}
-                    onChange={(e) => setPasswordData(prev => ({ ...prev, newPassword: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 pr-10 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Wprowadź nowe hasło"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowNewPassword(!showNewPassword)}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                  >
-                    {showNewPassword ? <EyeOff className="h-4 w-4 text-gray-400" /> : <Eye className="h-4 w-4 text-gray-400" />}
-                  </button>
-                </div>
-                <p className="text-xs text-gray-500 mt-1">Minimum 6 znaków</p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Potwierdź nowe hasło
-                </label>
-                <div className="relative">
-                  <input
-                    type={showConfirmPassword ? "text" : "password"}
-                    value={passwordData.confirmPassword}
-                    onChange={(e) => setPasswordData(prev => ({ ...prev, confirmPassword: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 pr-10 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Potwierdź nowe hasło"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                  >
-                    {showConfirmPassword ? <EyeOff className="h-4 w-4 text-gray-400" /> : <Eye className="h-4 w-4 text-gray-400" />}
-                  </button>
-                </div>
-              </div>
-
+                Statystyki Nauczyciela
+              </h3>
               <button
-                onClick={handlePasswordChange}
-                disabled={isChangingPassword || !passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmPassword}
-                className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mt-6 font-medium"
+                onClick={loadTeacherStats}
+                disabled={loadingStats}
+                className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:from-blue-700 hover:to-purple-700 transition-all duration-300 disabled:opacity-50 font-semibold shadow-lg hover:shadow-xl hover:scale-105"
               >
-                {isChangingPassword ? 'Zmienianie hasła...' : 'Zmień hasło'}
+                <RefreshCw className={`h-5 w-5 ${loadingStats ? 'animate-spin' : ''}`} />
+                Odśwież
               </button>
             </div>
-          </div>
-        </div>
-      )}
+            
+            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="group bg-gradient-to-br from-blue-50 via-blue-100 to-indigo-100 rounded-2xl shadow-xl border-2 border-blue-200 p-8 text-center hover:shadow-2xl transition-all duration-300 hover:scale-105">
+                <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:animate-bounce shadow-lg">
+                  <BookOpen className="h-8 w-8 text-white" />
+                </div>
+                <div className="text-4xl font-bold text-blue-600 mb-2">{profileData.activeCourses}</div>
+                <div className="text-base text-blue-700 font-semibold mb-3">Aktywne Kursy</div>
+                <div className="flex items-center justify-center mt-2 px-3 py-1.5 bg-green-100 rounded-lg">
+                  <TrendingUp className="h-4 w-4 text-green-600 mr-1" />
+                  <span className="text-xs font-semibold text-green-700">+2 w tym miesiącu</span>
+                </div>
+              </div>
 
-      {activeTab === 'stats' && (
-        <div>
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-semibold text-gray-900">Statystyki Nauczyciela</h3>
-            <button
-              onClick={loadTeacherStats}
-              disabled={loadingStats}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 font-medium"
-            >
-              <RefreshCw className={`h-4 w-4 ${loadingStats ? 'animate-spin' : ''}`} />
-              Odśwież
-            </button>
-          </div>
-          
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="group bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl shadow-sm border border-blue-200 p-6 text-center hover:shadow-lg transition-all duration-300 hover:scale-105">
-              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:animate-bounce">
-                <BookOpen className="h-6 w-6 text-white" />
+              <div className="group bg-gradient-to-br from-green-50 via-emerald-100 to-teal-100 rounded-2xl shadow-xl border-2 border-green-200 p-8 text-center hover:shadow-2xl transition-all duration-300 hover:scale-105">
+                <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:animate-bounce shadow-lg">
+                  <Users className="h-8 w-8 text-white" />
+                </div>
+                <div className="text-4xl font-bold text-green-600 mb-2">{profileData.totalStudents}</div>
+                <div className="text-base text-green-700 font-semibold mb-3">Uczniów</div>
+                <div className="flex items-center justify-center mt-2 px-3 py-1.5 bg-blue-100 rounded-lg">
+                  <Activity className="h-4 w-4 text-blue-600 mr-1" />
+                  <span className="text-xs font-semibold text-blue-700">Aktywni uczniowie</span>
+                </div>
               </div>
-              <div className="text-3xl font-bold text-blue-600 mb-2">{profileData.activeCourses}</div>
-              <div className="text-sm text-blue-700 font-medium">Aktywne Kursy</div>
-              <div className="flex items-center justify-center mt-2">
-                <TrendingUp className="h-4 w-4 text-green-500 mr-1" />
-                <span className="text-xs text-green-600">+2 w tym miesiącu</span>
-              </div>
-            </div>
 
-            <div className="group bg-gradient-to-br from-green-50 to-green-100 rounded-xl shadow-sm border border-green-200 p-6 text-center hover:shadow-lg transition-all duration-300 hover:scale-105">
-              <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:animate-bounce">
-                <Users className="h-6 w-6 text-white" />
+              <div className="group bg-gradient-to-br from-purple-50 via-purple-100 to-pink-100 rounded-2xl shadow-xl border-2 border-purple-200 p-8 text-center hover:shadow-2xl transition-all duration-300 hover:scale-105">
+                <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-600 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:animate-bounce shadow-lg">
+                  <Calendar className="h-8 w-8 text-white" />
+                </div>
+                <div className="text-4xl font-bold text-purple-600 mb-2">{profileData.totalLessons}</div>
+                <div className="text-base text-purple-700 font-semibold mb-3">Przeprowadzonych Lekcji</div>
+                <div className="flex items-center justify-center mt-2 px-3 py-1.5 bg-orange-100 rounded-lg">
+                  <Target className="h-4 w-4 text-orange-600 mr-1" />
+                  <span className="text-xs font-semibold text-orange-700">Cel: 150 lekcji</span>
+                </div>
               </div>
-              <div className="text-3xl font-bold text-green-600 mb-2">{profileData.totalStudents}</div>
-              <div className="text-sm text-green-700 font-medium">Uczniów</div>
-              <div className="flex items-center justify-center mt-2">
-                <Activity className="h-4 w-4 text-green-500 mr-1" />
-                <span className="text-xs text-green-600">Aktywni uczniowie</span>
-              </div>
-            </div>
 
-            <div className="group bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl shadow-sm border border-purple-200 p-6 text-center hover:shadow-lg transition-all duration-300 hover:scale-105">
-              <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:animate-bounce">
-                <Calendar className="h-6 w-6 text-white" />
-              </div>
-              <div className="text-3xl font-bold text-purple-600 mb-2">{profileData.totalLessons}</div>
-              <div className="text-sm text-purple-700 font-medium">Przeprowadzonych Lekcji</div>
-              <div className="flex items-center justify-center mt-2">
-                <Target className="h-4 w-4 text-purple-500 mr-1" />
-                <span className="text-xs text-purple-600">Cel: 150 lekcji</span>
-              </div>
-            </div>
-
-            <div className="group bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-xl shadow-sm border border-yellow-200 p-6 text-center hover:shadow-lg transition-all duration-300 hover:scale-105">
-              <div className="w-12 h-12 bg-gradient-to-br from-yellow-500 to-yellow-600 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:animate-bounce">
-                <Star className="h-6 w-6 text-white" />
-              </div>
-              <div className="text-3xl font-bold text-yellow-600 mb-2">{profileData.averageRating}</div>
-              <div className="text-sm text-yellow-700 font-medium">Średnia Ocen Uczniów</div>
-              <div className="flex items-center justify-center mt-2">
-                <Zap className="h-4 w-4 text-yellow-500 mr-1" />
-                <span className="text-xs text-yellow-600">Wysoka ocena!</span>
+              <div className="group bg-gradient-to-br from-yellow-50 via-amber-100 to-orange-100 rounded-2xl shadow-xl border-2 border-yellow-200 p-8 text-center hover:shadow-2xl transition-all duration-300 hover:scale-105">
+                <div className="w-16 h-16 bg-gradient-to-br from-yellow-500 to-orange-600 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:animate-bounce shadow-lg">
+                  <Star className="h-8 w-8 text-white" />
+                </div>
+                <div className="text-4xl font-bold text-yellow-600 mb-2">{profileData.averageRating.toFixed(1)}</div>
+                <div className="text-base text-yellow-700 font-semibold mb-3">Średnia Ocen Uczniów</div>
+                <div className="flex items-center justify-center mt-2 px-3 py-1.5 bg-pink-100 rounded-lg">
+                  <Zap className="h-4 w-4 text-pink-600 mr-1" />
+                  <span className="text-xs font-semibold text-pink-700">Wysoka ocena!</span>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
