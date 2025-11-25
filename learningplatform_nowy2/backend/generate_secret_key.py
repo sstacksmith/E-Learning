@@ -19,3 +19,6 @@ if __name__ == '__main__':
     print(secret_key)
     print("\n✅ Skopiuj powyższy klucz i ustaw jako DJANGO_SECRET_KEY na hostingu (Render)")
 
+
+
+

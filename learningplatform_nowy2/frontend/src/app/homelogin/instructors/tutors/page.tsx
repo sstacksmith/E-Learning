@@ -6,6 +6,7 @@ import { doc, getDoc, DocumentData } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import ThemeToggle from '@/components/ThemeToggle';
 
 interface Tutor {
@@ -25,6 +26,7 @@ interface Tutor {
 }
 
 const TutorViewPage: React.FC = () => {
+  const router = useRouter();
   const [tutors, setTutors] = useState<Tutor[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -229,7 +231,8 @@ const TutorViewPage: React.FC = () => {
             return (
               <div 
                 key={tutor.id} 
-                className={`bg-white/90 backdrop-blur-xl rounded-2xl shadow-lg border border-white/20 hover:shadow-xl transition-all duration-300 group ${
+                onClick={() => router.push(`/homelogin/student/teacher/${tutor.id}`)}
+                className={`bg-white/90 backdrop-blur-xl rounded-2xl shadow-lg border border-white/20 hover:shadow-xl transition-all duration-300 group cursor-pointer ${
                   isPrimary ? 'ring-2 ring-[#4067EC] ring-opacity-50' : ''
                 }`}
               >

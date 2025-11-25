@@ -467,8 +467,8 @@ function Dashboard() {
 
   // Funkcja nawigacji do profilu nauczyciela - memoizowana
   const handleTeacherClick = useCallback((teacherId: string) => {
-    // Przejdź do strony nauczycieli z możliwością filtrowania
-    router.push(`/homelogin/instructors/tutors?teacher=${teacherId}`);
+    // Przejdź do profilu nauczyciela
+    router.push(`/homelogin/student/teacher/${teacherId}`);
     setSearch('');
     setShowSearchResults(false);
   }, [router]);

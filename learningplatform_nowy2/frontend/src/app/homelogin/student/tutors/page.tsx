@@ -1,10 +1,18 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, MessageCircle, Phone, Mail, Clock, Star, User, AlertCircle } from 'lucide-react';
-import { doc, getDoc } from 'firebase/firestore';
+import { ArrowLeft, MessageCircle, Phone, Mail, Clock, Star, User, AlertCircle, Award, Calendar } from 'lucide-react';
+import { doc, getDoc, collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../../../../config/firebase';
 import { useAuth } from '../../../../context/AuthContext';
+
+interface Achievement {
+  id: string;
+  title: string;
+  description: string;
+  date: string;
+  icon: string;
+}
 
 interface Tutor {
   id: string;
@@ -20,6 +28,10 @@ interface Tutor {
     availability?: string;
   };
   isPrimary?: boolean;
+  activeCourses?: number;
+  totalStudents?: number;
+  averageRating?: number;
+  achievements?: Achievement[];
 }
 
 function StudentTutorsPageContent() {
@@ -67,6 +79,134 @@ function StudentTutorsPageContent() {
             
             if (tutorSnap.exists()) {
               const tutorData = tutorSnap.data();
+              
+              // Oblicz statystyki z Firebase jeśli nie są w dokumencie
+              let activeCourses = tutorData.activeCourses || 0;
+              let totalStudents = tutorData.totalStudents || 0;
+              let averageRating = tutorData.averageRating || 0;
+              
+              // Jeśli statystyki nie są zaktualizowane (starsze niż 1 godzina) lub nie istnieją, oblicz je
+              const statsUpdatedAt = tutorData.statsUpdatedAt;
+              const shouldRecalculate = !statsUpdatedAt || 
+                (new Date().getTime() - new Date(statsUpdatedAt).getTime()) > 3600000; // 1 godzina
+              
+              if (shouldRecalculate && tutorData.email) {
+                try {
+                  // Pobierz kursy nauczyciela
+                  const coursesCollection = collection(db, 'courses');
+                  const [coursesByEmail, coursesByUid, coursesByTeacherEmail] = await Promise.all([
+                    getDocs(query(coursesCollection, where('created_by', '==', tutorData.email))),
+                    getDocs(query(coursesCollection, where('created_by', '==', tutorId))),
+                    getDocs(query(coursesCollection, where('teacherEmail', '==', tutorData.email)))
+                  ]);
+                  
+                  const coursesMap = new Map();
+                  [coursesByEmail, coursesByUid, coursesByTeacherEmail].forEach(snapshot => {
+                    snapshot.docs.forEach(doc => {
+                      coursesMap.set(doc.id, { id: doc.id, ...doc.data() });
+                    });
+                  });
+                  activeCourses = coursesMap.size;
+                  
+                  // Pobierz uczniów
+                  const allAssignedUsers = new Set<string>();
+                  coursesMap.forEach((course: any) => {
+                    if (course.assignedUsers && Array.isArray(course.assignedUsers)) {
+                      course.assignedUsers.forEach((userId: string) => allAssignedUsers.add(userId));
+                    }
+                  });
+                  
+                  const studentsCollection = collection(db, 'users');
+                  const uniqueStudents = new Set<string>();
+                  
+                  // Dla każdego przypisanego użytkownika sprawdź czy istnieje jako student
+                  for (const userId of allAssignedUsers) {
+                    try {
+                      let studentDoc;
+                      if (userId.includes('@')) {
+                        // Jeśli to email, szukaj po email
+                        const emailQuery = query(studentsCollection, where("email", "==", userId), where("role", "==", "student"));
+                        const emailSnapshot = await getDocs(emailQuery);
+                        if (!emailSnapshot.empty) {
+                          studentDoc = emailSnapshot.docs[0];
+                        }
+                      } else {
+                        // Jeśli to ID, sprawdź bezpośrednio
+                        const userDocRef = doc(db, 'users', userId);
+                        const userDocSnap = await getDoc(userDocRef);
+                        if (userDocSnap.exists() && userDocSnap.data().role === 'student') {
+                          studentDoc = userDocSnap;
+                        }
+                      }
+                      
+                      if (studentDoc) {
+                        uniqueStudents.add(studentDoc.id);
+                      }
+                    } catch (error) {
+                      console.error(`Błąd podczas pobierania ucznia ${userId}:`, error);
+                    }
+                  }
+                  
+                  totalStudents = uniqueStudents.size;
+                  
+                  // Pobierz średnią ocenę z ankiet
+                  const surveysCollection = collection(db, 'teacherSurveys');
+                  const surveysQuery = query(surveysCollection, where('teacherId', '==', tutorId));
+                  const surveysSnapshot = await getDocs(surveysQuery);
+                  
+                  if (!surveysSnapshot.empty) {
+                    let totalScore = 0;
+                    let count = 0;
+                    
+                    surveysSnapshot.docs.forEach(doc => {
+                      const data = doc.data();
+                      if (data.averageScore && typeof data.averageScore === 'number') {
+                        totalScore += data.averageScore;
+                        count++;
+                      } else if (data.responses) {
+                        const scores = Object.values(data.responses).filter((score: any) => typeof score === 'number');
+                        if (scores.length > 0) {
+                          const avg = scores.reduce((a: number, b: number) => a + b, 0) / scores.length;
+                          totalScore += avg;
+                          count++;
+                        }
+                      }
+                    });
+                    
+                    if (count > 0) {
+                      averageRating = totalScore / count;
+                    }
+                  }
+                } catch (error) {
+                  console.error(`Błąd podczas obliczania statystyk dla tutora ${tutorId}:`, error);
+                }
+              }
+              
+              // Mock achievements - można później pobrać z Firestore
+              const mockAchievements: Achievement[] = [
+                {
+                  id: '1',
+                  title: 'Mistrz Edukacji',
+                  description: 'Za przeprowadzenie 100+ lekcji',
+                  date: '10.01.2024',
+                  icon: '🏆'
+                },
+                {
+                  id: '2',
+                  title: 'Mentor Roku',
+                  description: 'Za wysokie oceny od uczniów',
+                  date: '05.01.2024',
+                  icon: '⭐'
+                },
+                {
+                  id: '3',
+                  title: 'Innowator',
+                  description: 'Za wprowadzenie nowych metod nauczania',
+                  date: '15.12.2023',
+                  icon: '💡'
+                }
+              ];
+              
               tutorsData.push({
                 id: tutorId,
                 fullName: tutorData.fullName || tutorData.displayName || 'Brak nazwiska',
@@ -80,7 +220,11 @@ function StudentTutorsPageContent() {
                   phone: tutorData.phone || '',
                   availability: tutorData.availability || 'Pon-Pt 8:00-16:00'
                 },
-                isPrimary: tutorId === primaryTutorId
+                isPrimary: tutorId === primaryTutorId,
+                activeCourses,
+                totalStudents,
+                averageRating,
+                achievements: tutorData.achievements || mockAchievements
               });
             }
           } catch (err) {
@@ -276,6 +420,24 @@ function StudentTutorsPageContent() {
                       <p className="text-gray-600 text-sm leading-relaxed">{tutor.description}</p>
                     </div>
 
+                    {/* Stats */}
+                    {(tutor.activeCourses !== undefined || tutor.totalStudents !== undefined || tutor.averageRating !== undefined) && (
+                      <div className="grid grid-cols-3 gap-4 mb-6">
+                        <div className="text-center p-4 bg-blue-50 rounded-lg">
+                          <div className="text-2xl font-bold text-blue-600">{tutor.activeCourses || 0}</div>
+                          <div className="text-xs text-gray-600 mt-1">Kursy</div>
+                        </div>
+                        <div className="text-center p-4 bg-green-50 rounded-lg">
+                          <div className="text-2xl font-bold text-green-600">{tutor.totalStudents || 0}</div>
+                          <div className="text-xs text-gray-600 mt-1">Uczniów</div>
+                        </div>
+                        <div className="text-center p-4 bg-purple-50 rounded-lg">
+                          <div className="text-2xl font-bold text-purple-600">{(tutor.averageRating || 0).toFixed(1)}</div>
+                          <div className="text-xs text-gray-600 mt-1">Ocena</div>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Experience & Availability */}
                     <div className="grid grid-cols-2 gap-4 mb-6">
                       <div>
@@ -322,6 +484,39 @@ function StudentTutorsPageContent() {
                         </div>
                       )}
                     </div>
+
+                    {/* Achievements */}
+                    {tutor.achievements && tutor.achievements.length > 0 && (
+                      <div className="mb-6">
+                        <div className="flex items-center justify-between mb-4">
+                          <h4 className="font-semibold text-gray-800 flex items-center gap-2">
+                            <Award className="w-5 h-5 text-yellow-600" />
+                            Osiągnięcia
+                          </h4>
+                          <span className="text-xs text-gray-500">{tutor.achievements.length} odznak</span>
+                        </div>
+                        <div className="grid grid-cols-1 gap-3">
+                          {tutor.achievements.slice(0, 3).map((achievement) => (
+                            <div 
+                              key={achievement.id} 
+                              className="flex items-start gap-3 p-4 bg-gradient-to-r from-gray-50 via-blue-50 to-purple-50 rounded-xl hover:from-blue-100 hover:via-purple-100 hover:to-pink-100 transition-all duration-300 border-2 border-gray-200 hover:border-blue-400"
+                            >
+                              <div className="text-3xl">{achievement.icon}</div>
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <h5 className="font-bold text-sm text-gray-900">{achievement.title}</h5>
+                                </div>
+                                <p className="text-xs text-gray-600 mb-2">{achievement.description}</p>
+                                <div className="flex items-center gap-2">
+                                  <Calendar className="h-3 w-3 text-gray-400" />
+                                  <p className="text-xs font-medium text-gray-500">{achievement.date}</p>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
                     {/* Actions */}
                     <div className="flex gap-3">

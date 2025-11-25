@@ -31,7 +31,7 @@ if not SECRET_KEY:
     else:
         # Development - use insecure key as fallback
         SECRET_KEY = 'django-insecure-#r%j=p*5tx%*32e&af2vg1&hhb0frc%h=80)1-apfeh-pudvof'
-        print("⚠️ WARNING: Using insecure SECRET_KEY for development. Set SECRET_KEY env var for production!")
+        print("WARNING: Using insecure SECRET_KEY for development. Set SECRET_KEY env var for production!")
 
 # SECURITY WARNING: don't run with debug turned on in production!
 # DEBUG is False on production (Render), True in development

@@ -5,7 +5,7 @@ import { User, Mail, Phone, Calendar, Award, BookOpen, Users, Lock, Eye, EyeOff,
 import { useAuth } from '@/context/AuthContext';
 import { auth, db, storage } from '@/config/firebase';
 import { updateProfile, updatePassword, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
-import { doc, updateDoc, getDoc } from 'firebase/firestore';
+import { doc, updateDoc, getDoc, collection, getDocs, query, where } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
@@ -44,6 +44,7 @@ export default function TeacherProfilePage() {
   const [photoURL, setPhotoURL] = useState('');
   const [uploading, setUploading] = useState(false);
   const [hovered, setHovered] = useState(false);
+  const [previewMode, setPreviewMode] = useState(false);
 
   // Profile data state - start with empty values
   const [profileData, setProfileData] = useState<ProfileData>({
@@ -229,21 +230,139 @@ export default function TeacherProfilePage() {
   };
 
   const loadTeacherStats = useCallback(async () => {
-    if (!user?.uid) return;
+    if (!user?.uid || !user?.email) return;
     
     setLoadingStats(true);
     try {
-      const response = await fetch(`/api/users/${user.uid}/stats/`);
-      if (response.ok) {
-        const stats = await response.json();
-        setProfileData(prev => ({
-          ...prev,
-          activeCourses: stats.activeCourses || 0,
-          totalStudents: stats.totalStudents || 0,
-          averageRating: stats.averageRating || 0,
-          totalLessons: stats.totalLessons || 0
-        }));
+      console.log('Obliczanie statystyk nauczyciela z Firebase...');
+      
+      // 1. Pobierz kursy nauczyciela
+      const coursesCollection = collection(db, 'courses');
+      const [coursesByEmail, coursesByUid, coursesByTeacherEmail] = await Promise.all([
+        getDocs(query(coursesCollection, where('created_by', '==', user.email))),
+        getDocs(query(coursesCollection, where('created_by', '==', user.uid))),
+        getDocs(query(coursesCollection, where('teacherEmail', '==', user.email)))
+      ]);
+      
+      // Połącz i deduplikuj kursy
+      const coursesMap = new Map();
+      [coursesByEmail, coursesByUid, coursesByTeacherEmail].forEach(snapshot => {
+        snapshot.docs.forEach(doc => {
+          coursesMap.set(doc.id, { id: doc.id, ...doc.data() });
+        });
+      });
+      const courses = Array.from(coursesMap.values());
+      const activeCourses = courses.length;
+      
+      console.log(`Znaleziono ${activeCourses} kursów`);
+      
+      // 2. Pobierz wszystkich uczniów przypisanych do kursów nauczyciela
+      const allAssignedUsers = new Set<string>();
+      courses.forEach((course: any) => {
+        if (course.assignedUsers && Array.isArray(course.assignedUsers)) {
+          course.assignedUsers.forEach((userId: string) => allAssignedUsers.add(userId));
+        }
+      });
+      
+      // 3. Pobierz dane uczniów
+      const studentsCollection = collection(db, 'users');
+      const uniqueStudents = new Set<string>();
+      
+      // Dla każdego przypisanego użytkownika sprawdź czy istnieje jako student
+      for (const userId of allAssignedUsers) {
+        try {
+          let studentDoc;
+          if (userId.includes('@')) {
+            // Jeśli to email, szukaj po email
+            const emailQuery = query(studentsCollection, where("email", "==", userId), where("role", "==", "student"));
+            const emailSnapshot = await getDocs(emailQuery);
+            if (!emailSnapshot.empty) {
+              studentDoc = emailSnapshot.docs[0];
+            }
+          } else {
+            // Jeśli to ID, sprawdź bezpośrednio
+            const userDocRef = doc(db, 'users', userId);
+            const userDocSnap = await getDoc(userDocRef);
+            if (userDocSnap.exists() && userDocSnap.data().role === 'student') {
+              studentDoc = userDocSnap;
+            }
+          }
+          
+          if (studentDoc) {
+            uniqueStudents.add(studentDoc.id);
+          }
+        } catch (error) {
+          console.error(`Błąd podczas pobierania ucznia ${userId}:`, error);
+        }
       }
+      
+      const totalStudents = uniqueStudents.size;
+      
+      console.log(`Znaleziono ${totalStudents} unikalnych uczniów`);
+      
+      // 4. Oblicz średnią ocenę z ankiet nauczyciela
+      let averageRating = 0;
+      try {
+        const surveysCollection = collection(db, 'teacherSurveys');
+        const surveysQuery = query(surveysCollection, where('teacherId', '==', user.uid));
+        const surveysSnapshot = await getDocs(surveysQuery);
+        
+        if (!surveysSnapshot.empty) {
+          let totalScore = 0;
+          let count = 0;
+          
+          surveysSnapshot.docs.forEach(doc => {
+            const data = doc.data();
+            if (data.averageScore && typeof data.averageScore === 'number') {
+              totalScore += data.averageScore;
+              count++;
+            } else if (data.responses) {
+              // Oblicz średnią z responses
+              const scores = Object.values(data.responses).filter((score: any) => typeof score === 'number');
+              if (scores.length > 0) {
+                const avg = scores.reduce((a: number, b: number) => a + b, 0) / scores.length;
+                totalScore += avg;
+                count++;
+              }
+            }
+          });
+          
+          if (count > 0) {
+            averageRating = totalScore / count;
+          }
+        }
+      } catch (error) {
+        console.error('Błąd podczas pobierania ankiet:', error);
+      }
+      
+      console.log(`Średnia ocena: ${averageRating.toFixed(1)}`);
+      
+      // 5. Oblicz liczbę lekcji (można rozszerzyć później)
+      const totalLessons = 0; // Placeholder - można dodać logikę zliczania lekcji
+      
+      // Zaktualizuj statystyki
+      setProfileData(prev => ({
+        ...prev,
+        activeCourses,
+        totalStudents,
+        averageRating,
+        totalLessons
+      }));
+      
+      // Opcjonalnie: zapisz statystyki do dokumentu użytkownika
+      try {
+        await updateDoc(doc(db, 'users', user.uid), {
+          activeCourses,
+          totalStudents,
+          averageRating,
+          totalLessons,
+          statsUpdatedAt: new Date().toISOString()
+        });
+        console.log('Statystyki zapisane do Firestore');
+      } catch (error) {
+        console.error('Błąd podczas zapisywania statystyk:', error);
+      }
+      
     } catch (error) {
       console.error('Error loading stats:', error);
     } finally {
@@ -373,10 +492,18 @@ export default function TeacherProfilePage() {
   };
 
   useEffect(() => {
+    // Załaduj statystyki przy pierwszym załadowaniu i gdy przełączamy na zakładkę stats
     if (activeTab === 'stats') {
       loadTeacherStats();
     }
   }, [activeTab, loadTeacherStats]);
+
+  // Załaduj statystyki również przy pierwszym załadowaniu profilu (dla podglądu)
+  useEffect(() => {
+    if (user && previewMode) {
+      loadTeacherStats();
+    }
+  }, [user, previewMode, loadTeacherStats]);
 
   if (loading) {
     return (
@@ -399,15 +526,155 @@ export default function TeacherProfilePage() {
             Powrót do panelu
           </button>
           <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-            Mój Profil
+            {previewMode ? 'Podgląd Profilu (Widok Ucznia)' : 'Mój Profil'}
           </h1>
-          <div className="w-20"></div>
+          <button
+            onClick={() => setPreviewMode(!previewMode)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all duration-200 ease-in-out border ${
+              previewMode
+                ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white border-purple-500 hover:from-purple-700 hover:to-pink-700'
+                : 'bg-white/60 backdrop-blur-sm text-gray-700 border-white/20 hover:bg-white hover:shadow-lg'
+            }`}
+          >
+            <Eye className="w-4 h-4" />
+            {previewMode ? 'Wróć do edycji' : 'Podgląd jak uczeń'}
+          </button>
         </div>
       </div>
 
       <div className="px-4 sm:px-6 lg:px-8 pb-8 space-y-6">
-        {/* Profile Header Card */}
-        <div className="relative overflow-hidden bg-white rounded-2xl shadow-xl border border-gray-200">
+        {previewMode ? (
+          /* Preview Mode - Student View */
+          <div className="max-w-4xl mx-auto">
+            <div className="bg-white rounded-xl shadow-lg border border-white/20">
+              {/* Header */}
+              <div className="p-6 bg-gradient-to-r from-[#4067EC] to-[#5577FF] text-white rounded-t-xl">
+                <div className="flex items-center gap-4">
+                  {photoURL ? (
+                    <img 
+                      src={photoURL} 
+                      alt={profileData.displayName} 
+                      className="w-16 h-16 rounded-full object-cover border-2 border-white/20 shadow-lg"
+                    />
+                  ) : (
+                    <div className="w-16 h-16 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center text-2xl font-bold text-white shadow-lg">
+                      {profileData.displayName[0] || 'N'}
+                    </div>
+                  )}
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3 className="text-xl font-bold">{profileData.displayName || 'Nauczyciel'}</h3>
+                      <span className="px-2 py-1 bg-white/20 rounded-full text-xs font-medium">
+                        Nauczyciel
+                      </span>
+                    </div>
+                    <p className="text-sm opacity-90">Doświadczony nauczyciel z pasją do nauczania</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Content */}
+              <div className="p-6">
+                {/* Description */}
+                <div className="mb-6">
+                  <h4 className="font-semibold text-gray-800 mb-2">O nauczycielu</h4>
+                  <p className="text-gray-600 text-sm leading-relaxed">
+                    Doświadczony nauczyciel z pasją do nauczania. Specjalizuje się w indywidualnym podejściu do każdego ucznia.
+                  </p>
+                </div>
+
+                {/* Experience & Availability */}
+                <div className="grid grid-cols-2 gap-4 mb-6">
+                  <div>
+                    <h5 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Doświadczenie</h5>
+                    <p className="text-sm font-medium text-gray-800">5+ lat</p>
+                  </div>
+                  <div>
+                    <h5 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Dostępność</h5>
+                    <p className="text-sm font-medium text-gray-800">Pon-Pt 8:00-16:00</p>
+                  </div>
+                </div>
+
+                {/* Stats */}
+                <div className="grid grid-cols-3 gap-4 mb-6">
+                  <div className="text-center p-4 bg-blue-50 rounded-lg">
+                    <div className="text-2xl font-bold text-blue-600">{profileData.activeCourses}</div>
+                    <div className="text-xs text-gray-600 mt-1">Kursy</div>
+                  </div>
+                  <div className="text-center p-4 bg-green-50 rounded-lg">
+                    <div className="text-2xl font-bold text-green-600">{profileData.totalStudents}</div>
+                    <div className="text-xs text-gray-600 mt-1">Uczniów</div>
+                  </div>
+                  <div className="text-center p-4 bg-purple-50 rounded-lg">
+                    <div className="text-2xl font-bold text-purple-600">{profileData.averageRating.toFixed(1)}</div>
+                    <div className="text-xs text-gray-600 mt-1">Ocena</div>
+                  </div>
+                </div>
+
+                {/* Contact Info */}
+                <div className="space-y-3 mb-6">
+                  <div className="flex items-center gap-3 text-sm">
+                    <div className="w-8 h-8 bg-gradient-to-r from-gray-100 to-gray-200 rounded-lg flex items-center justify-center">
+                      <Mail className="w-4 h-4 text-gray-600" />
+                    </div>
+                    <span className="text-gray-700">{profileData.email}</span>
+                  </div>
+                  {profileData.phone && (
+                    <div className="flex items-center gap-3 text-sm">
+                      <div className="w-8 h-8 bg-gradient-to-r from-gray-100 to-gray-200 rounded-lg flex items-center justify-center">
+                        <Phone className="w-4 h-4 text-gray-600" />
+                      </div>
+                      <span className="text-gray-700">{profileData.phone}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Achievements */}
+                {achievements && achievements.length > 0 && (
+                  <div className="mb-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h4 className="font-semibold text-gray-800 flex items-center gap-2">
+                        <Award className="w-5 h-5 text-yellow-600" />
+                        Osiągnięcia
+                      </h4>
+                      <span className="text-xs text-gray-500">{achievements.length} odznak</span>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {achievements.map((achievement) => (
+                        <div 
+                          key={achievement.id} 
+                          className="flex items-start gap-3 p-4 bg-gradient-to-r from-gray-50 via-blue-50 to-purple-50 rounded-xl hover:from-blue-100 hover:via-purple-100 hover:to-pink-100 transition-all duration-300 border-2 border-gray-200 hover:border-blue-400"
+                        >
+                          <div className="text-3xl">{achievement.icon}</div>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <h5 className="font-bold text-sm text-gray-900">{achievement.title}</h5>
+                            </div>
+                            <p className="text-xs text-gray-600 mb-2">{achievement.description}</p>
+                            <div className="flex items-center gap-2">
+                              <Calendar className="h-3 w-3 text-gray-400" />
+                              <p className="text-xs font-medium text-gray-500">{achievement.date}</p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Info Banner */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <p className="text-sm text-blue-800">
+                    <strong>Uwaga:</strong> To jest podgląd profilu tak, jak widzi go uczeń. Wszystkie informacje są tylko do odczytu.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Profile Header Card */}
+            <div className="relative overflow-hidden bg-white rounded-2xl shadow-xl border border-gray-200">
           <div className="absolute inset-0 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 opacity-10"></div>
           <div className="relative p-8">
             <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
@@ -415,11 +682,12 @@ export default function TeacherProfilePage() {
               <div className="relative group">
                 <div
                   className={`relative w-32 h-32 rounded-full overflow-hidden border-4 border-white shadow-2xl transition-all duration-300 ${
-                    hovered ? 'ring-4 ring-blue-400 scale-105' : ''
+                    hovered && !previewMode ? 'ring-4 ring-blue-400 scale-105' : ''
                   }`}
-                  onMouseEnter={() => setHovered(true)}
-                  onMouseLeave={() => setHovered(false)}
-                  onClick={handlePhotoClick}
+                  onMouseEnter={() => !previewMode && setHovered(true)}
+                  onMouseLeave={() => !previewMode && setHovered(false)}
+                  onClick={!previewMode ? handlePhotoClick : undefined}
+                  style={previewMode ? { cursor: 'default' } : {}}
                 >
                   {photoURL ? (
                     <Image
@@ -438,11 +706,13 @@ export default function TeacherProfilePage() {
                       <User className="h-16 w-16 text-white" />
                     </div>
                   )}
-                  <div className={`absolute inset-0 bg-black/50 flex items-center justify-center transition-opacity duration-300 ${
-                    hovered ? 'opacity-100' : 'opacity-0'
-                  }`}>
-                    <Camera className="h-8 w-8 text-white" />
-                  </div>
+                  {!previewMode && (
+                    <div className={`absolute inset-0 bg-black/50 flex items-center justify-center transition-opacity duration-300 ${
+                      hovered ? 'opacity-100' : 'opacity-0'
+                    }`}>
+                      <Camera className="h-8 w-8 text-white" />
+                    </div>
+                  )}
                 </div>
                 {uploading && (
                   <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center">
@@ -456,9 +726,11 @@ export default function TeacherProfilePage() {
                   onChange={handlePhotoChange}
                   className="hidden"
                 />
-                <div className="absolute -bottom-2 -right-2 w-10 h-10 bg-green-500 rounded-full flex items-center justify-center border-4 border-white shadow-lg">
-                  <CheckCircle className="h-5 w-5 text-white" />
-                </div>
+                {!previewMode && (
+                  <div className="absolute -bottom-2 -right-2 w-10 h-10 bg-green-500 rounded-full flex items-center justify-center border-4 border-white shadow-lg">
+                    <CheckCircle className="h-5 w-5 text-white" />
+                  </div>
+                )}
               </div>
 
               {/* Profile Info */}
@@ -503,7 +775,7 @@ export default function TeacherProfilePage() {
         </div>
 
         {/* Message Display */}
-        {message && (
+        {!previewMode && message && (
           <div className={`p-4 rounded-xl shadow-lg border-2 flex items-center gap-3 animate-in slide-in-from-top-5 ${
             message.type === 'success' 
               ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-300 text-green-800' 
@@ -519,6 +791,7 @@ export default function TeacherProfilePage() {
         )}
 
         {/* Tabs */}
+        {!previewMode && (
         <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-2">
           <nav className="flex space-x-2">
             {[
@@ -544,8 +817,9 @@ export default function TeacherProfilePage() {
             })}
           </nav>
         </div>
+        )}
 
-        {activeTab === 'profile' && (
+        {!previewMode && activeTab === 'profile' && (
           <div className="grid lg:grid-cols-2 gap-6">
             {/* Profile Info */}
             <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-8 hover:shadow-2xl transition-all duration-300">
@@ -724,7 +998,7 @@ export default function TeacherProfilePage() {
           </div>
         )}
 
-        {activeTab === 'password' && (
+        {!previewMode && activeTab === 'password' && (
           <div className="max-w-2xl">
             <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-8">
               <div className="flex items-center mb-8">
@@ -833,7 +1107,7 @@ export default function TeacherProfilePage() {
           </div>
         )}
 
-        {activeTab === 'stats' && (
+        {!previewMode && activeTab === 'stats' && (
           <div>
             <div className="flex items-center justify-between mb-8">
               <h3 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
@@ -902,6 +1176,8 @@ export default function TeacherProfilePage() {
               </div>
             </div>
           </div>
+        )}
+          </>
         )}
       </div>
     </div>

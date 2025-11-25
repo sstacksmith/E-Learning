@@ -239,7 +239,7 @@ export default function ParentGrades() {
         Object.keys(eventsBySubject).forEach(subject => {
           const subjectEvents = eventsBySubject[subject];
           let present = 0;
-          let total = subjectEvents.length;
+          const total = subjectEvents.length;
 
           // Sprawdź obecności w eventach (jeśli mają pole attendance)
           subjectEvents.forEach((event: any) => {
