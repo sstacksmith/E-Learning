@@ -147,8 +147,8 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
           <div className="flex flex-col flex-1">
             {/* Logo */}
             <div className="flex items-center h-16 px-6 border-b border-gray-200 dark:border-gray-700">
-              <CogitoLogo size={32} className="text-blue-600 dark:text-blue-400" />
-              <span className="ml-2 text-lg font-semibold text-gray-900 dark:text-gray-100">Cogito</span>
+              <CogitoLogo size={27} className="text-blue-600 dark:text-blue-400" />
+              <span className="ml-2 text-base font-semibold text-gray-900 dark:text-gray-100">Cogito</span>
             </div>
 
             {/* Teacher Info */}
@@ -224,8 +224,8 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
               {/* Mobile Header */}
               <div className="flex items-center justify-between h-16 px-6 border-b border-gray-200 dark:border-gray-700">
                 <div className="flex items-center">
-                  <CogitoLogo size={32} className="text-blue-600 dark:text-blue-400" />
-                  <span className="ml-2 text-lg font-semibold text-gray-900 dark:text-gray-100">Cogito</span>
+                  <CogitoLogo size={27} className="text-blue-600 dark:text-blue-400" />
+                  <span className="ml-2 text-base font-semibold text-gray-900 dark:text-gray-100">Cogito</span>
                 </div>
                 <button
                   onClick={() => setSidebarOpen(false)}

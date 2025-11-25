@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { collection, getDocs, query, where, doc, getDoc, addDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db } from '@/config/firebase';
@@ -43,6 +43,9 @@ export default function ParentMessagesPage() {
   const [showHistory, setShowHistory] = useState(false);
   const [draft, setDraft] = useState<{ contactId: string | null; subject: string; content: string } | null>(null);
   const [selectedConversation, setSelectedConversation] = useState<{ contactId: string; messages: Message[] } | null>(null);
+  const [contactSearchTerm, setContactSearchTerm] = useState('');
+  const [showContactDropdown, setShowContactDropdown] = useState(false);
+  const contactDropdownRef = useRef<HTMLDivElement>(null);
 
   // Ładowanie szkicu z localStorage po załadowaniu kontaktów
   useEffect(() => {
@@ -208,6 +211,23 @@ export default function ParentMessagesPage() {
 
     fetchContacts();
   }, [user]);
+
+  // Zamykanie dropdowna po kliknięciu poza nim
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (contactDropdownRef.current && !contactDropdownRef.current.contains(event.target as Node)) {
+        setShowContactDropdown(false);
+      }
+    };
+
+    if (showContactDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showContactDropdown]);
 
   useEffect(() => {
     if (!user) return;
@@ -433,28 +453,87 @@ export default function ParentMessagesPage() {
 
             <div className="space-y-4">
               {/* Odbiorca */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+              <div className="relative" ref={contactDropdownRef}>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Odbiorca <span className="text-red-500">*</span>
                 </label>
-                <select
-                  value={selectedContact?.id || ''}
-                  onChange={(e) => {
-                    const contact = contacts.find(c => c.id === e.target.value);
-                    setSelectedContact(contact || null);
-                  }}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"
-                  required
-                >
-                  <option value="">-- Wybierz odbiorcę --</option>
-                  {contacts.map((contact) => (
-                    <option key={contact.id} value={contact.id}>
-                      {getContactDescription(contact)}
-                    </option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={selectedContact ? getContactDescription(selectedContact) : contactSearchTerm}
+                    onChange={(e) => {
+                      setContactSearchTerm(e.target.value);
+                      setShowContactDropdown(true);
+                      if (selectedContact && e.target.value !== getContactDescription(selectedContact)) {
+                        setSelectedContact(null);
+                      }
+                    }}
+                    onFocus={() => setShowContactDropdown(true)}
+                    placeholder="Wyszukaj po imieniu, nazwisku lub specjalizacji..."
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                    required
+                  />
+                  {showContactDropdown && (
+                    <div className="absolute top-full left-0 right-0 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg z-10 max-h-64 overflow-y-auto mt-1">
+                      {contacts
+                        .filter(contact => {
+                          if (!contactSearchTerm && !selectedContact) return true;
+                          const searchTerm = contactSearchTerm.toLowerCase();
+                          const name = contact.name.toLowerCase();
+                          const role = getRoleLabel(contact.role).toLowerCase();
+                          const specialization = contact.specialization?.join(' ').toLowerCase() || '';
+                          const email = contact.email?.toLowerCase() || '';
+                          
+                          return name.includes(searchTerm) || 
+                                 role.includes(searchTerm) || 
+                                 specialization.includes(searchTerm) ||
+                                 email.includes(searchTerm);
+                        })
+                        .map(contact => (
+                          <button
+                            key={contact.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedContact(contact);
+                              setContactSearchTerm('');
+                              setShowContactDropdown(false);
+                            }}
+                            className="w-full px-4 py-3 text-left hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors border-b border-gray-200 dark:border-gray-700 last:border-b-0"
+                          >
+                            <div className="font-medium text-gray-900 dark:text-gray-100">{contact.name}</div>
+                            <div className="text-sm text-gray-600 dark:text-gray-400">
+                              {getRoleLabel(contact.role)}
+                              {contact.specialization && contact.specialization.length > 0 && (
+                                <span className="ml-2">- {contact.specialization.join(', ')}</span>
+                              )}
+                            </div>
+                            {contact.email && (
+                              <div className="text-xs text-gray-500 dark:text-gray-500 mt-1">{contact.email}</div>
+                            )}
+                          </button>
+                        ))}
+                      {contacts.filter(contact => {
+                        if (!contactSearchTerm && !selectedContact) return true;
+                        const searchTerm = contactSearchTerm.toLowerCase();
+                        const name = contact.name.toLowerCase();
+                        const role = getRoleLabel(contact.role).toLowerCase();
+                        const specialization = contact.specialization?.join(' ').toLowerCase() || '';
+                        const email = contact.email?.toLowerCase() || '';
+                        
+                        return name.includes(searchTerm) || 
+                               role.includes(searchTerm) || 
+                               specialization.includes(searchTerm) ||
+                               email.includes(searchTerm);
+                      }).length === 0 && (
+                        <div className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 text-center">
+                          Brak wyników wyszukiwania
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
                 {selectedContact && !selectedContact.email && (
-                  <p className="mt-1 text-sm text-red-600">
+                  <p className="mt-1 text-sm text-red-600 dark:text-red-400">
                     ⚠️ Ten kontakt nie ma przypisanego adresu email. Wiadomość nie zostanie wysłana.
                   </p>
                 )}

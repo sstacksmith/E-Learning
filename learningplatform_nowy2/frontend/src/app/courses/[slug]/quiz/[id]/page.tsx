@@ -718,7 +718,9 @@ function QuizTakingContent() {
         {/* Wyniki quizu */}
         <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-8 mb-8">
           <div className="text-center mb-8">
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">Gratulacje! Quiz ukończony</h2>
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">
+              {grade >= 3 ? 'Gratulacje! Quiz ukończony' : 'Quiz ukończony'}
+            </h2>
             
             {/* Procent i pasek postępu */}
             <div className="mb-6">

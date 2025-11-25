@@ -200,11 +200,11 @@ function LoginPageContent() {
         >
           <div className="relative flex items-center justify-center mb-1">
             <CogitoLogo 
-              size={40}
-              className="w-10 h-10 transition-transform duration-300 group-hover:scale-110 object-contain"
+              size={34}
+              className="w-[34px] h-[34px] transition-transform duration-300 group-hover:scale-110 object-contain"
             />
           </div>
-          <span className="text-lg font-semibold text-gray-800 group-hover:text-[#4067EC] transition-colors duration-300">Cogito</span>
+          <span className="text-base font-semibold text-gray-800 group-hover:text-[#4067EC] transition-colors duration-300">Cogito</span>
         </div>
         
         {/* Theme Toggle */}

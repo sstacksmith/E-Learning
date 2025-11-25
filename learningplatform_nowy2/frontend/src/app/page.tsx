@@ -23,11 +23,11 @@ function HomeContent() {
               <div className="flex items-center cursor-pointer group" onClick={() => router.push("/")}>
                 <div className="relative overflow-hidden rounded-xl p-1.5 sm:p-2 bg-gradient-to-r from-[#4067EC] to-indigo-600 shadow-lg">
                   <CogitoLogo 
-                    size={32}
-                    className="w-6 h-6 sm:w-8 sm:h-8 transition-transform duration-300 group-hover:scale-110"
+                    size={27}
+                    className="w-5 h-5 sm:w-7 sm:h-7 transition-transform duration-300 group-hover:scale-110"
                   />
                 </div>
-                <span className="ml-2 sm:ml-3 text-xl sm:text-2xl font-bold bg-gradient-to-r from-[#4067EC] to-indigo-600 bg-clip-text text-transparent">
+                <span className="ml-2 sm:ml-3 text-lg sm:text-xl font-bold bg-gradient-to-r from-[#4067EC] to-indigo-600 bg-clip-text text-transparent">
                   COGITO
                 </span>
               </div>

@@ -138,14 +138,12 @@ function ProfilePageContent() {
             Powrót do strony głównej
           </button>
           
-          {/* Theme Toggle */}
-          <ThemeToggle />
-          
           <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
             Mój profil
           </h1>
           
-          <div className="w-20"></div> {/* Spacer dla wycentrowania */}
+          {/* Theme Toggle - po prawej stronie */}
+          <ThemeToggle />
         </div>
         </div>
 

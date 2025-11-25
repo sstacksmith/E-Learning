@@ -1076,7 +1076,7 @@ function Dashboard() {
             <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
               <Image src="/puzzleicon.png" alt="Logo" width={24} height={24} className="w-6 h-6" />
             </div>
-            <span className="text-xl font-bold">COGITO</span>
+            <span className="text-lg font-bold">COGITO</span>
           </div>
         </div>
         <nav className="flex-1 px-4 py-6 space-y-2">
